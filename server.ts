@@ -1339,7 +1339,10 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       const mapped: string[] = [];
       const findNutrient = (namePatterns: string[]) => {
         const nut = nutrients.find(n => namePatterns.some(p => (n.nutrientName || "").toLowerCase().includes(p)));
-        return nut ? `${nut.value}${nut.unitName || ""}` : null;
+        if (!nut) return null;
+        const val = Number(nut.value);
+        const cleanVal = isNaN(val) ? nut.value : Math.round(val * 100) / 100;
+        return `${cleanVal}${nut.unitName || ""}`;
       };
       const kcal = findNutrient(["energy", "calories"]);
       const protein = findNutrient(["protein"]);
@@ -1357,17 +1360,25 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
     const formatOFFNutrients = (nutriments: any): string => {
       if (!nutriments) return "No nutrients available";
       const mapped: string[] = [];
-      const kcal = nutriments["energy-kcal_100g"] !== undefined ? nutriments["energy-kcal_100g"] : (nutriments["energy_100g"] !== undefined ? Math.round(nutriments["energy_100g"] / 4.184) : null);
-      const protein = nutriments["proteins_100g"];
-      const fat = nutriments["fat_100g"];
-      const satFat = nutriments["saturated-fat_100g"];
-      const sodium = nutriments["sodium_100g"];
+      const formatVal = (val: any) => {
+        if (val === undefined || val === null) return null;
+        const num = Number(val);
+        return isNaN(num) ? val : Math.round(num * 100) / 100;
+      };
+      
+      const kcal = nutriments["energy-kcal_100g"] !== undefined 
+        ? formatVal(nutriments["energy-kcal_100g"]) 
+        : (nutriments["energy_100g"] !== undefined ? formatVal(Math.round(nutriments["energy_100g"] / 4.184)) : null);
+      const protein = formatVal(nutriments["proteins_100g"]);
+      const fat = formatVal(nutriments["fat_100g"]);
+      const satFat = formatVal(nutriments["saturated-fat_100g"]);
+      const sodium = formatVal(nutriments["sodium_100g"]);
       
       if (kcal !== null) mapped.push(`Calories: ${kcal}kcal`);
-      if (protein !== undefined) mapped.push(`Protein: ${protein}g`);
-      if (fat !== undefined) mapped.push(`Fat: ${fat}g`);
-      if (satFat !== undefined) mapped.push(`SatFat: ${satFat}g`);
-      if (sodium !== undefined) mapped.push(`Sodium: ${Math.round(sodium * 1000)}mg`);
+      if (protein !== null) mapped.push(`Protein: ${protein}g`);
+      if (fat !== null) mapped.push(`Fat: ${fat}g`);
+      if (satFat !== null) mapped.push(`SatFat: ${satFat}g`);
+      if (sodium !== null) mapped.push(`Sodium: ${Math.round(Number(sodium) * 1000)}mg`);
       return mapped.join(", ");
     };
 
@@ -2106,28 +2117,54 @@ Current User Input: "${message}"`;
         return includesIdx;
       };
 
+      const isWholeMealMatch = (name: string) => {
+        const nLower = name.trim().toLowerCase();
+        const mealNameLower = (activeMeal.name || "").trim().toLowerCase();
+        return nLower === mealNameLower || 
+               nLower === "meal" || 
+               nLower === "total" || 
+               nLower === "all" ||
+               (mealNameLower.includes(nLower) && (activeMeal.itemsBreakdown || []).every((it: any) => (it.name || "").toLowerCase() !== nLower));
+      };
+
       for (const cmd of commands) {
         const action = cmd.action;
         const itemName = cmd.itemName || "";
         const newWeight = Number(cmd.newWeightGrams) || 0;
 
         if (action === "update_weight") {
-          const targetDbId = cmd.targetDbId ? String(cmd.targetDbId) : null;
-          const idx = findItemIndex(itemName, targetDbId);
-          let item = idx !== -1 ? activeMeal.itemsBreakdown[idx] : null;
-
-          if (item) {
-            const oldWeight = Number(item.weightGrams) || 1;
-            const R = newWeight / oldWeight;
+          if (isWholeMealMatch(itemName)) {
+            const originalItems = activeMeal.itemsBreakdown || [];
+            const oldTotalWeight = originalItems.reduce((acc: number, it: any) => acc + (Number(it.weightGrams) || 0), 0) || 1;
+            const R = newWeight / oldTotalWeight;
             
-            item.weightGrams = newWeight;
-            item.calories = Number((item.calories * R).toFixed(1));
-            item.saturatedFat = Number((item.saturatedFat * R).toFixed(2));
-            item.sodium = Number((item.sodium * R).toFixed(1));
- 
-            addDebugLog(`[Modify Math] update_weight of "${item.name}" (dbId: ${item.dbId}) from ${oldWeight}g to ${newWeight}g (ratio: ${R.toFixed(3)})`);
+            activeMeal.itemsBreakdown.forEach((item: any) => {
+              const oldW = Number(item.weightGrams) || 0;
+              item.weightGrams = Math.round(oldW * R);
+              item.calories = Number((item.calories * R).toFixed(1));
+              item.saturatedFat = Number((item.saturatedFat * R).toFixed(2));
+              item.sodium = Number((item.sodium * R).toFixed(1));
+            });
+            
+            addDebugLog(`[Modify Math] update_weight of entire meal "${activeMeal.name}" from ${oldTotalWeight}g to ${newWeight}g (ratio: ${R.toFixed(3)})`);
           } else {
-            addDebugLog(`[Modify Math Warning] Could not find item "${itemName}" (targetDbId: ${targetDbId}) to update_weight.`);
+            const targetDbId = cmd.targetDbId ? String(cmd.targetDbId) : null;
+            const idx = findItemIndex(itemName, targetDbId);
+            let item = idx !== -1 ? activeMeal.itemsBreakdown[idx] : null;
+
+            if (item) {
+              const oldWeight = Number(item.weightGrams) || 1;
+              const R = newWeight / oldWeight;
+              
+              item.weightGrams = newWeight;
+              item.calories = Number((item.calories * R).toFixed(1));
+              item.saturatedFat = Number((item.saturatedFat * R).toFixed(2));
+              item.sodium = Number((item.sodium * R).toFixed(1));
+   
+              addDebugLog(`[Modify Math] update_weight of "${item.name}" (dbId: ${item.dbId}) from ${oldWeight}g to ${newWeight}g (ratio: ${R.toFixed(3)})`);
+            } else {
+              addDebugLog(`[Modify Math Warning] Could not find item "${itemName}" (targetDbId: ${targetDbId}) to update_weight.`);
+            }
           }
         } 
         else if (action === "remove_item") {
