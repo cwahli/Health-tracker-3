@@ -1817,45 +1817,7 @@ export default function LogChat({
           </div>
         )}
 
-        {/* Session/History Control Bar */}
-        <div className="bg-slate-100/60 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800/80 px-4 py-2 flex items-center justify-between text-xs shrink-0 gap-2">
-          <div className="flex items-center gap-1.5 flex-1 min-w-0">
-            <span className="text-slate-400 dark:text-slate-500 font-medium whitespace-nowrap">Session:</span>
-            {isLoadingConversations ? (
-              <span className="text-slate-400 dark:text-slate-500 font-mono animate-pulse">Loading...</span>
-            ) : (
-              <select
-                value={activeConversationId}
-                onChange={(e) => handleSwitchSession(e.target.value)}
-                className="bg-transparent hover:bg-slate-200/50 dark:hover:bg-slate-850/50 border border-slate-200 dark:border-slate-850 rounded px-2 py-0.5 font-semibold text-slate-700 dark:text-slate-200 outline-none cursor-pointer truncate max-w-[200px] flex-1 text-xs"
-              >
-                {conversationsList.map((conv) => (
-                  <option key={conv.id} value={conv.id} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100">
-                    {conv.title || 'Untitled Session'}
-                  </option>
-                ))}
-              </select>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={handleNewSession}
-              className="p-1 rounded-lg bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-600 dark:text-indigo-400 font-semibold flex items-center justify-center transition-colors shadow-sm cursor-pointer border border-indigo-500/10"
-              title="Start New Session"
-            >
-              <Plus className="w-3.5 h-3.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => handleDeleteSession(activeConversationId)}
-              className="p-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 font-semibold flex items-center justify-center transition-colors shadow-sm cursor-pointer border border-rose-500/10"
-              title="Delete Current Session"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
+
 
         {/* Chat Message Window */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50 dark:bg-slate-900/20">
@@ -2478,21 +2440,21 @@ export default function LogChat({
                           </div>
                           {msg.agentResult.comparison.comparisonTableYaml ? (
                             <div className="p-0 overflow-x-auto">
-                              <table className="w-full text-left text-xs text-slate-700 dark:text-slate-300">
-                                <thead className="bg-slate-100 dark:bg-slate-800 text-slate-500">
+                              <table className="w-full text-[11px] text-left border-collapse">
+                                <thead className="bg-slate-50 dark:bg-slate-900 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-800">
                                   <tr>
                                     {msg.agentResult.comparison.comparisonTableYaml.columns?.map((col: string, idx: number) => (
-                                      <th key={idx} className="px-3 py-2 font-semibold whitespace-nowrap">{col}</th>
+                                      <th key={idx} className="px-3 py-2.5 font-bold text-slate-600 dark:text-slate-300 font-mono text-[10px] tracking-wider uppercase whitespace-nowrap">{col}</th>
                                     ))}
                                   </tr>
                                 </thead>
-                                <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
+                                <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
                                   {msg.agentResult.comparison.comparisonTableYaml.rows?.map((row: any, idx: number) => (
-                                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
-                                      <td className="px-3 py-2 whitespace-nowrap font-medium text-slate-900 dark:text-slate-100">{row.nutrient}</td>
-                                      <td className="px-3 py-2 whitespace-nowrap">{row.foodA}</td>
-                                      <td className="px-3 py-2 whitespace-nowrap">{row.foodB}</td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-amber-600 dark:text-amber-400 font-medium">{row.target}</td>
+                                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 group">
+                                      <td className="px-3 py-2 whitespace-nowrap font-bold text-slate-900 dark:text-slate-100">{row.nutrient}</td>
+                                      <td className="px-3 py-2 whitespace-nowrap font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-100">{row.foodA}</td>
+                                      <td className="px-3 py-2 whitespace-nowrap font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-100">{row.foodB}</td>
+                                      <td className="px-3 py-2 whitespace-nowrap text-amber-600 dark:text-amber-400 font-bold">{row.target}</td>
                                     </tr>
                                   ))}
                                 </tbody>

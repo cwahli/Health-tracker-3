@@ -130,6 +130,10 @@ Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Sessi
 | 2026-07-12 | Raised RouteAgent output-token limit from 2048 to 3072 for headroom. | AI Studio (self-directed) |
 | 2026-07-12 | Conditionally delete customBiomarkers from lightProfile for food types to reduce payload size and protect privacy. | AI Studio (self-directed) |
 | 2026-07-12 | Enforced strictly-validated required properties at all nested levels of foodAnalyzeSchema to ensure Gemini outputs itemsBreakdown, risks, and healthImpact. | AI Studio (self-directed) |
+| 2026-07-12 | Removed sessions dropdown in LogChat, changed Diagnostic Modal to use Discussion Thread selection, added search text highlighting in Diagnostic Modal. | AI Studio (self-directed) |
+| 2026-07-12 | Updated Vision Scout prompt to check for cooking method and freshness. | AI Studio (self-directed) |
+| 2026-07-12 | Replaced `{` with `[` as autocomplete trigger for variable insertion in FullScreenInstructionViewer. | AI Studio (self-directed) |
+| 2026-07-12 | Updated LogChat comparison table styling to match the Clinical Calibration table style, and updated prompt schema to include Pros and Cons inside the table. | AI Studio (self-directed) |
 
 ## 10. LLM Gotchas & Lessons Learned
 ### Runaway Decimal Floats & Truncations
@@ -140,3 +144,14 @@ Solution: Enforce Type.INTEGER in the responseSchema configuration. This blocks 
 Issue: USDA database lookup matches would populate nutrients with 0 values on the server.
 Cause: The database matches mapping was using exact string matching for nutrient names, e.g. n.nutrientName === "protein". However, USDA nutrient names are things like "Protein, total", "Sodium, Na", or "Fatty acids, total saturated".
 Solution: Always use the robust extractUSDANutrientsPer100g helper which uses .includes() substring matching. Never perform exact matches for nutrient keys.
+
+## 11. Chat Component Consolidation Strategy
+**Goal**: Expand `LogChat.tsx` to handle all 13 agents, replacing isolated agent chat modals, minimizing regressions.
+**Proposed Approach**:
+1. **Agent Configuration Registry**: Create an `agentConfig.ts` file exporting a map of `AgentType` -> `{ layoutSchema, capabilities, displayNames, allowedModes }`.
+2. **Abstract Rendering**: Refactor `LogChat.tsx` so that it doesn't hardcode `if (type === 'food')` everywhere. Instead, it should query the config for which card renderer to use (e.g., `<FoodCard />` vs `<BiomarkerCard />`).
+3. **Phased Migration**:
+   - Step 1: Migrate the simplest agents first (e.g. `medical_extract`) to `LogChat.tsx` without deleting their original modals.
+   - Step 2: Implement a feature flag to toggle between the old modal and the new unified chat for that specific agent.
+   - Step 3: Gradually port complex agents (like the Biomarker Clinical Calibration). Wrap their unique tables (like `AgentResultTable`) as modular sub-components inside `LogChat.tsx`.
+4. **State Normalization**: Unify the message payload format across all agents so that `LogChat.tsx` only ever deals with a standardized `ChatMessage` interface, while parsing specific agent outputs in the backend.

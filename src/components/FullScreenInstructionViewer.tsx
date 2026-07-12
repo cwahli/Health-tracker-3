@@ -780,8 +780,8 @@ YAML Array Item Schema:
     }
 
     const cursor = e.target.selectionStart;
-    const lastOpenBrace = value.lastIndexOf('{', cursor - 1);
-    const lastCloseBrace = value.lastIndexOf('}', cursor - 1);
+    const lastOpenBrace = value.lastIndexOf('[', cursor - 1);
+    const lastCloseBrace = value.lastIndexOf(']', cursor - 1);
 
     if (lastOpenBrace !== -1 && lastOpenBrace > lastCloseBrace) {
       const query = value.substring(lastOpenBrace + 1, cursor);

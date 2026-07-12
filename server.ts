@@ -289,24 +289,32 @@ comparison: null or:
       pros: "Targeted biomarker benefits"
       cons: "Targeted biomarker risks"
   comparisonTableYaml:
-    columns: ["Nutrient", "Food A", "Food B", "Target / Warning"]
+    columns: ["Nutrient / Aspect", "Food A", "Food B", "Target / Goal"]
     rows:
       - nutrient: "Calories"
         foodA: "value"
         foodB: "value"
         target: "value"
-      - nutrient: "Top Nutrient 1"
+      - nutrient: "Top Nutrient 1 (e.g. Protein)"
         foodA: "value"
         foodB: "value"
         target: "value"
-      - nutrient: "Top Nutrient 2"
+      - nutrient: "Top Nutrient 2 (e.g. Sodium)"
         foodA: "value"
         foodB: "value"
         target: "value"
-      - nutrient: "Top Nutrient 3"
+      - nutrient: "Top Nutrient 3 (e.g. Fiber)"
         foodA: "value"
         foodB: "value"
         target: "value"
+      - nutrient: "Pros"
+        foodA: "Pro for Food A"
+        foodB: "Pro for Food B"
+        target: "-"
+      - nutrient: "Cons"
+        foodA: "Con for Food A"
+        foodB: "Con for Food B"
+        target: "-"
 `;
 }
 
@@ -1121,7 +1129,7 @@ app.get("/api/gemini/instruction-preview", async (req, res) => {
     const { agentType, biomarkersNeedingImprovement, remainingAllowance, activeMeal } = req.query;
     
     if (agentType === 'food_scout') {
-      const instruction = `You are a fast visual food identification agent. Look at the image and return a short list of plain-text search keywords for the food items you see (e.g. ['fried chicken', 'white rice', 'sambal']), plus a rough estimated weight in grams for each if visually judgeable. Do not do any nutrition or clinical analysis. Output only: { "items": [{ "keyword": string, "estimatedWeightGrams": number }] }`;
+      const instruction = `You are a fast visual food identification agent. Look at the image and return a short list of plain-text search keywords for the food items you see (e.g. ['fried chicken', 'white rice', 'sambal']), plus a rough estimated weight in grams for each if visually judgeable. Do not do any nutrition or clinical analysis. Also try to identify any clues on how it's cooked (e.g., oil cooked, fried, steamed) or freshness (e.g., fresh fish). Include these details in your keywords if helpful. Output only: { "items": [{ "keyword": string, "estimatedWeightGrams": number }] }`;
       return res.json({ instruction });
     }
 
@@ -1508,7 +1516,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       const hasImage = imagePayloads && imagePayloads.length > 0;
       if (hasImage) {
         addDebugLog(`[Vision Scout] Running Stage 3 lightweight vision scout...`);
-        const scoutSystemInstruction = `You are a fast visual food identification agent. Look at the image and return a short list of plain-text search keywords for the food items you see (e.g. ['fried chicken', 'white rice', 'sambal']), plus a rough estimated weight in grams for each if visually judgeable. Do not do any nutrition or clinical analysis. Output only: { "items": [{ "keyword": string, "estimatedWeightGrams": number }] }`;
+        const scoutSystemInstruction = `You are a fast visual food identification agent. Look at the image and return a short list of plain-text search keywords for the food items you see (e.g. ['fried chicken', 'white rice', 'sambal']), plus a rough estimated weight in grams for each if visually judgeable. Do not do any nutrition or clinical analysis. Also try to identify any clues on how it's cooked (e.g., oil cooked, fried, steamed) or freshness (e.g., fresh fish). Include these details in your keywords if helpful. Output only: { "items": [{ "keyword": string, "estimatedWeightGrams": number }] }`;
         try {
           const scoutOutput = await callUnifiedLLM({
             modelId: "gemini-3.1-flash-lite",

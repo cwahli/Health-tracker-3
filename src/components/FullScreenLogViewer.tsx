@@ -36,6 +36,7 @@ export default function FullScreenLogViewer({
   const [copiedAll, setCopiedAll] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedResponse, setSelectedResponse] = useState<string>('all');
 
   const [selectedSessionId, setSelectedSessionId] = useState(activeConversationId || '');
   const [sessionLogs, setSessionLogs] = useState<string[]>(logsArray || []);
@@ -79,8 +80,16 @@ export default function FullScreenLogViewer({
   }, [sessionLogs]);
 
   const filteredByAgent = useMemo(() => {
-    if (selectedAgent === 'all') return chunks;
-    return chunks.filter(chunk => {
+    let currentChunks = chunks;
+    if (title.includes('Diagnostic') && selectedResponse !== 'all') {
+      const idx = parseInt(selectedResponse, 10);
+      if (!isNaN(idx) && idx >= 0 && idx < currentChunks.length) {
+        currentChunks = [currentChunks[idx]];
+      }
+    }
+    
+    if (selectedAgent === 'all') return currentChunks;
+    return currentChunks.filter(chunk => {
       const lower = chunk.toLowerCase();
       if (selectedAgent === 'scout') {
         return lower.includes('vision scout') || 
@@ -103,6 +112,27 @@ export default function FullScreenLogViewer({
     const lowerSearch = searchTerm.toLowerCase();
     return filteredByAgent.filter(chunk => chunk.toLowerCase().includes(lowerSearch));
   }, [filteredByAgent, searchTerm]);
+
+  const highlightText = (text: string, highlight: string) => {
+    if (!highlight.trim()) {
+      return <span>{text}</span>;
+    }
+    const regex = new RegExp(`(${highlight.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
+    const parts = text.split(regex);
+    return (
+      <span>
+        {parts.map((part, i) =>
+          regex.test(part) ? (
+            <mark key={i} className="bg-yellow-500/40 text-yellow-100 rounded px-0.5">
+              {part}
+            </mark>
+          ) : (
+            <span key={i}>{part}</span>
+          )
+        )}
+      </span>
+    );
+  };
 
   if (!isOpen) return null;
 
@@ -158,7 +188,23 @@ export default function FullScreenLogViewer({
       {showFilters && (
         <div className="px-4 py-2.5 bg-slate-950 border-b border-slate-800/60 flex flex-wrap items-center gap-4 text-xs font-sans">
           {/* Session Filter */}
-          {conversationsList && conversationsList.length > 0 && (
+          {title.includes('Diagnostic') ? (
+            logsArray && logsArray.length > 0 && (
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Discussion Thread:</span>
+                <select
+                  value={selectedResponse}
+                  onChange={(e) => setSelectedResponse(e.target.value)}
+                  className="bg-slate-900 border border-slate-800/80 rounded-xl px-3 py-1.5 outline-none text-slate-200 font-mono focus:border-indigo-500/50 cursor-pointer shadow-sm text-xs"
+                >
+                  <option value="all">All Responses</option>
+                  {logsArray.map((_, i) => (
+                    <option key={i} value={i}>Response {i + 1}</option>
+                  ))}
+                </select>
+              </div>
+            )
+          ) : conversationsList && conversationsList.length > 0 && (
             <div className="flex items-center gap-2 shrink-0">
               <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Session:</span>
               <select
@@ -210,11 +256,14 @@ export default function FullScreenLogViewer({
             {chunks.length === 0 ? 'No logs recorded yet.' : 'No matches found.'}
           </span>
         ) : (
-          <textarea
-            readOnly
-            value={filteredChunks.join('\n\n')}
-            className="flex-1 w-full bg-slate-900/50 border border-slate-800/80 rounded-xl p-4 font-mono text-[11px] text-slate-300 leading-relaxed outline-none resize-none overflow-y-auto select-text focus:outline-none"
-          />
+          <div className="flex-1 w-full bg-slate-900/50 border border-slate-800/80 rounded-xl p-4 font-mono text-[11px] text-slate-300 leading-relaxed overflow-y-auto select-text whitespace-pre-wrap">
+            {filteredChunks.map((chunk, idx) => (
+              <React.Fragment key={idx}>
+                {idx > 0 && <div className="h-4" />}
+                {highlightText(chunk, searchTerm)}
+              </React.Fragment>
+            ))}
+          </div>
         )}
       </div>
 
