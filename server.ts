@@ -1671,7 +1671,8 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
               itemName: { type: Type.STRING, description: "Literal name of the item from the active state to change" },
               newWeightGrams: { type: Type.INTEGER, description: "New weight in grams" },
               targetDbId: { type: Type.STRING, description: "Optional exact database ID (fdcId or barcode)", nullable: true }
-            }
+            },
+            required: ["action", "itemName", "newWeightGrams", "targetDbId"]
           },
           nullable: true
         },
@@ -1707,7 +1708,8 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                     },
                     nullable: true
                   }
-                }
+                },
+                required: ["canonicalDbName", "weightGrams", "dbSource", "dbId", "labelNutrientsPerServing"]
               }
             },
             composition: { type: Type.STRING },
@@ -1718,6 +1720,18 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
             healthImpact: { type: Type.STRING },
             recommendation: { type: Type.STRING }
           },
+          required: [
+            "date",
+            "name",
+            "itemsBreakdown",
+            "composition",
+            "weightGrams",
+            "quantity",
+            "benefits",
+            "risks",
+            "healthImpact",
+            "recommendation"
+          ],
           nullable: true
         },
         comparison: {
@@ -1734,7 +1748,8 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                   suitability: { type: Type.STRING },
                   pros: { type: Type.STRING },
                   cons: { type: Type.STRING }
-                }
+                },
+                required: ["name", "weightGrams", "suitability", "pros", "cons"]
               }
             },
             comparisonTableYaml: {
@@ -1750,16 +1765,19 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                       foodA: { type: Type.STRING },
                       foodB: { type: Type.STRING },
                       target: { type: Type.STRING }
-                    }
+                    },
+                    required: ["nutrient", "foodA", "foodB", "target"]
                   }
                 }
-              }
+              },
+              required: ["columns", "rows"]
             }
           },
+          required: ["keyNutrientConcern", "foods", "comparisonTableYaml"],
           nullable: true
         }
       },
-      required: ["mode", "message"]
+      required: ["mode", "message", "modificationCommand", "foodData", "comparison"]
     };
 
     const finalSystemInstruction = customSystemInstruction || systemInstruction;

@@ -72,6 +72,12 @@ There is NO gemini-2.5-flash. Always default to Flash Lite.
 | Jul 12 | LLM output switched from YAML to JSON for reliability |
 | Jul 12 | Firestore security rules restricted to user-specific paths |
 | Jul 12 | Biomarker review endpoint implemented |
+| Jul 12 | Stopped truncation of System Instruction and User Prompt in diagnostic logs |
+| Jul 12 | Implemented sanitizeMealWeight() to defensively validate/guard meal weight entries |
+| Jul 12 | Reordered foodData schema and textual descriptions to prioritize nutrient-carrying itemsBreakdown |
+| Jul 12 | Raised RouteAgent output-token limit from 2048 to 3072 for headroom |
+| Jul 12 | Stripped customBiomarkers from lightProfile payload for food routes |
+| Jul 12 | Enforced strict required fields across all nested levels of foodAnalyzeSchema |
 
 ## 7. Task Queue
 Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Session Log).
@@ -123,6 +129,7 @@ Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Sessi
 | 2026-07-12 | Reordered foodData JSON schema and textual prompt description to prioritize itemsBreakdown, preventing data loss on truncation. | AI Studio (self-directed) |
 | 2026-07-12 | Raised RouteAgent output-token limit from 2048 to 3072 for headroom. | AI Studio (self-directed) |
 | 2026-07-12 | Conditionally delete customBiomarkers from lightProfile for food types to reduce payload size and protect privacy. | AI Studio (self-directed) |
+| 2026-07-12 | Enforced strictly-validated required properties at all nested levels of foodAnalyzeSchema to ensure Gemini outputs itemsBreakdown, risks, and healthImpact. | AI Studio (self-directed) |
 
 ## 10. LLM Gotchas & Lessons Learned
 ### Runaway Decimal Floats & Truncations
