@@ -3058,7 +3058,7 @@ export default function App() {
     if (!updatedProfile.customBiomarkers) updatedProfile.customBiomarkers = {};
 
     for (const [key, val] of Object.entries(updates)) {
-      const oldCustom = updatedProfile.customBiomarkers[key] || {};
+      const oldCustom = (updatedProfile.customBiomarkers[key] || {}) as any;
       updatedProfile.customBiomarkers[key] = {
         ...oldCustom,
         name: val.name || oldCustom.name,
@@ -3066,7 +3066,7 @@ export default function App() {
         standardMedicalGrouping: val.standardMedicalGrouping !== undefined ? val.standardMedicalGrouping : (oldCustom.standardMedicalGrouping || "By Medical Practice"),
         riskCategories: val.riskCategories !== undefined ? val.riskCategories : oldCustom.riskCategories,
         potentialMedicalConditions: val.potentialMedicalConditions !== undefined ? val.potentialMedicalConditions : oldCustom.potentialMedicalConditions
-      };
+      } as any;
       hasChanges = true;
     }
 
@@ -3282,8 +3282,9 @@ export default function App() {
               name: srcKey.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
               unit: '',
               normalRange: '',
+              description: '',
               standardMedicalGrouping: 'By Medical Practice' // Giving it a grouping marks it as approved
-            };
+            } as any;
           } else if (!updatedCustomBiomarkers[srcKey].standardMedicalGrouping) {
             updatedCustomBiomarkers[srcKey].standardMedicalGrouping = 'By Medical Practice';
           }
@@ -3748,7 +3749,7 @@ export default function App() {
             onChangeModelId={setSelectedModelId}
             onGenerateReport={handleGenerateReport}
             isGenerating={isGenerating}
-            onNavigateToTab={setActiveTab}
+            onNavigateToTab={setActiveTab as any}
                         onOpenMedicalChat={() => setIsMedicalChatOpen(true)}
             onUpdateProfile={async (updatedProfile) => {
               setProfile(updatedProfile);
@@ -4312,7 +4313,7 @@ export default function App() {
             
             if (agentResult.reviewedBiomarkers && Array.isArray(agentResult.reviewedBiomarkers)) {
               agentResult.reviewedBiomarkers.forEach((bm: any) => {
-                const existing = updatedCustoms[bm.key] || {};
+                const existing = (updatedCustoms[bm.key] || {}) as any;
                 updatedCustoms[bm.key] = {
                   ...existing,
                   name: bm.name || existing.name,

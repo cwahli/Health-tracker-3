@@ -592,10 +592,10 @@ export default function TrendsTab({
 
             <div className="h-60 w-full text-xs">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 5 }} onClick={(e) => {
+                <LineChart data={chartData} margin={{ top: 10, right: 10, left: -25, bottom: 5 }} onClick={(e: any) => {
                   if (e && e.activeLabel) {
-                    if (selectedDate === e.activeLabel) setSelectedDate(null);
-                    else setSelectedDate(e.activeLabel);
+                    if (selectedDate === String(e.activeLabel)) setSelectedDate(null);
+                    else setSelectedDate(String(e.activeLabel));
                   } else {
                     setSelectedDate(null);
                   }

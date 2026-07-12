@@ -718,7 +718,7 @@ export default function InsightsTab({
     setExpandedAgentHistory(prev => ({ ...prev, [agentType]: !prev[agentType] }));
   };
 
-  const handleApproveBatchStep1 = async (bIdx: number, result: any) => {
+  const handleApproveBatchStep1 = async (bIdx: string | number, result: any) => {
     // Parse the cleaned YAML
     const yamlText = result ? (result.extractedYaml || result) : '';
     let parsedRows: any[] = [];
@@ -2239,7 +2239,7 @@ export default function InsightsTab({
                                     >
                                       <div className="min-w-0 flex-1">
                                         <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-                                          <span>{isCustom ? 'Custom Test Batch' : `Batch ${parseInt(bIdx as string) + 1}`}</span>
+                                          <span>{isCustom ? 'Custom Test Batch' : `Batch ${bIdx + 1}`}</span>
                                           <span 
                                             className="text-[10px] font-mono text-slate-400 font-normal"
                                             style={{ fontVariant: 'small-caps' }}

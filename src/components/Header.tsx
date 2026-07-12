@@ -72,7 +72,7 @@ interface HeaderProps {
   onSaveProfile?: (p: UserProfile) => Promise<void>;
   hideSensitive: boolean;
   setHideSensitive: (h: boolean) => void;
-  syncState: 'synced' | 'syncing' | 'local';
+  syncState: 'synced' | 'syncing' | 'local' | 'conflict';
   onSignOut: () => void;
   onCloudSync?: () => Promise<void>;
   onForcePush?: () => Promise<void>;
@@ -460,7 +460,9 @@ export default function Header({
                 )}
                 {syncState === 'local' && (
                   localStorage.getItem('firestore_quota_exceeded') === 'true' ? (
-                    <CloudLightning className="w-5 h-5 text-amber-500 animate-pulse" title="Firestore Quota Exceeded - Offline Mode Only" />
+                    <span title="Firestore Quota Exceeded - Offline Mode Only">
+                      <CloudLightning className="w-5 h-5 text-amber-500 animate-pulse" />
+                    </span>
                   ) : (
                     <CloudLightning className="w-5 h-5 text-slate-400 dark:text-slate-500" />
                   )

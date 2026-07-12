@@ -134,6 +134,7 @@ Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Sessi
 | 2026-07-12 | Updated Vision Scout prompt to check for cooking method and freshness. | AI Studio (self-directed) |
 | 2026-07-12 | Replaced `{` with `[` as autocomplete trigger for variable insertion in FullScreenInstructionViewer. | AI Studio (self-directed) |
 | 2026-07-12 | Updated LogChat comparison table styling to match the Clinical Calibration table style, and updated prompt schema to include Pros and Cons inside the table. | AI Studio (self-directed) |
+| 2026-07-12 | Began Chat Component Consolidation Strategy: created `agentConfig.ts` with AGENT_REGISTRY containing all 13 agents, refactored `LogChat.tsx` to accept AgentType and generate welcome messages dynamically from the registry. | AI Studio (self-directed) |
 
 ## 10. LLM Gotchas & Lessons Learned
 ### Runaway Decimal Floats & Truncations

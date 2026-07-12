@@ -43,8 +43,9 @@ const getSessionId = (): string => {
 
 interface ChatMessage {
   id: string;
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'model';
   content: string;
+  suggestedMapping?: { [key: string]: string };
 }
 
 const ensureCustomRanges = (
@@ -1093,6 +1094,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
       const result = await res.json();
 
       setChatMessages(prev => [...prev, {
+        id: `assistant_${Date.now()}`,
         role: 'model',
         content: result.text,
         suggestedMapping: result.suggestedMapping
@@ -1100,6 +1102,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
     } catch (e: any) {
       console.error(e);
       setChatMessages(prev => [...prev, {
+        id: `error_${Date.now()}`,
         role: 'model',
         content: `Error communicating with Route Agent: ${e.message || "Unknown error"}. Please check your connection and try again.`
       }]);
@@ -1679,6 +1682,9 @@ I can analyze these, compare them with our database keys, and find standard mapp
       recommendedUniqueKey: string;
       masterKey: string;
       excludedKeys: { [key: string]: boolean };
+      unit?: string;
+      normalRange?: string;
+      description?: string;
     }
   }>({});
 
@@ -1735,8 +1741,8 @@ I can analyze these, compare them with our database keys, and find standard mapp
       if (!res.ok) throw new Error("Failed to contact name consolidation agent");
       const data = await res.json();
       
-      setConsolidationYaml(JSON.stringify(parsed, null, 2));
       const parsed = data.consolidatedGroups || data.groups || [];
+      setConsolidationYaml(JSON.stringify(parsed, null, 2));
       setConsolidationGroups(parsed);
 
       const newAnalysis = {
@@ -1763,7 +1769,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
       parsed.forEach((group: any, idx: number) => {
         const firstKey = group.biomarkers?.[0]?.key || group.recommendedUniqueKey || '';
         const masterBio = group.biomarkers?.[0] || {};
-        const origMasterDef = profile.customBiomarkers?.[masterBio.key] || biomarkerDefinitions.find((def: any) => def.key === masterBio.key) || {};
+        const origMasterDef = profile.customBiomarkers?.[masterBio.key] || biomarkerDefinitions.find((def: any) => def.key === masterBio.key) || {} as any;
         initialEdits[idx] = {
           recommendedClinicalName: group.recommendedClinicalName || group.groupName || '',
           recommendedUniqueKey: group.recommendedUniqueKey || '',
@@ -1817,7 +1823,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
 
         const masterBio = includedBiomarkers.find((b: any) => b.key === edits.masterKey) || includedBiomarkers[0];
         
-        const origMasterDef = profile.customBiomarkers?.[masterBio.key] || biomarkerDefinitions.find((def: any) => def.key === masterBio.key) || {};
+        const origMasterDef = profile.customBiomarkers?.[masterBio.key] || biomarkerDefinitions.find((def: any) => def.key === masterBio.key) || {} as any;
         const targetDef = {
           name: targetName,
           unit: masterBio?.unit || '',

@@ -626,7 +626,6 @@ export default function MedicalHistoryTab({
                               onDeleteBiomarkerLog={onDeleteBiomarkerLog}
                               onDeleteBiomarkerFromLog={onDeleteBiomarkerFromLog}
                               onDeleteBiomarker={onDeleteBiomarker}
-          onDeleteMultipleBiomarkers={onDeleteMultipleBiomarkers}
                               onOpenAiReview={setReviewingBiomarkerKey}
                               onCombineBiomarker={setCombineBiomarkerKey}
                               onApplyCalculation={onApplyCalculation}

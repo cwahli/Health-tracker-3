@@ -22,6 +22,7 @@ import { Agent5View, Agent6View, Agent7View } from './AgentResultViews';
 import { AgentResultTable } from './AgentResultTable';
 import { resolveFoodImage } from '../utils/imageResolver';
 import { NutrientPieChart } from './NutrientPieChart';
+import { AgentType, AGENT_REGISTRY } from '../utils/agentConfig';
 
 interface BiomarkerEntry {
   biomarker: string;
@@ -338,7 +339,7 @@ function detectBiomarkersInText(text: string): string[] {
 
 interface LogChatProps {
   key?: string;
-  type: 'food' | 'medical' | 'food_idea' | 'daily_recommendation';
+  type: AgentType;
   profile?: UserProfile | null;
   isOpen: boolean;
   selectedModelId: string;
@@ -2184,8 +2185,8 @@ export default function LogChat({
 
                   const isAss = msg.role === 'assistant';
                   if (isAss) {
-                    const currentFormat = type === 'food' ? 'card' : (messageFormats[msg.id] || 'prose');
-                    const hasFormattingOptions = !!(msg.pendingFoodLog || msg.agentResult || msg.pendingFoodIdeas) && type !== 'food';
+                    const currentFormat = messageFormats[msg.id] || (type === 'food' ? 'card' : 'prose');
+                    const hasFormattingOptions = !!(msg.pendingFoodLog || msg.agentResult || msg.pendingFoodIdeas);
 
                   return (
                 <div
@@ -2359,8 +2360,8 @@ export default function LogChat({
                   {type === 'food' && msg.agentResult && msg.agentResult.mode === 'evaluation' && msg.agentResult.comparison && currentFormat === 'card' && (
                     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden">
                       <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2 gap-2">
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate min-w-0 flex items-center gap-1.5">
-                          ⚖️ Comparison: <span className="text-indigo-600 dark:text-indigo-400 font-bold">{msg.agentResult.comparison.keyNutrientConcern || 'Nutrients of Concern'}</span>
+                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm break-words flex flex-wrap items-center gap-1.5 w-full">
+                          <span className="shrink-0">⚖️ Comparison:</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold break-words">{msg.agentResult.comparison.keyNutrientConcern || 'Nutrients of Concern'}</span>
                         </h4>
                       </div>
 

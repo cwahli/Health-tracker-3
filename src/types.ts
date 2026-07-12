@@ -335,6 +335,9 @@ export interface ChatMessage {
     range: string;
     description: string;
     benefitRisk: string;
+    isDuplicate?: boolean;
+    duplicateExplanation?: string;
+    duplicateSuggestedKeys?: string[];
   };
   agentType?: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review' | null;
   agentTypeStep?: string;

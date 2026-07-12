@@ -172,7 +172,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
   const [diffExpanded, setDiffExpanded] = useState(false);
   const [sortField, setSortField] = useState<string>('default');
   const [sortAsc, setSortAsc] = useState<boolean>(true);
-  const [statusSortCategory, setStatusSortCategory] = useState<'atRisk' | 'isNew' | 'changed' | 'synced' | 'merged' | 'toDelete' | null>(null);
+  const [statusSortCategory, setStatusSortCategory] = useState<'atRisk' | 'isNew' | 'changed' | 'synced' | 'merged' | 'toDelete' | 'isMissing' | null>(null);
 
   const [unselectedRowKeys, setUnselectedRowKeys] = useState<string[]>([]);
   const [localSelectedMissingKeys, setLocalSelectedMissingKeys] = useState<string[]>(() => {
@@ -553,7 +553,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           const valueNum = parseFloat(parsed.value);
           
           let isAtRisk = false;
-          if (agentType !== 'medical_extract' && agentType !== 'agent1' && !isNaN(valueNum) && normalRange) {
+          if (false) {
             const rangeMatch = normalRange.match(/([\d.]+)\s*-\s*([\d.]+)/);
             if (rangeMatch) {
               const min = parseFloat(rangeMatch[1]);
@@ -570,7 +570,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           
           const newGroup = parsed.standardMedicalGrouping || 'Other';
           const oldGroup = customDef?.standardMedicalGrouping || 'Other';
-          const isGroupChanged = (agentType === 'agent1' || agentType === 'medical_extract') ? false : (!!customDef && newGroup !== oldGroup);
+          const isGroupChanged = false;
           const oldRiskCategories = customDef?.riskCategories || [];
           const isRiskChanged = !!customDef && JSON.stringify([...(parsed.riskCategories || [])].sort()) !== JSON.stringify([...oldRiskCategories].sort());
           const oldConditions = customDef?.potentialMedicalConditions || [];
@@ -810,7 +810,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
         const valueNum = parseFloat(row.value);
         let isAtRisk = false;
         
-        if (agentType !== 'medical_extract' && agentType !== 'agent1' && !isNaN(valueNum) && normalRange) {
+        if (false) {
           const rangeMatch = normalRange.match(/([\d.]+)\s*-\s*([\d.]+)/);
           if (rangeMatch) {
             const min = parseFloat(rangeMatch[1]);
@@ -828,7 +828,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
         }
         const newGroup = row.standardMedicalGrouping || 'Other';
         const oldGroup = customDef?.standardMedicalGrouping || 'Other';
-        const isGroupChanged = (agentType === 'agent1' || agentType === 'medical_extract') ? false : (!!customDef && newGroup !== oldGroup);
+        const isGroupChanged = false;
 
         const isSameUnit = (unit1: string, unit2: string) => {
           if (!unit1 || !unit2) return unit1 === unit2;
@@ -1001,7 +1001,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
         const valueNum = parseFloat(row.value);
         let isAtRisk = false;
         
-        if (agentType !== 'medical_extract' && agentType !== 'agent1' && !isNaN(valueNum) && normalRange) {
+        if (false) {
           const rangeMatch = normalRange.match(/([\d.]+)\s*-\s*([\d.]+)/);
           if (rangeMatch) {
             const min = parseFloat(rangeMatch[1]);
@@ -1019,7 +1019,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
         }
         const newGroup = row.standardMedicalGrouping || 'Other';
         const oldGroup = customDef?.standardMedicalGrouping || 'Other';
-        const isGroupChanged = (agentType === 'agent1' || agentType === 'medical_extract') ? false : (!!customDef && newGroup !== oldGroup);
+        const isGroupChanged = false;
 
         const isSameUnit = (unit1: string, unit2: string) => {
           if (!unit1 || !unit2) return unit1 === unit2;
