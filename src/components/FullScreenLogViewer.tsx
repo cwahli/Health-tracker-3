@@ -15,6 +15,7 @@ interface FullScreenLogViewerProps {
   eventsCount?: number;
   conversationsList?: { id: string; title: string }[];
   activeConversationId?: string;
+  showFilters?: boolean;
 }
 
 export default function FullScreenLogViewer({
@@ -29,7 +30,8 @@ export default function FullScreenLogViewer({
   onClearLogs,
   eventsCount,
   conversationsList,
-  activeConversationId
+  activeConversationId,
+  showFilters = false
 }: FullScreenLogViewerProps) {
   const [copiedAll, setCopiedAll] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
@@ -153,51 +155,53 @@ export default function FullScreenLogViewer({
       </div>
 
       {/* Filters & Selector Panel */}
-      <div className="px-4 py-2.5 bg-slate-950 border-b border-slate-800/60 flex flex-wrap items-center gap-4 text-xs font-sans">
-        {/* Session Filter */}
-        {conversationsList && conversationsList.length > 0 && (
+      {showFilters && (
+        <div className="px-4 py-2.5 bg-slate-950 border-b border-slate-800/60 flex flex-wrap items-center gap-4 text-xs font-sans">
+          {/* Session Filter */}
+          {conversationsList && conversationsList.length > 0 && (
+            <div className="flex items-center gap-2 shrink-0">
+              <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Session:</span>
+              <select
+                value={selectedSessionId}
+                onChange={(e) => handleSessionChange(e.target.value)}
+                className="bg-slate-900 border border-slate-800/80 rounded-xl px-3 py-1.5 outline-none text-slate-200 font-mono focus:border-indigo-500/50 cursor-pointer shadow-sm text-xs"
+              >
+                {conversationsList.map((conv) => (
+                  <option key={conv.id} value={conv.id}>
+                    {conv.title || 'Untitled Session'}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {/* Agent Filter */}
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Session:</span>
+            <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Agent:</span>
             <select
-              value={selectedSessionId}
-              onChange={(e) => handleSessionChange(e.target.value)}
+              value={selectedAgent}
+              onChange={(e) => setSelectedAgent(e.target.value as any)}
               className="bg-slate-900 border border-slate-800/80 rounded-xl px-3 py-1.5 outline-none text-slate-200 font-mono focus:border-indigo-500/50 cursor-pointer shadow-sm text-xs"
             >
-              {conversationsList.map((conv) => (
-                <option key={conv.id} value={conv.id}>
-                  {conv.title || 'Untitled Session'}
-                </option>
-              ))}
+              <option value="all">All Agents / Process Steps</option>
+              <option value="scout">Visual Food Scout (Image Classifier)</option>
+              <option value="dietitian">Clinical Dietitian AI</option>
             </select>
           </div>
-        )}
 
-        {/* Agent Filter */}
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Agent:</span>
-          <select
-            value={selectedAgent}
-            onChange={(e) => setSelectedAgent(e.target.value as any)}
-            className="bg-slate-900 border border-slate-800/80 rounded-xl px-3 py-1.5 outline-none text-slate-200 font-mono focus:border-indigo-500/50 cursor-pointer shadow-sm text-xs"
-          >
-            <option value="all">All Agents / Process Steps</option>
-            <option value="scout">Visual Food Scout (Image Classifier)</option>
-            <option value="dietitian">Clinical Dietitian AI</option>
-          </select>
+          {/* Inline Mobile Search */}
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+            <input
+              type="text"
+              placeholder="Search logs contents..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-800/80 rounded-xl pl-9 pr-4 py-1.5 text-xs font-mono text-slate-200 outline-none focus:border-indigo-500/50 transition-all placeholder:text-slate-600 shadow-sm"
+            />
+          </div>
         </div>
-
-        {/* Inline Mobile Search */}
-        <div className="relative flex-1 min-w-[200px]">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-          <input
-            type="text"
-            placeholder="Search logs contents..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-slate-900 border border-slate-800/80 rounded-xl pl-9 pr-4 py-1.5 text-xs font-mono text-slate-200 outline-none focus:border-indigo-500/50 transition-all placeholder:text-slate-600 shadow-sm"
-          />
-        </div>
-      </div>
+      )}
 
       {/* Content Area */}
       <div className="flex-1 mx-[10px] py-4 bg-transparent flex flex-col min-h-0">

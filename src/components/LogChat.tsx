@@ -3430,6 +3430,9 @@ export default function LogChat({
         logsSendStatus={debugLogsSendStatus}
         onClearLogs={handleClearDebugLogs}
         eventsCount={debugLogs.length}
+        conversationsList={conversationsList}
+        activeConversationId={activeConversationId || undefined}
+        showFilters={true}
       />
     </div>
   );

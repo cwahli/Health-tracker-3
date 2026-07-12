@@ -117,7 +117,7 @@ Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Sessi
 | 2026-07-12 | Completed Step 2 (exact server-side nutrient lookup & kJ conversion), Step 3 (system prompt log reduction), and Step 4 (Vision Scout itemsBreakdown truncation fallback). | AI Studio (self-directed) |
 | 2026-07-12 | Fixed food log card display not updating on weight modification (implemented mode: modify on server & setMessages reactivity on frontend). | AI Studio (self-directed) |
 | 2026-07-12 | Fixed Food Weight Schema types to Type.INTEGER / Type.NUMBER, unified USDA/OFF extraction using robust helpers, and prioritized dbMatchMap lookup. | AI Studio (self-directed) |
-| 2026-07-12 | Fixed whole-meal weight modify scaling bug (prevents single-ingredient mapping) and rounded USDA/OFF prompt numbers to prevent LLM repetition bug. | AI Studio (self-directed) |
+| 2026-07-12 | Fixed whole-meal weight modify scaling bug, rounded raw USDA/OFF search numbers to block repetition loops, and scoped dropdown filters exclusively to Diagnostic Logs. | AI Studio (self-directed) |
 
 ## 10. LLM Gotchas & Lessons Learned
 ### Runaway Decimal Floats & Truncations
