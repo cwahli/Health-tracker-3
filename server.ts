@@ -267,6 +267,12 @@ modificationCommand: null or list of:
 foodData: null or:
   date: "YYYY-MM-DD (Dynamically set based on provided current time context)"
   name: "Literal food name"
+  itemsBreakdown:
+    - canonicalDbName: "Standardized target food name"
+      weightGrams: "A whole INTEGER, e.g. 120."
+      dbSource: "usda" | "off" | "estimated" | "label"
+      dbId: "the fdcId or barcode, or null if estimated"
+      labelNutrientsPerServing: "(only populate this if dbSource is 'label', otherwise set to null; if populated, must be an object with number values for servingSizeGrams, calories, protein, totalFat, saturatedFat, transFat, carbohydrates, addedSugar, sodium, potassium, totalFibre, solubleFibre)"
   composition: "Brief operational summary of food ingredients"
   weightGrams: "A whole INTEGER. Round to nearest whole number, e.g. 150."
   quantity: "Visual descriptive serving size (e.g., 1 medium, 2 skewers)"
@@ -274,12 +280,6 @@ foodData: null or:
   risks: "Explicit clinical risk warnings mapped to the patient's injected biomarker rules, plus universal Trans Fat warnings if applicable"
   healthImpact: "Clear evaluation against remaining daily macro/micro targets"
   recommendation: "Short, contextual tag (e.g., 'Best today', 'Heart-healthy', 'Caution: High Sodium', 'Perfect for target')"
-  itemsBreakdown:
-    - canonicalDbName: "Standardized target food name"
-      weightGrams: "A whole INTEGER, e.g. 120."
-      dbSource: "usda" | "off" | "estimated" | "label"
-      dbId: "the fdcId or barcode, or null if estimated"
-      labelNutrientsPerServing: "(only populate this if dbSource is 'label', otherwise set to null; if populated, must be an object with number values for servingSizeGrams, calories, protein, totalFat, saturatedFat, transFat, carbohydrates, addedSugar, sodium, potassium, totalFibre, solubleFibre)"
 comparison: null or:
   keyNutrientConcern: "The specific nutrient string causing primary clinical concern for this profile session"
   foods:
@@ -389,6 +389,16 @@ function addDebugLog(msg: string, explicitSessionId?: string) {
   if (globalDebugLogs.length > 2000) {
     globalDebugLogs.shift();
   }
+}
+
+// Defensive numeric guard for weight values coming from LLM output.
+// Number(x) alone is not safe here: an overlong digit string overflows to
+// Infinity, and "Infinity || fallback" still evaluates to Infinity because
+// Infinity is truthy. This rejects non-finite and unreasonably large values.
+function sanitizeMealWeight(value: any, fallback: number, maxGrams: number = 10000): number {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n <= 0 || n > maxGrams) return fallback;
+  return Math.round(n);
 }
 
 // Helper to retrieve the Google Maps Place ID from business name & location
@@ -749,8 +759,8 @@ async function callUnifiedLLM({
   let finalResponseText = "{}";
   addDebugLog(`[UnifiedLLM] Dispatching prompt to model: "${targetGeminiModel}". Contents turns: ${contents.length}.`);
   addDebugLog(`[UnifiedLLM] Attaching ${imagePayloads?.length || (imagePayload ? 1 : 0)} image part(s) to model "${targetGeminiModel}".`);
-  addDebugLog(`[UnifiedLLM-Prompt] System Instruction:\n${resolvedInstruction.substring(0, 300)}... [truncated, full prompt in memory]`);
-  addDebugLog(`[UnifiedLLM-Prompt] User Prompt:\n${promptText.substring(0, 300)}... [truncated]`);
+  addDebugLog(`[UnifiedLLM-Prompt] System Instruction:\n${resolvedInstruction}`);
+  addDebugLog(`[UnifiedLLM-Prompt] User Prompt:\n${promptText}`);
   try {
     let response = await ai.models.generateContent({
       model: targetGeminiModel,
@@ -1670,13 +1680,6 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
           properties: {
             date: { type: Type.STRING, description: "YYYY-MM-DD" },
             name: { type: Type.STRING },
-            composition: { type: Type.STRING },
-            weightGrams: { type: Type.INTEGER, description: "Portion weight in grams" },
-            quantity: { type: Type.STRING },
-            benefits: { type: Type.STRING },
-            risks: { type: Type.STRING },
-            healthImpact: { type: Type.STRING },
-            recommendation: { type: Type.STRING },
             itemsBreakdown: {
               type: Type.ARRAY,
               items: {
@@ -1706,7 +1709,14 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                   }
                 }
               }
-            }
+            },
+            composition: { type: Type.STRING },
+            weightGrams: { type: Type.INTEGER, description: "Portion weight in grams" },
+            quantity: { type: Type.STRING },
+            benefits: { type: Type.STRING },
+            risks: { type: Type.STRING },
+            healthImpact: { type: Type.STRING },
+            recommendation: { type: Type.STRING }
           },
           nullable: true
         },
@@ -1813,7 +1823,7 @@ Current User Input: "${message}"`;
       imagePayloads,
       responseMimeType: "application/json",
       responseSchema: foodAnalyzeSchema,
-      maxOutputTokens: 2048 // Prevent truncation - food log JSON rarely needs more
+      maxOutputTokens: 3072 // Raised from 2048 (Jul 12) for headroom now that itemsBreakdown is emitted earlier in the schema; still capped, not removed
     };
 
     let textOutput: string;
@@ -1847,7 +1857,7 @@ Current User Input: "${message}"`;
       if (comparisonData && comparisonData.foods && Array.isArray(comparisonData.foods)) {
         comparisonData.foods.forEach((food: any) => {
           if (food.weightGrams !== undefined) {
-            food.weightGrams = Number(food.weightGrams) || 0;
+            food.weightGrams = sanitizeMealWeight(food.weightGrams, 0);
           }
         });
       }
@@ -1904,7 +1914,7 @@ Current User Input: "${message}"`;
             );
             return {
               canonicalDbName: item.keyword,
-              weightGrams: String(Math.round(item.estimatedWeightGrams || 100)),
+              weightGrams: String(sanitizeMealWeight(item.estimatedWeightGrams, 100)),
               dbSource: bestMatch ? (bestMatch.source === 'usda' ? 'usda' : 'off') : 'estimated',
               dbId: bestMatch ? bestMatch.id : null,
               labelNutrientsPerServing: null
@@ -1926,7 +1936,7 @@ Current User Input: "${message}"`;
       parsedData.date = sanitizeString(rawFoodData.date, new Date().toISOString().split("T")[0]);
       parsedData.composition = sanitizeString(rawFoodData.composition, "Unspecified ingredients");
       
-      const totalWeightGrams = Number(rawFoodData.weightGrams) || 150;
+      const totalWeightGrams = sanitizeMealWeight(rawFoodData.weightGrams, 150);
       parsedData.weightGrams = totalWeightGrams;
       parsedData.quantity = sanitizeString(rawFoodData.quantity, "1 serving");
       parsedData.benefits = sanitizeString(rawFoodData.benefits, "Provides foundational vitamins, minerals, and macronutrients.");
@@ -1952,7 +1962,7 @@ Current User Input: "${message}"`;
       if (rawFoodData.itemsBreakdown && Array.isArray(rawFoodData.itemsBreakdown) && rawFoodData.itemsBreakdown.length > 0) {
         parsedData.itemsBreakdown = rawFoodData.itemsBreakdown.map((item: any) => {
           const canonicalName = sanitizeString(item.canonicalDbName || item.name, "Unspecified Item");
-          const itemWeight = Number(item.weightGrams) || Math.round(totalWeightGrams / rawFoodData.itemsBreakdown.length);
+          const itemWeight = sanitizeMealWeight(item.weightGrams, Math.round(totalWeightGrams / rawFoodData.itemsBreakdown.length));
           const dbSource = sanitizeString(item.dbSource, "estimated");
           const dbId = item.dbId !== undefined && item.dbId !== null ? String(item.dbId) : null;
           
@@ -2130,7 +2140,7 @@ Current User Input: "${message}"`;
       for (const cmd of commands) {
         const action = cmd.action;
         const itemName = cmd.itemName || "";
-        const newWeight = Number(cmd.newWeightGrams) || 0;
+        const newWeight = sanitizeMealWeight(cmd.newWeightGrams, 0);
 
         if (action === "update_weight") {
           if (isWholeMealMatch(itemName)) {

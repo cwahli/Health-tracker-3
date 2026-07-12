@@ -1127,6 +1127,15 @@ export default function LogChat({
         delete lightProfile.agentAnalyses;
         delete lightProfile.agentContextualizerSummary;
         delete lightProfile.stripeSubscriptionId;
+        // customBiomarkers (full lab results) is never read by the food-analyze
+        // or food-idea backend endpoints — only age/gender/weight/height/ethnicity
+        // are used, plus the separately-sent, pre-filtered biomarkersNeedingImprovement.
+        // Stop sending it for these two request types to shrink the payload and
+        // avoid exposing irrelevant lab data (e.g. unrelated screening results)
+        // in agent request logs.
+        if (type === 'food' || type === 'food_idea') {
+          delete lightProfile.customBiomarkers;
+        }
       }
 
       const revIdx = [...messages].reverse().findIndex(m => m.id.startsWith('welcome_'));

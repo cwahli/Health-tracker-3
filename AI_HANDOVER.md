@@ -118,6 +118,11 @@ Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Sessi
 | 2026-07-12 | Fixed food log card display not updating on weight modification (implemented mode: modify on server & setMessages reactivity on frontend). | AI Studio (self-directed) |
 | 2026-07-12 | Fixed Food Weight Schema types to Type.INTEGER / Type.NUMBER, unified USDA/OFF extraction using robust helpers, and prioritized dbMatchMap lookup. | AI Studio (self-directed) |
 | 2026-07-12 | Fixed whole-meal weight modify scaling bug, rounded raw USDA/OFF search numbers to block repetition loops, and scoped dropdown filters exclusively to Diagnostic Logs. | AI Studio (self-directed) |
+| 2026-07-12 | Stopped truncation of System Instruction and User Prompt in diagnostic logs. | AI Studio (self-directed) |
+| 2026-07-12 | Implemented sanitizeMealWeight() defensive guard to prevent runaway LLM numbers from corrupting data. | AI Studio (self-directed) |
+| 2026-07-12 | Reordered foodData JSON schema and textual prompt description to prioritize itemsBreakdown, preventing data loss on truncation. | AI Studio (self-directed) |
+| 2026-07-12 | Raised RouteAgent output-token limit from 2048 to 3072 for headroom. | AI Studio (self-directed) |
+| 2026-07-12 | Conditionally delete customBiomarkers from lightProfile for food types to reduce payload size and protect privacy. | AI Studio (self-directed) |
 
 ## 10. LLM Gotchas & Lessons Learned
 ### Runaway Decimal Floats & Truncations
