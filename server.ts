@@ -174,8 +174,14 @@ export function buildFoodAnalyzeInstruction(context: {
 
   const biomarkersList = formattedBiomarkers;
 
+  const formatLimitVal = (val: any) => {
+    if (val === undefined || val === null) return "0";
+    const num = Number(val);
+    if (isNaN(num)) return String(val);
+    return String(Math.round(num * 100) / 100); // formats to 2 decimal places max, avoiding floating point errors
+  };
   const targetLimits = remainingAllowance
-    ? `• Calories: ${remainingAllowance.calories} kcal remaining | Saturated Fat: ${remainingAllowance.saturatedFat}g remaining | Sodium: ${remainingAllowance.sodium}mg remaining`
+    ? `• Calories: ${formatLimitVal(remainingAllowance.calories)} kcal remaining | Saturated Fat: ${formatLimitVal(remainingAllowance.saturatedFat)}g remaining | Sodium: ${formatLimitVal(remainingAllowance.sodium)}mg remaining`
     : "• Calories: 2000 kcal remaining | Saturated Fat: 20g remaining | Sodium: 2300mg remaining";
 
   // Clean activeMeal by replacing huge base64 strings before stringifying to save token costs and prevent logs bloating
@@ -1363,11 +1369,24 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       const profile: Record<string, number> = {};
       for (const k of nutrientKeys) { profile[k] = 0; }
       if (!food.foodNutrients) return profile;
+      
+      const findNut = (namePatterns: string[]) => {
+        return food.foodNutrients.find((n: any) => namePatterns.some(p => (n.nutrientName || "").toLowerCase().includes(p)));
+      };
+      
       const findVal = (namePatterns: string[]) => {
-        const nut = food.foodNutrients.find((n: any) => namePatterns.some(p => (n.nutrientName || "").toLowerCase().includes(p)));
+        const nut = findNut(namePatterns);
         return nut ? Number(nut.value) || 0 : 0;
       };
-      profile["calories"] = findVal(["energy", "calories"]);
+      // Handle Energy kJ -> kcal conversion
+      const energyNut = findNut(["energy", "calories"]);
+      if (energyNut) {
+        const val = Number(energyNut.value) || 0;
+        const unit = (energyNut.unitName || "").toLowerCase();
+        profile["calories"] = unit === "kj" ? Math.round(val / 4.184) : Math.round(val);
+      } else {
+        profile["calories"] = 0;
+      }
       profile["protein"] = findVal(["protein"]);
       profile["totalFat"] = findVal(["total lipid", "fat"]);
       profile["saturatedFat"] = findVal(["saturated fat", "fatty acids, total saturated"]);
@@ -1623,7 +1642,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
             properties: {
               action: { type: Type.STRING, description: "'update_weight' | 'remove_item' | 'add_item'" },
               itemName: { type: Type.STRING, description: "Literal name of the item from the active state to change" },
-              newWeightGrams: { type: Type.INTEGER, description: "The new weight in grams as a whole integer, e.g., 120." },
+              newWeightGrams: { type: Type.INTEGER, description: "New weight in grams" },
               targetDbId: { type: Type.STRING, description: "Optional exact database ID (fdcId or barcode)", nullable: true }
             }
           },
@@ -1635,7 +1654,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
             date: { type: Type.STRING, description: "YYYY-MM-DD" },
             name: { type: Type.STRING },
             composition: { type: Type.STRING },
-            weightGrams: { type: Type.INTEGER, description: "The total portion weight in grams as a whole integer, e.g., 150." },
+            weightGrams: { type: Type.INTEGER, description: "Portion weight in grams" },
             quantity: { type: Type.STRING },
             benefits: { type: Type.STRING },
             risks: { type: Type.STRING },
@@ -1647,7 +1666,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                 type: Type.OBJECT,
                 properties: {
                   canonicalDbName: { type: Type.STRING },
-                  weightGrams: { type: Type.INTEGER, description: "The specific weight of this ingredient in grams as a whole integer, e.g., 120." },
+                  weightGrams: { type: Type.INTEGER, description: "Weight of ingredient in grams" },
                   dbSource: { type: Type.STRING, description: "'usda' | 'off' | 'estimated' | 'label'" },
                   dbId: { type: Type.STRING, nullable: true },
                   labelNutrientsPerServing: {
@@ -1684,7 +1703,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                 type: Type.OBJECT,
                 properties: {
                   name: { type: Type.STRING },
-                  weightGrams: { type: Type.INTEGER, description: "Weight of compared option in grams as a whole integer, e.g., 120." },
+                  weightGrams: { type: Type.INTEGER, description: "Weight of compared option in grams" },
                   suitability: { type: Type.STRING },
                   pros: { type: Type.STRING },
                   cons: { type: Type.STRING }
