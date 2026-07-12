@@ -414,6 +414,7 @@ export default function LogChat({
   const [activeInstructionAgentType, setActiveInstructionAgentType] = useState<string | null>(null);
   const [activeInstructionPrompt, setActiveInstructionPrompt] = useState<string | null>(null);
   const [expandedAudits, setExpandedAudits] = useState<Record<string, boolean>>({});
+  const [expandedTables, setExpandedTables] = useState<Record<string, boolean>>({});
   const [fullScreenJson, setFullScreenJson] = useState<string | null>(null);
   const [localBatchSize, setLocalBatchSize] = useState(batchSize || 20);
   const [numberOfBatches, setNumberOfBatches] = useState<number>(() => {
@@ -1468,6 +1469,17 @@ export default function LogChat({
 
       setMessages(prev => {
         if (type === 'food' && resData.mode === 'modify' && resData.data) {
+          // Check if this food was already saved to database history
+          const wasLogged = prev.some(m => m.pendingFoodLog && m.pendingFoodLog.id === resData.data.id && loggedMessageIds.includes(m.id));
+          if (wasLogged) {
+            // Automatically mark the modified card message as logged too
+            setLoggedMessageIds(prevIds => [...prevIds, assistantMsg.id]);
+            // Automatically trigger the log update handler to push modifications to database
+            if (onLogFood) {
+              onLogFood(resData.data as FoodLog);
+            }
+          }
+
           let updated = false;
           const newPrev = [...prev].reverse().map(m => {
             if (!updated && m.pendingFoodLog) {
@@ -2201,8 +2213,8 @@ export default function LogChat({
 
                   const isAss = msg.role === 'assistant';
                   if (isAss) {
-                    const currentFormat = messageFormats[msg.id] || 'prose';
-                    const hasFormattingOptions = !!(msg.pendingFoodLog || msg.agentResult || msg.pendingFoodIdeas);
+                    const currentFormat = type === 'food' ? 'card' : (messageFormats[msg.id] || 'prose');
+                    const hasFormattingOptions = !!(msg.pendingFoodLog || msg.agentResult || msg.pendingFoodIdeas) && type !== 'food';
 
                   return (
                 <div
@@ -2488,34 +2500,42 @@ export default function LogChat({
                   )}
 
                   {type === 'food' && msg.pendingFoodLog && currentFormat === 'card' && (
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden">
+                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden font-sans">
                       {msg.pendingFoodLog.imageUrls && msg.pendingFoodLog.imageUrls.length > 0 && (
                         <div className="overflow-hidden border-y sm:border border-slate-100 dark:border-slate-700/50 shadow-sm mb-3 w-[calc(100%+2rem)] -mx-4 sm:mx-0 sm:w-full sm:rounded-2xl">
                           <ImageSlider images={msg.pendingFoodLog.imageUrls} altText={msg.pendingFoodLog.name || "Pending meal"} />
                         </div>
                       )}
-                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2 gap-2">
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate min-w-0">
+                      
+                      {/* Unified display of agent detailed clinical prose inside the card */}
+                      {msg.content && (
+                        <div className="text-xs text-slate-800 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-900/30 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800/40 leading-relaxed whitespace-pre-line mb-3 font-sans text-left">
+                          {msg.content}
+                        </div>
+                      )}
+
+                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2 gap-2 text-left">
+                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate min-w-0 font-display">
                           {msg.pendingFoodLog.name}
                         </h4>
-                        <span className="text-xs bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 px-2.5 py-0.5 rounded-full font-bold flex-shrink-0">
+                        <span className="text-xs bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 px-2.5 py-0.5 rounded-full font-bold flex-shrink-0 font-sans">
                           {msg.pendingFoodLog.weightGrams}g ({msg.pendingFoodLog.quantity})
                         </span>
                       </div>
 
-                      <div className="flex items-center justify-between text-xs font-medium border-b border-slate-100 dark:border-slate-800/50 pb-2">
+                      <div className="flex items-center justify-between text-xs font-medium border-b border-slate-100 dark:border-slate-800/50 pb-2 font-sans">
                         <span className="text-slate-500">Record Date:</span>
                         <span className="font-mono text-slate-800 dark:text-slate-200">{msg.pendingFoodLog.date}</span>
                       </div>
 
-                      <div className="text-xs space-y-2 text-slate-600 dark:text-slate-300 font-medium">
+                      <div className="text-xs space-y-2 text-slate-600 dark:text-slate-350 font-medium text-left font-sans">
                         <p><strong>{t.composition}:</strong> {msg.pendingFoodLog.composition}</p>
                         <p className="text-slate-700 dark:text-slate-200"><strong>{t.benefits}:</strong> {msg.pendingFoodLog.benefits}</p>
                         {msg.pendingFoodLog.risks && <p className="text-slate-700 dark:text-slate-200"><strong>{t.risks}:</strong> {msg.pendingFoodLog.risks}</p>}
                         <p><strong>{t.impact}:</strong> {msg.pendingFoodLog.healthImpact}</p>
                       </div>
 
-                      {/* Top Nutrients Badge */}
+                      {/* Top Nutrients badges */}
                       {(() => {
                         const parseTarget = (val: any, fallback: number) => {
                           if (val === null || val === undefined) return fallback;
@@ -2589,157 +2609,146 @@ export default function LogChat({
                         );
                       })()}
 
-                      {/* Log Action Button */}
-                      {loggedMessageIds.includes(msg.id) ? (
-                        <div className="w-full py-2 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 animation-fade-in">
-                          <Check className="w-4 h-4" />
-                          Saved to History
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => {
-                            if (msg.pendingFoodLog && onLogFood) {
-                              onLogFood(msg.pendingFoodLog as FoodLog);
-                              setLoggedMessageIds(prev => [...prev, msg.id]);
-                            }
-                          }}
-                          className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/10 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                        >
-                          <Plus className="w-4 h-4" />
-                          {t.logThisFood}
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {type === 'food' && msg.pendingFoodLog && currentFormat === 'table' && (
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden">
-                      <div className="border-b border-slate-100 dark:border-slate-800/50 pb-2">
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wider uppercase font-display">
-                          📊 Nutritional Table Matrix
-                        </h4>
-                      </div>
-
-                      {/* Individual Items Contribution Breakdown Table */}
-                      {msg.pendingFoodLog.itemsBreakdown && Array.isArray(msg.pendingFoodLog.itemsBreakdown) && msg.pendingFoodLog.itemsBreakdown.length > 0 && (
-                        <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/30 dark:bg-slate-900/10">
-                          <div className="px-3 py-1.5 bg-slate-100/70 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                              📊 Components Contribution Table
+                      {/* Collapsible Detailed Components and Nutrient values lists */}
+                      {msg.pendingFoodLog && (
+                        <div className="pt-2 border-t border-slate-150 dark:border-slate-800/60 font-sans">
+                          <button
+                            type="button"
+                            onClick={() => setExpandedTables(prev => ({ ...prev, [msg.id]: !prev[msg.id] }))}
+                            className="w-full flex items-center justify-between text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors py-1.5 cursor-pointer font-sans"
+                          >
+                            <span className="flex items-center gap-1.5">
+                              📊 Components & Nutrient Details
                             </span>
-                          </div>
-                          <div className="overflow-x-auto">
-                            <table className="w-full text-left border-collapse text-[11px]">
-                              <thead>
-                                <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-100/30 dark:bg-slate-800/30 text-slate-500 dark:text-slate-400 font-semibold">
-                                  <th className="p-2">Item Name</th>
-                                  <th className="p-2 text-right">Weight</th>
-                                  <th className="p-2 text-right">Calories</th>
-                                  <th className="p-2 text-right">Sat Fat</th>
-                                  <th className="p-2 text-right">Sodium</th>
-                                </tr>
-                              </thead>
-                              <tbody>
-                                {(msg.pendingFoodLog.itemsBreakdown || []).map((item, itemIdx) => (
-                                  <tr 
-                                    key={itemIdx} 
-                                    className="border-b last:border-b-0 border-slate-100 dark:border-slate-800/40 text-slate-700 dark:text-slate-200 font-medium hover:bg-slate-50 dark:hover:bg-slate-850/20 transition-colors"
-                                  >
-                                    <td className="p-2 font-semibold truncate max-w-[120px]" title={item.name}>
-                                      {item.name}
-                                    </td>
-                                    <td className="p-2 text-right font-mono text-slate-500">
-                                      {item.weightGrams}g
-                                    </td>
-                                    <td className="p-2 text-right font-mono text-amber-600 dark:text-amber-400">
-                                      {item.calories} kcal
-                                    </td>
-                                    <td className="p-2 text-right font-mono text-orange-600 dark:text-orange-400">
-                                      {item.saturatedFat}g
-                                    </td>
-                                    <td className="p-2 text-right font-mono text-teal-600 dark:text-teal-400">
-                                      {item.sodium}mg
-                                    </td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
+                            {expandedTables[msg.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                          </button>
+                          
+                          {expandedTables[msg.id] && (
+                            <div className="mt-3 space-y-4 shadow-inner bg-slate-50/50 dark:bg-slate-900/30 p-3 rounded-2xl border border-slate-100 dark:border-slate-800/50 animation-fade-in text-left">
+                              {/* A. Components breakdown table */}
+                              {msg.pendingFoodLog.itemsBreakdown && msg.pendingFoodLog.itemsBreakdown.length > 0 && (
+                                <div className="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
+                                  <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
+                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                      📊 Component Contribution
+                                    </span>
+                                  </div>
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse text-[11px]">
+                                      <thead>
+                                        <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 text-slate-500 dark:text-slate-400 font-bold">
+                                          <th className="p-2">Item Name</th>
+                                          <th className="p-2 text-right">Weight</th>
+                                          <th className="p-2 text-right">Calories</th>
+                                          <th className="p-2 text-right">Sat Fat</th>
+                                          <th className="p-2 text-right">Sodium</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {msg.pendingFoodLog.itemsBreakdown.map((item: any, itemIdx: number) => (
+                                          <tr 
+                                            key={itemIdx} 
+                                            className="border-b last:border-b-0 border-slate-100 dark:border-slate-850 text-slate-750 dark:text-slate-200 font-medium hover:bg-slate-50 dark:hover:bg-slate-850/20"
+                                          >
+                                            <td className="p-2 font-semibold truncate max-w-[120px]" title={item.name}>
+                                              {item.name}
+                                            </td>
+                                            <td className="p-2 text-right font-mono text-slate-500">
+                                              {item.weightGrams}g
+                                            </td>
+                                            <td className="p-2 text-right font-mono text-orange-600 dark:text-orange-400 font-semibold">
+                                              {item.calories} kcal
+                                            </td>
+                                            <td className="p-2 text-right font-mono text-amber-500 font-semibold">
+                                              {item.saturatedFat}g
+                                            </td>
+                                            <td className="p-2 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                                              {item.sodium}mg
+                                            </td>
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* B. Full 31-nutrient table */}
+                              <div className="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
+                                <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
+                                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider font-sans">
+                                    📋 Comprehensive Nutrient Values (31 Nutrients)
+                                  </span>
+                                </div>
+                                <div className="px-3 py-2 space-y-3 text-[11px] font-mono">
+                                  {/* Core Nutrients */}
+                                  <div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 pb-0.5 border-b border-slate-200/50 dark:border-slate-800/50 font-sans text-left">Core Nutrients (11)</div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                                      {(() => {
+                                        const coreKeys = ["calories", "protein", "carbohydrates", "totalFat", "saturatedFat", "transFat", "addedSugar", "sodium", "potassium", "totalFibre", "solubleFibre"];
+                                        return nutrientDefinitions
+                                          .filter(nut => coreKeys.includes(nut.key))
+                                          .map((nut) => {
+                                            const val = msg.pendingFoodLog?.nutrients?.[nut.key];
+                                            return (
+                                              <div key={nut.key} className="flex justify-between py-0.5 text-slate-600 dark:text-slate-350 border-b border-slate-100 dark:border-slate-800/30 last:border-b-0 sm:even:border-l sm:even:pl-4">
+                                                <span className="text-slate-500 font-sans">{nut.labels[profile?.language || 'en'] || nut.labels.en}:</span>
+                                                <span className="font-semibold text-slate-800 dark:text-slate-100">
+                                                  {val !== undefined ? `${val} ${nut.unit}` : `--`}
+                                                </span>
+                                              </div>
+                                            );
+                                          });
+                                      })()}
+                                    </div>
+                                  </div>
+
+                                  {/* Additional Nutrients */}
+                                  <div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 pb-0.5 border-b border-slate-200/50 dark:border-slate-800/50 font-sans text-left">Additional Nutrients (20)</div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
+                                      {(() => {
+                                        const coreKeys = ["calories", "protein", "carbohydrates", "totalFat", "saturatedFat", "transFat", "addedSugar", "sodium", "potassium", "totalFibre", "solubleFibre"];
+                                        return nutrientDefinitions
+                                          .filter(nut => !coreKeys.includes(nut.key))
+                                          .map((nut) => {
+                                            const val = msg.pendingFoodLog?.nutrients?.[nut.key];
+                                            return (
+                                              <div key={nut.key} className="flex justify-between py-0.5 text-slate-600 dark:text-slate-350 border-b border-slate-100 dark:border-slate-800/30 last:border-b-0 sm:even:border-l sm:even:pl-4">
+                                                <span className="text-slate-500 font-sans">{nut.labels[profile?.language || 'en'] || nut.labels.en}:</span>
+                                                <span className="font-semibold text-slate-800 dark:text-slate-100">
+                                                  {val !== undefined ? `${val} ${nut.unit}` : `--`}
+                                                </span>
+                                              </div>
+                                            );
+                                          });
+                                      })()}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       )}
 
-                      {/* Display Nutrients - Spreadsheet Style */}
-                      <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-900/30">
-                        <div className="px-3 py-1.5 bg-slate-100/70 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
-                          <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                            📋 Comprehensive Nutrient Values (31 Nutrients)
-                          </span>
-                        </div>
-                        
-                        <div className="px-3 py-2 space-y-3 text-[11px] font-mono">
-                          {/* Core Nutrients */}
-                          <div>
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 pb-0.5 border-b border-slate-200/50 dark:border-slate-800/50">Core Nutrients (11)</div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-                              {(() => {
-                                const coreKeys = ["calories", "protein", "carbohydrates", "totalFat", "saturatedFat", "transFat", "addedSugar", "sodium", "potassium", "totalFibre", "solubleFibre"];
-                                return nutrientDefinitions
-                                  .filter(nut => coreKeys.includes(nut.key))
-                                  .map((nut) => {
-                                    const val = msg.pendingFoodLog?.nutrients?.[nut.key];
-                                    return (
-                                      <div key={nut.key} className="flex justify-between py-0.5 text-slate-600 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800/30 last:border-b-0 sm:even:border-l sm:even:pl-4">
-                                        <span className="text-slate-500">{nut.labels[profile?.language || 'en'] || nut.labels.en}:</span>
-                                        <span className="font-semibold text-slate-800 dark:text-slate-100">
-                                          {val !== undefined ? `${val} ${nut.unit}` : `--`}
-                                        </span>
-                                      </div>
-                                    );
-                                  });
-                              })()}
-                            </div>
-                          </div>
-
-                          {/* Additional Nutrients */}
-                          <div>
-                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 pb-0.5 border-b border-slate-200/50 dark:border-slate-800/50">Additional Nutrients (20)</div>
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-                              {(() => {
-                                const coreKeys = ["calories", "protein", "carbohydrates", "totalFat", "saturatedFat", "transFat", "addedSugar", "sodium", "potassium", "totalFibre", "solubleFibre"];
-                                return nutrientDefinitions
-                                  .filter(nut => !coreKeys.includes(nut.key))
-                                  .map((nut) => {
-                                    const val = msg.pendingFoodLog?.nutrients?.[nut.key];
-                                    return (
-                                      <div key={nut.key} className="flex justify-between py-0.5 text-slate-600 dark:text-slate-300 border-b border-slate-100 dark:border-slate-800/30 last:border-b-0 sm:even:border-l sm:even:pl-4">
-                                        <span className="text-slate-500">{nut.labels[profile?.language || 'en'] || nut.labels.en}:</span>
-                                        <span className="font-semibold text-slate-800 dark:text-slate-100">
-                                          {val !== undefined ? `${val} ${nut.unit}` : `--`}
-                                        </span>
-                                      </div>
-                                    );
-                                  });
-                              })()}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
                       {/* Log Action Button */}
                       {loggedMessageIds.includes(msg.id) ? (
-                        <div className="w-full py-2 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 animation-fade-in">
+                        <div className="w-full py-2 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 animation-fade-in font-sans">
                           <Check className="w-4 h-4" />
                           Saved to History
                         </div>
                       ) : (
                         <button
+                          type="button"
                           onClick={() => {
                             if (msg.pendingFoodLog && onLogFood) {
                               onLogFood(msg.pendingFoodLog as FoodLog);
                               setLoggedMessageIds(prev => [...prev, msg.id]);
                             }
                           }}
-                          className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/10 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
+                          className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/10 flex items-center justify-center gap-1.5 transition-all cursor-pointer font-sans"
                         >
                           <Plus className="w-4 h-4" />
                           {t.logThisFood}

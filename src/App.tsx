@@ -2305,10 +2305,17 @@ export default function App() {
   };
   // Add / Edit logs handlers
   const handleLogFood = async (food: FoodLog) => {
-    const newFood = { ...food, sync_state: 'new' as const, updated_at: Date.now() };
-    const updatedFoods = [...foodLogs, newFood];
+    const existingIndex = foodLogs.findIndex(f => f.id === food.id);
+    let updatedFoods;
+    if (existingIndex !== -1) {
+      const logWithSync = { ...food, sync_state: 'update' as const, updated_at: Date.now() };
+      updatedFoods = foodLogs.map(f => f.id === food.id ? logWithSync : f);
+    } else {
+      const newFood = { ...food, sync_state: 'new' as const, updated_at: Date.now() };
+      updatedFoods = [...foodLogs, newFood];
+    }
     setFoodLogs(updatedFoods);
-    await saveAndSync(profile, updatedFoods, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'foodLog', targetId: newFood.id });
+    await saveAndSync(profile, updatedFoods, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'foodLog', targetId: food.id });
   };
   const handleUpdateFoodLog = async (updatedLog: FoodLog) => {
     const logWithSync = { ...updatedLog, sync_state: 'update' as const, updated_at: Date.now() };

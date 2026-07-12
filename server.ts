@@ -1109,6 +1109,12 @@ app.post("/api/sync/load", async (req, res) => {
 app.get("/api/gemini/instruction-preview", async (req, res) => {
   try {
     const { agentType, biomarkersNeedingImprovement, remainingAllowance, activeMeal } = req.query;
+    
+    if (agentType === 'food_scout') {
+      const instruction = `You are a fast visual food identification agent. Look at the image and return a short list of plain-text search keywords for the food items you see (e.g. ['fried chicken', 'white rice', 'sambal']), plus a rough estimated weight in grams for each if visually judgeable. Do not do any nutrition or clinical analysis. Output only: { "items": [{ "keyword": string, "estimatedWeightGrams": number }] }`;
+      return res.json({ instruction });
+    }
+
     if (agentType === 'food') {
       let parsedBiomarkers: any[] | undefined = undefined;
       let parsedAllowance: any = undefined;

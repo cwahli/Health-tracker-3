@@ -80,8 +80,19 @@ export default function FullScreenInstructionViewer({
   const systemTextareaRef = useRef<HTMLTextAreaElement>(null);
   const variableTextareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const [activeTab, setActiveTab] = useState<'dietitian' | 'scout'>('dietitian');
+  
+  // Set tab when agentType changes or when modal is opened
+  useEffect(() => {
+    if (isOpen) {
+      setActiveTab(agentType === 'food_scout' ? 'scout' : 'dietitian');
+    }
+  }, [isOpen, agentType]);
+
   // Map the agent type
-  const resolvedKey = agentType;
+  const resolvedKey = (agentType === 'food' || agentType === 'food_scout')
+    ? (activeTab === 'scout' ? 'food_scout' : 'food')
+    : agentType;
   const maxMetrics = 50;
 
   const getInstructionParts = (key: string) => {
@@ -228,6 +239,12 @@ Your objective is to dynamically group EVERY biomarker into logical clinical con
 2. NO PRESCRIPTIONS: Present findings as a literature synthesis, citing primary medical guidelines (AHA, ESC, ADA, KDIGO).
 3. DETAILED BULLETS: Provide 3-4 distinct scholarly insights with bold titles, summaries, and relevant citation links.`;
       defaultVariableData = defaultVarData;
+    } else if (key === 'food_scout') {
+      title = "Visual Food Scout (Image Classifier Agent)";
+      subtitle = "Identifies food items visually and estimates weight before database matches lookup.";
+      icon = BrainCircuit;
+      defaultSystemInstruction = `You are a fast visual food identification agent. Look at the image and return a short list of plain-text search keywords for the food items you see (e.g. ['fried chicken', 'white rice', 'sambal']), plus a rough estimated weight in grams for each if visually judgeable. Do not do any nutrition or clinical analysis. Output only: { "items": [{ "keyword": string, "estimatedWeightGrams": number }] }`;
+      defaultVariableData = "";
     } else if (key === 'food') {
       title = "Clinical Dietitian AI (Meal Analysis Agent)";
       subtitle = "Parses, calculates, and estimates macronutrients, micronutrients, health impacts, benefits, and warnings.";
@@ -714,7 +731,7 @@ YAML Array Item Schema:
         setSysInstruction(customSys !== null ? customSys : parts.defaultSystemInstruction);
       }
     }
-  }, [isOpen, resolvedKey, agentPrompt, outOfRangeBiomarkers, remainingAllowance, activeMeal]);
+  }, [isOpen, resolvedKey, agentPrompt, outOfRangeBiomarkers, remainingAllowance, activeMeal, activeTab]);
 
   if (!isOpen) return null;
 
@@ -929,6 +946,34 @@ YAML Array Item Schema:
           </button>
         </div>
       </div>
+
+      {/* Switcher Tabs for Food Agents Prompt debugging */}
+      {(agentType === 'food' || agentType === 'food_scout') && (
+        <div className="px-6 py-2 bg-slate-900 border-b border-slate-800/60 flex items-center gap-2 font-sans">
+          <button
+            type="button"
+            onClick={() => setActiveTab('dietitian')}
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'dietitian'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
+            }`}
+          >
+            Clinical Dietitian AI
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('scout')}
+            className={`px-4 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              activeTab === 'scout'
+                ? 'bg-indigo-600 text-white shadow-md'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-850'
+            }`}
+          >
+            Visual Food Scout Agent
+          </button>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-auto bg-slate-950 px-6 py-6">

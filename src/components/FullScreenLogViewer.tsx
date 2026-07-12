@@ -1,6 +1,6 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Copy, Send, Check, AlertTriangle, Search } from 'lucide-react';
+import { X, Copy, Send, Check, AlertTriangle, Search, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface FullScreenLogViewerProps {
   isOpen: boolean;
@@ -13,6 +13,8 @@ interface FullScreenLogViewerProps {
   logsSendStatus?: 'idle' | 'success' | 'error';
   onClearLogs?: () => void;
   eventsCount?: number;
+  conversationsList?: { id: string; title: string }[];
+  activeConversationId?: string;
 }
 
 export default function FullScreenLogViewer({
@@ -25,22 +27,80 @@ export default function FullScreenLogViewer({
   isSendingLogs = false,
   logsSendStatus = 'idle',
   onClearLogs,
-  eventsCount
+  eventsCount,
+  conversationsList,
+  activeConversationId
 }: FullScreenLogViewerProps) {
   const [copiedAll, setCopiedAll] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
 
+  const [selectedSessionId, setSelectedSessionId] = useState(activeConversationId || '');
+  const [sessionLogs, setSessionLogs] = useState<string[]>(logsArray || []);
+  const [isLoading, setIsLoading] = useState(false);
+  const [selectedAgent, setSelectedAgent] = useState<'all' | 'scout' | 'dietitian'>('all');
+
+  // React to prop updates on mount or open
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedSessionId(activeConversationId || '');
+      setSessionLogs(logsArray || []);
+    }
+  }, [isOpen, activeConversationId, logsArray]);
+
+  const fetchLogsForSession = async (sessId: string) => {
+    if (!sessId) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/gemini/debug-logs?sessionId=${sessId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.logs)) {
+          const formatted = data.logs.map((l: any) => `[${l.timestamp}]\n${l.message}`);
+          setSessionLogs(formatted);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching debug logs for session:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSessionChange = (sessId: string) => {
+    setSelectedSessionId(sessId);
+    fetchLogsForSession(sessId);
+  };
+
   const chunks = useMemo(() => {
-    if (logsArray && logsArray.length > 0) return logsArray;
-    return logsText ? [logsText] : [];
-  }, [logsText, logsArray]);
+    return sessionLogs;
+  }, [sessionLogs]);
+
+  const filteredByAgent = useMemo(() => {
+    if (selectedAgent === 'all') return chunks;
+    return chunks.filter(chunk => {
+      const lower = chunk.toLowerCase();
+      if (selectedAgent === 'scout') {
+        return lower.includes('vision scout') || 
+               lower.includes('image payload') || 
+               (lower.includes('unifiedllm') && (lower.includes('visual food identification') || lower.includes('analyze this image')));
+      } else {
+        return lower.includes('routeagent') || 
+               lower.includes('modify math') || 
+               lower.includes('mode routing') || 
+               lower.includes('client state') || 
+               lower.includes('database matches') ||
+               lower.includes('fallback') ||
+               (lower.includes('unifiedllm') && (lower.includes('clinical dietitian') || lower.includes('current_active_meal_state')));
+      }
+    });
+  }, [chunks, selectedAgent]);
 
   const filteredChunks = useMemo(() => {
-    if (!searchTerm) return chunks;
+    if (!searchTerm) return filteredByAgent;
     const lowerSearch = searchTerm.toLowerCase();
-    return chunks.filter(chunk => chunk.toLowerCase().includes(lowerSearch));
-  }, [chunks, searchTerm]);
+    return filteredByAgent.filter(chunk => chunk.toLowerCase().includes(lowerSearch));
+  }, [filteredByAgent, searchTerm]);
 
   if (!isOpen) return null;
 
@@ -51,6 +111,13 @@ export default function FullScreenLogViewer({
       setTimeout(() => setCopiedAll(false), 2000);
     } catch (err) {
       console.error('Failed to copy logs:', err);
+    }
+  };
+
+  const handleClear = () => {
+    if (onClearLogs) {
+      onClearLogs();
+      setSessionLogs([]);
     }
   };
 
@@ -75,18 +142,6 @@ export default function FullScreenLogViewer({
               {title}
             </h2>
           </div>
-          {chunks.length > 0 && (
-            <div className="relative max-w-sm flex-1 ml-4 hidden sm:block">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-              <input
-                type="text"
-                placeholder="Search logs..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-1.5 text-xs font-mono text-slate-200 outline-none focus:border-indigo-500/50 transition-colors"
-              />
-            </div>
-          )}
         </div>
         
         <button
@@ -97,20 +152,52 @@ export default function FullScreenLogViewer({
         </button>
       </div>
 
-      {chunks.length > 0 && (
-        <div className="px-4 py-2 bg-slate-950 border-b border-slate-800/60 sm:hidden">
-          <div className="relative w-full">
-            <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
-            <input
-              type="text"
-              placeholder="Search logs..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-9 pr-4 py-2 text-xs font-mono text-slate-200 outline-none focus:border-indigo-500/50 transition-colors"
-            />
+      {/* Filters & Selector Panel */}
+      <div className="px-4 py-2.5 bg-slate-950 border-b border-slate-800/60 flex flex-wrap items-center gap-4 text-xs font-sans">
+        {/* Session Filter */}
+        {conversationsList && conversationsList.length > 0 && (
+          <div className="flex items-center gap-2 shrink-0">
+            <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Session:</span>
+            <select
+              value={selectedSessionId}
+              onChange={(e) => handleSessionChange(e.target.value)}
+              className="bg-slate-900 border border-slate-800/80 rounded-xl px-3 py-1.5 outline-none text-slate-200 font-mono focus:border-indigo-500/50 cursor-pointer shadow-sm text-xs"
+            >
+              {conversationsList.map((conv) => (
+                <option key={conv.id} value={conv.id}>
+                  {conv.title || 'Untitled Session'}
+                </option>
+              ))}
+            </select>
           </div>
+        )}
+
+        {/* Agent Filter */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Agent:</span>
+          <select
+            value={selectedAgent}
+            onChange={(e) => setSelectedAgent(e.target.value as any)}
+            className="bg-slate-900 border border-slate-800/80 rounded-xl px-3 py-1.5 outline-none text-slate-200 font-mono focus:border-indigo-500/50 cursor-pointer shadow-sm text-xs"
+          >
+            <option value="all">All Agents / Process Steps</option>
+            <option value="scout">Visual Food Scout (Image Classifier)</option>
+            <option value="dietitian">Clinical Dietitian AI</option>
+          </select>
         </div>
-      )}
+
+        {/* Inline Mobile Search */}
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+          <input
+            type="text"
+            placeholder="Search logs contents..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full bg-slate-900 border border-slate-800/80 rounded-xl pl-9 pr-4 py-1.5 text-xs font-mono text-slate-200 outline-none focus:border-indigo-500/50 transition-all placeholder:text-slate-600 shadow-sm"
+          />
+        </div>
+      </div>
 
       {/* Content Area */}
       <div className="flex-1 mx-[10px] py-4 bg-transparent flex flex-col min-h-0">
@@ -140,7 +227,7 @@ export default function FullScreenLogViewer({
         <div className="flex items-center gap-2">
           {onClearLogs && (
             <button
-              onClick={onClearLogs}
+              onClick={handleClear}
               className="px-3 py-1.5 bg-rose-950/40 hover:bg-rose-900/40 border border-rose-950/25 text-rose-300 hover:text-white rounded-xl text-xs font-bold transition-all cursor-pointer"
             >
               Clear Log
