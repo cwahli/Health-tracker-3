@@ -23,7 +23,13 @@ import { AgentResultTable } from './AgentResultTable';
 import { resolveFoodImage } from '../utils/imageResolver';
 import { NutrientPieChart } from './NutrientPieChart';
 import { AgentType, AGENT_REGISTRY } from '../utils/agentConfig';
+const isValidValue = (v: unknown): boolean =>
+  v !== null && v !== undefined && v !== '' && v !== 'N/A' && v !== 'null';
 
+const formatNutrientValue = (value: unknown, unit: string): string => {
+  if (!isValidValue(value)) return '—';
+  return `${value} ${unit}`;
+};
 interface BiomarkerEntry {
   biomarker: string;
   date: string;
@@ -607,6 +613,32 @@ export default function LogChat({
     };
   };
 
+  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pendingSaveRef = useRef<(() => void) | null>(null);
+
+  const debouncedSaveConversation = (id: string, msgs: ChatMessage[], payload: any) => {
+    if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
+    pendingSaveRef.current = () => saveConversationToFirestore(id, msgs, payload);
+    saveTimeoutRef.current = setTimeout(() => {
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current();
+        pendingSaveRef.current = null;
+      }
+    }, 800);
+  };
+
+  useEffect(() => {
+    return () => {
+      if (saveTimeoutRef.current) {
+        clearTimeout(saveTimeoutRef.current);
+      }
+      if (pendingSaveRef.current) {
+        pendingSaveRef.current();
+        pendingSaveRef.current = null;
+      }
+    };
+  }, []);
+
   const saveConversationToFirestore = async (id: string, msgs: ChatMessage[], payload: any) => {
     const userId = auth.currentUser?.uid;
     if (!userId) {
@@ -685,7 +717,7 @@ export default function LogChat({
         const welcome = getWelcomeMessage();
         setMessages([welcome]);
         setLastSentPayload(null);
-        await saveConversationToFirestore(newId, [welcome], null);
+        debouncedSaveConversation(newId, [welcome], null);
         setConversationsList([{
           id: newId,
           type: type || 'medical',
@@ -708,7 +740,7 @@ export default function LogChat({
     const welcome = getWelcomeMessage();
     setMessages([welcome]);
     setLastSentPayload(null);
-    await saveConversationToFirestore(newId, [welcome], null);
+    debouncedSaveConversation(newId, [welcome], null);
     
     setConversationsList(prev => [
       {
@@ -764,7 +796,7 @@ export default function LogChat({
 
   useEffect(() => {
     if (activeConversationId && messages && messages.length > 0) {
-      saveConversationToFirestore(activeConversationId, messages, lastSentPayload);
+      debouncedSaveConversation(activeConversationId, messages, lastSentPayload);
     }
   }, [messages, lastSentPayload, activeConversationId]);
 
@@ -2544,7 +2576,7 @@ export default function LogChat({
                                 size="sm"
                               />
                               <span className="text-[11px] font-extrabold" style={{ color: 'rgb(249, 115, 22)' }}>
-                                {caloriesInMeal} kcal
+                                {formatNutrientValue(caloriesInMeal, 'kcal')}
                               </span>
                             </div>
 
@@ -2558,7 +2590,7 @@ export default function LogChat({
                                   size="sm"
                                 />
                                 <span className="text-[11px] font-bold" style={{ color: 'rgb(234, 179, 8)' }}>
-                                  Sat Fat: {satFatInMeal}g
+                                  Sat Fat: {formatNutrientValue(satFatInMeal, 'g')}
                                 </span>
                               </div>
                             )}
@@ -2573,7 +2605,7 @@ export default function LogChat({
                                   size="sm"
                                 />
                                 <span className="text-[11px] font-bold" style={{ color: 'rgb(34, 197, 94)' }}>
-                                  Sodium: {sodiumInMeal}mg
+                                  Sodium: {formatNutrientValue(sodiumInMeal, 'mg')}
                                 </span>
                               </div>
                             )}
@@ -2626,16 +2658,16 @@ export default function LogChat({
                                               {item.name}
                                             </td>
                                             <td className="p-2 text-right font-mono text-slate-500">
-                                              {item.weightGrams}g
+                                              {formatNutrientValue(item.weightGrams, 'g')}
                                             </td>
                                             <td className="p-2 text-right font-mono text-orange-600 dark:text-orange-400 font-semibold">
-                                              {item.calories} kcal
+                                              {formatNutrientValue(item.calories, 'kcal')}
                                             </td>
                                             <td className="p-2 text-right font-mono text-amber-500 font-semibold">
-                                              {item.saturatedFat}g
+                                              {formatNutrientValue(item.saturatedFat, 'g')}
                                             </td>
                                             <td className="p-2 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
-                                              {item.sodium}mg
+                                              {formatNutrientValue(item.sodium, 'mg')}
                                             </td>
                                           </tr>
                                         ))}

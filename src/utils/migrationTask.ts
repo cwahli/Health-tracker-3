@@ -1,4 +1,4 @@
-import { doc, getDoc, updateDoc, collection, getDocs } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, collection, getDocs, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { BiomarkerLog, UserProfile } from '../types';
 
@@ -11,20 +11,30 @@ export const runCleanupMigration = async (email: string) => {
   
   try {
     console.log("Checking migration status in Firestore for", norm);
+    
+    // 1. Check LocalStorage (done above)
+    // 2. Secondary check in Firestore
+    const migrationRef = doc(db, 'users', norm, 'metadata', 'migration');
+    const migrationSnap = await getDoc(migrationRef);
+    
+    // Check old flag in profile as well for backwards compatibility
     const profileRef = doc(db, 'users', norm);
     const profileSnap = await getDoc(profileRef);
+
     let isAlreadyDone = false;
-    
-    if (profileSnap.exists()) {
+    if (migrationSnap.exists() && migrationSnap.data().biomarkersV1Completed === true) {
+      isAlreadyDone = true;
+      console.log("[Migration] Already completed (verified in Firestore metadata)");
+    } else if (profileSnap.exists()) {
       const profileData = profileSnap.data() as any;
       if (profileData.migration_july05_cleanup_done === true) {
         isAlreadyDone = true;
+        console.log("[Migration] Already completed (verified in Firestore profile)");
       }
     }
 
     if (isAlreadyDone) {
       localStorage.setItem(migrationKey, 'true');
-      console.log("Migration already completed in Firestore. Skipping.");
       return;
     }
 
@@ -65,30 +75,32 @@ export const runCleanupMigration = async (email: string) => {
       }
     }
     
-    // Clean custom biomarkers and mark as done in Firestore
+    // Clean custom biomarkers
+    let profileChanges: any = {};
     if (profileSnap.exists()) {
       const profileData = profileSnap.data() as UserProfile;
       const custom = { ...(profileData.customBiomarkers || {}) };
-      let profileChanges = false;
       
       const keysToRemove = ['hgb', 'wbc', 'creatinine', 'basophil_count', 'platelet_distribution_width', 'audit_c_total_score'];
+      let customChanged = false;
       for (const k of keysToRemove) {
         if (custom[k]) {
           delete custom[k];
-          profileChanges = true;
+          customChanged = true;
         }
       }
       
-      await updateDoc(profileRef, { 
-        customBiomarkers: custom,
-        migration_july05_cleanup_done: true
-      });
-      console.log("Cleaned profile customs and set migration completed flag.");
-    } else {
-      // If profile doesn't exist yet, we still mark it as done in a minimal doc
-      await updateDoc(profileRef, { 
-        migration_july05_cleanup_done: true
-      });
+      if (customChanged) {
+        profileChanges.customBiomarkers = custom;
+      }
+    }
+    
+    // Mark as done in Firestore metadata
+    await setDoc(migrationRef, { biomarkersV1Completed: true }, { merge: true });
+    
+    // If profile changes exist, apply them
+    if (Object.keys(profileChanges).length > 0) {
+      await updateDoc(profileRef, profileChanges);
     }
     
     localStorage.setItem(migrationKey, 'true');

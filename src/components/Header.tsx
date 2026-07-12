@@ -22,6 +22,7 @@ import {
   clearGoogleToken
 } from '../utils/googleBackup';
 import { compressImage } from '../utils/imageCompressor';
+import { checkQuotaFlag } from '../utils/firestoreUtils';
 
 const ColorPickerField = ({ label, value, onChange }: { label: string, value: string, onChange: (v: string) => void }) => (
   <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-150 dark:border-slate-800 gap-2">
@@ -436,7 +437,7 @@ export default function Header({
 
           {/* Sync Status Icon Indicator */}
           {(() => {
-            const isAttentionNeeded = syncState === 'syncing' || dbInteractions.some(o => o.status === 'pending') || localStorage.getItem('firestore_quota_exceeded') === 'true';
+            const isAttentionNeeded = syncState === 'syncing' || dbInteractions.some(o => o.status === 'pending') || checkQuotaFlag();
             return (
               <button
                 id="cloud-sync-btn"
@@ -459,7 +460,7 @@ export default function Header({
                   <CloudCheck className="w-5.5 h-5.5 text-slate-400 dark:text-slate-500" />
                 )}
                 {syncState === 'local' && (
-                  localStorage.getItem('firestore_quota_exceeded') === 'true' ? (
+                  checkQuotaFlag() ? (
                     <span title="Firestore Quota Exceeded - Offline Mode Only">
                       <CloudLightning className="w-5 h-5 text-amber-500 animate-pulse" />
                     </span>

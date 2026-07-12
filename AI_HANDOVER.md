@@ -56,7 +56,10 @@ There is NO gemini-2.5-flash. Always default to Flash Lite.
 ### Chat Session Storage
 - Conversation history is stored in sessionStorage (per-session) as primary.
 - Firestore is the durable backup for history.
-- Local snapshots (up to 5) in localStorage for undo. Base64 images stripped.
+- Local snapshots (up to 5) in localStorage for undo:
+  - Base64 images are stripped to stay within 5–10 MB localStorage limit
+  - **Known limitation**: Undoing a food log revision loses the attached image
+  - Recommendation: Reimport the image if needed, or use Firestore cloud backup to recover with images
 
 ## 6. What Has Been Fixed (Do Not Undo)
 | Date | Fix |

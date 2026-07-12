@@ -3,6 +3,7 @@ import { getAuth, signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 import { collection, getDocs, getDoc, doc, writeBatch } from 'firebase/firestore';
 import { db, auth, googleProvider } from '../firebase';
 import { ZipWriter, BlobWriter, BlobReader, TextReader, ZipReader, TextWriter } from '@zip.js/zip.js';
+import { sanitizeForFirestore } from './firestoreUtils';
 
 // Cache Google Access Token in-memory for security compliance
 let cachedGoogleToken: string | null = null;
@@ -603,14 +604,14 @@ export async function restoreAccountToFirestore(uid: string, data: any) {
     const profileRef = doc(db, 'users', uid);
     const profileCopy = { ...data.profile };
     delete profileCopy.agentAnalyses; // Kept in separate subcollection
-    batch.set(profileRef, profileCopy, { merge: true });
+    batch.set(profileRef, sanitizeForFirestore(profileCopy), { merge: true });
   }
 
   // 2. Restore Food Logs
   if (data.foodLogs && Array.isArray(data.foodLogs)) {
     data.foodLogs.forEach((food: any) => {
       const foodRef = doc(db, 'users', uid, 'foodLogs', food.id);
-      batch.set(foodRef, food, { merge: true });
+      batch.set(foodRef, sanitizeForFirestore(food), { merge: true });
     });
   }
 
@@ -618,7 +619,7 @@ export async function restoreAccountToFirestore(uid: string, data: any) {
   if (data.biomarkerHistory && Array.isArray(data.biomarkerHistory)) {
     data.biomarkerHistory.forEach((log: any) => {
       const logRef = doc(db, 'users', uid, 'biomarkerHistory', log.id);
-      batch.set(logRef, log, { merge: true });
+      batch.set(logRef, sanitizeForFirestore(log), { merge: true });
     });
   }
 
@@ -626,25 +627,25 @@ export async function restoreAccountToFirestore(uid: string, data: any) {
   const dashboardRef = doc(db, 'users', uid, 'metadata', 'dashboard');
   batch.set(
     dashboardRef,
-    {
+    sanitizeForFirestore({
       actions: data.actions || [],
       dailyBenefits: data.dailyBenefits || [],
       foodIdeas: data.foodIdeas || [],
-    },
+    }),
     { merge: true }
   );
 
   // 5. Restore Latest Recommendation Report
   if (data.report) {
     const reportRef = doc(db, 'users', uid, 'reports', 'latest');
-    batch.set(reportRef, data.report, { merge: true });
+    batch.set(reportRef, sanitizeForFirestore(data.report), { merge: true });
   }
 
   // 6. Restore Agent Analyses subcollection
   if (data.agentAnalyses && Array.isArray(data.agentAnalyses)) {
     data.agentAnalyses.forEach((analysis: any) => {
       const analysisRef = doc(db, 'users', uid, 'agentAnalyses', analysis.id);
-      batch.set(analysisRef, analysis, { merge: true });
+      batch.set(analysisRef, sanitizeForFirestore(analysis), { merge: true });
     });
   }
 

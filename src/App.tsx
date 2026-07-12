@@ -18,7 +18,7 @@ import { Plus, HeartHandshake, RefreshCw, Sparkles, Stethoscope, Utensils, Loade
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut as fbSignOut } from 'firebase/auth';
 import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, getDocFromServer, getDocsFromServer, onSnapshot, getDocsFromCache, writeBatch } from 'firebase/firestore';
-import { sanitizeForFirestore } from './utils/firestoreUtils';
+import { sanitizeForFirestore, checkQuotaFlag, handleRetryQuota } from './utils/firestoreUtils';
 import { getCurrentDateInTimezone, toYYYYMMDD, normalizeBiomarkerHistory } from './utils/dateUtils';
 import { biomarkerDefinitions, isAsianEthnicity, hasBmiPendingAlert, getProfileFingerprint } from './utils/biomarkers';
 import { standardizeUnit, CONVERSION_FACTORS } from './utils/unitConversion';
@@ -279,12 +279,6 @@ const getDynamicStyles = (profile: any) => {
     ${colorCss}
   `;
 };
-function cleanData<T>(obj: T): T {
-  if (obj === null || obj === undefined) return obj;
-  return JSON.parse(JSON.stringify(obj, (key, value) => {
-    return value === undefined ? null : value;
-  }));
-}
 function isDeepEqual(obj1: any, obj2: any): boolean {
   if (obj1 === obj2) return true;
   if (typeof obj1 !== 'object' || obj1 === null || typeof obj2 !== 'object' || obj2 === null) {
@@ -377,7 +371,7 @@ export default function App() {
     localReport: RecommendationReport | null;
   } | null>(null);
   const [isFirestoreQuotaExceeded, setIsFirestoreQuotaExceeded] = useState<boolean>(() => {
-    const exceeded = localStorage.getItem('firestore_quota_exceeded') === 'true';
+    const exceeded = checkQuotaFlag();
     if (exceeded) {
       const saved = localStorage.getItem(QUOTA_STORAGE_KEY);
       const currentKey = getQuotaKey();
@@ -755,7 +749,7 @@ export default function App() {
       setSyncState('local');
     };
 
-    if (isFirestoreQuotaExceeded || localStorage.getItem('firestore_quota_exceeded') === 'true') {
+    if (isFirestoreQuotaExceeded || checkQuotaFlag()) {
       abortWithLocalFallback();
       return;
     }
@@ -783,7 +777,7 @@ export default function App() {
       } catch (err) {
         console.warn("getDocFromServer failed or timed out, falling back to local/cached getDoc:", err);
         handleFirestoreError(err);
-        if (localStorage.getItem('firestore_quota_exceeded') === 'true') {
+        if (checkQuotaFlag()) {
           abortWithLocalFallback();
           return;
         }
@@ -791,7 +785,7 @@ export default function App() {
           handleFirestoreError(gErr);
           return null;
         });
-        if (localStorage.getItem('firestore_quota_exceeded') === 'true') {
+        if (checkQuotaFlag()) {
           abortWithLocalFallback();
           return;
         }
@@ -921,7 +915,7 @@ export default function App() {
           // By using getDocs and getDoc (not FromServer), Firestore can utilize its local cache if configured,
           // and won't throw if offline, gracefully degrading to cached data.
           try {
-            if (localStorage.getItem('firestore_quota_exceeded') === 'true') {
+            if (checkQuotaFlag()) {
               abortWithLocalFallback();
               return;
             }
@@ -1029,7 +1023,7 @@ export default function App() {
           } catch (foodErr: any) {
             console.warn("Failed to fetch foodLogs:", foodErr);
             handleFirestoreError(foodErr);
-            if (localStorage.getItem('firestore_quota_exceeded') === 'true') {
+            if (checkQuotaFlag()) {
               abortWithLocalFallback();
               return;
             }
@@ -1043,7 +1037,7 @@ export default function App() {
           }
           // 1. Fetch biomarker history robustly
           try {
-            if (localStorage.getItem('firestore_quota_exceeded') === 'true') {
+            if (checkQuotaFlag()) {
               abortWithLocalFallback();
               return;
             }
@@ -1086,7 +1080,7 @@ export default function App() {
           } catch (bioErr: any) {
             console.warn("Failed to fetch biomarkerHistory:", bioErr);
             handleFirestoreError(bioErr);
-            if (localStorage.getItem('firestore_quota_exceeded') === 'true') {
+            if (checkQuotaFlag()) {
               abortWithLocalFallback();
               return;
             }
@@ -1100,7 +1094,7 @@ export default function App() {
           }
           // 2. Fetch dashboard metadata robustly
           try {
-            if (localStorage.getItem('firestore_quota_exceeded') === 'true') {
+            if (checkQuotaFlag()) {
               abortWithLocalFallback();
               return;
             }
@@ -1119,7 +1113,7 @@ export default function App() {
           } catch (dashErr: any) {
             console.warn("Failed to fetch dashboard metadata:", dashErr);
             handleFirestoreError(dashErr);
-            if (localStorage.getItem('firestore_quota_exceeded') === 'true') {
+            if (checkQuotaFlag()) {
               abortWithLocalFallback();
               return;
             }
@@ -1130,7 +1124,7 @@ export default function App() {
           }
           // 3. Fetch reports robustly
           try {
-            if (localStorage.getItem('firestore_quota_exceeded') === 'true') {
+            if (checkQuotaFlag()) {
               abortWithLocalFallback();
               return;
             }
@@ -1140,7 +1134,7 @@ export default function App() {
           } catch (repErr: any) {
             console.warn("Failed to fetch reports:", repErr);
             handleFirestoreError(repErr);
-            if (localStorage.getItem('firestore_quota_exceeded') === 'true') {
+            if (checkQuotaFlag()) {
               abortWithLocalFallback();
               return;
             }
@@ -1149,7 +1143,7 @@ export default function App() {
           }
           // 4. Fetch agentAnalyses
           try {
-            if (localStorage.getItem('firestore_quota_exceeded') === 'true') {
+            if (checkQuotaFlag()) {
               abortWithLocalFallback();
               return;
             }
@@ -1163,7 +1157,7 @@ export default function App() {
           } catch (err) {
             console.warn("Failed to fetch agentAnalyses:", err);
             handleFirestoreError(err);
-            if (localStorage.getItem('firestore_quota_exceeded') === 'true') {
+            if (checkQuotaFlag()) {
               abortWithLocalFallback();
               return;
             }
@@ -1400,11 +1394,11 @@ export default function App() {
           const hasLocalAdditions = 
             mergedFoods.some(f => {
               const cf = filteredFoods.find(c => c.id === f.id);
-              return !cf || !isDeepEqual(cleanData(f), cleanData(cf));
+              return !cf || !isDeepEqual(sanitizeForFirestore(f), sanitizeForFirestore(cf));
             }) ||
             mergedBioHistory.some(b => {
               const cb = filteredBioHistory.find(c => c.id === b.id);
-              return !cb || !isDeepEqual(cleanData(b), cleanData(cb));
+              return !cb || !isDeepEqual(sanitizeForFirestore(b), sanitizeForFirestore(cb));
             }) ||
             mergedActions.some(a => !acts.some(ca => ca.id === a.id)) ||
             mergedBenefits.some(b => !bens.some(cb => cb.id === b.id));
@@ -1485,7 +1479,7 @@ export default function App() {
         const tNewProfileId = logInteraction('upload', `users/${uid} (Restore Profile)`, localProfile);
         const localProfileForCloud = { ...localProfile };
         delete localProfileForCloud.agentAnalyses;
-        setDoc(userDocRef, cleanData(localProfileForCloud), { merge: true })
+        setDoc(userDocRef, sanitizeForFirestore(localProfileForCloud), { merge: true })
           .then(() => completeInteraction(tNewProfileId, true, JSON.stringify(localProfile).length))
           .catch(err => { completeInteraction(tNewProfileId, false, 0, err.message); console.error(err); });
         await new Promise(resolve => setTimeout(resolve, 800));
@@ -1508,7 +1502,7 @@ export default function App() {
           language: 'en'
         };
         const tNewProfileId = logInteraction('upload', `users/${uid} (Create Profile)`, newProfile);
-        setDoc(userDocRef, cleanData(newProfile), { merge: true })
+        setDoc(userDocRef, sanitizeForFirestore(newProfile), { merge: true })
           .then(() => completeInteraction(tNewProfileId, true, JSON.stringify(newProfile).length))
           .catch(err => { completeInteraction(tNewProfileId, false, 0, err.message); console.error(err); });
         
@@ -1541,8 +1535,8 @@ export default function App() {
           // Write to Firestore dashboard document to prevent multiple writes
           const tDashId = logInteraction('upload', `users/${uid}/metadata/dashboard`, null);
           setDoc(doc(db, 'users', uid, 'metadata', 'dashboard'), {
-            actions: initialActions.map(cleanData),
-            dailyBenefits: initialBenefits.map(cleanData)
+            actions: initialActions.map(sanitizeForFirestore),
+            dailyBenefits: initialBenefits.map(sanitizeForFirestore)
           }, { merge: true })
             .then(() => completeInteraction(tDashId, true, JSON.stringify({ actions: initialActions, dailyBenefits: initialBenefits }).length))
             .catch(err => { completeInteraction(tDashId, false, 0, err.message); console.error(err); });
@@ -1953,7 +1947,7 @@ export default function App() {
           if (analysis) {
             const itemTrackId = logInteraction('upload', `users/${uid}/agentAnalyses/${analysis.id}`, analysis);
             await withTimeout(
-              setDoc(doc(db, 'users', uid, 'agentAnalyses', analysis.id), cleanData(analysis))
+              setDoc(doc(db, 'users', uid, 'agentAnalyses', analysis.id), sanitizeForFirestore(analysis))
                 .then(() => completeInteraction(itemTrackId, true, JSON.stringify(analysis).length))
                 .catch(err => { completeInteraction(itemTrackId, false, 0, err.message); handleFirestoreError(err); console.error(err); }),
               2000,
@@ -1972,7 +1966,7 @@ export default function App() {
         } else if (specificUpdate.type === 'profile') {
           const pId = logInteraction('upload', `users/${uid} (Profile)`, updatedProfile);
           await withTimeout(
-            setDoc(doc(db, 'users', uid), cleanData(profileForCloud))
+            setDoc(doc(db, 'users', uid), sanitizeForFirestore(profileForCloud))
               .then(() => completeInteraction(pId, true, JSON.stringify(updatedProfile).length))
               .catch(err => { completeInteraction(pId, false, 0, err.message); handleFirestoreError(err); console.error(err); }),
             2000,
@@ -1998,12 +1992,12 @@ export default function App() {
           await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, (sf, sb) => {
             setFoodLogs(sf); setBiomarkerHistory(sb);
           });
-          const profilePromise = setDoc(doc(db, 'users', uid), cleanData(profileForCloud)).catch(err => handleFirestoreError(err));
+          const profilePromise = setDoc(doc(db, 'users', uid), sanitizeForFirestore(profileForCloud)).catch(err => handleFirestoreError(err));
           await withTimeout(profilePromise, 3000, 'biomarkerLogsBatch');
         } else if (specificUpdate.type === 'actions') {
           const itemTrackId = logInteraction('upload', `users/${uid}/metadata/dashboard (Actions)`, null);
           await withTimeout(
-            setDoc(doc(db, 'users', uid, 'metadata', 'dashboard'), { actions: currActions.map(cleanData) }, { merge: true })
+            setDoc(doc(db, 'users', uid, 'metadata', 'dashboard'), { actions: currActions.map(sanitizeForFirestore) }, { merge: true })
               .then(() => completeInteraction(itemTrackId, true, JSON.stringify(currActions).length))
               .catch(err => { completeInteraction(itemTrackId, false, 0, err.message); handleFirestoreError(err); console.error(err); }),
             2000,
@@ -2012,7 +2006,7 @@ export default function App() {
         } else if (specificUpdate.type === 'dailyBenefits') {
           const itemTrackId = logInteraction('upload', `users/${uid}/metadata/dashboard (Benefits)`, null);
           await withTimeout(
-            setDoc(doc(db, 'users', uid, 'metadata', 'dashboard'), { dailyBenefits: currBenefits.map(cleanData) }, { merge: true })
+            setDoc(doc(db, 'users', uid, 'metadata', 'dashboard'), { dailyBenefits: currBenefits.map(sanitizeForFirestore) }, { merge: true })
               .then(() => completeInteraction(itemTrackId, true, JSON.stringify(currBenefits).length))
               .catch(err => { completeInteraction(itemTrackId, false, 0, err.message); handleFirestoreError(err); console.error(err); }),
             2000,
@@ -2021,7 +2015,7 @@ export default function App() {
         } else if (specificUpdate.type === 'foodIdeas') {
           const itemTrackId = logInteraction('upload', `users/${uid}/metadata/dashboard (FoodIdeas)`, null);
           await withTimeout(
-            setDoc(doc(db, 'users', uid, 'metadata', 'dashboard'), { foodIdeas: currFoodIdeas.map(cleanData) }, { merge: true })
+            setDoc(doc(db, 'users', uid, 'metadata', 'dashboard'), { foodIdeas: currFoodIdeas.map(sanitizeForFirestore) }, { merge: true })
               .then(() => completeInteraction(itemTrackId, true, JSON.stringify(currFoodIdeas).length))
               .catch(err => { completeInteraction(itemTrackId, false, 0, err.message); handleFirestoreError(err); console.error(err); }),
             2000,
@@ -2030,7 +2024,7 @@ export default function App() {
         } else if (specificUpdate.type === 'report' && currReport) {
           const itemTrackId = logInteraction('upload', `users/${uid}/reports/latest`, currReport);
           await withTimeout(
-            setDoc(doc(db, 'users', uid, 'reports', 'latest'), cleanData(currReport))
+            setDoc(doc(db, 'users', uid, 'reports', 'latest'), sanitizeForFirestore(currReport))
               .then(() => completeInteraction(itemTrackId, true, JSON.stringify(currReport).length))
               .catch(err => { completeInteraction(itemTrackId, false, 0, err.message); handleFirestoreError(err); console.error(err); }),
             2000,
@@ -2040,8 +2034,8 @@ export default function App() {
           const dashTrackId = logInteraction('upload', `users/${uid}/metadata/dashboard (Report Update)`, null);
           await withTimeout(
             setDoc(doc(db, 'users', uid, 'metadata', 'dashboard'), {
-              actions: currActions.map(cleanData),
-              dailyBenefits: currBenefits.map(cleanData)
+              actions: currActions.map(sanitizeForFirestore),
+              dailyBenefits: currBenefits.map(sanitizeForFirestore)
             }).catch(console.error),
             2000,
             'Dashboard report sync'
@@ -2059,7 +2053,7 @@ export default function App() {
         }
       } else if (specificUpdate && specificUpdate.type === 'fullPush') {
         const pId = logInteraction('upload', `users/${uid} (Profile)`, currProfile);
-        const profilePromise = setDoc(doc(db, 'users', uid), cleanData(profileForCloud))
+        const profilePromise = setDoc(doc(db, 'users', uid), sanitizeForFirestore(profileForCloud))
           .then(() => completeInteraction(pId, true, JSON.stringify(currProfile).length))
           .catch(err => { completeInteraction(pId, false, 0, err.message); handleFirestoreError(err); });
         
@@ -2097,14 +2091,14 @@ export default function App() {
         const foodImagePromise = chunkPromises(foodImageTasks, 5);
 
         const dashboardPromise = setDoc(doc(db, 'users', uid, 'metadata', 'dashboard'), {
-          actions: currActions.map(cleanData),
-          dailyBenefits: currBenefits.map(cleanData),
-          foodIdeas: currFoodIdeas.map(cleanData)
+          actions: currActions.map(sanitizeForFirestore),
+          dailyBenefits: currBenefits.map(sanitizeForFirestore),
+          foodIdeas: currFoodIdeas.map(sanitizeForFirestore)
         }, { merge: true }).catch(err => { handleFirestoreError(err); console.error(err); });
         let reportPromise = Promise.resolve();
         if (currReport) {
           const itemTrackId = logInteraction('upload', `users/${uid}/reports/latest`, currReport);
-          reportPromise = setDoc(doc(db, 'users', uid, 'reports', 'latest'), cleanData(currReport))
+          reportPromise = setDoc(doc(db, 'users', uid, 'reports', 'latest'), sanitizeForFirestore(currReport))
             .then(() => completeInteraction(itemTrackId, true, JSON.stringify(currReport).length))
             .catch(err => { completeInteraction(itemTrackId, false, 0, err.message); handleFirestoreError(err); });
         }
@@ -2121,19 +2115,19 @@ export default function App() {
       } else {
         // Multi-document sync (default when no specific update provided)
         const pId = logInteraction('upload', `users/${uid} (Profile)`, currProfile);
-        const profilePromise = setDoc(doc(db, 'users', uid), cleanData(profileForCloud))
+        const profilePromise = setDoc(doc(db, 'users', uid), sanitizeForFirestore(profileForCloud))
           .then(() => completeInteraction(pId, true, JSON.stringify(currProfile).length))
           .catch(err => { completeInteraction(pId, false, 0, err.message); handleFirestoreError(err); });
           
         const dashboardPromise = setDoc(doc(db, 'users', uid, 'metadata', 'dashboard'), {
-          actions: currActions.map(cleanData),
-          dailyBenefits: currBenefits.map(cleanData),
-          foodIdeas: currFoodIdeas.map(cleanData)
+          actions: currActions.map(sanitizeForFirestore),
+          dailyBenefits: currBenefits.map(sanitizeForFirestore),
+          foodIdeas: currFoodIdeas.map(sanitizeForFirestore)
         }, { merge: true }).catch(err => { handleFirestoreError(err); console.error(err); });
         let reportPromise = Promise.resolve();
         if (currReport) {
           const itemTrackId = logInteraction('upload', `users/${uid}/reports/latest`, currReport);
-          reportPromise = setDoc(doc(db, 'users', uid, 'reports', 'latest'), cleanData(currReport))
+          reportPromise = setDoc(doc(db, 'users', uid, 'reports', 'latest'), sanitizeForFirestore(currReport))
             .then(() => completeInteraction(itemTrackId, true, JSON.stringify(currReport).length))
             .catch(err => { completeInteraction(itemTrackId, false, 0, err.message); handleFirestoreError(err); });
         }
@@ -3629,13 +3623,7 @@ export default function App() {
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={async () => {
-                // Clear the mock/quota flag and retry sync
-                localStorage.removeItem('firestore_quota_exceeded');
-                setIsFirestoreQuotaExceeded(false);
-                setSyncState('syncing');
-                await checkForDbChanges(undefined, true);
-              }}
+              onClick={() => handleRetryQuota()}
               className="px-3 py-1 bg-white hover:bg-slate-100 text-amber-700 font-bold text-[10px] rounded-lg transition-all shadow-sm shrink-0 cursor-pointer"
             >
               Retry Sync
@@ -4493,6 +4481,10 @@ export default function App() {
               </h2>
               <button onClick={() => setShowSnapshotPanel(false)} className="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
             </div>
+            <p className="text-[12px] text-slate-500 mb-4 bg-slate-100 dark:bg-slate-800 p-2 rounded">
+              💡 Note: Image data is not included in undo snapshots to save space. 
+              Images will need to be re-attached if you undo a food log.
+            </p>
             {snapshots.length === 0 ? (
               <p className="text-sm text-slate-500 text-center py-6">No snapshots yet. Snapshots are created automatically before each agent approval.</p>
             ) : (

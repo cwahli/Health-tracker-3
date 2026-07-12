@@ -80,6 +80,7 @@ async function testConnection() {
       if (msg.includes('resource-exhausted') || msg.includes('quota') || msg.includes('limit exceeded')) {
         if (typeof window !== 'undefined' && window.localStorage) {
           window.localStorage.setItem('firestore_quota_exceeded', 'true');
+          window.localStorage.setItem('firestore_quota_exceeded_time', new Date().getTime().toString());
         }
         console.warn("Firestore connection test: Quota limit exceeded.");
         return;
