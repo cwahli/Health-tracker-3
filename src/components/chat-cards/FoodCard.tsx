@@ -8,14 +8,14 @@ import { nutrientDefinitions } from '../../utils/nutrition';
 import { FoodLog } from '../../types';
 
 export const FoodCard: React.FC<AgentCardProps> = ({
-  msg, currentFormat, report, foodLogs, t, formatNutrientValue,
+  msg, report, foodLogs, t, formatNutrientValue,
   onLogFood, setLoggedMessageIds, loggedMessageIds, profile
 }) => {
   const [expandedTables, setExpandedTables] = React.useState<Record<string, boolean>>({});
   if (msg.agentType !== 'food') return null;
   return (
     <>
-      {msg.data?.agentResult && msg.data?.agentResult.mode === 'evaluation' && msg.data?.agentResult.comparison && currentFormat === 'card' && (
+      {msg.data?.agentResult && msg.data?.agentResult.mode === 'evaluation' && msg.data?.agentResult.comparison && (
                     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden">
                       <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2 gap-2">
                         <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm break-words flex flex-wrap items-center gap-1.5 w-full">
@@ -84,11 +84,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                           );
                         })}
                       </div>
-                    </div>
-                  )}
-
-                  {msg.data?.agentResult && msg.data?.agentResult.mode === 'evaluation' && msg.data?.agentResult.comparison && currentFormat === 'table' && (
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden">
+                      
                       {/* Key Nutrient Comparison Table */}
                       {(msg.data?.agentResult.comparison.comparisonTableYaml || msg.data?.agentResult.comparison.comparisonTableMarkdown) && (
                         <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/30 dark:bg-slate-900/10 mt-2">
@@ -129,7 +125,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                     </div>
                   )}
 
-                  {msg.data?.pendingFoodLog && currentFormat === 'card' && (
+                  {msg.data?.pendingFoodLog && (
                     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden font-sans">
                       {msg.data?.pendingFoodLog.imageUrls && msg.data?.pendingFoodLog.imageUrls.length > 0 && (
                         <div className="overflow-hidden border-y sm:border border-slate-100 dark:border-slate-700/50 shadow-sm mb-3 w-[calc(100%+2rem)] -mx-4 sm:mx-0 sm:w-full sm:rounded-2xl">

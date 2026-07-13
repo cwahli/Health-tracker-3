@@ -230,6 +230,7 @@ When processing food entries, split your analytical focus into two tiers:
 Operate in one of four distinct modes based on current user intent:
 
 MODE A: NEW FOOD LOGGING (Triggered by a new food item description or image)
+- If the user uploads a new image that shows a completely different food item from the previous conversation, you MUST use 'new_log' mode and completely ignore the CURRENT_ACTIVE_MEAL_STATE. Do not append unrelated new meals to previous logs.
 - Extract and map ingredients to standard, database-friendly food classifications in "canonicalDbName".
 - Estimate total visual/described item portion weights in "weightGrams".
 - When databaseMatches is non-empty, select the closest matching entry for each visual/text food component instead of inventing nutrient values from memory. Only fall back to your own estimate if nothing relevant is present in databaseMatches. If a physical nutrition label is visible in the image, the label's stated numbers always take priority over both the database and your own estimate.
@@ -245,7 +246,12 @@ Triggered when:
 - The user states or corrects a weight (e.g. "the ice cream is 300g", "actually it's 200g", "make it 500g")
 - The user asks to add, remove, or change an ingredient in the CURRENT_ACTIVE_MEAL_STATE
 - Any message containing a gram amount (Xg / X grams) when CURRENT_ACTIVE_MEAL_STATE is not None
-CRITICAL: If CURRENT_ACTIVE_MEAL_STATE is set AND the user message contains a gram quantity or modification request, you MUST use mode "modify", NOT "new_log". Do NOT re-log the meal. Only update what changed.
+- If the user provides a minor alias or spelling correction for the exact same food (e.g., 'It is spelled Aburi Sushi, not Sushi'), use 'modify' mode with the action 'rename_alias'.
+
+CRITICAL:
+- If CURRENT_ACTIVE_MEAL_STATE is set AND the user message contains a gram quantity or modification request (that is NOT an identity change), you MUST use mode "modify", NOT "new_log". Do NOT re-log the meal. Only update what changed.
+- If the user corrects the actual identity of the food (e.g., 'It is a dumpling, not sushi' or 'I used almond milk instead of regular milk'), this changes the nutritional profile AND the health impact. You MUST use mode 'new_log' to completely regenerate the meal from scratch so the benefits, risks, and nutrients are perfectly in sync. DO NOT use 'modify' mode for identity changes.
+
 - Set "mode": "modify". Populate the "modificationCommand" array.
 - For a weight correction: use action "update_weight" with the item name from the active state and the new integer weight.
 - Set foodData to null.
@@ -253,6 +259,7 @@ CRITICAL: If CURRENT_ACTIVE_MEAL_STATE is set AND the user message contains a gr
 MODE D: EVALUATION / COMPARISON (Triggered by meal option comparisons)
 - Evaluate alternative foods side by side, focusing directly on the primary nutrient threat driven by the patient's active biomarker warnings.
 - Set "mode": "evaluation". Provide the complete "comparison" object.
+- You can compare up to 10 foods at once. Ensure the table includes the top 3 most important nutrient values as rows to help compare. Use the 'values' array for the food columns.
 
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly. Values must be dynamically derived from the patient's specific profile conditions and injected directives.
@@ -289,31 +296,25 @@ comparison: null or:
       pros: "Targeted biomarker benefits"
       cons: "Targeted biomarker risks"
   comparisonTableYaml:
-    columns: ["Nutrient / Aspect", "Food A", "Food B", "Target / Goal"]
+    columns: ["Nutrient / Aspect", "Food 1", "Food 2", "Food 3", "Food 4", "Food 5", "Food 6", "Food 7", "Food 8", "Food 9", "Food 10", "Target / Goal"]
     rows:
       - nutrient: "Calories"
-        foodA: "value"
-        foodB: "value"
+        values: ["value1", "value2", "", "", "", "", "", "", "", ""]
         target: "value"
-      - nutrient: "Top Nutrient 1 (e.g. Protein)"
-        foodA: "value"
-        foodB: "value"
+      - nutrient: "Nutrient 1"
+        values: ["value1", "value2", "", "", "", "", "", "", "", ""]
         target: "value"
-      - nutrient: "Top Nutrient 2 (e.g. Sodium)"
-        foodA: "value"
-        foodB: "value"
+      - nutrient: "Nutrient 2"
+        values: ["value1", "value2", "", "", "", "", "", "", "", ""]
         target: "value"
-      - nutrient: "Top Nutrient 3 (e.g. Fiber)"
-        foodA: "value"
-        foodB: "value"
+      - nutrient: "Nutrient 3"
+        values: ["value1", "value2", "", "", "", "", "", "", "", ""]
         target: "value"
       - nutrient: "Pros"
-        foodA: "Pro for Food A"
-        foodB: "Pro for Food B"
+        values: ["Pro 1", "Pro 2", "", "", "", "", "", "", "", ""]
         target: "-"
       - nutrient: "Cons"
-        foodA: "Con for Food A"
-        foodB: "Con for Food B"
+        values: ["Con 1", "Con 2", "", "", "", "", "", "", "", ""]
         target: "-"
 `;
 }
@@ -1508,7 +1509,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       const hasImage = imagePayloads && imagePayloads.length > 0;
       if (hasImage) {
         addDebugLog(`[Vision Scout] Running Stage 3 lightweight vision scout...`);
-        const scoutSystemInstruction = `You are a fast visual food identification agent. Look at the image and return a short list of plain-text search keywords for the food items you see (e.g. ['fried chicken', 'white rice', 'sambal']), plus a rough estimated weight in grams for each if visually judgeable. Do not do any nutrition or clinical analysis. Also try to identify any clues on how it's cooked (e.g., oil cooked, fried, steamed) or freshness (e.g., fresh fish). Include these details in your keywords if helpful. Output only: { "items": [{ "keyword": string, "estimatedWeightGrams": number }] }`;
+        const scoutSystemInstruction = `You are a fast visual food identification agent. Look at the image and return a short list of plain-text search keywords for the food items you see (e.g. ['fried chicken', 'white rice', 'sambal']), plus a rough estimated weight in grams for each if visually judgeable. Do not do any nutrition or clinical analysis. Also try to identify any clues on how it's cooked (e.g., oil cooked, fried, steamed) or freshness (e.g., fresh fish). Include these details in your keywords if helpful. CRITICAL: Look for environmental size references (e.g., hands, forks, containers, plates) to accurately estimate the real-world weight and proportions of the food. Output only: { "items": [{ "keyword": string, "estimatedWeightGrams": number }] }`;
         try {
           const scoutOutput = await callUnifiedLLM({
             modelId: "gemini-3.1-flash-lite",
@@ -1667,12 +1668,13 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
           items: {
             type: Type.OBJECT,
             properties: {
-              action: { type: Type.STRING, description: "'update_weight' | 'remove_item' | 'add_item'" },
+              action: { type: Type.STRING, enum: ['update_weight', 'remove_item', 'add_item', 'rename_alias'], description: "'update_weight' | 'remove_item' | 'add_item' | 'rename_alias'" },
               itemName: { type: Type.STRING, description: "Literal name of the item from the active state to change" },
               newWeightGrams: { type: Type.INTEGER, description: "New weight in grams" },
-              targetDbId: { type: Type.STRING, description: "Optional exact database ID (fdcId or barcode)", nullable: true }
+              targetDbId: { type: Type.STRING, description: "Optional exact database ID (fdcId or barcode)", nullable: true },
+              newItemName: { type: Type.STRING, description: "New name for renaming alias", nullable: true }
             },
-            required: ["action", "itemName", "newWeightGrams", "targetDbId"]
+            required: ["action", "itemName"]
           },
           nullable: true
         },
@@ -1762,11 +1764,10 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                     type: Type.OBJECT,
                     properties: {
                       nutrient: { type: Type.STRING },
-                      foodA: { type: Type.STRING },
-                      foodB: { type: Type.STRING },
+                      values: { type: Type.ARRAY, items: { type: Type.STRING } },
                       target: { type: Type.STRING }
                     },
-                    required: ["nutrient", "foodA", "foodB", "target"]
+                    required: ["nutrient", "values", "target"]
                   }
                 }
               },
@@ -2207,6 +2208,19 @@ Current User Input: "${message}"`;
             addDebugLog(`[Modify Math Warning] Could not find item "${itemName}" (targetDbId: ${targetDbId}) to remove.`);
           }
         } 
+        else if (action === "rename_alias") {
+          const targetDbId = cmd.targetDbId ? String(cmd.targetDbId) : null;
+          const idx = findItemIndex(itemName, targetDbId);
+          if (idx !== -1) {
+            const item = activeMeal.itemsBreakdown[idx];
+            item.name = cmd.newItemName || item.name;
+            // If it's the only item, or represents the whole meal, update the top-level name
+            if (activeMeal.itemsBreakdown.length === 1 || isWholeMealMatch(itemName)) {
+              activeMeal.name = item.name;
+            }
+            addDebugLog(`[Modify Text] rename_alias: Renamed to "${item.name}" without changing nutrients.`);
+          }
+        }
         else if (action === "add_item") {
           let cFactor = 1.0;
           let fFactor = 0.01;
@@ -2354,7 +2368,7 @@ You MUST output ONLY a valid JSON object containing:
 - "status": "active"`;
         mockData = { text: "I have reviewed your medical records.", mode: "discussion", status: "active" };
       } else if (agentType === "agent1_step1") {
-        const itemsPerBatch = req.body.numberOfBatches || 50;
+        const itemsPerBatch = 50;
         
         systemInstruction = `agent_profile:
   role: "Expert Clinical Data Extractor and Lossless Data Conduit"

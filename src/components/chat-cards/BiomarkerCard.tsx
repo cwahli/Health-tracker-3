@@ -8,7 +8,7 @@ import { biomarkerDefinitions } from '../../utils/biomarkers';
 import { AgentType, AGENT_REGISTRY } from '../../utils/agentConfig';
 
 export const BiomarkerCard: React.FC<AgentCardProps> = ({
-  msg, currentFormat, messages, idx, profile, biomarkerHistory,
+  msg, messages, idx, profile, biomarkerHistory,
   handleAgent1Step, handleContinueExtractionChunk, setLoggedMessageIds,
   loggedMessageIds, onAgentFinish, handleSend, setActiveInstructionAgentType,
   setActiveInstructionPrompt, onLogMedical
@@ -17,7 +17,7 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
   return (
     <>
       {/* Render Agent Result Blocks */}
-                  {msg.agentType && msg.data?.agentResult && !(loggedMessageIds || []).includes(msg.id) && currentFormat !== 'prose' && (
+                  {msg.agentType && msg.data?.agentResult && !(loggedMessageIds || []).includes(msg.id) && (
                     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-4 animation-fade-in w-full max-w-full min-w-0 overflow-hidden">
                       <div className="flex items-center justify-between gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800/50">
                         <div className="flex items-center gap-1.5">
@@ -40,7 +40,7 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                       </div>
 
                       {/* Content details based on Agent type */}
-                      {msg.agentType && AGENT_REGISTRY[msg.agentType as AgentType]?.capabilities?.includes('biomarker_table_view') && msg.data?.agentResult && (currentFormat === 'table' || currentFormat === 'card') && (
+                      {msg.agentType && AGENT_REGISTRY[msg.agentType as AgentType]?.capabilities?.includes('biomarker_table_view') && msg.data?.agentResult && (
                         <ErrorBoundary>
                         <AgentResultTable
                           agentType={
@@ -90,7 +90,7 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                         </ErrorBoundary>
                       )}
 
-                      {msg.agentType && AGENT_REGISTRY[msg.agentType as AgentType]?.capabilities?.includes('insight_card_view') && msg.data?.agentResult && (currentFormat === 'card' || currentFormat === 'table') && (
+                      {msg.agentType && AGENT_REGISTRY[msg.agentType as AgentType]?.capabilities?.includes('insight_card_view') && msg.data?.agentResult && (
                         <div className="space-y-2">
                           <GenericAgentResultView rawResult={msg.data?.agentResult} />
                         </div>

@@ -2,7 +2,7 @@ import {
  ErrorBoundary } from './ErrorBoundary';
 import { agentCardRegistry } from './chat-cards';
 import React, { useState, useRef, useEffect } from 'react';
-import { parse } from 'yaml';
+import { parse, stringify } from 'yaml';
 import { ChatMessage, FoodLog, UserProfile, FoodIdea } from '../types';
 import { translations } from '../utils/translations';
 import { X, Send, Image, Camera, MessageSquare, Sparkles, Plus, Terminal, ChevronDown, ChevronUp, Loader, MapPin, Trash2, Check, Table, RotateCcw, AlertTriangle, ShieldAlert, Edit2 } from 'lucide-react';
@@ -441,7 +441,8 @@ export default function LogChat({
   const [localBatchSize, setLocalBatchSize] = useState(batchSize || 20);
   const [numberOfBatches, setNumberOfBatches] = useState<number>(() => {
     const saved = localStorage.getItem('agent_num_batches');
-    return saved ? parseInt(saved, 10) : 50;
+    const parsed = saved ? parseInt(saved, 10) : 50;
+    return parsed < 10 ? 50 : parsed;
   });
 
   const [showFullScreenDebugLogs, setShowFullScreenDebugLogs] = useState(false);
@@ -597,7 +598,6 @@ ${logsText}`);
   const chatStorageKey = agentType ? `chat_messages_${userIdentifier}_${type}_${agentType}_${dataReviewBatchIdx ?? 'none'}` : `chat_messages_${userIdentifier}_${type}`;
 
   const [lastSentPayload, setLastSentPayload] = useState<any>(null);
-  const [messageFormats, setMessageFormats] = useState<Record<string, 'prose' | 'table' | 'card'>>({});
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string>(() => {
     return `session_${Date.now()}`;
@@ -1607,11 +1607,14 @@ ${logsText}`);
 
   useEffect(() => {
     if (isOpen && autoSendMessage && (isAgent('medical') || isAgent('daily_recommendation'))) {
+      if (agentType === 'agent1' || agentType === 'agent2' || agentType === 'agent3' || agentType === 'agent4' || agentType === 'agent5' || agentType === 'agent6' || agentType === 'agent7') {
+        return;
+      }
       if (agentType === 'data_review') {
         setInputText(autoSendMessage);
         return;
       }
-      const alreadySent = messages.some(m => m.role === 'user' && m.content === autoSendMessage);
+      const alreadySent = messages.some(m => m.role === 'user');
       if (!alreadySent) {
         const timer = setTimeout(() => {
           handleSend(autoSendMessage);
@@ -1652,13 +1655,76 @@ ${logsText}`);
 
       setMessages(prev => prev.map(m => {
         if (m.id === msg.id) {
+          // Parse old YAML entries
+          const oldYamlStr = m.data?.agentResult?.extractedYaml || '';
+          let oldEntries: any[] = [];
+          if (oldYamlStr) {
+            try {
+              const cleanedOld = oldYamlStr.replace(/```(?:yaml|yml)?/gi, '').trim();
+              const oldParsed = parse(cleanedOld);
+              oldEntries = Array.isArray(oldParsed) 
+                ? oldParsed 
+                : (oldParsed?.biomarkers || oldParsed?.entries || oldParsed?.data || []);
+              if (!Array.isArray(oldEntries)) oldEntries = [];
+            } catch (e) {
+              console.warn("Failed to parse old YAML", e);
+            }
+          }
+
+          // Parse new YAML entries
+          const newYamlStr = resData.extractedYaml || '';
+          let newEntries: any[] = [];
+          if (newYamlStr) {
+            try {
+              const cleanedNew = newYamlStr.replace(/```(?:yaml|yml)?/gi, '').trim();
+              const newParsed = parse(cleanedNew);
+              newEntries = Array.isArray(newParsed) 
+                ? newParsed 
+                : (newParsed?.biomarkers || newParsed?.entries || newParsed?.data || []);
+              if (!Array.isArray(newEntries)) newEntries = [];
+            } catch (e) {
+              console.warn("Failed to parse new YAML", e);
+            }
+          }
+
+          // Merge entries and deduplicate
+          let combinedEntries = [...oldEntries];
+          newEntries.forEach((newE: any) => {
+            if (!newE || typeof newE !== 'object') return;
+            const newKey = String(newE.biomarker || newE.name || '').trim().toLowerCase();
+            const newDate = String(newE.date || '').trim();
+            const newVal = String(newE.value || '').trim();
+            
+            const isDuplicate = oldEntries.some((oldE: any) => {
+              if (!oldE || typeof oldE !== 'object') return false;
+              const oldKey = String(oldE.biomarker || oldE.name || '').trim().toLowerCase();
+              const oldDate = String(oldE.date || '').trim();
+              const oldVal = String(oldE.value || '').trim();
+              return oldKey === newKey && oldDate === newDate && oldVal === newVal;
+            });
+            
+            if (!isDuplicate) {
+              combinedEntries.push(newE);
+            }
+          });
+
+          // Convert combined back to YAML
+          let combinedYamlStr = resData.extractedYaml || oldYamlStr;
+          if (combinedEntries.length > 0) {
+            try {
+              combinedYamlStr = stringify(combinedEntries);
+            } catch (e) {
+              console.warn("Failed to stringify combined entries", e);
+            }
+          }
+
           const updatedMsg = {
             ...m,
             content: resData.text || m.content,
             agentResult: {
               ...m.data?.agentResult,
               text: resData.text || m.data?.agentResult?.text,
-              extractedYaml: resData.extractedYaml || m.data?.agentResult?.extractedYaml,
+              extractedYaml: combinedYamlStr,
               hasMoreMarkers: resData.hasMoreMarkers,
               remainingText: resData.remainingText || '',
               estimatedTotalMarkers: resData.estimatedTotalMarkers !== undefined ? resData.estimatedTotalMarkers : m.data?.agentResult?.estimatedTotalMarkers
@@ -2232,8 +2298,6 @@ ${JSON.stringify(profile, null, 2)}`);
 
                   const isAss = msg.role === 'assistant';
                   if (isAss) {
-                    const currentFormat = messageFormats[msg.id] || (isAgent('food') ? 'card' : 'prose');
-                    const hasFormattingOptions = !!(msg.data?.agentResult || msg.data?.pendingFoodIdeas);
 
                   return (
                 <div
@@ -2251,60 +2315,21 @@ ${JSON.stringify(profile, null, 2)}`);
                     </button>
                   )}
 
-                  {/* Multi-Format Rendering Switcher */}
-                  {hasFormattingOptions && (
-                    <div className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-800/85 p-1 rounded-xl border border-slate-200/50 dark:border-slate-750/50 w-fit mb-2 text-[10px] font-sans shrink-0">
-                      <button
-                        type="button"
-                        onClick={() => setMessageFormats(prev => ({ ...prev, [msg.id]: 'prose' }))}
-                        className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                          currentFormat === 'prose'
-                            ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                        }`}
-                      >
-                        📝 Prose
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMessageFormats(prev => ({ ...prev, [msg.id]: 'table' }))}
-                        className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                          currentFormat === 'table'
-                            ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                        }`}
-                      >
-                        📊 Table
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setMessageFormats(prev => ({ ...prev, [msg.id]: 'card' }))}
-                        className={`px-2.5 py-1 rounded-lg font-bold transition-all cursor-pointer ${
-                          currentFormat === 'card'
-                            ? 'bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-sm'
-                            : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                        }`}
-                      >
-                        📇 Bento Card
-                      </button>
-                    </div>
-                  )}
-
+                  {/* No switcher */}
                   <div className="w-full leading-relaxed font-size-body text-slate-850 dark:text-slate-100 font-medium break-words overflow-x-hidden bg-transparent border-none shadow-none">
-                    {currentFormat === 'prose' && (
-                      <div className="animation-fade-in">
-                        {msg.imageUrls && msg.imageUrls.length > 0 ? (
-                          <div className="mb-2 overflow-hidden border-y sm:border border-slate-200 dark:border-slate-700/30 w-[calc(100%+2.5rem)] -mx-5 sm:mx-0 sm:w-full sm:rounded-xl">
-                            <ImageSlider images={msg.imageUrls} altText="Attached meal pictures" />
-                          </div>
-                        ) : msg.imageUrl ? (
-                          <div className="mb-2 overflow-hidden border-y sm:border border-slate-200 dark:border-slate-700/30 max-h-40 w-[calc(100%+2.5rem)] -mx-5 sm:mx-0 sm:w-full sm:rounded-xl">
-                            <img src={msg.imageUrl} alt="Attached meal" className="w-full h-full object-cover" />
-                          </div>
-                        ) : null}
-                        <p className="whitespace-pre-line break-words">{typeof msg.content === 'object' ? JSON.stringify(msg.content) : msg.content}</p>
-                      </div>
-                    )}
+                    <div className="animation-fade-in">
+                      {msg.imageUrls && msg.imageUrls.length > 0 ? (
+                        <div className="mb-2 overflow-hidden border-y sm:border border-slate-200 dark:border-slate-700/30 w-[calc(100%+2.5rem)] -mx-5 sm:mx-0 sm:w-full sm:rounded-xl">
+                          <ImageSlider images={msg.imageUrls} altText="Attached meal pictures" />
+                        </div>
+                      ) : msg.imageUrl ? (
+                        <div className="mb-2 overflow-hidden border-y sm:border border-slate-200 dark:border-slate-700/30 max-h-40 w-[calc(100%+2.5rem)] -mx-5 sm:mx-0 sm:w-full sm:rounded-xl">
+                          <img src={msg.imageUrl} alt="Attached meal" className="w-full h-full object-cover" />
+                        </div>
+                      ) : null}
+                      <p className="whitespace-pre-line break-words">{typeof msg.content === 'object' ? JSON.stringify(msg.content) : msg.content}</p>
+                    </div>
+                  </div>
 
                     {msg.agentUnavailable && (
                       <div className="mt-3">
@@ -2387,7 +2412,6 @@ ${JSON.stringify(profile, null, 2)}`);
                         </button>
                       </div>
                     )}
-                  </div>
 
                   {/* Render extracted Pending Food Log block if assistant has finished parsing */}
                   {/* Render extracted Pending Food Log info */}
@@ -2397,7 +2421,6 @@ ${JSON.stringify(profile, null, 2)}`);
                     return (
                       <Renderer
                         msg={msg}
-                        currentFormat={currentFormat}
                         idx={idx}
                         messages={messages}
                         report={report}
@@ -2422,7 +2445,8 @@ ${JSON.stringify(profile, null, 2)}`);
                   })()}
                 </div>
               );
-            } else {
+            }
+            else {
               if (msg.content === 'Surprise me') return null;
               return (
                 <div
