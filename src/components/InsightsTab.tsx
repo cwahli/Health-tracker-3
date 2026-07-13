@@ -957,17 +957,9 @@ export default function InsightsTab({
                       initialRawText=""
                     />
                   </div>
-                ) : agentType === 'agent5' ? (
+                ) : ['agent5', 'agent6', 'agent7'].includes(agentType) ? (
                   <div className="mt-2">
-                    <Agent5View rawResult={item.result} />
-                  </div>
-                ) : agentType === 'agent6' ? (
-                  <div className="mt-2">
-                    <Agent6View rawResult={item.result} />
-                  </div>
-                ) : agentType === 'agent7' ? (
-                  <div className="mt-2">
-                    <Agent7View rawResult={item.result} />
+                    <GenericAgentResultView rawResult={item.result} />
                   </div>
                 ) : agentType === 'data_accuracy' ? (
                   <div className="mt-2 space-y-2 text-xs text-left">
@@ -2596,17 +2588,9 @@ export default function InsightsTab({
                                     initialRawText=""
                                   />
                                 </div>
-                              ) : step.agentType! === 'agent5' ? (
+                              ) : ['agent5', 'agent6', 'agent7'].includes(step.agentType!) ? (
                                 <div className="bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-100 dark:border-slate-850">
-                                  <Agent5View rawResult={latestAnalysis.result} />
-                                </div>
-                              ) : step.agentType! === 'agent6' ? (
-                                <div className="bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-100 dark:border-slate-850">
-                                  <Agent6View rawResult={latestAnalysis.result} />
-                                </div>
-                              ) : step.agentType! === 'agent7' ? (
-                                <div className="bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-100 dark:border-slate-850">
-                                  <Agent7View rawResult={latestAnalysis.result} />
+                                  <GenericAgentResultView rawResult={latestAnalysis.result} />
                                 </div>
                               ) : (
                                 <div className="text-[10px] text-slate-700 dark:text-slate-300 font-mono bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-100 dark:border-slate-850 max-h-32 overflow-auto">

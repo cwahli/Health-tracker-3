@@ -1471,6 +1471,7 @@ ${logsText}`);
       };
       
       if (isAgent('food')) {
+        assistantMsg.agentType = 'food';
         if (resData.data) {
           const lastFoodLog = [...messages].reverse().find(m => m.data?.pendingFoodLog)?.pendingFoodLog;
           const currentTranscript = [...messages, userMsg, assistantMsg].map(m => ({
@@ -1478,7 +1479,7 @@ ${logsText}`);
             content: m.content,
             timestamp: m.timestamp
           }));
-          assistantMsg.pendingFoodLog = {
+          const newFoodLog = {
             ...resData.data,
             date: resData.data.date || lastFoodLog?.date || getCurrentDateInTimezone(profile?.timezone),
             id: `food_${Date.now()}`,
@@ -1486,9 +1487,13 @@ ${logsText}`);
             imageUrls: tempImages.length > 0 ? tempImages : resData.data.imageUrls,
             chatTranscript: currentTranscript
           };
+          assistantMsg.data = { pendingFoodLog: newFoodLog };
+          assistantMsg.pendingFoodLog = newFoodLog;
         }
       } else if (isAgent('food_idea')) {
+        assistantMsg.agentType = 'food_idea';
         if (resData.ideas && resData.ideas.length > 0) {
+          assistantMsg.data = { pendingFoodIdeas: resData.ideas };
           assistantMsg.pendingFoodIdeas = resData.ideas;
         }
       } else {

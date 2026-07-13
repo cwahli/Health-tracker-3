@@ -310,6 +310,15 @@ const safeSaveToLocalStorage = async (key: string, bundle: any) => {
     console.error("Failed to save to IndexedDB:", e);
   }
 };
+const safeAlert = (message: string) => {
+  console.log("[App Notification]:", message);
+  try {
+    alert(message);
+  } catch (e) {
+    console.warn("alert() was blocked by sandbox iframe restrictions:", e);
+  }
+};
+
 export default function App() {
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [showSnapshotPanel, setShowSnapshotPanel] = useState(false);
@@ -458,7 +467,7 @@ export default function App() {
     );
 
     setShowSnapshotPanel(false);
-    alert(`✅ Restored to: "${snapshot.label}"\n\nYour data has been reverted to this point. Click the Sync button to upload if you wish.`);
+    safeAlert(`✅ Restored to: "${snapshot.label}"\n\nYour data has been reverted to this point. Click the Sync button to upload if you wish.`);
   };
 
   // Daily Quota Tracking (resets at midnight PT)
@@ -3522,11 +3531,11 @@ export default function App() {
       clearTimeout(timeoutId);
       console.error("Analysis generation error/timeout:", err);
       if (err.name === 'AbortError') {
-        alert('Server took longer than expected to complete profiling. Activating specialized local preventative engine fallback.');
+        safeAlert('Server took longer than expected to complete profiling. Activating specialized local preventative engine fallback.');
         const fallback = getLocalFallbackReport(profile);
         setDraftReport(fallback);
       } else {
-        alert(`Failed to complete analysis: ${err.message || 'Server timeout. Activating high-fidelity fallback.'}`);
+        safeAlert(`Failed to complete analysis: ${err.message || 'Server timeout. Activating high-fidelity fallback.'}`);
         const fallback = getLocalFallbackReport(profile);
         setDraftReport(fallback);
       }

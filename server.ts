@@ -500,7 +500,7 @@ async function callUnifiedLLM({
 }) {
   try {
     const isJson = responseMimeType === "application/json";
-    const normalizedModelId = (modelId || "gemini-2.5-flash").toLowerCase();
+    const normalizedModelId = (modelId || "gemini-3.5-flash").toLowerCase();
 
   // 1. Anthropic Claude Models
   if (normalizedModelId.includes("claude-")) {
@@ -668,20 +668,12 @@ async function callUnifiedLLM({
 
   // Map choices to appropriate Google SDK model IDs
   let targetGeminiModel = "gemini-3.5-flash";
-  if (normalizedModelId.includes("deep-research") || normalizedModelId.includes("pro")) {
+  if (normalizedModelId.includes("deep-research") || normalizedModelId.includes("pro") || normalizedModelId.includes("preview")) {
     targetGeminiModel = "gemini-3.1-pro-preview";
-  } else if (normalizedModelId.includes("3.1-flash-lite")) {
+  } else if (normalizedModelId.includes("lite")) {
     targetGeminiModel = "gemini-3.1-flash-lite";
-  } else if (normalizedModelId.includes("3.1-flash") || normalizedModelId.includes("3.5-flash")) {
+  } else {
     targetGeminiModel = "gemini-3.5-flash";
-  } else if (normalizedModelId.includes("2.5-flash-lite")) {
-    targetGeminiModel = "gemini-2.5-flash-lite";
-  } else if (normalizedModelId.includes("2.5-flash")) {
-    targetGeminiModel = "gemini-2.5-flash";
-  } else if (normalizedModelId === "gemini-2.5") {
-    targetGeminiModel = "gemini-2.5-pro";
-  } else if (normalizedModelId.includes("3-flash") || normalizedModelId.includes("3.0-flash")) {
-    targetGeminiModel = "gemini-3.0-flash";
   }
 
   const initialParts: any[] = [];
@@ -1035,10 +1027,10 @@ async function callUnifiedLLM({
     }
   }
   } catch (err: any) {
-    if (modelId !== "gemini-2.5-flash-lite" && modelId !== "gemini-2.5-flash") {
-      addDebugLog(`[UnifiedLLM-Recovery] Error during primary execution of model "${modelId}": ${err.message || err}. Retrying with highly stable fallback gemini-2.5-flash...`);
+    if (modelId !== "gemini-3.1-flash-lite" && modelId !== "gemini-3.5-flash") {
+      addDebugLog(`[UnifiedLLM-Recovery] Error during primary execution of model "${modelId}": ${err.message || err}. Retrying with highly stable fallback gemini-3.5-flash...`);
       return callUnifiedLLM({
-        modelId: "gemini-2.5-flash",
+        modelId: "gemini-3.5-flash",
         systemInstruction,
         promptText,
         imagePayload,
@@ -2346,12 +2338,22 @@ app.post("/api/gemini/medical-analyze", async (req, res) => {
     }
 
 
-    if (agentType) {
+    if (!agentType) agentType = "agent1_step1";
+
+    if (true) {
       let systemInstruction = "";
       let mockData: any = {};
       let fullPromptSent = "";
 
-      if (agentType === "agent1_step1") {
+      if (agentType === "agent4") {
+        systemInstruction = `You are a Medical Diagnostics Assessment agent.
+Your objective is to analyze the user's biomarker history, recent test data, profile, and current symptoms to project timeline risks and identify testing gaps or overall health trends.
+You MUST output ONLY a valid JSON object containing:
+- "text": A conversational, highly detailed clinical response.
+- "mode": "discussion"
+- "status": "active"`;
+        mockData = { text: "I have reviewed your medical records.", mode: "discussion", status: "active" };
+      } else if (agentType === "agent1_step1") {
         const itemsPerBatch = req.body.numberOfBatches || 50;
         
         systemInstruction = `agent_profile:
@@ -2973,7 +2975,7 @@ reviewedBiomarkers: []`;
         while (attempt < maxRetries && !success) {
           attempt++;
           textOutput = await callUnifiedLLM({
-            modelId: engine || "gemini-2.5-flash",
+            modelId: engine || "gemini-3.5-flash",
             systemInstruction,
             promptText,
             imagePayload,
@@ -3082,6 +3084,21 @@ reviewedBiomarkers: []`;
         });
       }
       
+      if (!agentType || agentType === "agent4") {
+        try {
+          const parsed = JSON.parse(textOutput.replace(/```(?:json)?/gi, "").trim());
+          return res.json({
+            text: parsed.text || textOutput,
+            mode: parsed.mode || 'discussion',
+            status: parsed.status || 'active',
+            agentPrompt: fullPromptSent,
+            agentType: agentType || 'agent4'
+          });
+        } catch (e) {
+          return res.json({ text: textOutput, mode: 'discussion', status: 'active', agentPrompt: fullPromptSent, agentType: agentType || 'agent4' });
+        }
+      }
+
       return res.json({
           text: "",
           agentType,
@@ -3511,7 +3528,7 @@ app.post("/api/gemini/insight-analyze", async (req, res) => {
     const fullPromptSent = `System Instruction:\n${systemInstruction}\n\n${promptText}`;
 
     const textOutput = await callUnifiedLLM({
-      modelId: engine || "gemini-2.5-flash",
+      modelId: engine || "gemini-3.5-flash",
       systemInstruction,
       promptText,
       responseMimeType: "application/json"
@@ -3572,7 +3589,7 @@ You MUST return a JSON object with the following schema:
     const promptText = `Chat History:\n${historyText}\n\nUser's latest message: "${lastMessage.content}"`;
 
     const textOutput = await callUnifiedLLM({
-      modelId: "gemini-2.5-flash",
+      modelId: "gemini-3.5-flash",
       systemInstruction,
       promptText,
       responseMimeType: "application/json"
@@ -4275,7 +4292,7 @@ Respond with a structured JSON format matching this schema exactly:
     const sysInstruction = customSystemInstruction || "You are a world-class AI dietitian. Your response must be an exact JSON matching the requested schema. Never add markdown wrappers.";
 
     const textOutput = await callUnifiedLLM({
-      modelId: engine || "gemini-2.5-flash",
+      modelId: engine || "gemini-3.5-flash",
       systemInstruction: sysInstruction,
       promptText,
       responseMimeType: "application/json",

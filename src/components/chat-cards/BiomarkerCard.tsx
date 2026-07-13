@@ -5,6 +5,7 @@ import { ErrorBoundary } from '../ErrorBoundary';
 import { AgentResultTable } from '../AgentResultTable';
 import { GenericAgentResultView } from '../AgentResultViews';
 import { biomarkerDefinitions } from '../../utils/biomarkers';
+import { AgentType, AGENT_REGISTRY } from '../../utils/agentConfig';
 
 export const BiomarkerCard: React.FC<AgentCardProps> = ({
   msg, currentFormat, messages, idx, profile, biomarkerHistory,
