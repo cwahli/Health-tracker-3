@@ -2,7 +2,6 @@ import { ChatMessage } from '../../types';
 
 export interface AgentCardProps {
   msg: ChatMessage;
-  currentFormat: 'prose' | 'table' | 'card';
   messages: ChatMessage[];
   idx: number;
   report?: any;

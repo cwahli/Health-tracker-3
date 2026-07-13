@@ -101,6 +101,20 @@ Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Sessi
 - [x] **Fix: Verify chat session scratchpad uses sessionStorage**
   Verified that conversation history is saved to sessionStorage for unauthenticated users. Refactoring required for authenticated users to use sessionStorage as primary store, currently writes to Firestore on every message.
   Model: gemini-3.5-flash-lite
+- [x] **Fix: Display Scout Log History**
+- [x] **Fix 1-A: Add foodType field to the JSON schema**
+- [x] **Fix 1-B: Update LLM prompt — DATA EXTRACTION DEPTH RULES**
+- [x] **Fix 1-C: Replace server_food_db.ts with food-type classification table**
+- [x] **Fix 1-D: Update server.ts — Replace all getNutrientsForFood call sites**
+- [x] **Fix 1-E: Update modify → add_item handler**
+- [x] **Fix 2-A: Replace scout system instruction**
+- [x] **Fix 2-B: Add keyword cleaning before USDA/OFF search**
+- [x] **Fix 2-C: Return visionScoutItems in the API response**
+- [x] **Fix 2-D: Display scout log in frontend**
+- [x] **Fix 2-E: Inject scout context into clinical LLM prompt context**
+- [x] **Fix 3: Food Comparison: Scale to 10 Items**
+- [x] **Fix 5: Food Agent: Alias vs. Identity Change**
+- [x] **Fix 6: Biomarker Batch Processing Fix**
 ### P2 — Future
 - [ ] **Verify food log card layout has no tab switcher regression**
   The correct layout is: card (meal name, date, nutrients) + collapsible nutrition table. There must be NO Prose/Table/Bento tab switcher on the food log chat. Check the current state first. Only fix if the regression is present.

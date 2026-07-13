@@ -2,10 +2,12 @@ export * from './types';
 export * from './FoodIdeaCard';
 export * from './FoodCard';
 export * from './BiomarkerCard';
+export * from './WelcomeCard';
 
 import { FoodIdeaCard } from './FoodIdeaCard';
 import { FoodCard } from './FoodCard';
 import { BiomarkerCard } from './BiomarkerCard';
+import { WelcomeCard } from './WelcomeCard';
 import { AgentType } from '../../utils/agentConfig';
 
 export const agentCardRegistry: Record<string, React.FC<any>> = {
@@ -20,5 +22,6 @@ export const agentCardRegistry: Record<string, React.FC<any>> = {
   agent7: BiomarkerCard,
   data_review: BiomarkerCard,
   medical: BiomarkerCard,
-  medical_extract: BiomarkerCard
+  medical_extract: BiomarkerCard,
+  welcome: WelcomeCard
 };

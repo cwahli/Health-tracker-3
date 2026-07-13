@@ -8,7 +8,7 @@ import express from "express";
 import path from "path";
 import fs from "fs";
 import { GoogleGenAI, Type } from "@google/genai";
-import { getNutrientsForFood } from "./server_food_db";
+import { getTraceNutrientsForFoodType } from "./server_food_db";
 import dotenv from "dotenv";
 import YAML from "yaml";
 import { AsyncLocalStorage } from "async_hooks";
@@ -223,8 +223,8 @@ TRANS FAT AVOIDANCE: Trans fat (partially hydrogenated oils) is universally harm
 
 === DATA EXTRACTION DEPTH RULES ===
 When processing food entries, split your analytical focus into two tiers:
-1. CORE NUTRIENTS (Top 11: Calories, Protein, Carbohydrates, Total Fat, Saturated Fat, Trans Fat, Added Sugar, Sodium, Potassium, Total Fibre, Soluble Fibre): Execute deep reasoning. Analyze the meal description or image for hidden ingredients, preparation methods, and ingredient distribution density to ensure high contextual precision.
-2. SYSTEMIC BASELINES (Other trace vitamins/minerals): Do not waste analytical compute. The backend will apply standard, generic nutritional database averages for these based on your "canonicalDbName" output.
+1. CORE NUTRIENTS (Top 11: Calories, Protein, Carbohydrates, Total Fat, Saturated Fat, Trans Fat, Added Sugar, Sodium, Potassium, Total Fibre, Soluble Fibre): For EVERY item, you MUST populate labelNutrientsPerServing with your best clinical estimate per 100g (set servingSizeGrams=100). This is mandatory regardless of whether a database match exists — your LLM nutritional knowledge is the primary source. When a physical label is visible in the image, use the exact label values. When databaseMatches contains a relevant entry, use it to improve your estimate and set dbSource accordingly.
+2. TRACE NUTRIENTS (20 other vitamins/minerals): Do NOT estimate these individually — it wastes tokens. Instead, output the single most appropriate foodType string for each item. The backend derives all 20 trace nutrients from a food-type classification table. Choose one of: 'red_meat', 'poultry', 'fish_fatty', 'fish_lean', 'shellfish', 'egg', 'dairy', 'leafy_veg', 'root_veg', 'legume', 'grain', 'fruit', 'processed', 'unknown'.
 
 === MODE ROUTING DIRECTIVE ===
 Operate in one of four distinct modes based on current user intent:
@@ -246,7 +246,9 @@ Triggered when:
 - The user states or corrects a weight (e.g. "the ice cream is 300g", "actually it's 200g", "make it 500g")
 - The user asks to add, remove, or change an ingredient in the CURRENT_ACTIVE_MEAL_STATE
 - Any message containing a gram amount (Xg / X grams) when CURRENT_ACTIVE_MEAL_STATE is not None
-- If the user provides a minor alias or spelling correction for the exact same food (e.g., 'It is spelled Aburi Sushi, not Sushi'), use 'modify' mode with the action 'rename_alias'.
+- If the user provides a minor alias or spelling correction for the SAME food (e.g., "it's Aburi Sushi not Sushi"), use mode 'modify' with action 'rename_alias' and set newItemName to the corrected name.
+- CRITICAL: If the user corrects the actual IDENTITY of the food to a completely different item (e.g., "it's actually dumpling, not sushi"), use mode 'new_log' to regenerate from scratch. Do NOT use 'modify' for identity changes.
+- For 'add_item' commands, also provide estimatedNutrientsPer100g with 5 values (calories, protein, totalFat, saturatedFat, sodium per 100g) and a foodType. Keep it concise — 5 numbers and 1 string.
 
 CRITICAL:
 - If CURRENT_ACTIVE_MEAL_STATE is set AND the user message contains a gram quantity or modification request (that is NOT an identity change), you MUST use mode "modify", NOT "new_log". Do NOT re-log the meal. Only update what changed.
@@ -279,7 +281,7 @@ foodData: null or:
       weightGrams: "A whole INTEGER, e.g. 120."
       dbSource: "usda" | "off" | "estimated" | "label"
       dbId: "the fdcId or barcode, or null if estimated"
-      labelNutrientsPerServing: "(only populate this if dbSource is 'label', otherwise set to null; if populated, must be an object with number values for servingSizeGrams, calories, protein, totalFat, saturatedFat, transFat, carbohydrates, addedSugar, sodium, potassium, totalFibre, solubleFibre)"
+      labelNutrientsPerServing: "(ALWAYS populate this for every item — exact label values if dbSource is 'label', best clinical estimate per 100g if dbSource is 'estimated' or if no dbId. Set servingSizeGrams=100 for estimates. Only omit if dbSource is 'usda' or 'off' AND a valid dbId is present.)"
   composition: "Brief operational summary of food ingredients"
   weightGrams: "A whole INTEGER. Round to nearest whole number, e.g. 150."
   quantity: "Visual descriptive serving size (e.g., 1 medium, 2 skewers)"
@@ -1509,7 +1511,23 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       const hasImage = imagePayloads && imagePayloads.length > 0;
       if (hasImage) {
         addDebugLog(`[Vision Scout] Running Stage 3 lightweight vision scout...`);
-        const scoutSystemInstruction = `You are a fast visual food identification agent. Look at the image and return a short list of plain-text search keywords for the food items you see (e.g. ['fried chicken', 'white rice', 'sambal']), plus a rough estimated weight in grams for each if visually judgeable. Do not do any nutrition or clinical analysis. Also try to identify any clues on how it's cooked (e.g., oil cooked, fried, steamed) or freshness (e.g., fresh fish). Include these details in your keywords if helpful. CRITICAL: Look for environmental size references (e.g., hands, forks, containers, plates) to accurately estimate the real-world weight and proportions of the food. Output only: { "items": [{ "keyword": string, "estimatedWeightGrams": number }] }`;
+        const scoutSystemInstruction = `You are a fast visual food identification agent. You will receive one or more images.
+STEP 1 — IMAGE CLASSIFICATION (do this FIRST for every image):
+For each image, determine if it is:
+  (a) A product label, price tag, or packaging showing food name and/or weight in grams/kg
+  (b) An actual food photo showing prepared or raw ingredients
+  (c) A cooking scene (e.g. boiling in a pot, frying on a pan)
+STEP 2 — DATA EXTRACTION:
+- For label images (type a): Read the EXACT food name (even if in a local language) and the EXACT weight. Convert kg to grams (e.g., 0.192 kg = 192g). Translate name to English: "Bayam Hju" → "spinach", "Daging Empal" → "beef stew cut", "Blade Kong" → "beef blade cut", "Daging Sapi" → "beef".
+- For food photos (type b): Identify food items. Estimate weight using visible size references (hands, plates, forks, containers). Output a short English keyword and estimated weight in grams.
+- For cooking scenes (type c): Note the method (e.g., "boiling, no oil", "deep frying") and set cookingMethod.
+STEP 3 — MERGE & DEDUPLICATE:
+If an item appears in BOTH a label and a food photo, use the LABEL WEIGHT as the authoritative weight. Do NOT duplicate.
+CRITICAL RULES:
+- Always translate local/regional food names to short, clean English database-friendly names as the keyword.
+- keyword must be short and clean (e.g. "beef blade cut" not "raw beef slices (daging empal and blade)").
+- originalName must capture the raw text from the label OR the observed food name including local language names and preparation/cooking style (e.g. "daging empal (boiled then fried beef)", "nasi goreng (fried rice with egg)", "bayam hijau boiled"). This is critical so the clinical LLM knows how it was prepared.
+- Output ONLY valid JSON: { "items": [{ "keyword": string, "estimatedWeightGrams": number, "originalName": string, "source": "label" | "visual" }], "cookingMethod": string }`;
         try {
           const scoutOutput = await callUnifiedLLM({
             modelId: "gemini-3.1-flash-lite",
@@ -1540,14 +1558,18 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       }
     }
 
+    // Strip parenthetical local-language notes for cleaner USDA/OFF matching
+    // e.g. "raw beef slices (daging empal and blade)" → "raw beef slices"
+    const cleanQuery = (raw: string) => raw.replace(/\s*\(.*?\)\s*/g, '').replace(/\b(raw|fresh|cooked)\s+/i, '').trim();
+
     const shouldRunDbSearch = !isWeightModification && visionScoutRanAndReturnedItems;
     if (shouldRunDbSearch && queriesToSearch.length > 0) {
       addDebugLog(`[Database Search] Performing USDA & OFF searches for queries: ${JSON.stringify(queriesToSearch)}`);
       const searchPromises = queriesToSearch.map(async (q) => {
         try {
           const [usda, off] = await Promise.all([
-            searchUSDA(q, 3),
-            searchOpenFoodFacts(q, 3)
+            searchUSDA(cleanQuery(q), 3),
+            searchOpenFoodFacts(cleanQuery(q), 3)
           ]);
           return { query: q, usda, off };
         } catch (err) {
@@ -1652,6 +1674,14 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       activeMeal
     });
 
+    let visionScoutCtx = "";
+    if (visionScoutItems && visionScoutItems.length > 0) {
+      const itemsList = visionScoutItems.map((item: any) => 
+        `- Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context & Preparation: "${item.originalName || ''}" | Source: ${item.source}`
+      ).join("\n");
+      visionScoutCtx = `\n=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===\n${itemsList}\nUse the observed local name and preparation context above to guide your understanding of how the food was cooked, prepared, or structured (e.g. frying, slow-cooking, char-grilling). Use this context to estimate more accurate core-11 nutrients.\n`;
+    }
+
     let databaseMatchesCtx = "";
     if (databaseMatches) {
       databaseMatchesCtx = `\n=== DATABASE MATCHES FOR THE MEAL ===\n${databaseMatches}\n`;
@@ -1672,7 +1702,23 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
               itemName: { type: Type.STRING, description: "Literal name of the item from the active state to change" },
               newWeightGrams: { type: Type.INTEGER, description: "New weight in grams" },
               targetDbId: { type: Type.STRING, description: "Optional exact database ID (fdcId or barcode)", nullable: true },
-              newItemName: { type: Type.STRING, description: "New name for renaming alias", nullable: true }
+              newItemName: { type: Type.STRING, description: "New name for renaming alias", nullable: true },
+              estimatedNutrientsPer100g: {
+                type: Type.OBJECT,
+                nullable: true,
+                description: "For add_item only: your best clinical estimate of 5 key nutrients per 100g for the item being added.",
+                properties: {
+                  calories:     { type: Type.NUMBER },
+                  protein:      { type: Type.NUMBER },
+                  totalFat:     { type: Type.NUMBER },
+                  saturatedFat: { type: Type.NUMBER },
+                  sodium:       { type: Type.NUMBER }
+                }
+              },
+              foodType: {
+                type: Type.STRING, nullable: true,
+                description: "For add_item only: food type for trace nutrients. Same 14 values as itemsBreakdown.foodType."
+              }
             },
             required: ["action", "itemName"]
           },
@@ -1709,9 +1755,14 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                       solubleFibre: { type: Type.NUMBER, description: "Soluble fibre in grams as a number, e.g., 1." }
                     },
                     nullable: true
+                  },
+                  foodType: {
+                    type: Type.STRING,
+                    nullable: true,
+                    description: "Food category for trace nutrient derivation. One of: 'red_meat' | 'poultry' | 'fish_fatty' | 'fish_lean' | 'shellfish' | 'egg' | 'dairy' | 'leafy_veg' | 'root_veg' | 'legume' | 'grain' | 'fruit' | 'processed' | 'unknown'. Examples: beef blade → 'red_meat', salmon → 'fish_fatty', spinach → 'leafy_veg', white rice → 'grain', enoki mushroom → 'root_veg', chicken breast → 'poultry'."
                   }
                 },
-                required: ["canonicalDbName", "weightGrams", "dbSource", "dbId", "labelNutrientsPerServing"]
+                required: ["canonicalDbName", "weightGrams", "dbSource", "dbId", "labelNutrientsPerServing", "foodType"]
               }
             },
             composition: { type: Type.STRING },
@@ -1783,13 +1834,16 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
 
     const finalSystemInstruction = customSystemInstruction || systemInstruction;
     const promptText = customVariableData 
-      ? `${customVariableData}\n${databaseMatchesCtx}\nCurrent User Input: "${message}"`
+      ? `${customVariableData}\n${visionScoutCtx}\n${databaseMatchesCtx}\nCurrent User Input: "${message}"`
       : `${historyContext}Analyze this current food request.
 ${userCtx}
 ${timeCtx}
 ${imageCtx}
+${visionScoutCtx}
 ${databaseMatchesCtx}
-Current User Input: "${message}"`;
+Current User Input: "${message}"
+
+You can compare up to 10 foods at once. comparisonTableYaml rows must use a 'values' array (not foodA/foodB). Always include the top 3 most clinically relevant nutrient rows for the patient's biomarker context.`;
 
     const fullPromptSent = `System Instruction:\n${finalSystemInstruction}\n\n${promptText}`;
     addDebugLog(`[RouteAgent Chat] Sending request to Gemini...`);
@@ -1985,45 +2039,55 @@ Current User Input: "${message}"`;
           const dbSource = sanitizeString(item.dbSource, "estimated");
           const dbId = item.dbId !== undefined && item.dbId !== null ? String(item.dbId) : null;
           
-          let itemNutrients: any = null;
+          let itemNutrients: any = {};
+          // Zero-initialize all 31 nutrient keys
+          for (const key of nutrientKeys) { itemNutrients[key] = 0; }
           const labelData = item.labelNutrientsPerServing;
           const servingSizeGrams = labelData ? Number(labelData.servingSizeGrams) : 0;
-          if (item.dbSource === "label" && labelData && servingSizeGrams > 0) {
-            // Start from the generic baseline so trace nutrients are still filled in
-            itemNutrients = getNutrientsForFood(canonicalName, itemWeight);
+          const coreLabelKeys = ["calories","protein","totalFat","saturatedFat","transFat",
+                                 "carbohydrates","addedSugar","sodium","potassium","totalFibre","solubleFibre"];
+          // STEP 1: Apply LLM core-11 estimate (present for label and estimated items)
+          if (labelData && servingSizeGrams > 0) {
             const scaleFactor = itemWeight / servingSizeGrams;
-            const coreLabelKeys = ["calories","protein","totalFat","saturatedFat","transFat","carbohydrates","addedSugar","sodium","potassium","totalFibre","solubleFibre"];
             for (const key of coreLabelKeys) {
               if (labelData[key] !== undefined && labelData[key] !== null) {
                 itemNutrients[key] = parseFloat((Number(labelData[key]) * scaleFactor).toFixed(2));
               }
             }
-          } else if ((dbSource === "usda" || dbSource === "off") && dbId) {
+            addDebugLog(`[Nutrient] "${canonicalName}" core-11 from LLM estimate (servingSizeGrams=${servingSizeGrams}).`);
+          } else if (dbSource === "estimated") {
+            addDebugLog(`[Nutrient Warning] "${canonicalName}" is 'estimated' but LLM did not provide labelNutrientsPerServing. Core-11 will be zero.`);
+          }
+          // STEP 2: If USDA/OFF match found, override core-11 with verified DB data (reinforcement)
+          if ((dbSource === "usda" || dbSource === "off") && dbId) {
             const hasInMap = dbMatchMap.has(dbId);
             const match = !hasInMap ? databaseMatchesArray.find((m: any) => m.id === dbId) : null;
-            
             if (hasInMap) {
               const baseNutrientsPer100g = dbMatchMap.get(dbId);
-              itemNutrients = {};
               const factor = itemWeight / 100;
-              for (const key of nutrientKeys) {
-                itemNutrients[key] = parseFloat((baseNutrientsPer100g[key] * factor).toFixed(2));
+              for (const key of coreLabelKeys) {
+                if (baseNutrientsPer100g[key] !== undefined) {
+                  itemNutrients[key] = parseFloat((baseNutrientsPer100g[key] * factor).toFixed(2));
+                }
               }
+              addDebugLog(`[Nutrient] "${canonicalName}" core-11 reinforced by USDA/OFF dbMatchMap.`);
             } else if (match) {
               const computed = nutrientsFromDbMatch(match, itemWeight);
-              itemNutrients = getNutrientsForFood(canonicalName, itemWeight);
               itemNutrients.calories = computed.calories;
               itemNutrients.protein = computed.protein;
               itemNutrients.totalFat = computed.totalFat;
               itemNutrients.saturatedFat = computed.saturatedFat;
               itemNutrients.sodium = computed.sodium;
-            } else {
-              itemNutrients = getNutrientsForFood(canonicalName, itemWeight);
+              addDebugLog(`[Nutrient] "${canonicalName}" core-11 reinforced by USDA/OFF match object.`);
             }
-          } else {
-            // Get the precise standard nutrients scaled for this item
-            itemNutrients = getNutrientsForFood(canonicalName, itemWeight);
           }
+          // STEP 3: Derive the 20 trace nutrients from food-type classification
+          const foodType = item.foodType || 'unknown';
+          const traceNutrients = getTraceNutrientsForFoodType(foodType, itemWeight);
+          for (const key of Object.keys(traceNutrients)) {
+            itemNutrients[key] = (traceNutrients as any)[key];
+          }
+          addDebugLog(`[Nutrient] "${canonicalName}" trace-20 from foodType="${foodType}".`);
 
           // Add to aggregated nutrients
           for (const key of nutrientKeys) {
@@ -2041,28 +2105,20 @@ Current User Input: "${message}"`;
           };
         });
       } else {
-        // Fallback: look up the whole food name in our high-precision database
-        const itemNutrients = getNutrientsForFood(parsedData.name, totalWeightGrams);
-        for (const key of nutrientKeys) {
-          parsedData.nutrients[key] = itemNutrients[key as keyof typeof itemNutrients] || 0;
-        }
-        parsedData.itemsBreakdown = [
-          {
-            name: parsedData.name,
-            weightGrams: totalWeightGrams,
-            calories: itemNutrients.calories || 0,
-            saturatedFat: itemNutrients.saturatedFat || 0,
-            sodium: itemNutrients.sodium || 0,
-            dbSource: "estimated",
-            dbId: null
-          }
-        ];
-      }
+  addDebugLog(`[Nutrient Warning] LLM returned no itemsBreakdown for "${parsedData.name}". All nutrients will be zero. Check LLM prompt compliance.`);
+  parsedData.itemsBreakdown = [{
+    name: parsedData.name,
+    weightGrams: totalWeightGrams,
+    calories: 0, saturatedFat: 0, sodium: 0,
+    dbSource: "estimated", dbId: null
+  }];
+}
 
       return res.json({
         text: rawParsed.message || `I have analyzed the food: **${parsedData.name}** (${parsedData.quantity}).`,
         data: parsedData,
-        agentPrompt: fullPromptSent
+        agentPrompt: fullPromptSent,
+        scoutItems: visionScoutItems || []
       });
     }
 
@@ -2368,7 +2424,7 @@ You MUST output ONLY a valid JSON object containing:
 - "status": "active"`;
         mockData = { text: "I have reviewed your medical records.", mode: "discussion", status: "active" };
       } else if (agentType === "agent1_step1") {
-        const itemsPerBatch = 50;
+        const itemsPerBatch = 50; // Force 50 regardless of req.body value
         
         systemInstruction = `agent_profile:
   role: "Expert Clinical Data Extractor and Lossless Data Conduit"

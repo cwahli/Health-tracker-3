@@ -440,9 +440,8 @@ export default function LogChat({
   const [fullScreenJson, setFullScreenJson] = useState<string | null>(null);
   const [localBatchSize, setLocalBatchSize] = useState(batchSize || 20);
   const [numberOfBatches, setNumberOfBatches] = useState<number>(() => {
-    const saved = localStorage.getItem('agent_num_batches');
-    const parsed = saved ? parseInt(saved, 10) : 50;
-    return parsed < 10 ? 50 : parsed;
+    const saved = parseInt(localStorage.getItem('agent_num_batches') || '50', 10);
+    return (isNaN(saved) || saved < 10) ? 50 : saved;
   });
 
   const [showFullScreenDebugLogs, setShowFullScreenDebugLogs] = useState(false);
@@ -1490,7 +1489,10 @@ ${logsText}`);
             imageUrls: tempImages.length > 0 ? tempImages : resData.data.imageUrls,
             chatTranscript: currentTranscript
           };
-          assistantMsg.data = { pendingFoodLog: newFoodLog };
+          assistantMsg.data = { 
+            pendingFoodLog: newFoodLog,
+            scoutItems: resData.scoutItems || []
+          };
           assistantMsg.pendingFoodLog = newFoodLog;
         }
       } else if (isAgent('food_idea')) {
@@ -2413,10 +2415,10 @@ ${JSON.stringify(profile, null, 2)}`);
                       </div>
                     )}
 
-                  {/* Render extracted Pending Food Log block if assistant has finished parsing */}
                   {/* Render extracted Pending Food Log info */}
                   {(() => {
-                    const Renderer = msg.agentType ? agentCardRegistry[msg.agentType] : null;
+                    const rendererType = msg.id.startsWith('welcome_') ? 'welcome' : msg.agentType;
+                    const Renderer = rendererType ? agentCardRegistry[rendererType] : null;
                     if (!Renderer) return null;
                     return (
                       <Renderer
@@ -2440,6 +2442,9 @@ ${JSON.stringify(profile, null, 2)}`);
                         setActiveInstructionAgentType={setActiveInstructionAgentType}
                         setActiveInstructionPrompt={setActiveInstructionPrompt}
                         onLogMedical={onLogMedical}
+                        isAnalyzing={isAnalyzing}
+                        agentType={agentType}
+                        autoSendMessage={autoSendMessage}
                       />
                     );
                   })()}

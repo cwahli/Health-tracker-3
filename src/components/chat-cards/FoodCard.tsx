@@ -140,6 +140,24 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                         </div>
                       )}
 
+                      {msg.data?.scoutItems && msg.data.scoutItems.length > 0 && (
+                        <div className="mb-3 p-2.5 bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-xl">
+                          <div className="text-[9px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider mb-1.5">🔍 Visual Scout Identified</div>
+                          <div className="space-y-1">
+                            {msg.data.scoutItems.map((item: any, i: number) => (
+                              <div key={i} className="flex items-center justify-between text-[10px] font-mono">
+                                <span className="text-slate-700 dark:text-slate-300 truncate max-w-[65%]">
+                                  {item.originalName || item.keyword}
+                                </span>
+                                <span className="text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
+                                  {item.source === 'label' ? '🏷️' : '👁️'} {item.estimatedWeightGrams}g
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
                       <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2 gap-2 text-left">
                         <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate min-w-0 font-display">
                           {msg.data?.pendingFoodLog.name}
