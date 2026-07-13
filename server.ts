@@ -207,7 +207,7 @@ export function buildFoodAnalyzeInstruction(context: {
 
 You are an expert clinical dietitian and nutritional LLM analyzer operating within an automated personalized health ecosystem. Your response must be an exact single structured JSON object matching the requested structure. Never add markdown formatting wrappers like \`\`\`json unless instructed.
 
-CONSISTENCY REQUIREMENT: Any specific numeric values you state in "risks", "healthImpact", or "message" must exactly match the values you provide in itemsBreakdown / labelNutrientsPerServing for this same meal. Never restate a different or independently-estimated figure in prose.
+CONSISTENCY & PROSE PRECISION: In your conversational response ("message") and detailed analysis fields ("benefits", "risks", "healthImpact"), you should explicitly discuss specific numeric nutrient totals (such as total calories, protein, saturated fat, sodium, etc.) calculated for the current meal. Make sure to reference these specific values to ground your recommendations in real, precise figures rather than general statements. All numeric figures you write in prose must exactly match the mathematically calculated totals of the food items.
 
 === PATIENT CONTEXT PAYLOAD ===
 CRITICAL PATIENT BIOMARKER WARNINGS & NUTRITIONAL DIRECTIVES:
@@ -1351,7 +1351,24 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       if (!nutrients || !Array.isArray(nutrients)) return "No nutrients available";
       const mapped: string[] = [];
       const findNutrient = (namePatterns: string[]) => {
-        const nut = nutrients.find(n => namePatterns.some(p => (n.nutrientName || "").toLowerCase().includes(p)));
+        // Stricter exact word match first
+        const exactMatch = nutrients.find(n => {
+          const name = (n.nutrientName || "").toLowerCase().trim();
+          return namePatterns.some(p => name === p.toLowerCase().trim());
+        });
+        if (exactMatch) return exactMatch;
+
+        // Fallback with precise keyword validation to avoid false fatty acid matches on "fat"
+        const nut = nutrients.find(n => {
+          const name = (n.nutrientName || "").toLowerCase();
+          return namePatterns.some(p => {
+            const cleanP = p.toLowerCase().trim();
+            if (cleanP === "fat" && name.includes("fatty")) {
+              return false; // prevent totalFat matching on saturated fat
+            }
+            return name.includes(cleanP);
+          });
+        });
         if (!nut) return null;
         const val = Number(nut.value);
         const cleanVal = isNaN(val) ? nut.value : Math.round(val * 100) / 100;
@@ -1401,7 +1418,24 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       if (!food.foodNutrients) return profile;
       
       const findNut = (namePatterns: string[]) => {
-        return food.foodNutrients.find((n: any) => namePatterns.some(p => (n.nutrientName || "").toLowerCase().includes(p)));
+        // Stricter exact word match first
+        const exactMatch = food.foodNutrients.find((n: any) => {
+          const name = (n.nutrientName || "").toLowerCase().trim();
+          return namePatterns.some(p => name === p.toLowerCase().trim());
+        });
+        if (exactMatch) return exactMatch;
+
+        // Fallback with precise keyword validation to avoid false fatty acid matches on "fat"
+        return food.foodNutrients.find((n: any) => {
+          const name = (n.nutrientName || "").toLowerCase();
+          return namePatterns.some(p => {
+            const cleanP = p.toLowerCase().trim();
+            if (cleanP === "fat" && name.includes("fatty")) {
+              return false; // prevent totalFat matching on saturated fat
+            }
+            return name.includes(cleanP);
+          });
+        });
       };
       
       const findVal = (namePatterns: string[]) => {
@@ -1754,6 +1788,11 @@ CRITICAL RULES:
                       totalFibre: { type: Type.NUMBER, description: "Total fibre in grams as a number, e.g., 4." },
                       solubleFibre: { type: Type.NUMBER, description: "Soluble fibre in grams as a number, e.g., 1." }
                     },
+                    required: [
+                      "servingSizeGrams", "calories", "protein", "totalFat", "saturatedFat",
+                      "transFat", "carbohydrates", "addedSugar", "sodium", "potassium",
+                      "totalFibre", "solubleFibre"
+                    ],
                     nullable: true
                   },
                   foodType: {
@@ -2043,7 +2082,12 @@ You can compare up to 10 foods at once. comparisonTableYaml rows must use a 'val
           // Zero-initialize all 31 nutrient keys
           for (const key of nutrientKeys) { itemNutrients[key] = 0; }
           const labelData = item.labelNutrientsPerServing;
-          const servingSizeGrams = labelData ? Number(labelData.servingSizeGrams) : 0;
+          let servingSizeGrams = labelData && labelData.servingSizeGrams !== undefined && labelData.servingSizeGrams !== null
+            ? Number(labelData.servingSizeGrams)
+            : 0;
+          if (labelData && (!servingSizeGrams || isNaN(servingSizeGrams) || servingSizeGrams <= 0)) {
+            servingSizeGrams = 100;
+          }
           const coreLabelKeys = ["calories","protein","totalFat","saturatedFat","transFat",
                                  "carbohydrates","addedSugar","sodium","potassium","totalFibre","solubleFibre"];
           // STEP 1: Apply LLM core-11 estimate (present for label and estimated items)
@@ -2088,6 +2132,18 @@ You can compare up to 10 foods at once. comparisonTableYaml rows must use a 'val
             itemNutrients[key] = (traceNutrients as any)[key];
           }
           addDebugLog(`[Nutrient] "${canonicalName}" trace-20 from foodType="${foodType}".`);
+
+          // Ensure physical consistency of fats for the item
+          if (itemNutrients.saturatedFat > itemNutrients.totalFat) {
+            itemNutrients.totalFat = itemNutrients.saturatedFat;
+          }
+          if (itemNutrients.transFat > itemNutrients.totalFat) {
+            itemNutrients.totalFat = itemNutrients.transFat;
+          }
+          if (itemNutrients.saturatedFat + itemNutrients.transFat > itemNutrients.totalFat) {
+            itemNutrients.totalFat = parseFloat((itemNutrients.saturatedFat + itemNutrients.transFat).toFixed(2));
+          }
+          itemNutrients.unsaturatedFat = parseFloat(Math.max(0, itemNutrients.totalFat - itemNutrients.saturatedFat - itemNutrients.transFat).toFixed(2));
 
           // Add to aggregated nutrients
           for (const key of nutrientKeys) {

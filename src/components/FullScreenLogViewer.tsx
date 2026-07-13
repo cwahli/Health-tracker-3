@@ -43,38 +43,6 @@ export default function FullScreenLogViewer({
   const [isLoading, setIsLoading] = useState(false);
   const [selectedAgent, setSelectedAgent] = useState<'all' | 'scout' | 'dietitian'>('all');
 
-  // React to prop updates on mount or open
-  useEffect(() => {
-    if (isOpen) {
-      setSelectedSessionId(activeConversationId || '');
-      setSessionLogs(logsArray || []);
-    }
-  }, [isOpen, activeConversationId, logsArray]);
-
-  const fetchLogsForSession = async (sessId: string) => {
-    if (!sessId) return;
-    setIsLoading(true);
-    try {
-      const res = await fetch(`/api/gemini/debug-logs?sessionId=${sessId}`);
-      if (res.ok) {
-        const data = await res.json();
-        if (data && Array.isArray(data.logs)) {
-          const formatted = data.logs.map((l: any) => `[${l.timestamp}]\n${l.message}`);
-          setSessionLogs(formatted);
-        }
-      }
-    } catch (err) {
-      console.error("Error fetching debug logs for session:", err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const handleSessionChange = (sessId: string) => {
-    setSelectedSessionId(sessId);
-    fetchLogsForSession(sessId);
-  };
-
   const chunks = useMemo(() => {
     return sessionLogs;
   }, [sessionLogs]);
@@ -112,6 +80,63 @@ export default function FullScreenLogViewer({
     const lowerSearch = searchTerm.toLowerCase();
     return filteredByAgent.filter(chunk => chunk.toLowerCase().includes(lowerSearch));
   }, [filteredByAgent, searchTerm]);
+
+  const [activeMatchIndex, setActiveMatchIndex] = useState(0);
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (filteredChunks.length > 0) {
+        if (e.shiftKey) {
+          setActiveMatchIndex(prev => (prev - 1 + filteredChunks.length) % filteredChunks.length);
+        } else {
+          setActiveMatchIndex(prev => (prev + 1) % filteredChunks.length);
+        }
+      }
+    }
+  };
+
+  // Scroll active match into view
+  useEffect(() => {
+    if (searchTerm && filteredChunks.length > 0) {
+      const element = document.getElementById(`log-chunk-${activeMatchIndex}`);
+      if (element) {
+        element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+    }
+  }, [activeMatchIndex, searchTerm, filteredChunks.length]);
+
+  // React to prop updates on mount or open
+  useEffect(() => {
+    if (isOpen) {
+      setSelectedSessionId(activeConversationId || '');
+      setSessionLogs(logsArray || []);
+    }
+  }, [isOpen, activeConversationId, logsArray]);
+
+  const fetchLogsForSession = async (sessId: string) => {
+    if (!sessId) return;
+    setIsLoading(true);
+    try {
+      const res = await fetch(`/api/gemini/debug-logs?sessionId=${sessId}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && Array.isArray(data.logs)) {
+          const formatted = data.logs.map((l: any) => `[${l.timestamp}]\n${l.message}`);
+          setSessionLogs(formatted);
+        }
+      }
+    } catch (err) {
+      console.error("Error fetching debug logs for session:", err);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleSessionChange = (sessId: string) => {
+    setSelectedSessionId(sessId);
+    fetchLogsForSession(sessId);
+  };
 
   const highlightText = (text: string, highlight: string) => {
     if (!highlight.trim()) {
@@ -235,16 +260,49 @@ export default function FullScreenLogViewer({
             </select>
           </div>
 
-          {/* Inline Mobile Search */}
-          <div className="relative flex-1 min-w-[200px]">
+          {/* Inline Mobile Search with Count & Next/Prev Controls */}
+          <div className="relative flex-1 min-w-[240px]">
             <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
               type="text"
               placeholder="Search logs contents..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800/80 rounded-xl pl-9 pr-4 py-1.5 text-xs font-mono text-slate-200 outline-none focus:border-indigo-500/50 transition-all placeholder:text-slate-600 shadow-sm"
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setActiveMatchIndex(0);
+              }}
+              onKeyDown={handleKeyDown}
+              className="w-full bg-slate-900 border border-slate-800/80 rounded-xl pl-9 pr-24 py-1.5 text-xs font-mono text-slate-200 outline-none focus:border-indigo-500/50 transition-all placeholder:text-slate-600 shadow-sm"
             />
+            {searchTerm && filteredChunks.length > 0 && (
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1.5 bg-slate-950/80 px-2 py-0.5 rounded-lg border border-slate-800/60 text-[10px] font-mono text-slate-400">
+                <span>
+                  {activeMatchIndex + 1}/{filteredChunks.length}
+                </span>
+                <div className="w-[1px] h-3 bg-slate-800" />
+                <button
+                  type="button"
+                  title="Previous match (Shift+Enter)"
+                  onClick={() => setActiveMatchIndex(prev => (prev - 1 + filteredChunks.length) % filteredChunks.length)}
+                  className="p-0.5 hover:bg-slate-800 rounded text-slate-400 hover:text-indigo-400 transition-colors cursor-pointer"
+                >
+                  <ChevronUp className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  type="button"
+                  title="Next match (Enter)"
+                  onClick={() => setActiveMatchIndex(prev => (prev + 1) % filteredChunks.length)}
+                  className="p-0.5 hover:bg-slate-800 rounded text-slate-400 hover:text-indigo-400 transition-colors cursor-pointer"
+                >
+                  <ChevronDown className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            )}
+            {searchTerm && filteredChunks.length === 0 && (
+              <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-mono text-rose-400">
+                No matches
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -257,12 +315,22 @@ export default function FullScreenLogViewer({
           </span>
         ) : (
           <div className="flex-1 w-full bg-slate-900/50 border border-slate-800/80 rounded-xl p-4 font-mono text-[11px] text-slate-300 leading-relaxed overflow-y-auto select-text whitespace-pre-wrap">
-            {filteredChunks.map((chunk, idx) => (
-              <React.Fragment key={idx}>
-                {idx > 0 && <div className="h-4" />}
-                {highlightText(chunk, searchTerm)}
-              </React.Fragment>
-            ))}
+            {filteredChunks.map((chunk, idx) => {
+              const isActive = searchTerm && idx === activeMatchIndex;
+              return (
+                <div
+                  id={`log-chunk-${idx}`}
+                  key={idx}
+                  className={`p-2.5 rounded-lg transition-all duration-200 ${
+                    isActive
+                      ? 'bg-indigo-950/40 border border-indigo-500/50 ring-1 ring-indigo-500/30 shadow-[0_0_12px_rgba(99,102,241,0.15)]'
+                      : 'border border-transparent'
+                  }`}
+                >
+                  {highlightText(chunk, searchTerm)}
+                </div>
+              );
+            })}
           </div>
         )}
       </div>

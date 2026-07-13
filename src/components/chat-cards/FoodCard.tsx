@@ -135,7 +135,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                       
                       {/* Unified display of agent detailed clinical prose inside the card */}
                       {msg.content && (
-                        <div className="text-xs text-slate-800 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-900/30 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800/40 leading-relaxed whitespace-pre-line mb-3 font-sans text-left">
+                        <div className="text-[11.5px] text-slate-800 dark:text-slate-100 bg-slate-50/50 dark:bg-slate-900/30 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800/40 leading-relaxed whitespace-pre-line mb-3 font-sans text-left">
                           {msg.content}
                         </div>
                       )}
@@ -172,11 +172,11 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                         <span className="font-mono text-slate-800 dark:text-slate-200">{msg.data?.pendingFoodLog.date}</span>
                       </div>
 
-                      <div className="text-xs space-y-2 text-slate-600 dark:text-slate-350 font-medium text-left font-sans">
-                        <p><strong>{t.composition}:</strong> {msg.data?.pendingFoodLog.composition}</p>
-                        <p className="text-slate-700 dark:text-slate-200"><strong>{t.benefits}:</strong> {msg.data?.pendingFoodLog.benefits}</p>
-                        {msg.data?.pendingFoodLog.risks && <p className="text-slate-700 dark:text-slate-200"><strong>{t.risks}:</strong> {msg.data?.pendingFoodLog.risks}</p>}
-                        <p><strong>{t.impact}:</strong> {msg.data?.pendingFoodLog.healthImpact}</p>
+                      <div className="text-[11.5px] space-y-2 text-slate-800 dark:text-slate-100 font-medium text-left font-sans leading-relaxed">
+                        <p><strong className="text-slate-900 dark:text-white">{t.composition}:</strong> {msg.data?.pendingFoodLog.composition}</p>
+                        <p><strong className="text-slate-900 dark:text-white">{t.benefits}:</strong> {msg.data?.pendingFoodLog.benefits}</p>
+                        {msg.data?.pendingFoodLog.risks && <p><strong className="text-slate-900 dark:text-white">{t.risks}:</strong> {msg.data?.pendingFoodLog.risks}</p>}
+                        <p><strong className="text-slate-900 dark:text-white">{t.impact}:</strong> {msg.data?.pendingFoodLog.healthImpact}</p>
                       </div>
 
                       {/* Top Nutrients badges */}
