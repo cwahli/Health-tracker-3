@@ -2,23 +2,23 @@ import { doc, getDoc, updateDoc, collection, getDocs, setDoc } from 'firebase/fi
 import { db } from '../firebase';
 import { BiomarkerLog, UserProfile } from '../types';
 
-export const runCleanupMigration = async (email: string) => {
-  const norm = email.toLowerCase().trim();
-  const migrationKey = 'migration_july05_cleanup_done';
+export const runCleanupMigration = async (uid: string, email?: string) => {
+  const norm = uid;
+  const migrationKey = `migration_july05_cleanup_done_${uid}`;
   if (localStorage.getItem(migrationKey) === 'true') {
     return;
   }
   
   try {
-    console.log("Checking migration status in Firestore for", norm);
+    console.log("Checking migration status in Firestore for UID:", uid);
     
     // 1. Check LocalStorage (done above)
-    // 2. Secondary check in Firestore
-    const migrationRef = doc(db, 'users', norm, 'metadata', 'migration');
+    // 2. Secondary check in Firestore under UID
+    const migrationRef = doc(db, 'users', uid, 'metadata', 'migration');
     const migrationSnap = await getDoc(migrationRef);
     
     // Check old flag in profile as well for backwards compatibility
-    const profileRef = doc(db, 'users', norm);
+    const profileRef = doc(db, 'users', uid);
     const profileSnap = await getDoc(profileRef);
 
     let isAlreadyDone = false;
@@ -38,10 +38,10 @@ export const runCleanupMigration = async (email: string) => {
       return;
     }
 
-    console.log("Running cleanup migration for", norm);
+    console.log("Running cleanup migration for UID:", uid);
     
-    // Clean history logs
-    const historyRef = collection(db, 'users', norm, 'biomarkerHistory');
+    // Clean history logs under UID
+    const historyRef = collection(db, 'users', uid, 'biomarkerHistory');
     const snapshot = await getDocs(historyRef);
     
     for (const docSnap of snapshot.docs) {

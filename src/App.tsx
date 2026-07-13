@@ -949,8 +949,11 @@ export default function App() {
 
                   if (shouldCompress && imageUrl && imageUrl.startsWith('data:image/') && imageUrl.length > 25000) {
                     try {
-                      imageUrl = await compressImage(imageUrl, 400, 400, 0.5);
-                      needsUpdate = true;
+                      const compressed = await compressImage(imageUrl, 400, 400, 0.5);
+                      if (compressed !== imageUrl && compressed.length < imageUrl.length) {
+                        imageUrl = compressed;
+                        needsUpdate = true;
+                      }
                     } catch (e) {
                       console.warn("Auto-recompression failed for imageUrl:", d.id, e);
                     }
@@ -962,8 +965,12 @@ export default function App() {
                       if (shouldCompress && url && url.startsWith('data:image/') && url.length > 25000) {
                         try {
                           const compressed = await compressImage(url, 400, 400, 0.5);
-                          newUrls.push(compressed);
-                          needsUpdate = true;
+                          if (compressed !== url && compressed.length < url.length) {
+                            newUrls.push(compressed);
+                            needsUpdate = true;
+                          } else {
+                            newUrls.push(url);
+                          }
                         } catch (e) {
                           newUrls.push(url);
                           console.warn("Auto-recompression failed for imageUrl inside list:", d.id, e);
@@ -1602,7 +1609,7 @@ export default function App() {
     let unsubs: (() => void)[] = [];
     
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user && user.email) { runCleanupMigration(user.email).catch(console.error); }
+      if (user && user.email) { runCleanupMigration(user.uid, user.email).catch(console.error); }
       unsubs.forEach(u => u());
       unsubs = [];
       

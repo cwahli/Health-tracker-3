@@ -317,6 +317,70 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                           );
                         })}
                       </div>
+
+                      {/* Side-by-Side Comparison Matrix with highlighted suitability row */}
+                      {msg.data?.agentResult.comparison && (msg.data?.agentResult.comparison.comparisonTable || msg.data?.agentResult.comparison.comparisonTableYaml) && (
+                        <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/30 dark:bg-slate-900/10 mt-3 text-left">
+                          <div className="px-3 py-1.5 bg-slate-100/70 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
+                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                              📊 Side-by-Side Comparison Matrix
+                            </span>
+                          </div>
+                          <div className="p-0 overflow-x-auto">
+                            <table className="w-full text-[11px] text-left border-collapse">
+                              <thead className="bg-slate-50 dark:bg-slate-900 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-800">
+                                <tr>
+                                  <th className="px-3 py-2 font-bold text-slate-600 dark:text-slate-300 font-mono text-[10px] tracking-wider uppercase whitespace-nowrap">Nutrient / Aspect</th>
+                                  {(msg.data?.agentResult.comparison.foods || []).map((food: any, i: number) => (
+                                    <th key={i} className="px-3 py-2 font-bold text-slate-600 dark:text-slate-300 font-mono text-[10px] tracking-wider uppercase whitespace-nowrap">{food.name}</th>
+                                  ))}
+                                  <th className="px-3 py-2 font-bold text-slate-600 dark:text-slate-300 font-mono text-[10px] tracking-wider uppercase whitespace-nowrap">Target</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                                {/* Highlighted Dietitian Suitability Row */}
+                                <tr className="bg-indigo-50/50 dark:bg-indigo-950/20 border-b border-indigo-100 dark:border-indigo-950/40">
+                                  <td className="px-3 py-2 whitespace-nowrap font-bold text-indigo-900 dark:text-indigo-200">
+                                    ✨ Suitability Verdict
+                                  </td>
+                                  {(msg.data?.agentResult.comparison.foods || []).map((food: any, i: number) => {
+                                    const suitability = food.suitability || 'N/A';
+                                    const lowerSuit = suitability.toLowerCase();
+                                    let badgeClass = "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200";
+                                    if (lowerSuit.includes('good') || lowerSuit.includes('safe') || lowerSuit.includes('best') || lowerSuit.includes('low risk') || lowerSuit.includes('ideal') || lowerSuit.includes('recommend')) {
+                                      badgeClass = "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200/20";
+                                    } else if (lowerSuit.includes('moderate') || lowerSuit.includes('medium') || lowerSuit.includes('caution') || lowerSuit.includes('warning') || lowerSuit.includes('amber')) {
+                                      badgeClass = "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/20";
+                                    } else if (lowerSuit.includes('bad') || lowerSuit.includes('avoid') || lowerSuit.includes('high risk') || lowerSuit.includes('severe') || lowerSuit.includes('red') || lowerSuit.includes('restrict')) {
+                                      badgeClass = "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300 border border-rose-200/20";
+                                    }
+                                    return (
+                                      <td key={i} className="px-3 py-2 whitespace-nowrap">
+                                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}>
+                                          {suitability}
+                                        </span>
+                                      </td>
+                                    );
+                                  })}
+                                  <td className="px-3 py-2 whitespace-nowrap text-indigo-600 dark:text-indigo-400 font-bold font-mono text-[10px]">
+                                    Goal Target
+                                  </td>
+                                </tr>
+
+                                {((msg.data?.agentResult.comparison.comparisonTable || msg.data?.agentResult.comparison.comparisonTableYaml).rows || []).map((row: any, idx: number) => (
+                                  <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 group">
+                                    <td className="px-3 py-1.5 whitespace-nowrap font-bold text-slate-900 dark:text-slate-150">{row.nutrient}</td>
+                                    {(row.values || []).map((val: string, vIdx: number) => (
+                                      <td key={vIdx} className="px-3 py-1.5 whitespace-nowrap font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-100">{val}</td>
+                                    ))}
+                                    <td className="px-3 py-1.5 whitespace-nowrap text-amber-600 dark:text-amber-400 font-bold">{row.target}</td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 

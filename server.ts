@@ -1925,7 +1925,7 @@ ${visionScoutCtx}
 ${databaseMatchesCtx}
 Current User Input: "${message}"
 
-You can compare up to 10 foods at once. comparisonTable rows must use a 'values' array (not foodA/foodB). Always include the top 3 most clinically relevant nutrient rows for the patient's biomarker context.`;
+You can compare up to 10 foods at once. comparisonTable rows must use a 'values' array (not foodA/foodB). Always include the top most clinically relevant nutrient rows for the patient's biomarker context.`;
 
     const fullPromptSent = `System Instruction:\n${finalSystemInstruction}\n\n${promptText}`;
     addDebugLog(`[RouteAgent Chat] Sending request to Gemini...`);
