@@ -74,7 +74,7 @@ function parseYamlOffline(yamlText: string): BiomarkerEntry[] {
     return entries;
   }
 
-  const lines = yamlText.split('\\n');
+  const lines = yamlText.split(/\r?\n|\\n/);
   let currentEntry: Partial<BiomarkerEntry> = {};
   
   for (let line of lines) {
@@ -271,7 +271,7 @@ function extractBiomarkerKeysFromYaml(yamlStr: string): string[] {
     return Array.from(new Set(keys)).filter(Boolean);
   }
 
-  const lines = yamlStr.split("\\n");
+  const lines = yamlStr.split(/\r?\n|\\n/);
   lines.forEach(line => {
     const trimmed = line.trim();
     const match = trimmed.match(/^(?:-\s*)?biomarker\s*:\s*["']?([^"'\s:]+)["']?/i);
@@ -419,6 +419,9 @@ export default function LogChat({
   const isUnified = ['food', 'medical', 'food_idea', 'daily_recommendation'].includes(type) && getAgentRolloutStatus(type as AgentType) === 'unified';
 
   const isAgent = (targetType: AgentType) => {
+    if (['medical', 'food', 'food_idea', 'daily_recommendation'].includes(targetType)) {
+      return type === targetType;
+    }
     if (isUnified) return activeAgentConfig?.id === targetType;
     return type === targetType;
   };
@@ -1497,13 +1500,14 @@ ${logsText}`);
           assistantMsg.pendingFoodIdeas = resData.ideas;
         }
       } else {
-        if (agentType) {
-          assistantMsg.agentType = agentType;
+        const activeAgentType = (agentType || resData.agentType || (resData.extractedYaml && resData.extractedYaml.trim() && resData.extractedYaml.trim() !== '[]' ? 'agent1' : null)) as string | null;
+        if (activeAgentType) {
+          assistantMsg.agentType = (activeAgentType === 'agent1_step1' ? 'agent1' : activeAgentType) as AgentType;
           assistantMsg.agentResult = resData;
-          if (agentType === 'agent1') {
+          if (activeAgentType === 'agent1' || activeAgentType === 'agent1_step1') {
             assistantMsg.agentTypeStep = resData.agentType || 'agent1_step1';
           }
-          if (onAgentAnalysisSaved) {
+          if (onAgentAnalysisSaved && agentType) {
             await onAgentAnalysisSaved(agentType, resData);
           }
         } else {
@@ -1533,13 +1537,15 @@ ${logsText}`);
         }
       }
 
+      const migratedAssistantMsg = migrateMessages([assistantMsg])[0];
+
       setMessages(prev => {
         if (isAgent('food') && resData.mode === 'modify' && resData.data) {
           // Check if this food was already saved to database history
           const wasLogged = prev.some(m => m.data?.pendingFoodLog && m.data?.pendingFoodLog.id === resData.data.id && loggedMessageIds.includes(m.id));
           if (wasLogged) {
             // Automatically mark the modified card message as logged too
-            setLoggedMessageIds(prevIds => [...prevIds, assistantMsg.id]);
+            setLoggedMessageIds(prevIds => [...prevIds, migratedAssistantMsg.id]);
             // Automatically trigger the log update handler to push modifications to database
             if (onLogFood) {
               onLogFood(resData.data as FoodLog);
@@ -1560,9 +1566,9 @@ ${logsText}`);
             }
             return m;
           }).reverse();
-          return [...newPrev, assistantMsg];
+          return [...newPrev, migratedAssistantMsg];
         }
-        return [...prev, assistantMsg];
+        return [...prev, migratedAssistantMsg];
       });
     } catch (err: any) {
       console.error(err);
@@ -1646,7 +1652,7 @@ ${logsText}`);
 
       setMessages(prev => prev.map(m => {
         if (m.id === msg.id) {
-          return {
+          const updatedMsg = {
             ...m,
             content: resData.text || m.content,
             agentResult: {
@@ -1658,6 +1664,7 @@ ${logsText}`);
               estimatedTotalMarkers: resData.estimatedTotalMarkers !== undefined ? resData.estimatedTotalMarkers : m.data?.agentResult?.estimatedTotalMarkers
             }
           };
+          return migrateMessages([updatedMsg])[0];
         }
         return m;
       }));
@@ -1738,7 +1745,8 @@ ${logsText}`);
         agentTypeStep: step
       };
 
-      setMessages(prev => [...prev, assistantMsg]);
+      const migratedAssistantMsg = migrateMessages([assistantMsg])[0];
+      setMessages(prev => [...prev, migratedAssistantMsg]);
     } catch (err: any) {
       console.error(err);
       setMessages(prev => [
