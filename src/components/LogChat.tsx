@@ -10,7 +10,7 @@ import { nutrientDefinitions } from '../utils/nutrition';
 import { biomarkerDefinitions, getBiomarkerStatus, isAsianEthnicity, getBiomarkerStatusLabel } from '../utils/biomarkers';
 import LLMSelector from './LLMSelector';
 import { AVAILABLE_LLMS } from '../utils/llm';
-import { compressMultipleImages } from '../utils/imageCompressor';
+import { compressMultipleImages, compressImage } from '../utils/imageCompressor';
 import { getCurrentDateInTimezone } from '../utils/dateUtils';
 import ImageSlider from './ImageSlider';
 import FullScreenLogViewer from './FullScreenLogViewer';
@@ -641,6 +641,41 @@ ${logsText}`);
     };
   }, []);
 
+  const compressLargeImagesInObject = async (obj: any): Promise<any> => {
+    if (obj === null || obj === undefined) return obj;
+    if (typeof obj === 'string') {
+      if (obj.startsWith('data:image/') && obj.length > 8000) {
+        try {
+          // Compress base64 to maximum 240x240 pixels at 0.5 quality to stay well under the 1MB Firestore limit
+          const compressed = await compressImage(obj, 240, 240, 0.5);
+          return compressed;
+        } catch (e) {
+          console.warn("Failed to compress base64 image in object:", e);
+          if (obj.length > 150000) {
+            return obj.substring(0, 100) + "... [large base64 image stripped to prevent Firestore size limit error]";
+          }
+          return obj;
+        }
+      }
+      return obj;
+    }
+    if (Array.isArray(obj)) {
+      const arr = [];
+      for (const item of obj) {
+        arr.push(await compressLargeImagesInObject(item));
+      }
+      return arr;
+    }
+    if (typeof obj === 'object') {
+      const cleaned: any = {};
+      for (const [k, v] of Object.entries(obj)) {
+        cleaned[k] = await compressLargeImagesInObject(v);
+      }
+      return cleaned;
+    }
+    return obj;
+  };
+
   const saveConversationToFirestore = async (id: string, msgs: ChatMessage[], payload: any) => {
     const userId = auth.currentUser?.uid;
     if (!userId) {
@@ -654,6 +689,9 @@ ${logsText}`);
     }
 
     try {
+      const compressedMsgs = await compressLargeImagesInObject(msgs);
+      const compressedPayload = await compressLargeImagesInObject(payload);
+
       const docRef = doc(db, 'users', userId, 'conversations', id);
       await setDoc(docRef, sanitizeForFirestore({
         id,
@@ -665,8 +703,8 @@ ${logsText}`);
           : `Session - ${new Date().toLocaleDateString()}`,
         createdAt: msgs[0]?.timestamp || new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        messages: msgs,
-        lastSentPayload: payload || null
+        messages: compressedMsgs,
+        lastSentPayload: compressedPayload || null
       }), { merge: true });
     } catch (err) {
       console.error("Error saving conversation to Firestore:", err);

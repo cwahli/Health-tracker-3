@@ -50,6 +50,23 @@ const formatLogDate = (dateStr: string) => {
   return dateStr;
 };
 
+const getRecommendationColorClass = (rec: string) => {
+  const lower = String(rec || '').toLowerCase();
+  if (lower.includes('good') || lower.includes('safe') || lower.includes('best') || lower.includes('perfect') || lower.includes('healthy')) {
+    return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300';
+  }
+  if (lower.includes('moderate') || lower.includes('caution') || lower.includes('amber') || lower.includes('risk') || lower.includes('warning')) {
+    if (lower.includes('high')) {
+      return 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300';
+    }
+    return 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300';
+  }
+  if (lower.includes('bad') || lower.includes('avoid') || lower.includes('severe') || lower.includes('danger')) {
+    return 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300';
+  }
+  return 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300';
+};
+
 export default function FoodHistoryTab({
   profile,
   foodLogs,
@@ -978,19 +995,17 @@ export default function FoodHistoryTab({
 
                       {/* AI Diagnostics */}
                       <div className="space-y-3 bg-indigo-50/20 dark:bg-indigo-950/10 p-3.5 rounded-2xl border border-indigo-100/30 dark:border-indigo-900/10 text-left">
-                        <div className="flex items-center justify-between">
-                          <label className="text-[10px] font-bold text-indigo-500 block">AI Diagnostic Fields</label>
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-[10px] text-slate-400 font-semibold">Recommendation:</span>
-                            <select
-                              value={editLogState?.recommendation || 'neutral'}
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-bold text-indigo-500 block uppercase tracking-wider">AI Diagnostic Fields</label>
+                          <div>
+                            <label className="text-[10px] font-semibold text-slate-500 block mb-1">Recommendation / Summary Tag</label>
+                            <input
+                              type="text"
+                              value={editLogState?.recommendation || ''}
                               onChange={(e) => updateField('recommendation', e.target.value)}
-                              className="text-[11px] font-bold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-2 py-0.5 text-slate-900 dark:text-slate-100 focus:outline-none cursor-pointer"
-                            >
-                              <option value="good" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Good</option>
-                              <option value="neutral" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Neutral</option>
-                              <option value="bad" className="bg-white dark:bg-slate-800 text-slate-900 dark:text-white">Bad</option>
-                            </select>
+                              placeholder="e.g., Heart-healthy with minimal oil and low-sodium broth"
+                              className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/30 font-semibold"
+                            />
                           </div>
                         </div>
 
@@ -1164,11 +1179,7 @@ export default function FoodHistoryTab({
                             <span className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
                               <Calendar className="w-3 h-3" /> {formatLogDate(log.date)}
                             </span>
-                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded uppercase tracking-wider ${
-                              log.recommendation === 'good' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' :
-                              log.recommendation === 'bad' ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' :
-                              'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                            }`}>
+                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded capitalize tracking-wider ${getRecommendationColorClass(log.recommendation)}`}>
                               {log.recommendation || 'neutral'}
                             </span>
                           </div>
@@ -1232,8 +1243,8 @@ export default function FoodHistoryTab({
                           const sodiumConsumedBefore = logsBefore.reduce((acc, curr) => acc + (curr.nutrients?.sodium || 0), 0);
 
                           return (
-                            <div className="flex flex-wrap items-center gap-3">
-                              <div className="flex items-center gap-1.5">
+                            <div className="flex items-center gap-3 overflow-x-auto py-1 scrollbar-none flex-nowrap max-w-full text-left">
+                              <div className="flex items-center gap-1.5 shrink-0">
                                 <NutrientPieChart
                                   allowance={caloriesTarget}
                                   alreadyConsumed={caloriesConsumedBefore}
@@ -1247,7 +1258,7 @@ export default function FoodHistoryTab({
                               </div>
 
                               {log.nutrients && log.nutrients.saturatedFat !== undefined && (
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5 shrink-0">
                                   <NutrientPieChart
                                     allowance={satFatTarget}
                                     alreadyConsumed={satFatConsumedBefore}
@@ -1262,7 +1273,7 @@ export default function FoodHistoryTab({
                               )}
 
                               {log.nutrients && log.nutrients.sodium !== undefined && (
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-1.5 shrink-0">
                                   <NutrientPieChart
                                     allowance={sodiumTarget}
                                     alreadyConsumed={sodiumConsumedBefore}
@@ -1326,11 +1337,7 @@ export default function FoodHistoryTab({
                               <span className="text-[10px] font-mono uppercase tracking-wider text-indigo-500 font-bold flex items-center gap-1">
                                 <span>✨ AI Diagnostic Track</span>
                               </span>
-                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${
-                                log.recommendation === 'good' ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300' :
-                                log.recommendation === 'bad' ? 'bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300' :
-                                'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300'
-                              }`}>
+                              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold uppercase tracking-wider ${getRecommendationColorClass(log.recommendation)}`}>
                                 {log.recommendation || 'neutral'}
                               </span>
                             </div>

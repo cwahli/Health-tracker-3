@@ -178,13 +178,13 @@ export function buildFoodAnalyzeInstruction(context: {
     if (val === undefined || val === null) return "0";
     const num = Number(val);
     if (isNaN(num)) return String(val);
-    return String(Math.round(num * 100) / 100); // formats to 2 decimal places max, avoiding floating point errors
+    return String(Math.round(num * 100) / 100);
   };
   const targetLimits = remainingAllowance
     ? `• Calories: ${formatLimitVal(remainingAllowance.calories)} kcal remaining | Saturated Fat: ${formatLimitVal(remainingAllowance.saturatedFat)}g remaining | Sodium: ${formatLimitVal(remainingAllowance.sodium)}mg remaining`
-    : "• Calories: 2000 kcal remaining | Saturated Fat: 20g remaining | Sodium: 2300mg remaining";
+    : "• Calories: 1651 kcal remaining | Saturated Fat: 15g remaining | Sodium: 1200mg remaining";
 
-  // Clean activeMeal by replacing huge base64 strings before stringifying to save token costs and prevent logs bloating
+  // Clean activeMeal by replacing huge base64 strings
   let sanitizedActiveMeal = null;
   if (activeMeal) {
     sanitizedActiveMeal = { ...activeMeal };
@@ -207,7 +207,7 @@ export function buildFoodAnalyzeInstruction(context: {
 
 You are an expert clinical dietitian and nutritional LLM analyzer operating within an automated personalized health ecosystem. Your response must be an exact single structured JSON object matching the requested structure. Never add markdown formatting wrappers like \`\`\`json unless instructed.
 
-CONSISTENCY & PROSE PRECISION: In your conversational response ("message") and detailed analysis fields ("benefits", "risks", "healthImpact"), you should explicitly discuss specific numeric nutrient totals (such as total calories, protein, saturated fat, sodium, etc.) calculated for the current meal. Make sure to reference these specific values to ground your recommendations in real, precise figures rather than general statements. All numeric figures you write in prose must exactly match the mathematically calculated totals of the food items.
+CONSISTENCY & PROSE PRECISION: In your conversational response ("message") and detailed analysis fields, you should explicitly discuss specific numeric nutrient totals calculated for the current meal. Make sure to reference these specific values to ground your recommendations in real, precise figures rather than general statements. 
 
 === PATIENT CONTEXT PAYLOAD ===
 CRITICAL PATIENT BIOMARKER WARNINGS & NUTRITIONAL DIRECTIVES:
@@ -219,106 +219,97 @@ TODAY'S REMAINING NUTRITIONAL TARGET LIMITS:
 ${targetLimits}
 
 === UNIVERSAL HEALTH DIRECTIVE (STRICT) ===
-TRANS FAT AVOIDANCE: Trans fat (partially hydrogenated oils) is universally harmful and must be avoided regardless of the patient's specific biomarkers. Always aggressively flag any food likely to contain trans fats (e.g., commercial baked goods, fried fast foods, certain margarines) in the "risks" field and rate suitability/recommendation poorly.
+TRANS FAT AVOIDANCE: Trans fat (partially hydrogenated oils) is universally harmful and must be avoided regardless of the patient's specific biomarkers. Always aggressively flag any food likely to contain trans fats in the "risks" field.
 
 === DATA EXTRACTION DEPTH RULES ===
-When processing food entries, split your analytical focus into two tiers:
-1. CORE NUTRIENTS (Top 11: Calories, Protein, Carbohydrates, Total Fat, Saturated Fat, Trans Fat, Added Sugar, Sodium, Potassium, Total Fibre, Soluble Fibre): For EVERY item, you MUST populate labelNutrientsPerServing with your best clinical estimate per 100g (set servingSizeGrams=100). This is mandatory regardless of whether a database match exists — your LLM nutritional knowledge is the primary source. When a physical label is visible in the image, use the exact label values. When databaseMatches contains a relevant entry, use it to improve your estimate and set dbSource accordingly.
-2. TRACE NUTRIENTS (20 other vitamins/minerals): Do NOT estimate these individually — it wastes tokens. Instead, output the single most appropriate foodType string for each item. The backend derives all 20 trace nutrients from a food-type classification table. Choose one of: 'red_meat', 'poultry', 'fish_fatty', 'fish_lean', 'shellfish', 'egg', 'dairy', 'leafy_veg', 'root_veg', 'legume', 'grain', 'fruit', 'processed', 'unknown'.
+1. CORE NUTRIENTS: For EVERY new item, you MUST populate labelNutrientsPerServing with your best clinical estimate per 100g (set servingSizeGrams=100). When a physical label is visible, use the exact label values. When databaseMatches contains a relevant entry, use it to improve your estimate and set dbSource accordingly.
+2. TRACE NUTRIENTS: Do NOT estimate these individually. Instead, output the single most appropriate foodType string for each item (e.g., 'red_meat', 'leafy_veg', 'root_veg', etc.). 
 
-=== MODE ROUTING DIRECTIVE ===
+=== MODE ROUTING DIRECTIVE (STRICTLY ENFORCED) ===
 Operate in one of four distinct modes based on current user intent:
 
-MODE A: NEW FOOD LOGGING (Triggered by a new food item description or image)
-- If the user uploads a new image that shows a completely different food item from the previous conversation, you MUST use 'new_log' mode and completely ignore the CURRENT_ACTIVE_MEAL_STATE. Do not append unrelated new meals to previous logs.
-- Extract and map ingredients to standard, database-friendly food classifications in "canonicalDbName".
-- Estimate total visual/described item portion weights in "weightGrams".
-- When databaseMatches is non-empty, select the closest matching entry for each visual/text food component instead of inventing nutrient values from memory. Only fall back to your own estimate if nothing relevant is present in databaseMatches. If a physical nutrition label is visible in the image, the label's stated numbers always take priority over both the database and your own estimate.
-- When you set dbSource to "label" for an item, populate labelNutrientsPerServing with the EXACT printed numbers and serving size from that label — report them verbatim as printed, do not scale or estimate them yourself; the backend will scale them to the actual consumed weight.
-- Set "mode": "new_log". Provide the "foodData" block.
+MODE A: NEW FOOD LOGGING 
+- Triggered by a completely new food item description or image. Ignore CURRENT_ACTIVE_MEAL_STATE.
+- Extract ingredients, estimate weights, and provide the "foodData" block. Set "mode": "new_log".
 
-MODE B: DISCUSSION (Triggered by general health or meal-related questions)
-- Answer conversationally using the CURRENT_ACTIVE_MEAL_STATE and historical logs.
-- Set "mode": "discussion". Set structural data objects to null.
+MODE B: DISCUSSION 
+- Triggered by general health questions. Answer conversationally using historical logs. Set "mode": "discussion". Set structural data to null.
 
-MODE C: MODIFICATION COMMAND — HIGHEST PRIORITY ROUTING RULE
-Triggered when:
-- The user states or corrects a weight (e.g. "the ice cream is 300g", "actually it's 200g", "make it 500g")
-- The user asks to add, remove, or change an ingredient in the CURRENT_ACTIVE_MEAL_STATE
-- Any message containing a gram amount (Xg / X grams) when CURRENT_ACTIVE_MEAL_STATE is not None
-- If the user provides a minor alias or spelling correction for the SAME food (e.g., "it's Aburi Sushi not Sushi"), use mode 'modify' with action 'rename_alias' and set newItemName to the corrected name.
-- CRITICAL: If the user corrects the actual IDENTITY of the food to a completely different item (e.g., "it's actually dumpling, not sushi"), use mode 'new_log' to regenerate from scratch. Do NOT use 'modify' for identity changes.
-- For 'add_item' commands, also provide estimatedNutrientsPer100g with 5 values (calories, protein, totalFat, saturatedFat, sodium per 100g) and a foodType. Keep it concise — 5 numbers and 1 string.
+MODE C: MODIFICATION COMMAND (ACTIVE MEAL UPDATE)
+Triggered ONLY when the user asks to modify, add, or correct a weight for an item that currently exists inside the CURRENT_ACTIVE_MEAL_STATE.
+- ANTI-CRASH RULE: You MUST populate \`itemName\` with the EXACT literal string from the active state (e.g., "Beef, chuck for stew, raw" NOT "Beef"). 
+- ANTI-CRASH RULE 2: You MUST populate \`targetDbId\` with the exact ID from the active state to ensure the backend calculator finds it.
+- Do NOT use Mode C if the user is discussing a food from a theoretical comparison that is not in the active meal state.
+- Set "mode": "modify". Populate the "modificationCommand" array. Set foodData and comparison to null.
 
-CRITICAL:
-- If CURRENT_ACTIVE_MEAL_STATE is set AND the user message contains a gram quantity or modification request (that is NOT an identity change), you MUST use mode "modify", NOT "new_log". Do NOT re-log the meal. Only update what changed.
-- If the user corrects the actual identity of the food (e.g., 'It is a dumpling, not sushi' or 'I used almond milk instead of regular milk'), this changes the nutritional profile AND the health impact. You MUST use mode 'new_log' to completely regenerate the meal from scratch so the benefits, risks, and nutrients are perfectly in sync. DO NOT use 'modify' mode for identity changes.
-
-- Set "mode": "modify". Populate the "modificationCommand" array.
-- For a weight correction: use action "update_weight" with the item name from the active state and the new integer weight.
-- Set foodData to null.
-
-MODE D: EVALUATION / COMPARISON (Triggered by meal option comparisons)
-- Evaluate alternative foods side by side, focusing directly on the primary nutrient threat driven by the patient's active biomarker warnings.
-- Set "mode": "evaluation". Provide the complete "comparison" object.
-- You can compare up to 10 foods at once. Ensure the table includes the top 3 most important nutrient values as rows to help compare. Use the 'values' array for the food columns.
+MODE D: EVALUATION / COMPARISON
+Triggered when evaluating alternative foods, OR when the user asks to change the weight of a food currently in a comparison discussion (e.g. changing beef to 200g during a comparison, when the active state is an Apple). 
+- Do NOT output manual math or table strings. Output the specific foods, their dbIds, and their weights in the \`comparison.foods\` array so the backend can calculate the accurate table.
+- Set "mode": "evaluation". Provide the complete "comparison" object. Set modificationCommand and foodData to null.
 
 JSON SCHEMA STRICT REQUIREMENT:
-Respond ONLY with a structured JSON format matching this schema exactly. Values must be dynamically derived from the patient's specific profile conditions and injected directives.
+Respond ONLY with a structured JSON format matching this schema exactly.
 
-mode: "String indicating active mode: new_log, discussion, modify, or evaluation"
-message: "A highly personalized conversational response detailing the clinical rationale, biomarker alignment, or modification confirmation."
-modificationCommand: null or list of:
-  - action: "update_weight" | "remove_item" | "add_item"
-    itemName: "Literal name of the item from the active state to change"
-    newWeightGrams: "A whole INTEGER. Round to nearest whole number, e.g. 120."
-    targetDbId: "Optional exact database ID (fdcId or barcode) from the itemsBreakdown list"
-foodData: null or:
-  date: "YYYY-MM-DD (Dynamically set based on provided current time context)"
-  name: "Literal food name"
-  itemsBreakdown:
-    - canonicalDbName: "Standardized target food name"
-      weightGrams: "A whole INTEGER, e.g. 120."
-      dbSource: "usda" | "off" | "estimated" | "label"
-      dbId: "the fdcId or barcode, or null if estimated"
-      labelNutrientsPerServing: "(ALWAYS populate this for every item — exact label values if dbSource is 'label', best clinical estimate per 100g if dbSource is 'estimated' or if no dbId. Set servingSizeGrams=100 for estimates. Only omit if dbSource is 'usda' or 'off' AND a valid dbId is present.)"
-  composition: "Brief operational summary of food ingredients"
-  weightGrams: "A whole INTEGER. Round to nearest whole number, e.g. 150."
-  quantity: "Visual descriptive serving size (e.g., 1 medium, 2 skewers)"
-  benefits: "Targeted clinical benefits addressing the patient's specific biomarkers"
-  risks: "Explicit clinical risk warnings mapped to the patient's injected biomarker rules, plus universal Trans Fat warnings if applicable"
-  healthImpact: "Clear evaluation against remaining daily macro/micro targets"
-  recommendation: "Short, contextual tag (e.g., 'Best today', 'Heart-healthy', 'Caution: High Sodium', 'Perfect for target')"
-comparison: null or:
-  keyNutrientConcern: "The specific nutrient string causing primary clinical concern for this profile session"
-  foods:
-    - name: "Food option item name"
-      weightGrams: "A whole INTEGER. Round to nearest whole number, e.g. 120."
-      suitability: "Short, contextual tag (e.g., 'Safest option', 'Moderate risk', 'Avoid')"
-      pros: "Targeted biomarker benefits"
-      cons: "Targeted biomarker risks"
-  comparisonTableYaml:
-    columns: ["Nutrient / Aspect", "Food 1", "Food 2", "Food 3", "Food 4", "Food 5", "Food 6", "Food 7", "Food 8", "Food 9", "Food 10", "Target / Goal"]
-    rows:
-      - nutrient: "Calories"
-        values: ["value1", "value2", "", "", "", "", "", "", "", ""]
-        target: "value"
-      - nutrient: "Nutrient 1"
-        values: ["value1", "value2", "", "", "", "", "", "", "", ""]
-        target: "value"
-      - nutrient: "Nutrient 2"
-        values: ["value1", "value2", "", "", "", "", "", "", "", ""]
-        target: "value"
-      - nutrient: "Nutrient 3"
-        values: ["value1", "value2", "", "", "", "", "", "", "", ""]
-        target: "value"
-      - nutrient: "Pros"
-        values: ["Pro 1", "Pro 2", "", "", "", "", "", "", "", ""]
-        target: "-"
-      - nutrient: "Cons"
-        values: ["Con 1", "Con 2", "", "", "", "", "", "", "", ""]
-        target: "-"
-`;
+{
+  "mode": "new_log | discussion | modify | evaluation",
+  "message": "A highly personalized conversational response detailing the clinical rationale.",
+  "modificationCommand": [
+    {
+      "action": "update_weight | remove_item | add_item",
+      "itemName": "EXACT literal name from the itemsBreakdown list.",
+      "newWeightGrams": 120,
+      "targetDbId": "EXACT dbId from itemsBreakdown. CRITICAL for backend matching."
+    }
+  ],
+  "foodData": {
+    "date": "YYYY-MM-DD",
+    "name": "Literal food name",
+    "itemsBreakdown": [
+      {
+        "canonicalDbName": "Standardized target food name",
+        "weightGrams": 120,
+        "dbSource": "usda | off | estimated | label",
+        "dbId": "fdcId or barcode",
+        "labelNutrientsPerServing": {
+          "servingSizeGrams": 100,
+          "calories": 0,
+          "protein": 0,
+          "totalFat": 0,
+          "saturatedFat": 0,
+          "transFat": 0,
+          "carbohydrates": 0,
+          "addedSugar": 0,
+          "sodium": 0,
+          "potassium": 0,
+          "totalFibre": 0,
+          "solubleFibre": 0
+        },
+        "foodType": "string"
+      }
+    ],
+    "composition": "Brief summary",
+    "weightGrams": 150,
+    "quantity": "Visual descriptive serving size",
+    "benefits": "Targeted clinical benefits",
+    "risks": "Explicit clinical risk warnings",
+    "healthImpact": "Evaluation against targets",
+    "recommendation": "Short, contextual tag indicating core health property."
+  },
+  "comparison": {
+    "keyNutrientConcern": "The specific nutrient string causing primary clinical concern",
+    "foods": [
+      {
+        "name": "Food option item name",
+        "targetDbId": "Exact dbId from database matches or active state to allow backend calculation",
+        "weightGrams": 120,
+        "suitability": "Short tag (e.g., 'Safest option', 'Moderate risk')",
+        "profileRecommendation": "A personalized clinical recommendation.",
+        "boundingBox2D": [0,0,0,0],
+        "sourceImageIndex": 0
+      }
+    ]
+  }
+}`;
 }
 
 const app = express();
@@ -1224,6 +1215,28 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
   try {
     const { message, image, images, imageDates, history, userProfile, engine, biomarkersNeedingImprovement, remainingAllowance, userId, activeMeal, customSystemInstruction, customVariableData } = req.body;
 
+    const STANDARD_FOOD_FACTORS: {[key: string]: {calories: number, saturatedFat: number, sodium: number, protein: number, carbohydrates: number, totalFat: number}} = {
+      steak: { calories: 2.5, saturatedFat: 0.05, sodium: 1.8, protein: 0.26, carbohydrates: 0.0, totalFat: 0.18 },
+      beef: { calories: 2.5, saturatedFat: 0.05, sodium: 1.8, protein: 0.26, carbohydrates: 0.0, totalFat: 0.18 },
+      chicken: { calories: 1.65, saturatedFat: 0.01, sodium: 0.7, protein: 0.31, carbohydrates: 0.0, totalFat: 0.036 },
+      breast: { calories: 1.65, saturatedFat: 0.01, sodium: 0.7, protein: 0.31, carbohydrates: 0.0, totalFat: 0.036 },
+      pork: { calories: 2.4, saturatedFat: 0.03, sodium: 0.8, protein: 0.27, carbohydrates: 0.0, totalFat: 0.14 },
+      fish: { calories: 1.5, saturatedFat: 0.01, sodium: 0.8, protein: 0.20, carbohydrates: 0.0, totalFat: 0.06 },
+      salmon: { calories: 2.0, saturatedFat: 0.015, sodium: 0.5, protein: 0.20, carbohydrates: 0.0, totalFat: 0.13 },
+      rice: { calories: 1.3, saturatedFat: 0.0, sodium: 0.01, protein: 0.027, carbohydrates: 0.28, totalFat: 0.003 },
+      broccoli: { calories: 0.35, saturatedFat: 0.0, sodium: 0.3, protein: 0.028, carbohydrates: 0.07, totalFat: 0.004 },
+      egg: { calories: 1.5, saturatedFat: 0.03, sodium: 1.4, protein: 0.13, carbohydrates: 0.011, totalFat: 0.11 },
+      avocado: { calories: 1.6, saturatedFat: 0.02, sodium: 0.07, protein: 0.02, carbohydrates: 0.085, totalFat: 0.147 },
+      bread: { calories: 2.6, saturatedFat: 0.005, sodium: 4.8, protein: 0.09, carbohydrates: 0.49, totalFat: 0.032 },
+      butter: { calories: 7.1, saturatedFat: 5.1, sodium: 5.7, protein: 0.009, carbohydrates: 0.001, totalFat: 0.81 },
+      cheese: { calories: 4.0, saturatedFat: 1.8, sodium: 6.2, protein: 0.25, carbohydrates: 0.013, totalFat: 0.33 },
+      salad: { calories: 0.2, saturatedFat: 0.0, sodium: 0.1, protein: 0.01, carbohydrates: 0.03, totalFat: 0.002 },
+      tomato: { calories: 0.18, saturatedFat: 0.0, sodium: 0.05, protein: 0.009, carbohydrates: 0.039, totalFat: 0.002 },
+      oil: { calories: 8.8, saturatedFat: 1.4, sodium: 0.0, protein: 0.0, carbohydrates: 0.0, totalFat: 1.0 },
+      potato: { calories: 0.8, saturatedFat: 0.0, sodium: 0.05, protein: 0.02, carbohydrates: 0.17, totalFat: 0.001 },
+      pasta: { calories: 1.3, saturatedFat: 0.0, sodium: 0.01, protein: 0.05, carbohydrates: 0.25, totalFat: 0.011 }
+    };
+
     // 1. Intercept prompt & read current active state from Request Body (passed from client)
     if (activeMeal) {
       addDebugLog(`[Client State] Received active meal: ${activeMeal.name}`);
@@ -1545,23 +1558,41 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       const hasImage = imagePayloads && imagePayloads.length > 0;
       if (hasImage) {
         addDebugLog(`[Vision Scout] Running Stage 3 lightweight vision scout...`);
-        const scoutSystemInstruction = `You are a fast visual food identification agent. You will receive one or more images.
+        const scoutSystemInstruction = `You are a fast visual food identification and localization agent. You will receive one or more images.
+
 STEP 1 — IMAGE CLASSIFICATION (do this FIRST for every image):
 For each image, determine if it is:
   (a) A product label, price tag, or packaging showing food name and/or weight in grams/kg
   (b) An actual food photo showing prepared or raw ingredients
   (c) A cooking scene (e.g. boiling in a pot, frying on a pan)
-STEP 2 — DATA EXTRACTION:
+
+STEP 2 — DATA EXTRACTION & LOCALIZATION:
 - For label images (type a): Read the EXACT food name (even if in a local language) and the EXACT weight. Convert kg to grams (e.g., 0.192 kg = 192g). Translate name to English: "Bayam Hju" → "spinach", "Daging Empal" → "beef stew cut", "Blade Kong" → "beef blade cut", "Daging Sapi" → "beef".
 - For food photos (type b): Identify food items. Estimate weight using visible size references (hands, plates, forks, containers). Output a short English keyword and estimated weight in grams.
 - For cooking scenes (type c): Note the method (e.g., "boiling, no oil", "deep frying") and set cookingMethod.
+- LOCALIZATION: For EVERY item identified, provide a 2D bounding box indicating its location in the image. Format this as an array of four integers [ymin, xmin, ymax, xmax], normalized to a scale of 0 to 1000 (where [0,0] is top-left and [1000,1000] is bottom-right).
+
 STEP 3 — MERGE & DEDUPLICATE:
 If an item appears in BOTH a label and a food photo, use the LABEL WEIGHT as the authoritative weight. Do NOT duplicate.
+
 CRITICAL RULES:
 - Always translate local/regional food names to short, clean English database-friendly names as the keyword.
 - keyword must be short and clean (e.g. "beef blade cut" not "raw beef slices (daging empal and blade)").
 - originalName must capture the raw text from the label OR the observed food name including local language names and preparation/cooking style (e.g. "daging empal (boiled then fried beef)", "nasi goreng (fried rice with egg)", "bayam hijau boiled"). This is critical so the clinical LLM knows how it was prepared.
-- Output ONLY valid JSON: { "items": [{ "keyword": string, "estimatedWeightGrams": number, "originalName": string, "source": "label" | "visual" }], "cookingMethod": string }`;
+- Output ONLY valid JSON matching this schema: 
+{ 
+  "items": [
+    { 
+      "keyword": "string", 
+      "estimatedWeightGrams": "number", 
+      "originalName": "string", 
+      "source": "label | visual",
+      "boundingBox2D": ["[ymin, xmin, ymax, xmax]"],
+      "sourceImageIndex": "integer (0-based index of the image array)"
+    }
+  ], 
+  "cookingMethod": "string" 
+}`;
         try {
           const scoutOutput = await callUnifiedLLM({
             modelId: "gemini-3.1-flash-lite",
@@ -1710,9 +1741,11 @@ CRITICAL RULES:
 
     let visionScoutCtx = "";
     if (visionScoutItems && visionScoutItems.length > 0) {
-      const itemsList = visionScoutItems.map((item: any) => 
-        `- Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context & Preparation: "${item.originalName || ''}" | Source: ${item.source}`
-      ).join("\n");
+      const itemsList = visionScoutItems.map((item: any) => {
+        const bboxStr = item.boundingBox2D ? JSON.stringify(item.boundingBox2D) : "null";
+        const imgIdx = item.sourceImageIndex !== undefined && item.sourceImageIndex !== null ? item.sourceImageIndex : "0";
+        return `- Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName || ''}" | Source: ${item.source} | BoundingBox: ${bboxStr} | ImageIndex: ${imgIdx}`;
+      }).join("\n");
       visionScoutCtx = `\n=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===\n${itemsList}\nUse the observed local name and preparation context above to guide your understanding of how the food was cooked, prepared, or structured (e.g. frying, slow-cooking, char-grilling). Use this context to estimate more accurate core-11 nutrients.\n`;
     }
 
@@ -1838,13 +1871,23 @@ CRITICAL RULES:
                   name: { type: Type.STRING },
                   weightGrams: { type: Type.INTEGER, description: "Weight of compared option in grams" },
                   suitability: { type: Type.STRING },
-                  pros: { type: Type.STRING },
-                  cons: { type: Type.STRING }
+                  profileRecommendation: { type: Type.STRING, description: "Personalized clinical recommendation sentence or paragraph explaining why this food option is good or bad for their biomarker profile and why (1-2 paragraphs)." },
+                  boundingBox2D: {
+                    type: Type.ARRAY,
+                    items: { type: Type.INTEGER },
+                    description: "Array of 4 integers [ymin, xmin, ymax, xmax] copied exactly from the VISUAL FOOD SCOUT block for this item. Set to null if unavailable.",
+                    nullable: true
+                  },
+                  sourceImageIndex: {
+                    type: Type.INTEGER,
+                    description: "The integer index copied exactly from the VISUAL FOOD SCOUT block. Set to null if unavailable.",
+                    nullable: true
+                  }
                 },
-                required: ["name", "weightGrams", "suitability", "pros", "cons"]
+                required: ["name", "weightGrams", "suitability", "profileRecommendation"]
               }
             },
-            comparisonTableYaml: {
+            comparisonTable: {
               type: Type.OBJECT,
               properties: {
                 columns: { type: Type.ARRAY, items: { type: Type.STRING } },
@@ -1864,7 +1907,7 @@ CRITICAL RULES:
               required: ["columns", "rows"]
             }
           },
-          required: ["keyNutrientConcern", "foods", "comparisonTableYaml"],
+          required: ["keyNutrientConcern", "foods"],
           nullable: true
         }
       },
@@ -1882,7 +1925,7 @@ ${visionScoutCtx}
 ${databaseMatchesCtx}
 Current User Input: "${message}"
 
-You can compare up to 10 foods at once. comparisonTableYaml rows must use a 'values' array (not foodA/foodB). Always include the top 3 most clinically relevant nutrient rows for the patient's biomarker context.`;
+You can compare up to 10 foods at once. comparisonTable rows must use a 'values' array (not foodA/foodB). Always include the top 3 most clinically relevant nutrient rows for the patient's biomarker context.`;
 
     const fullPromptSent = `System Instruction:\n${finalSystemInstruction}\n\n${promptText}`;
     addDebugLog(`[RouteAgent Chat] Sending request to Gemini...`);
@@ -1965,14 +2008,100 @@ You can compare up to 10 foods at once. comparisonTableYaml rows must use a 'val
     // CASE D: evaluation mode
     if (mode === "evaluation") {
       addDebugLog(`[Mode Routing] EVALUATION mode triggered.`);
-      const comparisonData = rawParsed.comparison || null;
-      if (comparisonData && comparisonData.foods && Array.isArray(comparisonData.foods)) {
-        comparisonData.foods.forEach((food: any) => {
-          if (food.weightGrams !== undefined) {
-            food.weightGrams = sanitizeMealWeight(food.weightGrams, 0);
+      const comparisonData = rawParsed.comparison || { keyNutrientConcern: "Nutrients of Concern", foods: [] };
+      
+      if (comparisonData && Array.isArray(comparisonData.foods)) {
+        addDebugLog(`[Comparison Calc] Recalculating comparisonTable programmatically for ${comparisonData.foods.length} foods.`);
+        
+        const calculatedRows: any[] = [
+          { nutrient: "Weight", values: [] as string[], target: "-" },
+          { nutrient: "Calories", values: [] as string[], target: "< 1651 kcal" },
+          { nutrient: "Saturated Fat", values: [] as string[], target: "< 15g" },
+          { nutrient: "Sodium", values: [] as string[], target: "< 1200mg" },
+          { nutrient: "Protein", values: [] as string[], target: "Balanced" },
+          { nutrient: "Carbohydrates", values: [] as string[], target: "Balanced" },
+          { nutrient: "Total Fat", values: [] as string[], target: "Balanced" }
+        ];
+
+        const cols = ["Nutrient / Aspect"];
+        
+        comparisonData.foods.forEach((food: any, idx: number) => {
+          cols.push(food.name || `Option ${idx + 1}`);
+          const weight = sanitizeMealWeight(food.weightGrams, 100);
+          food.weightGrams = weight;
+          
+          const targetDbId = food.targetDbId ? String(food.targetDbId).trim() : null;
+          
+          let cal = 0;
+          let satFat = 0;
+          let sod = 0;
+          let prot = 0;
+          let carb = 0;
+          let fat = 0;
+
+          // 1. Look up in dbMatchMap first
+          if (targetDbId && dbMatchMap.has(targetDbId)) {
+            const baseNutrients = dbMatchMap.get(targetDbId);
+            const factor = weight / 100;
+            cal = Math.round((baseNutrients.calories || 0) * factor);
+            satFat = Number(((baseNutrients.saturatedFat || 0) * factor).toFixed(1));
+            sod = Math.round((baseNutrients.sodium || 0) * factor);
+            prot = Number(((baseNutrients.protein || 0) * factor).toFixed(1));
+            carb = Number(((baseNutrients.carbohydrates || 0) * factor).toFixed(1));
+            fat = Number(((baseNutrients.totalFat || 0) * factor).toFixed(1));
+            addDebugLog(`[Comparison Calc] Calculated "${food.name}" using dbMatchMap for DB ID ${targetDbId}`);
+          } else {
+            // 2. Fallback to standard items factors
+            let cFactor = 1.5;
+            let sfFactor = 0.01;
+            let sdFactor = 1.0;
+            let pFactor = 0.10;
+            let cbFactor = 0.15;
+            let fFactor = 0.05;
+
+            const lowerName = (food.name || "").toLowerCase();
+            let matchedStandard = false;
+            for (const [key, factors] of Object.entries(STANDARD_FOOD_FACTORS)) {
+              if (lowerName.includes(key)) {
+                cFactor = factors.calories;
+                sfFactor = factors.saturatedFat;
+                sdFactor = factors.sodium;
+                pFactor = factors.protein;
+                cbFactor = factors.carbohydrates;
+                fFactor = factors.totalFat;
+                matchedStandard = true;
+                break;
+              }
+            }
+            
+            cal = Math.round(weight * cFactor);
+            satFat = Number((weight * sfFactor).toFixed(1));
+            sod = Math.round(weight * sdFactor);
+            prot = Number((weight * pFactor).toFixed(1));
+            carb = Number((weight * cbFactor).toFixed(1));
+            fat = Number((weight * fFactor).toFixed(1));
+            
+            addDebugLog(`[Comparison Calc] Calculated "${food.name}" using ${matchedStandard ? "standard items factors" : "generic default factors"}`);
           }
+
+          calculatedRows[0].values.push(String(weight));
+          calculatedRows[1].values.push(`${cal} kcal`);
+          calculatedRows[2].values.push(`${satFat} g`);
+          calculatedRows[3].values.push(`${sod} mg`);
+          calculatedRows[4].values.push(`${prot} g`);
+          calculatedRows[5].values.push(`${carb} g`);
+          calculatedRows[6].values.push(`${fat} g`);
         });
+
+        cols.push("Target / Goal");
+
+        comparisonData.comparisonTable = {
+          columns: cols,
+          rows: calculatedRows
+        };
+        comparisonData.comparisonTableYaml = comparisonData.comparisonTable;
       }
+
       return res.json({
         mode: "evaluation",
         text: rawParsed.message || "Here is the comparison between the options.",
@@ -2255,7 +2384,20 @@ You can compare up to 10 foods at once. comparisonTableYaml rows must use a 'val
           const itName = (it.name || "").trim().toLowerCase();
           return itName.includes(nameLower) || nameLower.includes(itName);
         });
-        return includesIdx;
+        if (includesIdx !== -1) return includesIdx;
+
+        // 6. Word-by-word intersection match as ultimate fallback
+        const words = nameLower.split(/\s+/).filter(w => w.length > 2);
+        if (words.length > 0) {
+          const wordMatch = activeMeal.itemsBreakdown.findIndex((it: any) => {
+            const itName = (it.name || "").trim().toLowerCase();
+            const itCanon = (it.canonicalDbName || "").trim().toLowerCase();
+            return words.some(word => itName.includes(word) || itCanon.includes(word));
+          });
+          if (wordMatch !== -1) return wordMatch;
+        }
+
+        return -1;
       };
 
       const isWholeMealMatch = (name: string) => {
