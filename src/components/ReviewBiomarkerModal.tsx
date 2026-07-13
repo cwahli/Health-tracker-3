@@ -503,7 +503,7 @@ export default function ReviewBiomarkerModal({
               </div>
               
               {/* Detailed Proposal Block */}
-              {msg.role === 'assistant' && msg.proposal && (
+              {msg.role === 'assistant' && msg.data?.proposal && (
                 <div className="mt-3 bg-indigo-50/70 dark:bg-slate-800/80 border border-indigo-100 dark:border-slate-700/60 rounded-2xl p-4 max-w-[85%] w-full shadow-md animate-fade-in">
                   <div className="flex items-center gap-2 mb-3 pb-2 border-b border-indigo-100/50 dark:border-slate-700/40">
                     <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
@@ -514,54 +514,54 @@ export default function ReviewBiomarkerModal({
                     <div className="grid grid-cols-2 gap-2">
                       <div className="bg-white/60 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/40">
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 block uppercase font-bold tracking-wide">Biomarker</span>
-                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">{msg.proposal.name}</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">{msg.data?.proposal.name}</span>
                       </div>
                       <div className="bg-white/60 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/40">
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 block uppercase font-bold tracking-wide">Proposed Value</span>
-                        <span className="font-bold text-indigo-600 dark:text-indigo-400 text-sm">{msg.proposal.value} {msg.proposal.metric}</span>
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400 text-sm">{msg.data?.proposal.value} {msg.data?.proposal.metric}</span>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
                       <div className="bg-white/60 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/40">
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 block uppercase font-bold tracking-wide">Metric / Unit</span>
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">{msg.proposal.metric}</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">{msg.data?.proposal.metric}</span>
                       </div>
                       <div className="bg-white/60 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/40">
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 block uppercase font-bold tracking-wide">Healthy Range</span>
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">{msg.proposal.range}</span>
+                        <span className="font-semibold text-slate-700 dark:text-slate-300">{msg.data?.proposal.range}</span>
                       </div>
                     </div>
 
                     <div className="bg-white/60 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/40">
                       <span className="text-[10px] text-slate-400 dark:text-slate-500 block uppercase font-bold tracking-wide">Description</span>
-                      <p className="text-slate-600 dark:text-slate-300 leading-relaxed mt-0.5">{msg.proposal.description}</p>
+                      <p className="text-slate-600 dark:text-slate-300 leading-relaxed mt-0.5">{msg.data?.proposal.description}</p>
                     </div>
 
                     <div className="bg-indigo-50/40 dark:bg-indigo-950/20 p-3 rounded-xl border border-indigo-100/40 dark:border-indigo-950/30">
                       <span className="text-[10px] text-indigo-600 dark:text-indigo-400 block uppercase font-bold tracking-wide">Profile Benefit & Risk Assessment</span>
-                      <p className="text-slate-700 dark:text-slate-200 font-semibold leading-relaxed mt-1 text-[11px]">{msg.proposal.benefitRisk}</p>
+                      <p className="text-slate-700 dark:text-slate-200 font-semibold leading-relaxed mt-1 text-[11px]">{msg.data?.proposal.benefitRisk}</p>
                     </div>
 
-                    {msg.proposal.isDuplicate && (
+                    {msg.data?.proposal.isDuplicate && (
                       <div className="mt-2.5 p-3.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/40 rounded-xl flex flex-col gap-2">
                         <div className="flex items-center gap-2">
                           <Terminal className="w-4 h-4 text-amber-500" />
                           <span className="text-xs font-bold text-amber-800 dark:text-amber-400">Duplicate Recognized</span>
                         </div>
                         <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed font-semibold">
-                          {msg.proposal.duplicateExplanation || `This biomarker is identified as a duplicate of other records in the system. Suggest consolidating.`}
+                          {msg.data?.proposal.duplicateExplanation || `This biomarker is identified as a duplicate of other records in the system. Suggest consolidating.`}
                         </p>
                         <button
                           type="button"
                           onClick={() => {
-                            const keysToConsolidate = msg.proposal.duplicateSuggestedKeys && msg.proposal.duplicateSuggestedKeys.length > 0
-                              ? msg.proposal.duplicateSuggestedKeys
+                            const keysToConsolidate = msg.data?.proposal.duplicateSuggestedKeys && msg.data?.proposal.duplicateSuggestedKeys.length > 0
+                              ? msg.data?.proposal.duplicateSuggestedKeys
                               : [biomarkerKey];
                             const uniqueKeys = Array.from(new Set([biomarkerKey, ...keysToConsolidate]));
                             
                             localStorage.setItem('consolidation_pending_keys', JSON.stringify(uniqueKeys));
-                            localStorage.setItem('consolidation_pending_note', msg.proposal.duplicateExplanation || `Consolidation request for ${biomarkerKey}`);
+                            localStorage.setItem('consolidation_pending_note', msg.data?.proposal.duplicateExplanation || `Consolidation request for ${biomarkerKey}`);
                             
                             window.dispatchEvent(new CustomEvent('switch-tab', { detail: { tab: 'medical' } }));
                             window.dispatchEvent(new CustomEvent('open-dictionary-consolidation'));
@@ -607,11 +607,11 @@ export default function ReviewBiomarkerModal({
                     </button>
                     <button
                       onClick={() => {
-                        const valToUse = msg.pendingBiomarkers && msg.pendingBiomarkers[biomarkerKey] !== undefined
-                          ? msg.pendingBiomarkers[biomarkerKey]
-                          : (msg.proposal?.value !== undefined ? msg.proposal.value : currentValue);
+                        const valToUse = msg.data?.pendingBiomarkers && msg.data?.pendingBiomarkers[biomarkerKey] !== undefined
+                          ? msg.data?.pendingBiomarkers[biomarkerKey]
+                          : (msg.data?.proposal?.value !== undefined ? msg.data?.proposal.value : currentValue);
                         if (valToUse !== undefined) {
-                          onUpdateBiomarker(biomarkerKey, valToUse, msg.proposal, fieldsToKeep);
+                          onUpdateBiomarker(biomarkerKey, valToUse, msg.data?.proposal, fieldsToKeep);
                         }
                       }}
                       className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-lg shadow-sm shadow-indigo-600/10 transition-all hover:scale-[1.02] active:scale-[0.98] cursor-pointer"
@@ -623,11 +623,11 @@ export default function ReviewBiomarkerModal({
               )}
 
               {/* Simple Proposal Block Fallback */}
-              {msg.role === 'assistant' && !msg.proposal && msg.pendingBiomarkers && msg.pendingBiomarkers[biomarkerKey] !== undefined && (
+              {msg.role === 'assistant' && !msg.data?.proposal && msg.data?.pendingBiomarkers && msg.data?.pendingBiomarkers[biomarkerKey] !== undefined && (
                 <div className="mt-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/30 rounded-xl p-3 max-w-[85%] w-full flex items-center justify-between">
                   <div>
                     <span className="block text-[10px] text-indigo-500 font-bold uppercase tracking-wide">Proposed Update</span>
-                    <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300">{msg.pendingBiomarkers[biomarkerKey]} {String(msg.pendingBiomarkers[biomarkerKey]).includes(def.unit) ? '' : def.unit}</span>
+                    <span className="text-sm font-bold text-indigo-700 dark:text-indigo-300">{msg.data?.pendingBiomarkers[biomarkerKey]} {String(msg.data?.pendingBiomarkers[biomarkerKey]).includes(def.unit) ? '' : def.unit}</span>
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -641,10 +641,10 @@ export default function ReviewBiomarkerModal({
                     </button>
                     <button 
                       onClick={() => {
-                        const valToUse = (msg.pendingBiomarkers && msg.pendingBiomarkers[biomarkerKey] !== undefined) 
-                          ? msg.pendingBiomarkers[biomarkerKey] 
-                          : (msg.proposal?.value !== undefined ? msg.proposal.value : currentValue);
-                        onUpdateBiomarker(biomarkerKey, valToUse, msg.proposal);
+                        const valToUse = (msg.data?.pendingBiomarkers && msg.data?.pendingBiomarkers[biomarkerKey] !== undefined) 
+                          ? msg.data?.pendingBiomarkers[biomarkerKey] 
+                          : (msg.data?.proposal?.value !== undefined ? msg.data?.proposal.value : currentValue);
+                        onUpdateBiomarker(biomarkerKey, valToUse, msg.data?.proposal);
                         onClose();
                       }}
                       className="px-3 py-1.5 bg-indigo-600 text-white text-xs font-bold rounded-lg hover:bg-indigo-700 shadow-sm transition-colors cursor-pointer"
@@ -698,7 +698,7 @@ export default function ReviewBiomarkerModal({
           onClose={() => setShowInstructions(false)}
           agentType="biomarker_review"
           profile={profile}
-          agentPrompt={messages.length > 0 ? messages.slice().reverse().find(m => m.agentResult?.agentPrompt)?.agentResult?.agentPrompt : undefined}
+          agentPrompt={messages.length > 0 ? messages.slice().reverse().find(m => m.data?.agentResult?.agentPrompt)?.agentResult?.agentPrompt : undefined}
         />
 
         <FullScreenLogViewer
@@ -708,8 +708,8 @@ export default function ReviewBiomarkerModal({
           logsText={(() => {
             const arr = messages.map(m => {
               let text = `[${m.role.toUpperCase()}]\n${m.content}`;
-              if (m.agentResult?.agentPrompt) {
-                text += `\n\n[Agent Prompt / Request]\n${m.agentResult.agentPrompt}`;
+              if (m.data?.agentResult?.agentPrompt) {
+                text += `\n\n[Agent Prompt / Request]\n${m.data?.agentResult.agentPrompt}`;
               }
               return text;
             });
@@ -718,8 +718,8 @@ export default function ReviewBiomarkerModal({
           logsArray={(() => {
             const arr = messages.map(m => {
               let text = `[${m.role.toUpperCase()}]\n${m.content}`;
-              if (m.agentResult?.agentPrompt) {
-                text += `\n\n[Agent Prompt / Request]\n${m.agentResult.agentPrompt}`;
+              if (m.data?.agentResult?.agentPrompt) {
+                text += `\n\n[Agent Prompt / Request]\n${m.data?.agentResult.agentPrompt}`;
               }
               return text;
             });

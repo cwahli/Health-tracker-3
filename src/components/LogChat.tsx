@@ -1,4 +1,6 @@
-import { ErrorBoundary } from './ErrorBoundary';
+import {
+ ErrorBoundary } from './ErrorBoundary';
+import { agentCardRegistry } from './chat-cards';
 import React, { useState, useRef, useEffect } from 'react';
 import { parse } from 'yaml';
 import { ChatMessage, FoodLog, UserProfile, FoodIdea } from '../types';
@@ -18,11 +20,11 @@ import exifr from 'exifr';
 import { auth, db } from '../firebase';
 import { collection, query, where, getDocs, setDoc, doc, deleteDoc, getDoc } from 'firebase/firestore';
 import { sanitizeForFirestore } from '../utils/firestoreUtils';
-import { Agent5View, Agent6View, Agent7View } from './AgentResultViews';
-import { AgentResultTable } from './AgentResultTable';
+
+
 import { resolveFoodImage } from '../utils/imageResolver';
-import { NutrientPieChart } from './NutrientPieChart';
-import { AgentType, AGENT_REGISTRY } from '../utils/agentConfig';
+
+import { AgentType, AGENT_REGISTRY, getAgentRolloutStatus } from '../utils/agentConfig';
 const isValidValue = (v: unknown): boolean =>
   v !== null && v !== undefined && v !== '' && v !== 'N/A' && v !== 'null';
 
@@ -72,7 +74,7 @@ function parseYamlOffline(yamlText: string): BiomarkerEntry[] {
     return entries;
   }
 
-  const lines = yamlText.split('\n');
+  const lines = yamlText.split('\\n');
   let currentEntry: Partial<BiomarkerEntry> = {};
   
   for (let line of lines) {
@@ -269,7 +271,7 @@ function extractBiomarkerKeysFromYaml(yamlStr: string): string[] {
     return Array.from(new Set(keys)).filter(Boolean);
   }
 
-  const lines = yamlStr.split("\n");
+  const lines = yamlStr.split("\\n");
   lines.forEach(line => {
     const trimmed = line.trim();
     const match = trimmed.match(/^(?:-\s*)?biomarker\s*:\s*["']?([^"'\s:]+)["']?/i);
@@ -368,8 +370,8 @@ interface LogChatProps {
   googleSteps?: number | null;
   agentType?: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review' | null;
   biomarkerHistory?: any[];
-  onAgentFinish?: (agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review', agentResult: any) => Promise<void>;
-  onAgentAnalysisSaved?: (agentType: string, agentResult: any) => Promise<void>;
+  onAgentFinish?: (agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review', agentResult:  any) => Promise<void>;
+  onAgentAnalysisSaved?: (agentType: string, agentResult:  any) => Promise<void>;
   onGoToManualEdit?: (errorMsg?: string) => void;
   autoSendMessage?: string | null;
   dataReviewBatchIdx?: number | string | null;
@@ -412,6 +414,16 @@ export default function LogChat({
   dataReviewBatchKeys = [],
   batchSize = 20
 }: LogChatProps) {
+  const activeAgentKey = (type === 'medical' && agentType) ? (agentType as AgentType) : (type as AgentType);
+  const activeAgentConfig = AGENT_REGISTRY[activeAgentKey] || AGENT_REGISTRY[type as AgentType];
+  const isUnified = ['food', 'medical', 'food_idea', 'daily_recommendation'].includes(type) && getAgentRolloutStatus(type as AgentType) === 'unified';
+
+  const isAgent = (targetType: AgentType) => {
+    if (isUnified) return activeAgentConfig?.id === targetType;
+    return type === targetType;
+  };
+
+
   const [showDataUsed, setShowDataUsed] = useState(false);
   const [showFullScreenConv, setShowFullScreenConv] = useState(false);
   const [isSendingLogs, setIsSendingLogs] = useState(false);
@@ -475,7 +487,7 @@ export default function LogChat({
     setIsDebugSendingLogs(true);
     setDebugLogsSendStatus('idle');
     try {
-      const logsText = debugLogs.map(l => `[${l.timestamp}] ${l.message}`).join('\n');
+      const logsText = debugLogs.map(l => `[${l.timestamp}] ${l.message}`).join('\\n');
       const sessionId = getSessionId();
       
       const res = await fetch('/api/gemini/send-logs', {
@@ -508,7 +520,11 @@ export default function LogChat({
       } else {
         setDebugLogsSendStatus('error');
         const subject = encodeURIComponent(`Healthy App Debug Logs - Session ${sessionId}`);
-        const body = encodeURIComponent(`Hello Admin,\n\nHere is the compiled log history for session ${sessionId}:\n\n${logsText}`);
+        const body = encodeURIComponent(`Hello Admin,
+
+Here is the compiled log history for session ${sessionId}:
+
+${logsText}`);
         window.open(`mailto:cwah.liu@gmail.com?subject=${subject}&body=${body}`, '_blank');
       }
     } catch (err) {
@@ -554,7 +570,11 @@ export default function LogChat({
         
         // Native mailto link fallback
         const subject = encodeURIComponent(`Healthy App Food Chat Logs - User ${sessionId}`);
-        const body = encodeURIComponent(`Hello Admin,\n\nHere is the compiled food log history for user ${sessionId}:\n\n${logsText}`);
+        const body = encodeURIComponent(`Hello Admin,
+
+Here is the compiled food log history for user ${sessionId}:
+
+${logsText}`);
         window.open(`mailto:cwah.liu@gmail.com?subject=${subject}&body=${body}`, '_blank');
       } else {
         setLogsSendStatus('error');
@@ -586,29 +606,9 @@ export default function LogChat({
     return {
       id: `welcome_${type}_${agentType || 'default'}_${Date.now()}`,
       role: 'assistant' as const,
-      content: type === 'food' 
-        ? 'Hello! Tell me or upload a photo of what you are planning to eat, and I will analyze its health benefits, risk factors, and full 30 nutrient breakdown based on your profile.'
-        : type === 'food_idea'
-          ? 'Hello! Do you have any specific food preferences or cravings today? I will need your location to find the best dining options matching your biomarker goals.'
-          : type === 'daily_recommendation'
-            ? 'Hello! I am your AI Health Coach. Let me look at your clinical biomarkers, daily steps, and latest dietary intake to give you a customized, comprehensive health recommendation today.'
-            : agentType === 'agent1'
-            ? 'Hello! I am the Clinical Data Parser. I extract biomarkers and readings from raw text or reports into a structured format.'
-            : agentType === 'agent2'
-              ? 'Hello! I am the Clinical Ontologist. I map extracted biomarkers to clinical conditions and physiological risk categories.'
-              : agentType === 'agent3'
-                ? 'Hello! I am the Clinical Data Coordinator. I assemble mapped data into clean physiological buckets.'
-                : agentType === 'agent4'
-                  ? 'Hello! I am the Prognostic Diagnostics Assessment agent. I analyze your biomarker history to project timeline risks and identify testing gaps.'
-                  : agentType === 'agent5'
-                    ? 'Hello! I am the Personalized Reference Ranges agent. I calibrate normal biomarker reference ranges to your exact demographics.'
-                    : agentType === 'agent6'
-                      ? 'Hello! I am the Lifestyle Precision Intervention agent. I translate diagnostic risk into strict dietary and movement targets.'
-                      : agentType === 'agent7'
-                        ? 'Hello! I am the Medical Literature Consensus agent. I scan PubMed and clinical trials to bring recent scientific debate to your context.'
-                        : agentType === 'data_review'
-                          ? `Hello! I am your Clinical Calibration Agent. Here is what is about to happen: I will analyze ${dataReviewBatchIdx === 'custom' ? 'Custom Test Batch' : 'Batch ' + (dataReviewBatchIdx !== null && dataReviewBatchIdx !== undefined ? (dataReviewBatchIdx as number) + 1 : 1)} containing your raw biomarker readings. I will automatically recognize your demographic parameters (age, gender, ethnicity) and calibrate all reference ranges precisely to your profile. I will then map each biomarker to its standard physiological grouping, potential medical conditions, and break down each medical range clinically (such as Borderline High or Optimal zones) with clear, actionable insights—all without repeating boilerplate demographic lines. Let's start the calibration!`
-                          : 'Hello! I can help you parse blood report photos, medical test charts, or manual body logs to build a comprehensive profile of your biomarkers. What information would you like to enter today?',
+      content: activeAgentConfig?.welcomeMessage
+        ? (typeof activeAgentConfig.welcomeMessage === 'function' ? activeAgentConfig.welcomeMessage({ dataReviewBatchIdx }) : activeAgentConfig.welcomeMessage)
+        : 'Hello! How can I help you today?',
       timestamp: new Date().toISOString()
     };
   };
@@ -671,6 +671,21 @@ export default function LogChat({
     }
   };
 
+  const migrateMessages = (msgs: any[]) => msgs.map(msg => {
+    const newMsg = { ...msg };
+    if (!newMsg.data) {
+      newMsg.data = {};
+      const legacyFields = ['pendingFoodLog', 'pendingFoodIdeas', 'pendingBiomarkers', 'pendingBiomarkerEntries', 'pendingCustomBiomarkerDefs', 'proposal', 'bucketMapping', 'agentResult'];
+      legacyFields.forEach(f => {
+        if (newMsg[f] !== undefined) {
+          newMsg.data[f] = newMsg[f];
+          delete newMsg[f];
+        }
+      });
+    }
+    return newMsg;
+  });
+
   const loadConversationsFromFirestore = async () => {
     const userId = auth.currentUser?.uid;
     if (!userId) {
@@ -678,7 +693,7 @@ export default function LogChat({
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          setMessages(parsed);
+          setMessages(migrateMessages(parsed));
           const savedPayload = sessionStorage.getItem(payloadStorageKey);
           setLastSentPayload(savedPayload ? JSON.parse(savedPayload) : null);
         } catch {}
@@ -709,7 +724,7 @@ export default function LogChat({
       if (list.length > 0) {
         const match = list.find(c => c.id === activeConversationId) || list[0];
         setActiveConversationId(match.id);
-        setMessages(match.messages || []);
+        setMessages(migrateMessages(match.messages || []));
         setLastSentPayload(match.lastSentPayload || null);
       } else {
         const newId = `session_${Date.now()}`;
@@ -768,7 +783,7 @@ export default function LogChat({
         if (updatedList.length > 0) {
           const nextSess = updatedList[0];
           setActiveConversationId(nextSess.id);
-          setMessages(nextSess.messages || []);
+          setMessages(migrateMessages(nextSess.messages || []));
           setLastSentPayload(nextSess.lastSentPayload || null);
         } else {
           handleNewSession();
@@ -783,7 +798,7 @@ export default function LogChat({
     const found = conversationsList.find(c => c.id === sessId);
     if (found) {
       setActiveConversationId(sessId);
-      setMessages(found.messages || []);
+      setMessages(migrateMessages(found.messages || []));
       setLastSentPayload(found.lastSentPayload || null);
     }
   };
@@ -849,7 +864,7 @@ export default function LogChat({
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const t = translations[profile?.language || 'en'] || translations.en;
 
-  const ANALYZING_STEPS = type === 'food'
+  const ANALYZING_STEPS = isAgent('food')
     ? ["Reading your photos...", "Searching nutrition databases...", "Checking your biomarker profile...", "Consulting the clinical AI model..."]
     : ["Gathering your recent history...", "Checking your biomarker profile...", "Consulting the clinical AI model..."];
 
@@ -1096,7 +1111,7 @@ export default function LogChat({
 
     // Eagerly wait for geolocation if doing food ideas and it's not resolved yet
     let loc = userLocation;
-    if (type === 'food_idea' && !loc) {
+    if (isAgent('food_idea') && !loc) {
       if (navigator.geolocation) {
         try {
           console.log("[Geolocation] Awaiting geolocation resolution before food-idea request...");
@@ -1134,9 +1149,9 @@ export default function LogChat({
 
     try {
       let endpoint = '';
-      if (type === 'food') endpoint = '/api/gemini/food-analyze';
-      else if (type === 'food_idea') endpoint = '/api/gemini/food-idea';
-      else if (type === 'daily_recommendation') endpoint = '/api/gemini/daily-recommendation-chat';
+      if (isAgent('food')) endpoint = '/api/gemini/food-analyze';
+      else if (isAgent('food_idea')) endpoint = '/api/gemini/food-idea';
+      else if (isAgent('daily_recommendation')) endpoint = '/api/gemini/daily-recommendation-chat';
       else endpoint = '/api/gemini/medical-analyze';
 
       const lightProfile = profile ? { ...profile } as any : null;
@@ -1166,7 +1181,7 @@ export default function LogChat({
         // Stop sending it for these two request types to shrink the payload and
         // avoid exposing irrelevant lab data (e.g. unrelated screening results)
         // in agent request logs.
-        if (type === 'food' || type === 'food_idea') {
+        if (isAgent('food') || isAgent('food_idea')) {
           delete lightProfile.customBiomarkers;
         }
       }
@@ -1184,12 +1199,16 @@ export default function LogChat({
         history: messages.slice(activeSessionIdx).filter(m => !m.id.startsWith('welcome_')).slice(-10).map(m => {
           let extra = "";
           if (m.role === 'assistant') {
-            if (m.pendingBiomarkers) extra += `\n[Extracted Biomarkers: ${JSON.stringify(m.pendingBiomarkers)}]`;
-            if (m.pendingFoodLog) {
-               extra += `\n[Extracted Food: ${m.pendingFoodLog.name}, ${m.pendingFoodLog.quantity}, ${m.pendingFoodLog.nutrients?.calories || 0} kcal. (Full nutrient data omitted for brevity)]`;
+            if (m.data?.pendingBiomarkers) extra += `
+[Extracted Biomarkers: ${JSON.stringify(m.data?.pendingBiomarkers)}]`;
+            if (m.data?.pendingFoodLog) {
+               extra += `
+[Extracted Food: ${m.data?.pendingFoodLog.name}, ${m.data?.pendingFoodLog.quantity}, ${m.data?.pendingFoodLog.nutrients?.calories || 0} kcal. (Full nutrient data omitted for brevity)]`;
             }
-            if (m.pendingDate) extra += `\n[Extracted Date: ${m.pendingDate}]`;
-            if (m.pendingProfile) extra += `\n[Extracted Profile: ${JSON.stringify(m.pendingProfile)}]`;
+            if (m.pendingDate) extra += `
+[Extracted Date: ${m.pendingDate}]`;
+            if (m.pendingProfile) extra += `
+[Extracted Profile: ${JSON.stringify(m.pendingProfile)}]`;
           }
           return { role: m.role, content: m.content + extra };
         }),
@@ -1202,8 +1221,8 @@ export default function LogChat({
         if (bodyData[key] === undefined) delete bodyData[key];
       });
 
-      if (type === 'food') {
-        const lastFoodLog = [...messages].reverse().find(m => m.pendingFoodLog)?.pendingFoodLog;
+      if (isAgent('food')) {
+        const lastFoodLog = [...messages].reverse().find(m => m.data?.pendingFoodLog)?.pendingFoodLog;
         if (lastFoodLog) {
           bodyData.activeMeal = lastFoodLog;
         }
@@ -1216,7 +1235,7 @@ export default function LogChat({
           sodium: remainingAllowance.sodium,
           sodiumTarget: remainingAllowance.sodiumTarget,
         };
-      } else if (type === 'daily_recommendation') {
+      } else if (isAgent('daily_recommendation')) {
         const now = new Date();
         const currentYear = now.getFullYear();
         const currentMonth = String(now.getMonth() + 1).padStart(2, '0');
@@ -1268,7 +1287,7 @@ export default function LogChat({
           dailyNutrientIntake,
           stepsHistory: thisMonthSteps
         };
-      } else if (type === 'food_idea') {
+      } else if (isAgent('food_idea')) {
         bodyData.location = loc;
         bodyData.recentMeals = (foodLogs || []).slice(-20).map(f => f.name);
         bodyData.budget = budget;
@@ -1305,7 +1324,7 @@ export default function LogChat({
             console.warn("Client side Overpass fetch failed:", e);
           }
         }
-      } else if (type === 'medical') {
+      } else if (isAgent('medical')) {
         bodyData.existingBiomarkers = Array.from(new Set([...(biomarkers ? Object.keys(biomarkers) : []), ...Object.keys(profile?.customBiomarkers || {})]));
         bodyData.numberOfBatches = numberOfBatches;
         const lastMsg = [...messages].reverse().find(m => m.lastProcessedItem !== undefined);
@@ -1323,11 +1342,11 @@ export default function LogChat({
             }
             
             // Also find and attach extractedYaml and bucketMapping if available
-            const yamlMsg = [...messages].reverse().find(m => m.agentResult?.extractedYaml || m.extractedYaml);
+            const yamlMsg = [...messages].reverse().find(m => m.data?.agentResult?.extractedYaml || m.extractedYaml);
             if (yamlMsg) {
               bodyData.extractedYaml = yamlMsg.agentResult?.extractedYaml || yamlMsg.extractedYaml;
             }
-            const mapMsg = [...messages].reverse().find(m => m.agentResult?.bucketMapping || m.bucketMapping);
+            const mapMsg = [...messages].reverse().find(m => m.data?.agentResult?.bucketMapping || m.data?.bucketMapping);
             if (mapMsg) {
               bodyData.bucketMapping = typeof (mapMsg.agentResult?.bucketMapping || mapMsg.bucketMapping) === 'string'
                 ? (mapMsg.agentResult?.bucketMapping || mapMsg.bucketMapping)
@@ -1407,7 +1426,7 @@ export default function LogChat({
         }
       }
 
-      const storageKey = type === 'food' ? 'food' : (type === 'food_idea' ? 'food_idea' : (agentType || 'agent1'));
+      const storageKey = isAgent('food') ? 'food' : (isAgent('food_idea') ? 'food_idea' : (agentType || 'agent1'));
       const customSystemInstruction = localStorage.getItem(`custom_system_instruction_${storageKey}`);
       const customVariableData = localStorage.getItem(`custom_variable_data_${storageKey}`);
       if (customSystemInstruction) {
@@ -1451,9 +1470,9 @@ export default function LogChat({
         agentResult: resData,
       };
       
-      if (type === 'food') {
+      if (isAgent('food')) {
         if (resData.data) {
-          const lastFoodLog = [...messages].reverse().find(m => m.pendingFoodLog)?.pendingFoodLog;
+          const lastFoodLog = [...messages].reverse().find(m => m.data?.pendingFoodLog)?.pendingFoodLog;
           const currentTranscript = [...messages, userMsg, assistantMsg].map(m => ({
             role: m.role as 'user' | 'assistant',
             content: m.content,
@@ -1468,7 +1487,7 @@ export default function LogChat({
             chatTranscript: currentTranscript
           };
         }
-      } else if (type === 'food_idea') {
+      } else if (isAgent('food_idea')) {
         if (resData.ideas && resData.ideas.length > 0) {
           assistantMsg.pendingFoodIdeas = resData.ideas;
         }
@@ -1510,9 +1529,9 @@ export default function LogChat({
       }
 
       setMessages(prev => {
-        if (type === 'food' && resData.mode === 'modify' && resData.data) {
+        if (isAgent('food') && resData.mode === 'modify' && resData.data) {
           // Check if this food was already saved to database history
-          const wasLogged = prev.some(m => m.pendingFoodLog && m.pendingFoodLog.id === resData.data.id && loggedMessageIds.includes(m.id));
+          const wasLogged = prev.some(m => m.data?.pendingFoodLog && m.data?.pendingFoodLog.id === resData.data.id && loggedMessageIds.includes(m.id));
           if (wasLogged) {
             // Automatically mark the modified card message as logged too
             setLoggedMessageIds(prevIds => [...prevIds, assistantMsg.id]);
@@ -1524,12 +1543,12 @@ export default function LogChat({
 
           let updated = false;
           const newPrev = [...prev].reverse().map(m => {
-            if (!updated && m.pendingFoodLog) {
+            if (!updated && m.data?.pendingFoodLog) {
               updated = true;
               return {
                 ...m,
                 pendingFoodLog: {
-                  ...m.pendingFoodLog,
+                  ...m.data?.pendingFoodLog,
                   ...resData.data
                 }
               };
@@ -1542,7 +1561,7 @@ export default function LogChat({
       });
     } catch (err: any) {
       console.error(err);
-      if (type === 'food') {
+      if (isAgent('food')) {
         setMessages(prev => [
           ...prev,
           {
@@ -1576,7 +1595,7 @@ export default function LogChat({
   };
 
   useEffect(() => {
-    if (isOpen && autoSendMessage && (type === 'medical' || type === 'daily_recommendation')) {
+    if (isOpen && autoSendMessage && (isAgent('medical') || isAgent('daily_recommendation'))) {
       if (agentType === 'data_review') {
         setInputText(autoSendMessage);
         return;
@@ -1600,9 +1619,9 @@ export default function LogChat({
       const bodyData: any = {
         agentType: 'agent1_step1',
         message: `continue: ${allUserText}`,
-        extractedYaml: msg.agentResult?.extractedYaml || msg.extractedYaml,
-        remainingText: msg.agentResult?.remainingText || '',
-        estimatedTotalMarkers: msg.agentResult?.estimatedTotalMarkers,
+        extractedYaml: msg.data?.agentResult?.extractedYaml || msg.extractedYaml,
+        remainingText: msg.data?.agentResult?.remainingText || '',
+        estimatedTotalMarkers: msg.data?.agentResult?.estimatedTotalMarkers,
         numberOfBatches: numberOfBatches,
         engine: selectedModelId
       };
@@ -1626,12 +1645,12 @@ export default function LogChat({
             ...m,
             content: resData.text || m.content,
             agentResult: {
-              ...m.agentResult,
-              text: resData.text || m.agentResult?.text,
-              extractedYaml: resData.extractedYaml || m.agentResult?.extractedYaml,
+              ...m.data?.agentResult,
+              text: resData.text || m.data?.agentResult?.text,
+              extractedYaml: resData.extractedYaml || m.data?.agentResult?.extractedYaml,
               hasMoreMarkers: resData.hasMoreMarkers,
               remainingText: resData.remainingText || '',
-              estimatedTotalMarkers: resData.estimatedTotalMarkers !== undefined ? resData.estimatedTotalMarkers : m.agentResult?.estimatedTotalMarkers
+              estimatedTotalMarkers: resData.estimatedTotalMarkers !== undefined ? resData.estimatedTotalMarkers : m.data?.agentResult?.estimatedTotalMarkers
             }
           };
         }
@@ -1661,25 +1680,25 @@ export default function LogChat({
     try {
       const bodyData: any = {
         agentType: step,
-        extractedYaml: msg.agentResult?.extractedYaml || msg.extractedYaml,
-        bucketMapping: msg.agentResult?.bucketMapping ? JSON.stringify(msg.agentResult.bucketMapping) : msg.bucketMapping ? JSON.stringify(msg.bucketMapping) : undefined,
+        extractedYaml: msg.data?.agentResult?.extractedYaml || msg.extractedYaml,
+        bucketMapping: msg.data?.agentResult?.bucketMapping ? JSON.stringify(msg.data?.agentResult.bucketMapping) : msg.data?.bucketMapping ? JSON.stringify(msg.data?.bucketMapping) : undefined,
         message: "Continue processing",
         engine: selectedModelId
       };
 
       // To grab yaml and mapping correctly from previous messages
       if (!bodyData.extractedYaml) {
-         const yamlMsg = [...messages].reverse().find(m => m.agentResult?.extractedYaml || m.extractedYaml);
+         const yamlMsg = [...messages].reverse().find(m => m.data?.agentResult?.extractedYaml || m.extractedYaml);
          bodyData.extractedYaml = yamlMsg?.agentResult?.extractedYaml || yamlMsg?.extractedYaml;
       }
       if (step === 'agent1_step3' && !bodyData.bucketMapping) {
-         const mapMsg = [...messages].reverse().find(m => m.agentResult?.bucketMapping || m.bucketMapping);
+         const mapMsg = [...messages].reverse().find(m => m.data?.agentResult?.bucketMapping || m.data?.bucketMapping);
          bodyData.bucketMapping = JSON.stringify(mapMsg?.agentResult?.bucketMapping || mapMsg?.bucketMapping);
       }
 
-      let prevTotalMarkers = msg.agentResult?.estimatedTotalMarkers;
+      let prevTotalMarkers = msg.data?.agentResult?.estimatedTotalMarkers;
       if (prevTotalMarkers === undefined) {
-         const oldMsg = [...messages].reverse().find(m => m.agentResult?.estimatedTotalMarkers !== undefined);
+         const oldMsg = [...messages].reverse().find(m => m.data?.agentResult?.estimatedTotalMarkers !== undefined);
          prevTotalMarkers = oldMsg?.agentResult?.estimatedTotalMarkers;
       }
 
@@ -1705,7 +1724,7 @@ export default function LogChat({
         content: resData.text || 'Processing...',
         timestamp: new Date().toISOString(),
         agentType: 'agent1',
-        agentResult: {
+        agentResult:  {
            ...resData,
            extractedYaml: bodyData.extractedYaml,
            bucketMapping: resData.bucketMapping || (bodyData.bucketMapping ? JSON.parse(bodyData.bucketMapping) : undefined),
@@ -1785,27 +1804,7 @@ export default function LogChat({
             </div>
             <div>
               <h2 className="text-sm font-bold text-slate-950 dark:text-slate-100 font-display">
-                {type === 'food' 
-                  ? t.addFood 
-                  : type === 'food_idea' 
-                    ? 'Food ideas' 
-                    : agentType === 'agent1' 
-                      ? 'Clinical Data Parser' 
-                      : agentType === 'agent2' 
-                        ? 'Clinical Ontologist' 
-                        : agentType === 'agent3' 
-                          ? 'Clinical Data Coordinator' 
-                          : agentType === 'agent4' 
-                            ? 'Prognostic Diagnostics Assessment' 
-                            : agentType === 'agent5' 
-                              ? 'Personalized Reference Ranges' 
-                              : agentType === 'agent6' 
-                                ? 'Lifestyle Precision Intervention' 
-                                : agentType === 'agent7' 
-                                  ? 'Medical Literature Consensus' 
-                                  : agentType === 'data_review'
-                                    ? `${dataReviewBatchIdx === 'custom' ? 'Custom Test Batch' : 'Batch ' + (dataReviewBatchIdx !== null && dataReviewBatchIdx !== undefined ? (dataReviewBatchIdx as number) + 1 : 1)}`
-                                    : t.addMedical}
+                {activeAgentKey === 'data_review' ? `${dataReviewBatchIdx === 'custom' ? 'Custom Test Batch' : 'Batch ' + (dataReviewBatchIdx !== null && dataReviewBatchIdx !== undefined ? (dataReviewBatchIdx as number) + 1 : 1)}` : (activeAgentConfig?.displayName || t.addMedical)}
               </h2>
               <button
                 type="button"
@@ -1856,7 +1855,7 @@ export default function LogChat({
         <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50 dark:bg-slate-900/20">
           
           {/* Data used by agent inline block */}
-          {(type === 'food' || type === 'food_idea' || type === 'medical') && (
+          {(isAgent('food') || isAgent('food_idea') || isAgent('medical')) && (
             <div className="bg-slate-50 dark:bg-slate-900/55 rounded-xl px-4 py-2.5 mb-4 border border-slate-100 dark:border-slate-800/20">
               <button
                 type="button"
@@ -1879,14 +1878,14 @@ export default function LogChat({
                       onClick={() => {
                         let targetAgent = 'agent1';
                         let targetPrompt = null;
-                        if (type === 'food') {
+                        if (isAgent('food')) {
                           targetAgent = 'food';
-                          const lastMsgWithStep = [...messages].reverse().find(m => m.agentResult?.agentPrompt);
+                          const lastMsgWithStep = [...messages].reverse().find(m => m.data?.agentResult?.agentPrompt);
                           targetPrompt = lastMsgWithStep?.agentResult?.agentPrompt || null;
                         }
-                        else if (type === 'food_idea') {
+                        else if (isAgent('food_idea')) {
                           targetAgent = 'food_idea';
-                          const lastMsgWithStep = [...messages].reverse().find(m => m.pendingFoodIdeas && m.agentResult?.agentPrompt);
+                          const lastMsgWithStep = [...messages].reverse().find(m => m.data?.pendingFoodIdeas && m.data?.agentResult?.agentPrompt);
                           targetPrompt = lastMsgWithStep?.agentResult?.agentPrompt || null;
                         }
                         else {
@@ -1923,7 +1922,7 @@ export default function LogChat({
                     </div>
                   </div>
                   
-                  {type === 'medical' && (
+                  {isAgent('medical') && (
                     <div className="grid grid-cols-2 gap-2.5 mt-2.5">
                       <div className="bg-slate-100/50 dark:bg-slate-950/20 p-2 rounded-xl border border-slate-150 dark:border-slate-800/30 font-size-xs">
                         <span className="text-slate-400 dark:text-slate-500 font-bold block font-size-xs uppercase tracking-wider mb-0.5">Items per batch</span>
@@ -1952,7 +1951,7 @@ export default function LogChat({
                     </div>
                   )}
 
-                  {type === 'food_idea' && (
+                  {isAgent('food_idea') && (
                     <>
                       <div className="grid grid-cols-2 gap-2.5">
                         <div className="bg-slate-100/50 dark:bg-slate-950/20 p-2 rounded-xl border border-slate-150 dark:border-slate-800/30 font-size-xs">
@@ -2052,7 +2051,7 @@ export default function LogChat({
                   )}
 
                   {/* Warning Biomarkers */}
-                  {(type === 'food' || type === 'food_idea') && (
+                  {(isAgent('food') || isAgent('food_idea')) && (
                     <div>
                       <span className="text-slate-400 dark:text-slate-500 font-bold block font-size-xs uppercase tracking-wider mb-1.5">Important Biomarkers Needing Improvement</span>
                       {outOfRangeBiomarkers.length > 0 ? (
@@ -2073,7 +2072,7 @@ export default function LogChat({
                   )}
 
                   {/* Remaining Daily Allowances */}
-                  {(type === 'food' || type === 'food_idea') && (
+                  {(isAgent('food') || isAgent('food_idea')) && (
                     <div>
                       <span className="text-slate-400 dark:text-slate-500 font-bold block font-size-xs uppercase tracking-wider mb-1.5">Today's Remaining Nutrition Allowance</span>
                       <div className="grid grid-cols-3 gap-2">
@@ -2112,7 +2111,7 @@ export default function LogChat({
                         type="button"
                         onClick={() => {
                           let logTxt = lastSentPayload ? JSON.stringify(lastSentPayload, null, 2) : messages.map(m => `[${m.role.toUpperCase()}]\n${m.content}`).join('\n\n---\n\n');
-                          if (type === 'medical') {
+                          if (isAgent('medical')) {
                             logTxt = `=== PAYLOAD ===\n` + logTxt;
                           }
                           navigator.clipboard.writeText(logTxt);
@@ -2137,18 +2136,21 @@ export default function LogChat({
                       logsText={(() => {
                         const msgLog = messages.map(m => `[${m.role.toUpperCase()}]\n${m.content}`).join('\n\n---\n\n');
                         let logTxt = lastSentPayload ? `=== PAYLOAD ===\n${JSON.stringify(lastSentPayload, null, 2)}\n\n=== CONVERSATION ===\n${msgLog}` : msgLog;
-                        if (type === 'medical') {
+                        if (isAgent('medical')) {
                           logTxt += `\n\n[Medical Profile]\n${JSON.stringify(profile, null, 2)}`;
                         }
                         return logTxt;
                       })()}
                       logsArray={(() => {
-                        const arr = messages.map(m => `[${m.role.toUpperCase()}]\n${m.content}`);
+                        const arr = messages.map(m => `[${m.role.toUpperCase()}]
+${m.content}`);
                         if (lastSentPayload) {
-                          arr.unshift(`=== PAYLOAD ===\n${JSON.stringify(lastSentPayload, null, 2)}`);
+                          arr.unshift(`=== PAYLOAD ===
+${JSON.stringify(lastSentPayload, null, 2)}`);
                         }
-                        if (type === 'medical') {
-                          arr.push(`[Medical Profile]\n${JSON.stringify(profile, null, 2)}`);
+                        if (isAgent('medical')) {
+                          arr.push(`[Medical Profile]
+${JSON.stringify(profile, null, 2)}`);
                         }
                         return arr;
                       })()}
@@ -2217,8 +2219,8 @@ export default function LogChat({
 
                   const isAss = msg.role === 'assistant';
                   if (isAss) {
-                    const currentFormat = messageFormats[msg.id] || (type === 'food' ? 'card' : 'prose');
-                    const hasFormattingOptions = !!(msg.pendingFoodLog || msg.agentResult || msg.pendingFoodIdeas);
+                    const currentFormat = messageFormats[msg.id] || (isAgent('food') ? 'card' : 'prose');
+                    const hasFormattingOptions = !!(msg.data?.agentResult || msg.data?.pendingFoodIdeas);
 
                   return (
                 <div
@@ -2336,7 +2338,7 @@ export default function LogChat({
                         </div>
                       </div>
                     )}
-                    {msg.id.startsWith('welcome_') && type === 'food_idea' && (
+                    {msg.id.startsWith('welcome_') && isAgent('food_idea') && (
                       <div className="mt-3">
                         <button
                           type="button"
@@ -2348,7 +2350,7 @@ export default function LogChat({
                         </button>
                       </div>
                     )}
-                    {msg.id.startsWith('welcome_') && type === 'daily_recommendation' && (
+                    {msg.id.startsWith('welcome_') && isAgent('daily_recommendation') && (
                       <div className="mt-3">
                         <button
                           type="button"
@@ -2376,682 +2378,35 @@ export default function LogChat({
 
                   {/* Render extracted Pending Food Log block if assistant has finished parsing */}
                   {/* Render extracted Pending Food Log info */}
-                  {type === 'food_idea' && msg.pendingFoodIdeas && (
-                    <InteractivePlacesMap
-                      ideas={msg.pendingFoodIdeas}
-                      onSaveSelected={(selectedIdeas) => {
-                        if (onLogFoodIdeas) {
-                          onLogFoodIdeas(selectedIdeas);
-                          setLoggedMessageIds(prev => [...prev, msg.id]);
-                        }
-                      }}
-                      isLogged={loggedMessageIds.includes(msg.id)}
-                    />
-                  )}
-
-                  {type === 'food' && msg.agentResult && msg.agentResult.mode === 'evaluation' && msg.agentResult.comparison && currentFormat === 'card' && (
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden">
-                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2 gap-2">
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm break-words flex flex-wrap items-center gap-1.5 w-full">
-                          <span className="shrink-0">⚖️ Comparison:</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold break-words">{msg.agentResult.comparison.keyNutrientConcern || 'Nutrients of Concern'}</span>
-                        </h4>
-                      </div>
-
-                      {/* Foods Comparison Cards */}
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-2">
-                        {(msg.agentResult.comparison.foods || []).map((food: any, idx: number) => {
-                          const suitabilityColors: any = {
-                            good: "bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/40",
-                            moderate: "bg-amber-50 dark:bg-amber-950/20 text-amber-700 dark:text-amber-400 border-amber-100 dark:border-amber-900/40",
-                            bad: "bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400 border-rose-100 dark:border-rose-900/40",
-                          };
-                          const suitabilityClass = suitabilityColors[food.suitability] || "bg-slate-50 dark:bg-slate-900 text-slate-700 border-slate-100";
-
-                          return (
-                            <div key={idx} className="border border-slate-200 dark:border-slate-700/30 rounded-xl p-3 bg-slate-50/50 dark:bg-slate-900/30 space-y-2 flex flex-col justify-between">
-                              <div className="space-y-1.5">
-                                <div className="flex items-center justify-between gap-1.5 border-b border-slate-100 dark:border-slate-800/50 pb-1.5">
-                                  <span className="font-bold text-xs text-slate-800 dark:text-slate-200 truncate">{food.name}</span>
-                                  <span className="text-[10px] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded font-mono text-slate-600 dark:text-slate-400 font-bold">{food.weightGrams}g</span>
-                                </div>
-                                <div className="text-[11px] space-y-1 text-slate-600 dark:text-slate-400 font-semibold">
-                                  <div className="flex justify-between">
-                                    <span>Calories:</span>
-                                    <span className="font-mono text-slate-900 dark:text-slate-200">{food.calories} kcal</span>
-                                  </div>
-                                  {food.saturatedFat !== undefined && (
-                                    <div className="flex justify-between">
-                                      <span>Saturated Fat:</span>
-                                      <span className="font-mono text-slate-900 dark:text-slate-200">{food.saturatedFat}g</span>
-                                    </div>
-                                  )}
-                                  {food.sodium !== undefined && (
-                                    <div className="flex justify-between">
-                                      <span>Sodium:</span>
-                                      <span className="font-mono text-slate-900 dark:text-slate-200">{food.sodium}mg</span>
-                                    </div>
-                                  )}
-                                  {food.sugar !== undefined && (
-                                    <div className="flex justify-between">
-                                      <span>Sugar:</span>
-                                      <span className="font-mono text-slate-900 dark:text-slate-200">{food.sugar}g</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="space-y-1.5 pt-2">
-                                <div className={`text-[10px] px-2 py-1 rounded-lg border font-bold text-center ${suitabilityClass}`}>
-                                  Suitability: {String(food.suitability).toUpperCase()}
-                                </div>
-                                {food.pros && (
-                                  <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-normal">
-                                    <strong className="text-emerald-600 dark:text-emerald-400">✓ Pros:</strong> {food.pros}
-                                  </p>
-                                )}
-                                {food.cons && (
-                                  <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-normal">
-                                    <strong className="text-rose-500 dark:text-rose-400">✗ Cons:</strong> {food.cons}
-                                  </p>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  )}
-
-                  {type === 'food' && msg.agentResult && msg.agentResult.mode === 'evaluation' && msg.agentResult.comparison && currentFormat === 'table' && (
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden">
-                      {/* Key Nutrient Comparison Table */}
-                      {(msg.agentResult.comparison.comparisonTableYaml || msg.agentResult.comparison.comparisonTableMarkdown) && (
-                        <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/30 dark:bg-slate-900/10 mt-2">
-                          <div className="px-3 py-1.5 bg-slate-100/70 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
-                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                              📊 Side-by-Side Comparison Matrix
-                            </span>
-                          </div>
-                          {msg.agentResult.comparison.comparisonTableYaml ? (
-                            <div className="p-0 overflow-x-auto">
-                              <table className="w-full text-[11px] text-left border-collapse">
-                                <thead className="bg-slate-50 dark:bg-slate-900 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-800">
-                                  <tr>
-                                    {msg.agentResult.comparison.comparisonTableYaml.columns?.map((col: string, idx: number) => (
-                                      <th key={idx} className="px-3 py-2.5 font-bold text-slate-600 dark:text-slate-300 font-mono text-[10px] tracking-wider uppercase whitespace-nowrap">{col}</th>
-                                    ))}
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
-                                  {msg.agentResult.comparison.comparisonTableYaml.rows?.map((row: any, idx: number) => (
-                                    <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 group">
-                                      <td className="px-3 py-2 whitespace-nowrap font-bold text-slate-900 dark:text-slate-100">{row.nutrient}</td>
-                                      <td className="px-3 py-2 whitespace-nowrap font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-100">{row.foodA}</td>
-                                      <td className="px-3 py-2 whitespace-nowrap font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-100">{row.foodB}</td>
-                                      <td className="px-3 py-2 whitespace-nowrap text-amber-600 dark:text-amber-400 font-bold">{row.target}</td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          ) : (
-                            <div className="p-3 text-[11px] overflow-x-auto font-mono text-slate-700 dark:text-slate-300 whitespace-pre leading-relaxed">
-                              {msg.agentResult.comparison.comparisonTableMarkdown}
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {type === 'food' && msg.pendingFoodLog && currentFormat === 'card' && (
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden font-sans">
-                      {msg.pendingFoodLog.imageUrls && msg.pendingFoodLog.imageUrls.length > 0 && (
-                        <div className="overflow-hidden border-y sm:border border-slate-100 dark:border-slate-700/50 shadow-sm mb-3 w-[calc(100%+2rem)] -mx-4 sm:mx-0 sm:w-full sm:rounded-2xl">
-                          <ImageSlider images={msg.pendingFoodLog.imageUrls} altText={msg.pendingFoodLog.name || "Pending meal"} />
-                        </div>
-                      )}
-                      
-                      {/* Unified display of agent detailed clinical prose inside the card */}
-                      {msg.content && (
-                        <div className="text-xs text-slate-800 dark:text-slate-200 bg-slate-50/50 dark:bg-slate-900/30 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800/40 leading-relaxed whitespace-pre-line mb-3 font-sans text-left">
-                          {msg.content}
-                        </div>
-                      )}
-
-                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2 gap-2 text-left">
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate min-w-0 font-display">
-                          {msg.pendingFoodLog.name}
-                        </h4>
-                        <span className="text-xs bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 px-2.5 py-0.5 rounded-full font-bold flex-shrink-0 font-sans">
-                          {msg.pendingFoodLog.weightGrams}g ({msg.pendingFoodLog.quantity})
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between text-xs font-medium border-b border-slate-100 dark:border-slate-800/50 pb-2 font-sans">
-                        <span className="text-slate-500">Record Date:</span>
-                        <span className="font-mono text-slate-800 dark:text-slate-200">{msg.pendingFoodLog.date}</span>
-                      </div>
-
-                      <div className="text-xs space-y-2 text-slate-600 dark:text-slate-350 font-medium text-left font-sans">
-                        <p><strong>{t.composition}:</strong> {msg.pendingFoodLog.composition}</p>
-                        <p className="text-slate-700 dark:text-slate-200"><strong>{t.benefits}:</strong> {msg.pendingFoodLog.benefits}</p>
-                        {msg.pendingFoodLog.risks && <p className="text-slate-700 dark:text-slate-200"><strong>{t.risks}:</strong> {msg.pendingFoodLog.risks}</p>}
-                        <p><strong>{t.impact}:</strong> {msg.pendingFoodLog.healthImpact}</p>
-                      </div>
-
-                      {/* Top Nutrients badges */}
-                      {(() => {
-                        const parseTarget = (val: any, fallback: number) => {
-                          if (val === null || val === undefined) return fallback;
-                          const cleanStr = String(val).replace(/,/g, '');
-                          const matches = cleanStr.match(/\d+(\.\d+)?/g);
-                          if (!matches || matches.length === 0) return fallback;
-                          const parsed = parseFloat(matches[0]);
-                          return isNaN(parsed) ? fallback : parsed;
-                        };
-
-                        const caloriesTarget = report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.calories, 1700) : 1800;
-                        const satFatTarget = report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.saturatedFat, 15) : 15;
-                        const sodiumTarget = report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.sodium, 1200) : 1200;
-
-                        const logDate = msg.pendingFoodLog.date;
-                        const dayLogs = foodLogs ? foodLogs.filter(f => f.date === logDate) : [];
-
-                        const caloriesConsumedToday = dayLogs.reduce((acc, curr) => acc + (curr.nutrients?.calories || 0), 0);
-                        const satFatConsumedToday = dayLogs.reduce((acc, curr) => acc + (curr.nutrients?.saturatedFat || 0), 0);
-                        const sodiumConsumedToday = dayLogs.reduce((acc, curr) => acc + (curr.nutrients?.sodium || 0), 0);
-
-                        const caloriesInMeal = (msg.pendingFoodLog.nutrients && msg.pendingFoodLog.nutrients.calories) || 0;
-                        const satFatInMeal = (msg.pendingFoodLog.nutrients && msg.pendingFoodLog.nutrients.saturatedFat) || 0;
-                        const sodiumInMeal = (msg.pendingFoodLog.nutrients && msg.pendingFoodLog.nutrients.sodium) || 0;
-
-                        return (
-                          <div className="flex flex-wrap items-center gap-3 pt-2">
-                            <div className="flex items-center gap-1.5">
-                              <NutrientPieChart
-                                allowance={caloriesTarget}
-                                alreadyConsumed={caloriesConsumedToday}
-                                mealValue={caloriesInMeal}
-                                nutrientKey="calories"
-                                size="sm"
-                              />
-                              <span className="text-[11px] font-extrabold" style={{ color: 'rgb(249, 115, 22)' }}>
-                                {formatNutrientValue(caloriesInMeal, 'kcal')}
-                              </span>
-                            </div>
-
-                            {msg.pendingFoodLog.nutrients && msg.pendingFoodLog.nutrients.saturatedFat !== undefined && (
-                              <div className="flex items-center gap-1.5">
-                                <NutrientPieChart
-                                  allowance={satFatTarget}
-                                  alreadyConsumed={satFatConsumedToday}
-                                  mealValue={satFatInMeal}
-                                  nutrientKey="saturatedFat"
-                                  size="sm"
-                                />
-                                <span className="text-[11px] font-bold" style={{ color: 'rgb(234, 179, 8)' }}>
-                                  Sat Fat: {formatNutrientValue(satFatInMeal, 'g')}
-                                </span>
-                              </div>
-                            )}
-
-                            {msg.pendingFoodLog.nutrients && msg.pendingFoodLog.nutrients.sodium !== undefined && (
-                              <div className="flex items-center gap-1.5">
-                                <NutrientPieChart
-                                  allowance={sodiumTarget}
-                                  alreadyConsumed={sodiumConsumedToday}
-                                  mealValue={sodiumInMeal}
-                                  nutrientKey="sodium"
-                                  size="sm"
-                                />
-                                <span className="text-[11px] font-bold" style={{ color: 'rgb(34, 197, 94)' }}>
-                                  Sodium: {formatNutrientValue(sodiumInMeal, 'mg')}
-                                </span>
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })()}
-
-                      {/* Collapsible Detailed Components and Nutrient values lists */}
-                      {msg.pendingFoodLog && (
-                        <div className="pt-2 border-t border-slate-150 dark:border-slate-800/60 font-sans">
-                          <button
-                            type="button"
-                            onClick={() => setExpandedTables(prev => ({ ...prev, [msg.id]: !prev[msg.id] }))}
-                            className="w-full flex items-center justify-between text-xs font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors py-1.5 cursor-pointer font-sans"
-                          >
-                            <span className="flex items-center gap-1.5">
-                              📊 Components & Nutrient Details
-                            </span>
-                            {expandedTables[msg.id] ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                          </button>
-                          
-                          {expandedTables[msg.id] && (
-                            <div className="mt-3 space-y-4 shadow-inner bg-slate-50/50 dark:bg-slate-900/30 p-3 rounded-2xl border border-slate-100 dark:border-slate-800/50 animation-fade-in text-left">
-                              {/* A. Components breakdown table */}
-                              {msg.pendingFoodLog.itemsBreakdown && msg.pendingFoodLog.itemsBreakdown.length > 0 && (
-                                <div className="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
-                                  <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
-                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                                      📊 Component Contribution
-                                    </span>
-                                  </div>
-                                  <div className="overflow-x-auto">
-                                    <table className="w-full text-left border-collapse text-[11px]">
-                                      <thead>
-                                        <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 text-slate-500 dark:text-slate-400 font-bold">
-                                          <th className="p-2">Item Name</th>
-                                          <th className="p-2 text-right">Weight</th>
-                                          <th className="p-2 text-right">Calories</th>
-                                          <th className="p-2 text-right">Sat Fat</th>
-                                          <th className="p-2 text-right">Sodium</th>
-                                        </tr>
-                                      </thead>
-                                      <tbody>
-                                        {msg.pendingFoodLog.itemsBreakdown.map((item: any, itemIdx: number) => (
-                                          <tr 
-                                            key={itemIdx} 
-                                            className="border-b last:border-b-0 border-slate-100 dark:border-slate-850 text-slate-750 dark:text-slate-200 font-medium hover:bg-slate-50 dark:hover:bg-slate-850/20"
-                                          >
-                                            <td className="p-2 font-semibold truncate max-w-[120px]" title={item.name}>
-                                              {item.name}
-                                            </td>
-                                            <td className="p-2 text-right font-mono text-slate-500">
-                                              {formatNutrientValue(item.weightGrams, 'g')}
-                                            </td>
-                                            <td className="p-2 text-right font-mono text-orange-600 dark:text-orange-400 font-semibold">
-                                              {formatNutrientValue(item.calories, 'kcal')}
-                                            </td>
-                                            <td className="p-2 text-right font-mono text-amber-500 font-semibold">
-                                              {formatNutrientValue(item.saturatedFat, 'g')}
-                                            </td>
-                                            <td className="p-2 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
-                                              {formatNutrientValue(item.sodium, 'mg')}
-                                            </td>
-                                          </tr>
-                                        ))}
-                                      </tbody>
-                                    </table>
-                                  </div>
-                                </div>
-                              )}
-
-                              {/* B. Full 31-nutrient table */}
-                              <div className="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
-                                <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
-                                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider font-sans">
-                                    📋 Comprehensive Nutrient Values (31 Nutrients)
-                                  </span>
-                                </div>
-                                <div className="px-3 py-2 space-y-3 text-[11px] font-mono">
-                                  {/* Core Nutrients */}
-                                  <div>
-                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 pb-0.5 border-b border-slate-200/50 dark:border-slate-800/50 font-sans text-left">Core Nutrients (11)</div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-                                      {(() => {
-                                        const coreKeys = ["calories", "protein", "carbohydrates", "totalFat", "saturatedFat", "transFat", "addedSugar", "sodium", "potassium", "totalFibre", "solubleFibre"];
-                                        return nutrientDefinitions
-                                          .filter(nut => coreKeys.includes(nut.key))
-                                          .map((nut) => {
-                                            const val = msg.pendingFoodLog?.nutrients?.[nut.key];
-                                            return (
-                                              <div key={nut.key} className="flex justify-between py-0.5 text-slate-600 dark:text-slate-350 border-b border-slate-100 dark:border-slate-800/30 last:border-b-0 sm:even:border-l sm:even:pl-4">
-                                                <span className="text-slate-500 font-sans">{nut.labels[profile?.language || 'en'] || nut.labels.en}:</span>
-                                                <span className="font-semibold text-slate-800 dark:text-slate-100">
-                                                  {val !== undefined ? `${val} ${nut.unit}` : `--`}
-                                                </span>
-                                              </div>
-                                            );
-                                          });
-                                      })()}
-                                    </div>
-                                  </div>
-
-                                  {/* Additional Nutrients */}
-                                  <div>
-                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 pb-0.5 border-b border-slate-200/50 dark:border-slate-800/50 font-sans text-left">Additional Nutrients (20)</div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
-                                      {(() => {
-                                        const coreKeys = ["calories", "protein", "carbohydrates", "totalFat", "saturatedFat", "transFat", "addedSugar", "sodium", "potassium", "totalFibre", "solubleFibre"];
-                                        return nutrientDefinitions
-                                          .filter(nut => !coreKeys.includes(nut.key))
-                                          .map((nut) => {
-                                            const val = msg.pendingFoodLog?.nutrients?.[nut.key];
-                                            return (
-                                              <div key={nut.key} className="flex justify-between py-0.5 text-slate-600 dark:text-slate-350 border-b border-slate-100 dark:border-slate-800/30 last:border-b-0 sm:even:border-l sm:even:pl-4">
-                                                <span className="text-slate-500 font-sans">{nut.labels[profile?.language || 'en'] || nut.labels.en}:</span>
-                                                <span className="font-semibold text-slate-800 dark:text-slate-100">
-                                                  {val !== undefined ? `${val} ${nut.unit}` : `--`}
-                                                </span>
-                                              </div>
-                                            );
-                                          });
-                                      })()}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {/* Log Action Button */}
-                      {loggedMessageIds.includes(msg.id) ? (
-                        <div className="w-full py-2 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 animation-fade-in font-sans">
-                          <Check className="w-4 h-4" />
-                          Saved to History
-                        </div>
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (msg.pendingFoodLog && onLogFood) {
-                              onLogFood(msg.pendingFoodLog as FoodLog);
-                              setLoggedMessageIds(prev => [...prev, msg.id]);
-                            }
-                          }}
-                          className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/10 flex items-center justify-center gap-1.5 transition-all cursor-pointer font-sans"
-                        >
-                          <Plus className="w-4 h-4" />
-                          {t.logThisFood}
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Render Agent Result Blocks */}
-                  {msg.agentType && msg.agentResult && !loggedMessageIds.includes(msg.id) && currentFormat !== 'prose' && (
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-4 animation-fade-in w-full max-w-full min-w-0 overflow-hidden">
-                      <div className="flex items-center justify-between gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800/50">
-                        <div className="flex items-center gap-1.5">
-                          <Sparkles className="w-4 h-4 text-indigo-600" />
-                          <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wider uppercase font-display">
-                            {msg.agentType === 'agent1' && 'Clinical Data Parser'}
-                            {msg.agentType === 'agent2' && 'Clinical Ontologist'}
-                            {msg.agentType === 'agent3' && 'Clinical Data Coordinator'}
-                            {msg.agentType === 'agent4' && 'Prognostic Diagnostics Assessment'}
-                            {msg.agentType === 'agent5' && 'Personalized Reference Ranges'}
-                            {msg.agentType === 'agent6' && 'Lifestyle Precision Intervention'}
-                            {msg.agentType === 'agent7' && 'Medical Literature Consensus'}
-                          </h4>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const resolvedAgentType = msg.agentType;
-                            setActiveInstructionAgentType(resolvedAgentType || 'agent1');
-                            setActiveInstructionPrompt(msg.agentResult?.agentPrompt || null);
-                          }}
-                          className="text-[9px] font-mono font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 px-1.5 py-0.5 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-950/40 transition-colors"
-                        >
-                          View Agent Instruction
-                        </button>
-                      </div>
-
-                      {/* Content details based on Agent type */}
-                      {['agent1', 'agent2', 'agent3', 'agent4', 'data_review'].includes(msg.agentType || '') && msg.agentResult && (currentFormat === 'table' || currentFormat === 'card') && (
-                        <ErrorBoundary>
-                        <AgentResultTable
-                          agentType={
-                            msg.agentTypeStep === 'agent1_step2' ? 'agent2' :
-                            msg.agentTypeStep === 'agent1_step3' ? 'agent3' :
-                            msg.agentType as 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'data_review'
-                          }
-                          agentResult={msg.agentResult}
-                          profile={profile}
-                          biomarkerHistory={biomarkerHistory || []}
-                          initialRawText={(() => {
-                            const precedingUserMsg = messages
-                              .slice(0, idx)
-                              .reverse()
-                              .find(m => m.role === 'user');
-                            return precedingUserMsg?.content || '';
-                          })()}
-                          precedingAgent1Result={(() => {
-                            const precedingStep1Msg = messages
-                              .slice(0, idx)
-                              .reverse()
-                              .find(m => m.agentTypeStep === 'agent1_step1' || m.agentType === 'agent1');
-                            return precedingStep1Msg?.agentResult;
-                          })()}
-                          onContinueToNextStep={
-                            (msg.agentResult?.hasMoreMarkers || msg.agentResult?.hasMore || msg.agentResult?.needsContinuation || msg.agentResult?.status === 'needs_continuation') ? undefined :
-                            msg.agentTypeStep === 'agent1_step1' ? async () => { await handleAgent1Step('agent1_step2', msg); } :
-                            msg.agentTypeStep === 'agent1_step2' ? async () => { await handleAgent1Step('agent1_step3', msg); } :
-                            undefined
-                          }
-                          onApplyChanges={async (filteredKeys) => {
-                            if (onAgentFinish) {
-                              const isContinuation = !!(msg.agentResult?.hasMoreMarkers || msg.agentResult?.hasMore || msg.agentResult?.needsContinuation || msg.agentResult?.status === 'needs_continuation');
-                              if (filteredKeys && Array.isArray(filteredKeys) && msg.agentResult) {
-                                msg.agentResult.unselectedRowKeys = filteredKeys;
-                              }
-                              if (isContinuation) {
-                                await handleContinueExtractionChunk(msg);
-                              } else {
-                                await onAgentFinish(msg.agentType!, msg.agentResult);
-                                setLoggedMessageIds(prev => [...prev, msg.id]);
-                              }
-                            }
-                          }}
-                          onSendMessage={handleSend}
-                        />
-                        </ErrorBoundary>
-                      )}
-
-                      {msg.agentType === 'agent5' && msg.agentResult && (currentFormat === 'card' || currentFormat === 'table') && (
-                        <div className="space-y-2">
-                          <Agent5View rawResult={msg.agentResult} />
-                        </div>
-                      )}
-
-                      {msg.agentType === 'agent6' && msg.agentResult && (currentFormat === 'card' || currentFormat === 'table') && (
-                        <div className="space-y-2">
-                          <Agent6View rawResult={msg.agentResult} />
-                        </div>
-                      )}
-
-                      {msg.agentType === 'agent7' && msg.agentResult && (currentFormat === 'card' || currentFormat === 'table') && (
-                        <div className="space-y-2">
-                          <Agent7View rawResult={msg.agentResult} />
-                        </div>
-                      )}
-
-                      {/* Confirm Button */}
-                      {msg.agentResult && msg.agentType && !['agent1', 'agent2', 'agent3', 'agent4', 'data_review'].includes(msg.agentType || '') && (
-                        <button
-                          type="button"
-                          onClick={async () => {
-                            if (onAgentFinish) {
-                              await onAgentFinish(msg.agentType!, msg.agentResult);
-                                setLoggedMessageIds(prev => [...prev, msg.id]);
-                            }
-                          }}
-                          className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/10 flex items-center justify-center gap-1.5 transition-all cursor-pointer mt-3"
-                        >
-                          <Check className="w-4 h-4" />
-                          Apply & Save Agent Findings
-                        </button>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Render extracted Pending Medical info */}
-                  {type === 'medical' && !loggedMessageIds.includes(msg.id) && (((msg.pendingBiomarkerEntries && Array.isArray(msg.pendingBiomarkerEntries) && msg.pendingBiomarkerEntries.length > 0) || (msg.pendingBiomarkers && typeof msg.pendingBiomarkers === 'object' && Object.keys(msg.pendingBiomarkers).length > 0)) || (msg.pendingProfile && typeof msg.pendingProfile === 'object' && Object.keys(msg.pendingProfile).length > 0) || (msg.mode === 'modify' && msg.modificationCommand && Array.isArray(msg.modificationCommand) && msg.modificationCommand.length > 0)) && (
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden">
-                      <div className="border-b border-slate-100 dark:border-slate-800/50 pb-2">
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wider uppercase font-display">
-                          {msg.mode === 'modify' ? 'Proposed Modifications' : 'Extracted Information'}
-                        </h4>
-                      </div>
-
-                      <div className="space-y-4">
-                        {msg.mode === 'modify' && msg.modificationCommand && Array.isArray(msg.modificationCommand) && msg.modificationCommand.length > 0 ? (
-                          <div className="space-y-1">
-                            {msg.modificationCommand.map((cmd, idx) => (
-                              <div key={idx} className="flex items-center justify-between py-1 border-b border-slate-50 dark:border-slate-800/20 text-xs px-2">
-                                <span className="text-slate-600 dark:text-slate-400 font-medium">
-                                  {cmd.action === 'remove_biomarker' ? 'Remove' : 'Update'} {cmd.keyName} {cmd.date ? `(${cmd.date})` : ''}
-                                </span>
-                                <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                                  {cmd.action === 'remove_biomarker' ? 'DELETED' : (typeof cmd.newValue === 'object' ? JSON.stringify(cmd.newValue) : String(cmd.newValue))}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        ) : (
-                          <>
-                            {msg.pendingProfile && Object.entries(msg.pendingProfile).filter(([k, v]) => typeof v !== 'object' && k !== 'customBiomarkers').length > 0 && (
-                              <div className="space-y-1">
-                                <h5 className="text-[10px] uppercase font-bold text-slate-500 mb-1">Profile Updates</h5>
-                                {Object.entries(msg.pendingProfile)
-                                  .filter(([key, val]) => typeof val !== 'object' && key !== 'customBiomarkers')
-                                  .map(([key, val]) => (
-                                  <div key={key} className="flex items-center justify-between py-1 border-b border-slate-50 dark:border-slate-800/20 text-xs">
-                                    <span className="text-slate-600 dark:text-slate-400 font-medium capitalize">
-                                      {key}
-                                    </span>
-                                    <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                                      {String(val)}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {msg.mode === 'plan' && msg.planningDetails && (
-                              <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-100 dark:border-blue-800/30">
-                                <h5 className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 mb-2">Extraction Plan</h5>
-                                <div className="space-y-1.5 text-xs text-blue-800 dark:text-blue-200">
-                                  <div className="flex justify-between">
-                                    <span>Estimated Metrics:</span>
-                                    <span className="font-mono font-bold">{msg.planningDetails.estimatedTotalMetrics || 'Unknown'}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span>Batches Required:</span>
-                                    <span className="font-mono font-bold">{msg.planningDetails.batchesRequired || 'Unknown'}</span>
-                                  </div>
-                                  <div className="flex justify-between">
-                                    <span>Max Per Batch:</span>
-                                    <span className="font-mono font-bold">{msg.planningDetails.maxMetricsPerBatch}</span>
-                                  </div>
-                                </div>
-                              </div>
-                            )}
-
-                            {(msg.pendingBiomarkerEntries && Array.isArray(msg.pendingBiomarkerEntries) && msg.pendingBiomarkerEntries.length > 0) ? (
-                              <AgentResultTable
-                                agentType="medical_extract"
-                                agentResult={msg.pendingBiomarkerEntries}
-                                profile={profile}
-                                biomarkerHistory={biomarkerHistory}
-                                onSendMessage={handleSend}
-                                onApplyChanges={async (unselectedKeys) => {
-                                  if (onLogMedical) {
-                                    const isContinuation = !!(msg.status === 'needs_continuation' || msg.agentResult?.status === 'needs_continuation' || msg.agentResult?.hasMore || msg.agentResult?.hasMoreMarkers || msg.agentResult?.needsContinuation);
-                                    
-                                    // Filter pendingBiomarkers
-                                    const filteredBiomarkers = { ...(msg.pendingBiomarkers || {}) };
-                                    if (Array.isArray(unselectedKeys)) {
-                                      unselectedKeys.forEach(k => delete filteredBiomarkers[k]);
-                                    }
-
-                                    // Filter pendingBiomarkerEntries
-                                    let filteredEntries = msg.pendingBiomarkerEntries;
-                                    if (Array.isArray(filteredEntries) && Array.isArray(unselectedKeys)) {
-                                      filteredEntries = filteredEntries.map((entry: any) => {
-                                        const newBiomarkers = { ...(entry.biomarkers || {}) };
-                                        unselectedKeys.forEach(k => delete newBiomarkers[k]);
-                                        const newTests = (entry.tests || []).filter((t: any) => !unselectedKeys.includes(t.key));
-                                        newTests.forEach((t: any) => {
-                                          newBiomarkers[t.key] = t.valueNumeric !== null && t.valueNumeric !== undefined ? t.valueNumeric : t.valueString;
-                                        });
-                                        return { ...entry, biomarkers: newBiomarkers, tests: newTests };
-                                      }).filter((entry: any) => Object.keys(entry.biomarkers).length > 0);
-                                    }
-                                    
-                                    onLogMedical(filteredBiomarkers, msg.pendingProfile || {}, msg.pendingDate, filteredEntries, msg.modificationCommand, isContinuation);
-                                    setLoggedMessageIds(prev => [...prev, msg.id]);
-                                    if (isContinuation) {
-                                      handleSend("Proceed with extraction.");
-                                    }
-                                  }
-                                }}
-                                onCancel={() => {
-                                  setLoggedMessageIds(prev => [...prev, msg.id]);
-                                  const isContinuation = !!(msg.status === 'needs_continuation' || msg.agentResult?.status === 'needs_continuation' || msg.agentResult?.hasMore || msg.agentResult?.hasMoreMarkers || msg.agentResult?.needsContinuation);
-                                  if (isContinuation) {
-                                    handleSend("Cancel extraction.");
-                                  }
-                                }}
-                              />
-                            ) : (
-                              (msg.pendingBiomarkers && typeof msg.pendingBiomarkers === 'object' && Object.keys(msg.pendingBiomarkers).length > 0 ? [{ date: msg.pendingDate || null, biomarkers: msg.pendingBiomarkers }] : []).map((entry, idx) => (
-                                <div key={idx} className="space-y-1">
-                                  <div className="flex items-center justify-between py-1 bg-slate-50 dark:bg-slate-800/50 px-2 rounded-md mb-2">
-                                    <span className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase">Record Date</span>
-                                    <span className="font-mono font-bold text-slate-700 dark:text-slate-300 text-xs">{entry.date || 'Unknown Date'}</span>
-                                  </div>
-                                  {entry.biomarkers && typeof entry.biomarkers === 'object' && Object.entries(entry.biomarkers).map(([key, val]) => {
-                                    const def = biomarkerDefinitions.find(d => d.key === key);
-                                    const customDef = msg.pendingProfile?.customBiomarkers?.[key] || profile?.customBiomarkers?.[key];
-                                    const name = def?.name || customDef?.name || key;
-                                    const unit = def?.unit || customDef?.unit || '';
-                                    return (
-                                      <div key={key} className="flex items-center justify-between py-1 border-b border-slate-50 dark:border-slate-800/20 text-xs px-2">
-                                        <span className="text-slate-600 dark:text-slate-400 font-medium">
-                                          {name}
-                                        </span>
-                                        <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                                          {val} {String(val).includes(unit) ? '' : unit}
-                                        </span>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              ))
-                            )}
-                          </>
-                        )}
-                      </div>
-
-                      {msg.mode !== 'plan' && msg.mode !== 'discussion' && !(msg.pendingBiomarkerEntries && Array.isArray(msg.pendingBiomarkerEntries) && msg.pendingBiomarkerEntries.length > 0) && (
-                        <div className="pt-2 space-y-2">
-                          <button
-                            onClick={() => {
-                              if (onLogMedical) {
-                                const isContinuation = !!(msg.status === 'needs_continuation' || msg.agentResult?.status === 'needs_continuation' || msg.agentResult?.hasMore || msg.agentResult?.hasMoreMarkers || msg.agentResult?.needsContinuation);
-                                onLogMedical(msg.pendingBiomarkers || {}, msg.pendingProfile || {}, msg.pendingDate, msg.pendingBiomarkerEntries, msg.modificationCommand, isContinuation);
-                                setLoggedMessageIds(prev => [...prev, msg.id]);
-                                if (isContinuation) {
-                                  handleSend("Proceed with extraction.");
-                                }
-                              }
-                            }}
-                            className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/10 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
-                          >
-                            <Plus className="w-4 h-4" />
-                            {msg.mode === 'modify' ? 'Apply modifications' : (!!(msg.status === 'needs_continuation' || msg.agentResult?.status === 'needs_continuation' || msg.agentResult?.hasMore || msg.agentResult?.hasMoreMarkers || msg.agentResult?.needsContinuation)) ? 'Save and continue to next batch' : 'Save extracted data'}
-                          </button>
-                          
-                          <button
-                            onClick={() => {
-                              setLoggedMessageIds(prev => [...prev, msg.id]);
-                              const isContinuation = !!(msg.status === 'needs_continuation' || msg.agentResult?.status === 'needs_continuation' || msg.agentResult?.hasMore || msg.agentResult?.hasMoreMarkers || msg.agentResult?.needsContinuation);
-                              if (isContinuation) {
-                                handleSend("Cancel extraction.");
-                              }
-                            }}
-                            className="w-full py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
+                  {(() => {
+                    const Renderer = msg.agentType ? agentCardRegistry[msg.agentType] : null;
+                    if (!Renderer) return null;
+                    return (
+                      <Renderer
+                        msg={msg}
+                        currentFormat={currentFormat}
+                        idx={idx}
+                        messages={messages}
+                        report={report}
+                        foodLogs={foodLogs}
+                        t={t}
+                        formatNutrientValue={formatNutrientValue}
+                        onLogFood={onLogFood}
+                        onLogFoodIdeas={onLogFoodIdeas}
+                        setLoggedMessageIds={setLoggedMessageIds}
+                        loggedMessageIds={loggedMessageIds}
+                        profile={profile}
+                        biomarkerHistory={biomarkerHistory}
+                        handleAgent1Step={handleAgent1Step}
+                        handleContinueExtractionChunk={handleContinueExtractionChunk}
+                        onAgentFinish={onAgentFinish}
+                        handleSend={handleSend}
+                        setActiveInstructionAgentType={setActiveInstructionAgentType}
+                        setActiveInstructionPrompt={setActiveInstructionPrompt}
+                        onLogMedical={onLogMedical}
+                      />
+                    );
+                  })()}
                 </div>
               );
             } else {
@@ -3416,7 +2771,7 @@ export default function LogChat({
         agentPrompt={activeInstructionPrompt || undefined}
         outOfRangeBiomarkers={outOfRangeBiomarkers}
         remainingAllowance={remainingAllowance}
-        activeMeal={[...messages].reverse().find(m => m.pendingFoodLog)?.pendingFoodLog}
+        activeMeal={[...messages].reverse().find(m => m.data?.pendingFoodLog)?.pendingFoodLog}
         location={userLocation}
         recentMeals={foodLogs?.slice(-20).map(f => f.name)}
         budget={budget}
@@ -3427,8 +2782,9 @@ export default function LogChat({
         isOpen={showFullScreenDebugLogs}
         onClose={() => setShowFullScreenDebugLogs(false)}
         title="AI Agent Diagnostic Log History"
-        logsText={debugLogs.map(l => `[${l.timestamp}] ${l.message}`).join('\n')}
-        logsArray={debugLogs.map(l => `[${l.timestamp}]\n${l.message}`)}
+        logsText={debugLogs.map(l => `[${l.timestamp}] ${l.message}`).join('\\n')}
+        logsArray={debugLogs.map(l => `[${l.timestamp}]
+${l.message}`)}
         onSendToAdmin={handleSendDebugLogsToAdmin}
         isSendingLogs={isDebugSendingLogs}
         logsSendStatus={debugLogsSendStatus}

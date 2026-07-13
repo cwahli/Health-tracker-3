@@ -299,11 +299,29 @@ export interface ChatMessage {
   imageUrls?: string[];
   agentUnavailable?: boolean;
   isError?: boolean;
+  data?: Record<string, any>;
+  pendingFoodLog?: any;
+  pendingFoodIdeas?: any;
+  pendingBiomarkers?: any;
+  pendingBiomarkerEntries?: any;
+  pendingCustomBiomarkerDefs?: any;
+  proposal?: any;
+  bucketMapping?: any;
+  agentResult?: any;
+
+
+
+
+
+
+
+
+
   // parsed data for intermediate approval
-  pendingFoodLog?: Partial<FoodLog>;
-  pendingFoodIdeas?: FoodIdea[];
-  pendingBiomarkers?: { [key: string]: number | string };
-  pendingBiomarkerEntries?: { date: string | null; biomarkers: { [key: string]: number | string } }[];
+
+
+
+
   pendingProfile?: Partial<UserProfile>;
   pendingDate?: string;
   mode?: 'new_log' | 'discussion' | 'modify' | 'plan' | 'extract_chunk';
@@ -320,30 +338,13 @@ export interface ChatMessage {
     newValue?: string | number;
     date?: string;
   }[];
-  pendingCustomBiomarkerDefs?: {
-    [key: string]: {
-      name: string;
-      unit: string;
-      normalRange: string;
-      description: string;
-    }
-  };
-  proposal?: {
-    name: string;
-    metric: string;
-    value: string | number;
-    range: string;
-    description: string;
-    benefitRisk: string;
-    isDuplicate?: boolean;
-    duplicateExplanation?: string;
-    duplicateSuggestedKeys?: string[];
-  };
-  agentType?: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review' | null;
+
+
+  agentType?: string | null;
   agentTypeStep?: string;
   extractedYaml?: string;
-  bucketMapping?: any;
-  agentResult?: any;
+
+
 }
 
 export interface DbInteraction {

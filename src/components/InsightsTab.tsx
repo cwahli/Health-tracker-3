@@ -7,7 +7,7 @@ import {
   CheckCircle, HelpCircle, Loader, ShieldCheck, Database, Check, X, ArrowRight, Activity, Send, ChevronDown, ChevronUp, Trash2, Lock, Archive, Search
 } from 'lucide-react';
 import LLMSelector from './LLMSelector';
-import { Agent5View, Agent6View, Agent7View } from './AgentResultViews';
+import { GenericAgentResultView } from './AgentResultViews';
 import { AgentResultTable } from './AgentResultTable';
 import { parse } from 'yaml';
 import { biomarkerDefinitions, getBiomarkerMetadata, getPhysiologicalBucket, BIOMARKER_GROUPING_OPTIONS, getMappedBiomarkerKey } from '../utils/biomarkers';
