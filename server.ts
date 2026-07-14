@@ -1583,7 +1583,7 @@ For each image, determine if it is:
 
 STEP 2 — DATA EXTRACTION & LOCALIZATION:
 - For product/price labels (type a): Read the EXACT food name and weight. Convert kg to grams. Translate local name to English.
-- For Nutrition Facts labels (type b): Read every macro row present, not just calories/protein/fat/carbs. Calculate and provide the values PER 100g (or just extract them if already per 100g) so the dietitian can use them accurately.
+- For Nutrition Facts labels (type b): DO NOT calculate values per 100g or do any division or math yourself if a serving size/portion is provided. Instead, look for the EXACT total package weight, the portion/serving size weight, and the exact amount of nutrients per serving/portion exactly as written on the packaging. Save these EXACT raw figures inside the "rawNutritionLabel" object (without doing any math conversions).
 - For food photos (type c): Identify food items. Estimate weight using visible size references. Output a short English keyword and estimated weight in grams.
 - For cooking scenes (type d) or prepared food photos: Identify the cooking method, and include anything that may contribute to a change of nutrient amount. So if it's grilled, fried, deep fried, or boiled, it needs to be identified. Look at potential seasonings/sauces that could be used, and list the cooking method with type of sauce or seasoning (or note if it is just boiled without anything).
 - CONFIDENCE EVALUATION: Assign a confidence rating of your evaluation. It must be either "Low (<50%)", "Medium (50-90%)", or "High (>90%)". If confidence is Low or Medium, include a "confidenceComment" on why you're not sure (e.g., blurry image, overlapping ingredients) and how to improve confidence (e.g., take closer photo, list main ingredients in text).
@@ -1617,6 +1617,21 @@ CRITICAL RULES:
         "potassiumPer100g": "number (optional)",
         "totalFibrePer100g": "number (optional)",
         "solubleFibrePer100g": "number (optional)"
+      },
+      "rawNutritionLabel": {
+        "totalWeightGrams": "number (optional, e.g. 65, total weight of the package as written)",
+        "servingSizeGrams": "number (optional, e.g. 25, portion weight / serving size as written)",
+        "calories": "number (optional, calories per serving/portion as written)",
+        "totalFat": "number (optional, grams of total fat per serving/portion)",
+        "saturatedFat": "number (optional, grams of saturated fat per serving/portion)",
+        "transFat": "number (optional, grams of trans fat per serving/portion)",
+        "cholesterol": "number (optional, mg of cholesterol per serving/portion)",
+        "sodium": "number (optional, mg of sodium per serving/portion)",
+        "carbohydrates": "number (optional, grams of carbs per serving/portion)",
+        "dietaryFiber": "number (optional, grams of fiber per serving/portion)",
+        "addedSugars": "number (optional, grams of added sugars per serving/portion)",
+        "protein": "number (optional, grams of protein per serving/portion)",
+        "potassium": "number (optional, mg of potassium per serving/portion)"
       }
     }
   ], 
@@ -1815,7 +1830,8 @@ CRITICAL RULES:
         const bboxStr = item.boundingBox2D ? JSON.stringify(item.boundingBox2D) : "null";
         const imgIdx = item.sourceImageIndex !== undefined && item.sourceImageIndex !== null ? item.sourceImageIndex : "0";
         const nutritionStr = item.nutritionFacts && Object.keys(item.nutritionFacts).length > 0 ? ` | Nutrition (per 100g): ${JSON.stringify(item.nutritionFacts)}` : "";
-        return `- Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName || ''}" | Source: ${item.source} | BoundingBox: ${bboxStr} | ImageIndex: ${imgIdx}${nutritionStr}`;
+        const rawLabelStr = item.rawNutritionLabel && Object.keys(item.rawNutritionLabel).length > 0 ? ` | RawNutritionLabel: ${JSON.stringify(item.rawNutritionLabel)}` : "";
+        return `- Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName || ''}" | Source: ${item.source} | BoundingBox: ${bboxStr} | ImageIndex: ${imgIdx}${nutritionStr}${rawLabelStr}`;
       }).join("\n");
       visionScoutCtx = `\n=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===\n${itemsList}\n` +
         `Visual Scout Confidence Rating: ${scoutConfidenceRating}\n` +

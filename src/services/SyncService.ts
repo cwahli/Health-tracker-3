@@ -1,10 +1,12 @@
 import { collection, doc, runTransaction, getDocs, Firestore, setDoc } from 'firebase/firestore';
 import { FoodLog, BiomarkerLog, SyncState } from '../types';
 import { sanitizeForFirestore } from '../utils/firestoreUtils';
+import { toYYYYMMDD } from '../utils/dateUtils';
 
 export const toYYYYMM = (dateStr: string): string => {
   if (!dateStr) return 'unknown';
-  const parts = dateStr.split('-');
+  const ymd = toYYYYMMDD(dateStr);
+  const parts = ymd.split('-');
   if (parts.length >= 2) {
     return `${parts[0]}_${parts[1]}`;
   }

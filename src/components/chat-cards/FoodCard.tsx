@@ -168,6 +168,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
   onLogFood, setLoggedMessageIds, loggedMessageIds, profile
 }) => {
   const [expandedTables, setExpandedTables] = React.useState<Record<string, boolean>>({});
+  const [expandedScouts, setExpandedScouts] = React.useState<Record<string, boolean>>({});
   const [fullScreenImg, setFullScreenImg] = React.useState<string | null>(null);
 
   if (msg.agentType !== 'food') return null;
@@ -278,13 +279,13 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                   className="w-full h-28 overflow-hidden rounded-lg relative bg-slate-100 dark:bg-slate-850 cursor-pointer hover:opacity-90 transition-opacity"
                                   onClick={() => setFullScreenImg(resolvedImgSrc)}
                                 >
-                                  {food.boundingBox2D ? (
+                                                                  {food.boundingBox2D ? (
                                     <CroppedFoodImage 
                                       src={resolvedImgSrc} 
                                       boundingBox={food.boundingBox2D} 
                                       alt={food.name} 
                                       className="w-full h-full object-cover"
-                                      imageUrls={userUploadedImages}
+                                      imageUrls={currentMsgImages}
                                       sourceImageIndex={food.sourceImageIndex}
                                     />
                                   ) : matchingScout?.boundingBox2D ? (
@@ -293,7 +294,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                       boundingBox={matchingScout.boundingBox2D} 
                                       alt={food.name} 
                                       className="w-full h-full object-cover"
-                                      imageUrls={userUploadedImages}
+                                      imageUrls={currentMsgImages}
                                       sourceImageIndex={matchingScout.sourceImageIndex ?? null}
                                     />
                                   ) : (
@@ -479,9 +480,9 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                       )}
 
                       {msg.data?.scoutItems && msg.data.scoutItems.length > 0 && (
-                        <div className="mb-4 p-3 bg-slate-50/50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800/40 rounded-2xl text-left">
-                          <div className="flex items-center justify-between mb-2">
-                            <span className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider">
+                        <div className="mb-6 text-left">
+                          <div className="flex items-center justify-between mb-3 border-b border-slate-100 dark:border-slate-800/50 pb-2">
+                            <span className="text-[10.5px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider">
                               🔍 Visual Scout Identified
                             </span>
                             {msg.data?.pendingFoodLog?.scoutConfidenceRating && (
@@ -498,18 +499,18 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                             )}
                           </div>
 
-                          {/* Confidence comment warning flag if low/medium */}
+                          {/* Confidence comment warning flag if low/medium - background and box removed */}
                           {msg.data?.pendingFoodLog?.scoutConfidenceComment && (msg.data.pendingFoodLog.scoutConfidenceRating?.toLowerCase().includes('low') || msg.data.pendingFoodLog.scoutConfidenceRating?.toLowerCase().includes('medium')) && (
-                            <div className="mb-3 p-2.5 bg-amber-50/85 dark:bg-amber-950/35 border border-amber-200/50 rounded-xl text-[10.5px] text-amber-900 dark:text-amber-300 leading-normal font-medium">
+                            <div className="mb-4 text-[10.5px] text-amber-600 dark:text-amber-400 leading-normal font-medium">
                               ⚠️ <strong>Low/Medium Scout Confidence:</strong> {msg.data.pendingFoodLog.scoutConfidenceComment}
-                              <div className="mt-1 text-[10px] text-amber-800/90 dark:text-amber-400/90 italic">
+                              <div className="mt-0.5 text-[10px] text-slate-500 italic">
                                 Note: You can manually edit any weights or log details below, tell the dietitian what to adjust, or try uploading a clearer picture.
                               </div>
                             </div>
                           )}
 
-                          {/* Horizontal Slider of Identified Items */}
-                          <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 snap-x snap-mandatory">
+                          {/* Slider of Identified Items */}
+                          <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full">
                             {msg.data.scoutItems.map((item: any, i: number) => {
                               // Food picture priority: user uploaded first based on sourceImageIndex, fallback to external
                               const currentMsgImages = msg.imageUrls && msg.imageUrls.length > 0
@@ -521,36 +522,139 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                 ? currentMsgImages[imgIdx]
                                 : getFoodImageUrl(item.keyword);
 
+                              const totalWeight = item.rawNutritionLabel?.totalWeightGrams || item.estimatedWeightGrams || 0;
+                              const portionWeight = item.rawNutritionLabel?.servingSizeGrams;
+                              const multiplier = portionWeight && portionWeight > 0 ? (totalWeight / portionWeight) : 1;
+                              const multiplierStr = multiplier % 1 === 0 ? multiplier.toString() : multiplier.toFixed(1);
+
+                              const rawLabel = item.rawNutritionLabel;
+                              const nutrientsToDisplay = [];
+                              if (rawLabel) {
+                                if (rawLabel.calories !== undefined) {
+                                  nutrientsToDisplay.push({ label: 'Calorie', value: rawLabel.calories, unit: 'kcal', calc: Math.round(rawLabel.calories * multiplier), showMath: !!portionWeight });
+                                }
+                                if (rawLabel.totalFat !== undefined) {
+                                  nutrientsToDisplay.push({ label: 'Total fat', value: rawLabel.totalFat, unit: 'g', calc: Number((rawLabel.totalFat * multiplier).toFixed(1)), showMath: !!portionWeight });
+                                }
+                                if (rawLabel.saturatedFat !== undefined) {
+                                  nutrientsToDisplay.push({ label: 'Saturated fat', value: rawLabel.saturatedFat, unit: 'g', calc: Number((rawLabel.saturatedFat * multiplier).toFixed(1)), showMath: !!portionWeight });
+                                }
+                                if (rawLabel.transFat !== undefined) {
+                                  nutrientsToDisplay.push({ label: 'Trans fat', value: rawLabel.transFat, unit: 'g', calc: Number((rawLabel.transFat * multiplier).toFixed(1)), showMath: !!portionWeight });
+                                }
+                                if (rawLabel.cholesterol !== undefined) {
+                                  nutrientsToDisplay.push({ label: 'Cholesterol', value: rawLabel.cholesterol, unit: 'mg', calc: Math.round(rawLabel.cholesterol * multiplier), showMath: !!portionWeight });
+                                }
+                                if (rawLabel.sodium !== undefined) {
+                                  nutrientsToDisplay.push({ label: 'Sodium', value: rawLabel.sodium, unit: 'mg', calc: Math.round(rawLabel.sodium * multiplier), showMath: !!portionWeight });
+                                }
+                                if (rawLabel.carbohydrates !== undefined) {
+                                  nutrientsToDisplay.push({ label: 'Carbs', value: rawLabel.carbohydrates, unit: 'g', calc: Number((rawLabel.carbohydrates * multiplier).toFixed(1)), showMath: !!portionWeight });
+                                }
+                                if (rawLabel.dietaryFiber !== undefined) {
+                                  nutrientsToDisplay.push({ label: 'Dietary fiber', value: rawLabel.dietaryFiber, unit: 'g', calc: Number((rawLabel.dietaryFiber * multiplier).toFixed(1)), showMath: !!portionWeight });
+                                }
+                                if (rawLabel.addedSugars !== undefined) {
+                                  nutrientsToDisplay.push({ label: 'Added sugars', value: rawLabel.addedSugars, unit: 'g', calc: Number((rawLabel.addedSugars * multiplier).toFixed(1)), showMath: !!portionWeight });
+                                }
+                                if (rawLabel.protein !== undefined) {
+                                  nutrientsToDisplay.push({ label: 'Protein', value: rawLabel.protein, unit: 'g', calc: Number((rawLabel.protein * multiplier).toFixed(1)), showMath: !!portionWeight });
+                                }
+                                if (rawLabel.potassium !== undefined) {
+                                  nutrientsToDisplay.push({ label: 'Potassium', value: rawLabel.potassium, unit: 'mg', calc: Math.round(rawLabel.potassium * multiplier), showMath: !!portionWeight });
+                                }
+                              }
+
+                              const isExpanded = !!expandedScouts[`${msg.id}-${i}`];
+
                               return (
-                                <div key={i} className="w-[110px] shrink-0 snap-align-start flex flex-col bg-white dark:bg-slate-850 rounded-xl border border-slate-100 dark:border-slate-800/80 p-1.5 space-y-1.5 shadow-sm">
-                                  {/* Cropped Image Box */}
-                                  <div className="w-full h-16 rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-900 relative">
+                                <div 
+                                  key={i} 
+                                  className="w-[185px] shrink-0 snap-align-start flex flex-col relative bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 rounded-xl p-2.5 space-y-2 text-left"
+                                >
+                                  {/* Photo Box */}
+                                  <div className="w-full h-24 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-850 relative shrink-0">
                                     {item.boundingBox2D ? (
                                       <CroppedFoodImage 
                                         src={resolvedImgSrc} 
                                         boundingBox={item.boundingBox2D} 
-                                        alt={item.keyword} 
-                                        className="w-full h-full object-cover"
-                                        imageUrls={userUploadedImages}
+                                        alt={item.originalName || item.keyword} 
+                                        className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                                        onTap={() => setFullScreenImg(resolvedImgSrc)}
+                                        imageUrls={currentMsgImages}
                                         sourceImageIndex={item.sourceImageIndex}
                                       />
                                     ) : (
                                       <img 
                                         src={resolvedImgSrc} 
-                                        alt={item.keyword} 
-                                        className="w-full h-full object-cover"
+                                        alt={item.originalName || item.keyword} 
+                                        className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
                                         referrerPolicy="no-referrer"
+                                        onClick={() => setFullScreenImg(resolvedImgSrc)}
                                       />
                                     )}
                                   </div>
-                                  {/* Info */}
-                                  <div className="flex flex-col min-w-0 text-left">
-                                    <span className="text-[10px] font-bold text-slate-800 dark:text-slate-150 truncate leading-tight">
-                                      {item.originalName || item.keyword}
-                                    </span>
-                                    <span className="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400 font-mono mt-0.5">
-                                      {item.source === 'label' ? '🏷️' : '👁️'} {item.estimatedWeightGrams}g
-                                    </span>
+
+                                  {/* Info Area */}
+                                  <div className="flex-1 min-w-0 flex flex-col justify-between">
+                                    <div className="flex flex-col gap-1">
+                                      <div className="flex items-center gap-1.5 flex-wrap">
+                                        <span className="text-[11px] font-bold text-slate-800 dark:text-slate-150 truncate max-w-[120px]" title={item.originalName || item.keyword}>
+                                          {item.originalName || item.keyword}
+                                        </span>
+                                        <span className="text-[8px] font-bold px-1 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 font-mono shrink-0">
+                                          {item.source === 'label' ? '🏷️' : '👁️'}
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Toggle expanded details button */}
+                                    <button
+                                      type="button"
+                                      onClick={() => setExpandedScouts(prev => ({ ...prev, [`${msg.id}-${i}`]: !isExpanded }))}
+                                      className="mt-1.5 w-full flex items-center justify-between text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors py-1 cursor-pointer font-sans"
+                                    >
+                                      <span>{isExpanded ? 'Hide Details' : 'Show Details'}</span>
+                                      {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                    </button>
+
+                                    {/* Expanded Weight & Nutrition Details */}
+                                    {isExpanded && (
+                                      <div className="mt-1 space-y-1.5 border-t border-slate-200/50 dark:border-slate-800/30 pt-1.5 animation-fade-in">
+                                        {/* Weights Details */}
+                                        <div className="text-[9.5px] text-slate-500 dark:text-slate-400 font-mono space-y-0.5 leading-normal">
+                                          <div>Total weight: {totalWeight}g</div>
+                                          {portionWeight && <div>Portion weight: {portionWeight}g</div>}
+                                        </div>
+
+                                        {/* Nutrients Calculations */}
+                                        {nutrientsToDisplay.length > 0 && (
+                                          <div className="space-y-1 pt-1 w-full">
+                                            <div className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                                              Nutrients (Exact)
+                                            </div>
+                                            <div className="flex flex-col gap-0.5 w-full">
+                                              {nutrientsToDisplay.map((nut, idx) => (
+                                                <div key={idx} className="text-[9.5px] font-mono text-slate-700 dark:text-slate-300 leading-tight">
+                                                  <span className="font-semibold text-slate-800 dark:text-slate-200">{nut.label}: </span>
+                                                  <span>
+                                                    {nut.showMath ? (
+                                                      <>
+                                                        {nut.value}*{multiplierStr} = <strong className="text-slate-900 dark:text-white">{nut.calc}</strong>{nut.unit}
+                                                      </>
+                                                    ) : (
+                                                      <>
+                                                        <strong className="text-slate-900 dark:text-white">{nut.value}</strong>{nut.unit}
+                                                      </>
+                                                    )}
+                                                  </span>
+                                                </div>
+                                              ))}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               );

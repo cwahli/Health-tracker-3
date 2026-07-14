@@ -5,7 +5,8 @@ import { sanitizeForFirestore } from './firestoreUtils';
 
 export const toYYYYMM = (dateStr: string): string => {
   if (!dateStr) return 'unknown';
-  const parts = dateStr.split('-');
+  const ymd = toYYYYMMDD(dateStr);
+  const parts = ymd.split('-');
   if (parts.length >= 2) {
     return `${parts[0]}_${parts[1]}`;
   }

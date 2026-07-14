@@ -1187,11 +1187,11 @@ export default function App() {
           const sanitizedLocalBioHistory = sanitizeAndCleanLogs(localBioHistory);
 
           // Filter out deleted items from cloud and local lists
-          const filteredFoods = foods.filter(f => !deletedFoods.has(f.id));
-          const filteredLocalFoods = localFoods.filter(f => !deletedFoods.has(f.id));
+          const filteredFoods = foods.filter(f => f.sync_state !== 'delete' && !deletedFoods.has(f.id));
+          const filteredLocalFoods = localFoods.filter(f => f.sync_state !== 'delete' && !deletedFoods.has(f.id));
 
-          const filteredBioHistory = sanitizedBioHistory.filter(b => !deletedBioLogs.has(b.id));
-          const filteredLocalBioHistory = sanitizedLocalBioHistory.filter(b => !deletedBioLogs.has(b.id));
+          const filteredBioHistory = sanitizedBioHistory.filter(b => b.sync_state !== 'delete' && !deletedBioLogs.has(b.id));
+          const filteredLocalBioHistory = sanitizedLocalBioHistory.filter(b => b.sync_state !== 'delete' && !deletedBioLogs.has(b.id));
 
           // Conflict Detection
           const lastSyncedAt = parsedLocal.lastSyncedAt || 0;
@@ -1754,6 +1754,16 @@ export default function App() {
                 let combinedHistory: BiomarkerLog[] = [];
                 
                 allDocs.forEach((docData: any) => {
+                  if (docData && docData.logs) {
+                    Object.values(docData.logs).forEach((logInfo: any) => {
+                      if (logInfo.type === 'food') {
+                        combinedFoods.push({ ...logInfo.data, sync_state: 'synced' });
+                      } else if (logInfo.type === 'biomarker') {
+                        combinedHistory.push({ ...logInfo.data, sync_state: 'synced' });
+                      }
+                    });
+                  }
+                  // Fallback for legacy format if any
                   if (docData.foodLogs && Array.isArray(docData.foodLogs)) {
                     combinedFoods = [...combinedFoods, ...docData.foodLogs];
                   }
@@ -1773,7 +1783,7 @@ export default function App() {
                       map.set(f.id, f);
                     }
                   });
-                  const list = Array.from(map.values()).filter(f => f.sync_state !== 'delete');
+                  const list = Array.from(map.values()).filter(f => f.sync_state !== 'delete' && !((profile || {}).deletedFoodLogIds || []).includes(f.id));
                   list.sort((a, b) => b.date.localeCompare(a.date));
                   return list;
                 });
@@ -1787,7 +1797,7 @@ export default function App() {
                       map.set(h.id, h);
                     }
                   });
-                  const list = Array.from(map.values()).filter(h => h.sync_state !== 'delete');
+                  const list = Array.from(map.values()).filter(h => h.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(h.id));
                   list.sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
                   return list;
                 });
@@ -1797,8 +1807,9 @@ export default function App() {
                   const computed: { [key: string]: number | string } = {};
                   // Group by biomarker key to find the latest value
                   const histories: { [key: string]: { date: string; val: any }[] } = {};
+                  const deletedBioIdsSet = new Set((profile || {}).deletedBiomarkerLogIds || []);
                   combinedHistory.forEach(h => {
-                    if (h.biomarkers && h.sync_state !== 'delete') {
+                    if (h.biomarkers && h.sync_state !== 'delete' && !deletedBioIdsSet.has(h.id)) {
                       Object.entries(h.biomarkers).forEach(([key, val]) => {
                         if (!histories[key]) histories[key] = [];
                         histories[key].push({ date: h.date, val });
