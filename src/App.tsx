@@ -2692,11 +2692,6 @@ export default function App() {
             hasNewBiomarkers = true;
           }
         } else if (cmd.action === 'remove_biomarker' && cmd.keyName) {
-          // Locked markers cannot be removed
-          if (cmd.keyName === 'bmi' || cmd.keyName === 'weight' || cmd.keyName === 'height') {
-            console.warn(`Prevented deletion of locked biomarker: ${cmd.keyName}`);
-            return;
-          }
           if (!cmd.date) {
             console.warn(`Prevented deletion: remove_biomarker command missing date`);
             return;
@@ -2878,20 +2873,15 @@ export default function App() {
     }
   };
   const handleDeleteMultipleBiomarkers = async (keys: string[]) => {
-    const safeKeys = keys.filter(k => k !== 'bmi' && k !== 'weight' && k !== 'height');
-    if (safeKeys.length === 0) {
-      console.warn("Prevented deletion of locked biomarkers: weight, height, bmi");
-      return;
-    }
     const updatedBiomarkers = { ...biomarkers };
-    safeKeys.forEach(key => delete updatedBiomarkers[key]);
+    keys.forEach(key => delete updatedBiomarkers[key]);
     
     const logsToDelete: string[] = [];
     const logsToUpdate: string[] = [];
     let updatedHistory = biomarkerHistory.map(log => {
       const cleanBiomarkers = { ...log.biomarkers };
       let changed = false;
-      safeKeys.forEach(key => {
+      keys.forEach(key => {
         if (cleanBiomarkers[key] !== undefined) {
           delete cleanBiomarkers[key];
           changed = true;
@@ -2920,12 +2910,12 @@ export default function App() {
     }
     if (updatedProfile.customBiomarkers) {
       const newCustoms = { ...updatedProfile.customBiomarkers };
-      safeKeys.forEach(key => delete newCustoms[key]);
+      keys.forEach(key => delete newCustoms[key]);
       updatedProfile.customBiomarkers = newCustoms;
     }
     updatedProfile.deletedCustomBiomarkerKeys = [
       ...(updatedProfile.deletedCustomBiomarkerKeys || []),
-      ...safeKeys
+      ...keys
     ];
     setProfile(updatedProfile);
     if (logsToUpdate.length > 0) {
@@ -2938,10 +2928,6 @@ export default function App() {
   };
 
   const handleDeleteBiomarker = async (key: string) => {
-    if (key === 'bmi' || key === 'weight' || key === 'height') {
-      console.warn(`Prevented deletion of locked biomarker: ${key}`);
-      return;
-    }
     const updatedBiomarkers = { ...biomarkers };
     delete updatedBiomarkers[key];
     
@@ -3125,10 +3111,6 @@ export default function App() {
     await saveAndSync(updatedProfile, foodLogs, recomputedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'deleteBiomarker', targetId: id });
   };
   const handleDeleteBiomarkerFromLog = async (id: string, key: string) => {
-    if (key === 'bmi' || key === 'weight' || key === 'height') {
-      console.warn(`Prevented deletion of locked biomarker from log: ${key}`);
-      return;
-    }
     const targetLog = biomarkerHistory.find(b => b.id === id);
     if (!targetLog) return;
 

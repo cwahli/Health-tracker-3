@@ -1,3 +1,5 @@
+import { getMappedBiomarkerKey } from './biomarkers';
+
 export const getCurrentDateInTimezone = (timezone?: string): string => {
   const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   try {
@@ -99,10 +101,13 @@ export function normalizeBiomarkerHistory<T extends MinimalBiomarkerLog>(history
     if (seenDates.has(normalizedDate)) {
       // Merge biomarkers, notes, and summaries
       const existing = seenDates.get(normalizedDate)!;
-      existing.biomarkers = {
-        ...existing.biomarkers,
-        ...log.biomarkers
-      };
+      
+      const newBiomarkers = { ...existing.biomarkers };
+      Object.entries(log.biomarkers || {}).forEach(([k, v]) => {
+        newBiomarkers[getMappedBiomarkerKey(k)] = v;
+      });
+      existing.biomarkers = newBiomarkers;
+
       if (log.note) {
         existing.note = existing.note ? `${existing.note}; ${log.note}` : log.note;
       }
@@ -110,10 +115,16 @@ export function normalizeBiomarkerHistory<T extends MinimalBiomarkerLog>(history
         existing.summary = existing.summary ? `${existing.summary}; ${log.summary}` : log.summary;
       }
     } else {
+      const mappedBiomarkers: Record<string, any> = {};
+      Object.entries(log.biomarkers || {}).forEach(([k, v]) => {
+        mappedBiomarkers[getMappedBiomarkerKey(k)] = v;
+      });
       const copy = {
         ...log,
-        date: normalizedDate
+        date: normalizedDate,
+        biomarkers: mappedBiomarkers
       };
+      
       seenDates.set(normalizedDate, copy);
       results.push(copy);
     }
