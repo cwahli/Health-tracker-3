@@ -2470,6 +2470,7 @@ ${JSON.stringify(profile, null, 2)}`);
                         isAnalyzing={isAnalyzing}
                         agentType={agentType}
                         autoSendMessage={autoSendMessage}
+                        type={type}
                       />
                     );
                   })()}

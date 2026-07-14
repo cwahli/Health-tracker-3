@@ -1244,6 +1244,22 @@ export default function FoodHistoryTab({
                                 const nutrientDef = nutrientDefinitions.find(n => n.key === key);
                                 const unit = nutrientDef ? nutrientDef.unit : '';
 
+                                const getHighlightColor = (k: string) => {
+                                  const lower = k.toLowerCase();
+                                  if (lower.includes('calor')) return 'rgb(249, 115, 22)'; // Orange
+                                  if (lower.includes('sat') || lower.includes('fat')) return 'rgb(234, 179, 8)'; // Yellow
+                                  if (lower.includes('sodium') || lower.includes('salt')) return 'rgb(34, 197, 94)'; // Green
+                                  return 'rgb(99, 102, 241)'; // Indigo
+                                };
+                                const labelColor = getHighlightColor(key);
+                                const displayName = nutrientDef 
+                                  ? (nutrientDef.labels.en === 'Calories' 
+                                      ? 'Calories' 
+                                      : (nutrientDef.labels.en === 'Saturated Fat' 
+                                          ? 'Sat Fat' 
+                                          : nutrientDef.labels.en)) 
+                                  : key;
+
                                 return (
                                   <div key={key} className="flex items-center gap-1.5 shrink-0">
                                     <NutrientPieChart
@@ -1253,8 +1269,8 @@ export default function FoodHistoryTab({
                                       nutrientKey={key as any}
                                       size="sm"
                                     />
-                                    <span className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
-                                      {inMeal} {unit}
+                                    <span className="text-[11px] font-extrabold" style={{ color: labelColor }}>
+                                      {displayName}: {inMeal} {unit}
                                     </span>
                                   </div>
                                 );
