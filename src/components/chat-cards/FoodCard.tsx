@@ -99,6 +99,12 @@ const getFoodImageUrl = (foodName: string, suppliedUrl?: string) => {
   const name = foodName.toLowerCase();
   
   // High-quality handpicked Unsplash food images for common categories
+  if (name.includes('cheese') || name.includes('cheddar') || name.includes('mozzarella') || name.includes('dairy')) {
+    return "https://images.unsplash.com/photo-1486299267070-83823f5448dd?w=400&auto=format&fit=crop&q=60";
+  }
+  if (name.includes('pasta') || name.includes('macaroni') || name.includes('spaghetti')) {
+    return "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=400&auto=format&fit=crop&q=60";
+  }
   if (name.includes('beef') || name.includes('steak') || name.includes('chuck') || name.includes('meat') || name.includes('hot pot')) {
     return "https://images.unsplash.com/photo-1544025162-d76694265947?w=400&auto=format&fit=crop&q=60";
   }
@@ -210,10 +216,17 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                           );
 
                           // Food picture priority: user uploaded first based on sourceImageIndex, fallback to external
+                          const currentMsgImages = msg.imageUrls && msg.imageUrls.length > 0
+                            ? msg.imageUrls
+                            : (msg.imageUrl ? [msg.imageUrl] : []);
+                          
                           const imgIdx = typeof food.sourceImageIndex === 'number' 
                             ? food.sourceImageIndex 
-                            : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : idx);
-                          const resolvedImgSrc = userUploadedImages[imgIdx] || getFoodImageUrl(food.name, food.imageUrl);
+                            : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : -1);
+                          
+                          const resolvedImgSrc = (imgIdx >= 0 && currentMsgImages[imgIdx])
+                            ? currentMsgImages[imgIdx]
+                            : getFoodImageUrl(food.name, food.imageUrl);
 
                           // Dynamic nutrient extraction from comparisonTable (or legacy comparisonTableYaml) rows
                           const yamlTable = msg.data?.agentResult.comparison.comparisonTable || msg.data?.agentResult.comparison.comparisonTableYaml;

@@ -231,6 +231,7 @@ Operate in one of four distinct modes based on current user intent:
 MODE A: NEW FOOD LOGGING 
 - Triggered by a completely new food item description or image. Ignore CURRENT_ACTIVE_MEAL_STATE.
 - Extract ingredients, estimate weights, and provide the "foodData" block. Set "mode": "new_log".
+- CRITICAL: If the user enters a single food item name or description (e.g., "cheese", "macaroni", "bread") without explicitly asking to compare, add to comparison, or evaluate options, you MUST treat it as a new food entry and use MODE A (NEW FOOD LOGGING). Do NOT automatically trigger a comparison or add it to a previous comparison unless the user explicitly requests a comparison or uses comparison terms (like 'better than', 'versus', 'compare', 'or').
 
 MODE B: DISCUSSION 
 - Triggered by general health questions. Answer conversationally using historical logs. Set "mode": "discussion". Set structural data to null.
@@ -246,6 +247,7 @@ MODE D: EVALUATION / COMPARISON
 Triggered when evaluating alternative foods, OR when the user asks to change the weight of a food currently in a comparison discussion (e.g. changing beef to 200g during a comparison, when the active state is an Apple). 
 - Do NOT output manual math or table strings. Output the specific foods, their dbIds, and their weights in the \`comparison.foods\` array so the backend can calculate the accurate table.
 - Set "mode": "evaluation". Provide the complete "comparison" object. Set modificationCommand and foodData to null.
+- CRITICAL: Do NOT automatically use MODE D (EVALUATION / COMPARISON) just because the past chat history contains a comparison. If the current input is just a single food item (e.g., "cheese") and not part of an explicit comparison request, default to MODE A (NEW FOOD LOGGING). Only trigger MODE D if the user explicitly asks to compare, evaluate alternatives, or add the new item to the previous comparison.
 
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly.
@@ -344,6 +346,7 @@ const getGeminiClient = () => {
   return new GoogleGenAI({
     apiKey: apiKey || "MOCK_KEY",
     httpOptions: {
+      timeout: 45000,
       headers: {
         "User-Agent": "aistudio-build",
       },
@@ -1005,7 +1008,8 @@ async function callUnifiedLLM({
         const restRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${targetGeminiModel}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(restPayload)
+          body: JSON.stringify(restPayload),
+          signal: AbortSignal.timeout(45000)
         });
         if (!restRes.ok) {
           let errMsg = `API request failed: ${restRes.status}`;
@@ -1634,6 +1638,23 @@ CRITICAL RULES:
         } catch (scoutErr: any) {
           addDebugLog(`[Vision Scout Error] Failed: ${scoutErr.message}`);
         }
+      } else if (message) {
+        addDebugLog(`[Text Search Extraction] No image supplied. Extracting search terms from message: "${message}"`);
+        const cleanMsg = message.replace(/\d+\s*(g|grams|oz|lbs|servings|pcs|pieces)?/gi, '')
+                                .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, ' ')
+                                .replace(/\b(and|or|with|a|an|the|ate|had|for|dinner|lunch|breakfast|meal|snack|some)\b/gi, ' ')
+                                .trim();
+        const keywords = cleanMsg.split(/\s+/).filter(w => w.length > 1);
+        if (keywords.length > 0) {
+          if (cleanMsg.length > 1) {
+            queriesToSearch.push(cleanMsg);
+          }
+          keywords.slice(0, 3).forEach(k => {
+            if (!queriesToSearch.includes(k)) {
+              queriesToSearch.push(k);
+            }
+          });
+        }
       }
     }
 
@@ -1641,7 +1662,8 @@ CRITICAL RULES:
     // e.g. "raw beef slices (daging empal and blade)" → "raw beef slices"
     const cleanQuery = (raw: string) => raw.replace(/\s*\(.*?\)\s*/g, '').replace(/\b(raw|fresh|cooked)\s+/i, '').trim();
 
-    const shouldRunDbSearch = !isWeightModification && visionScoutRanAndReturnedItems;
+    const hasImage = imagePayloads && imagePayloads.length > 0;
+    const shouldRunDbSearch = !isWeightModification && (visionScoutRanAndReturnedItems || (!hasImage && queriesToSearch.length > 0));
     if (shouldRunDbSearch && queriesToSearch.length > 0) {
       addDebugLog(`[Database Search] Performing USDA & OFF searches for queries: ${JSON.stringify(queriesToSearch)}`);
       const searchPromises = queriesToSearch.map(async (q) => {
@@ -3898,7 +3920,7 @@ app.post("/api/gemini/insight-analyze", async (req, res) => {
 
 app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
   try {
-    const { profile, userProfile, foodLogs, biomarkerHistory, engine, refinement } = req.body;
+    const { profile, userProfile, foodLogs, biomarkerHistory, engine, refinement, calibratedInsights } = req.body;
     const activeProfile = profile || userProfile || {};
 
     const sanitizedBiomarkerHistory = (biomarkerHistory || []).map((log: any) => {
@@ -3952,7 +3974,8 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
         const statusLabel = getBiomarkerStatusLabel(key, bStatus, activeProfile?.customBiomarkers?.[key], latestVal, activeProfile);
         const def = biomarkerDefinitions.find(d => d.key === key);
         const customDef = activeProfile?.customBiomarkers?.[key];
-        const medicalInsight = customDef?.benefitRisk || def?.benefitRisk || "No specific medical insight defined.";
+        const calibrated = calibratedInsights?.[key];
+        const medicalInsight = calibrated?.specificRiskContext || calibrated?.description || customDef?.benefitRisk || def?.benefitRisk || "No specific medical insight defined.";
         let risks = customDef?.riskCategories || def?.riskCategories || ['Uncategorized'];
         if (!Array.isArray(risks)) risks = [risks];
         if (risks.length === 0) risks = ['Uncategorized'];

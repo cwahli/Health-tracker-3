@@ -11,9 +11,12 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
   loggedMessageIds,
   onDeleteMessage
 }) => {
+  const initialReport = msg.data?.agentResult?.report || msg.data?.agentResult || {};
+  const initialHasReport = Array.isArray(initialReport.riskCategories) && initialReport.riskCategories.length > 0;
+
   const [unselectedKeys, setUnselectedKeys] = useState<Set<number>>(new Set());
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
-  const [hasStarted, setHasStarted] = useState(false);
+  const [hasStarted, setHasStarted] = useState(initialHasReport);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   if (msg.agentType !== 'health_baseline') return null;

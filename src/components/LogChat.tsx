@@ -18,6 +18,7 @@ import FullScreenInstructionViewer from './FullScreenInstructionViewer';
 import { InteractivePlacesMap } from './InteractivePlacesMap';
 import exifr from 'exifr';
 import { auth, db } from '../firebase';
+import { getAgentCalibration, getAllAgentCalibrations } from '../utils/agentCalibration';
 import { collection, query, where, getDocs, setDoc, doc, deleteDoc, getDoc } from 'firebase/firestore';
 import { sanitizeForFirestore } from '../utils/firestoreUtils';
 
@@ -852,6 +853,12 @@ ${logsText}`);
   }, [auth.currentUser, type, agentType, isOpen]);
 
   useEffect(() => {
+    if (isOpen && messages.length === 0) {
+      setMessages([getWelcomeMessage()]);
+    }
+  }, [isOpen, messages.length]);
+
+  useEffect(() => {
     if (activeConversationId && messages && messages.length > 0) {
       debouncedSaveConversation(activeConversationId, messages, lastSentPayload);
     }
@@ -1330,6 +1337,16 @@ ${logsText}`);
           dailyNutrientIntake,
           stepsHistory: thisMonthSteps
         };
+      } else if (isAgent('health_baseline')) {
+        bodyData.biomarkerHistory = activeHistory;
+        bodyData.foodLogs = (activeFoodLogs || []).slice(-10).map(f => ({
+          name: f.name,
+          date: f.date,
+          weightGrams: f.weightGrams,
+          quantity: f.quantity,
+          nutrients: f.nutrients
+        }));
+        bodyData.calibratedInsights = getAllAgentCalibrations();
       } else if (isAgent('food_idea')) {
         bodyData.location = loc;
         bodyData.recentMeals = (activeFoodLogs || []).slice(-20).map(f => f.name);
@@ -1476,6 +1493,14 @@ ${logsText}`);
         },
         body: JSON.stringify(bodyData)
       });
+
+      if (!response.ok) {
+        const rawText = await response.text().catch(() => '');
+        const looksLikeTimeout = response.status === 504 || response.status === 502 || response.status === 503 || rawText.trim().toLowerCase().startsWith('<!doctype') || rawText.trim().toLowerCase().startsWith('<html');
+        throw new Error(looksLikeTimeout
+          ? "This analysis took too long and the server timed out. Please try again — if it keeps happening, it may need a longer server timeout setting."
+          : `Request failed (${response.status}). Please try again.`);
+      }
 
       const resData = await response.json();
       if (resData.error) throw new Error(resData.error);
