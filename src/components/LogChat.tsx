@@ -1339,13 +1339,7 @@ ${logsText}`);
         };
       } else if (isAgent('health_baseline')) {
         bodyData.biomarkerHistory = activeHistory;
-        bodyData.foodLogs = (activeFoodLogs || []).slice(-10).map(f => ({
-          name: f.name,
-          date: f.date,
-          weightGrams: f.weightGrams,
-          quantity: f.quantity,
-          nutrients: f.nutrients
-        }));
+        bodyData.outOfRangeBiomarkers = outOfRangeBiomarkers;
         bodyData.calibratedInsights = getAllAgentCalibrations();
       } else if (isAgent('food_idea')) {
         bodyData.location = loc;
@@ -2454,7 +2448,7 @@ ${JSON.stringify(profile, null, 2)}`);
                         </button>
                       </div>
                     )}
-                    {msg.id.startsWith('welcome_') && agentType && (
+                    {msg.id.startsWith('welcome_') && (agentType || type === 'food') && (
                       <div className="mt-3">
                         <button
                           type="button"

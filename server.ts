@@ -12,7 +12,7 @@ import { getTraceNutrientsForFoodType } from "./server_food_db";
 import dotenv from "dotenv";
 import YAML from "yaml";
 import { AsyncLocalStorage } from "async_hooks";
-import { biomarkerDefinitions, getBiomarkerStatus, getBiomarkerStatusLabel } from "./src/utils/biomarkers";
+import { biomarkerDefinitions, getBiomarkerStatus, getBiomarkerStatusLabel, getBiomarkerMetadata } from "./src/utils/biomarkers";
 
 // Simple and robust custom JS object-to-YAML stringifier
 function jsToYaml(val: any, indent: number = 0): string {
@@ -234,7 +234,8 @@ MODE A: NEW FOOD LOGGING
 - CRITICAL: If the user enters a single food item name or description (e.g., "cheese", "macaroni", "bread") without explicitly asking to compare, add to comparison, or evaluate options, you MUST treat it as a new food entry and use MODE A (NEW FOOD LOGGING). Do NOT automatically trigger a comparison or add it to a previous comparison unless the user explicitly requests a comparison or uses comparison terms (like 'better than', 'versus', 'compare', 'or').
 
 MODE B: DISCUSSION 
-- Triggered by general health questions. Answer conversationally using historical logs. Set "mode": "discussion". Set structural data to null.
+- Triggered by general health questions, or if the user's message/query is NOT relevant to food, nutrition, or health. Set "mode": "discussion". Set structural data to null.
+- CRITICAL: If you detect that the user's input/query is not relevant to food, nutrition, or biological tracking, you MUST use MODE B (DISCUSSION). In your conversational response ("message"), politely inform the user of your focus and actively incite, guide, or invite them to provide relevant descriptions, ingredients, weights, or pictures of meals or food items so that you can evaluate them, analyze their nutritional profile, and guide them in their wellness journey.
 
 MODE C: MODIFICATION COMMAND (ACTIVE MEAL UPDATE)
 Triggered ONLY when the user asks to modify, add, or correct a weight for an item that currently exists inside the CURRENT_ACTIVE_MEAL_STATE.
@@ -3920,9 +3921,8 @@ app.post("/api/gemini/insight-analyze", async (req, res) => {
 
 app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
   try {
-    const { profile, userProfile, foodLogs, biomarkerHistory, engine, refinement, calibratedInsights } = req.body;
+    const { profile, userProfile, biomarkerHistory, engine, refinement, calibratedInsights, outOfRangeBiomarkers } = req.body;
     const activeProfile = profile || userProfile || {};
-
     const sanitizedBiomarkerHistory = (biomarkerHistory || []).map((log: any) => {
       const clean = { ...log };
       delete clean.tests;
@@ -3938,15 +3938,21 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
       }
       return true;
     });
-
-        const riskGroupingsWithSeverity: Record<string, string[]> = {};
+    const riskGroupingsWithSeverity: Record<string, string[]> = {};
     const biomarkerHistories: Record<string, {date: string, val: any}[]> = {};
     
     // Sort by date descending so first seen is latest
+    const parseDateStr = (dStr: string) => {
+      if (!dStr) return 0;
+      const parts = dStr.split('-');
+      if (parts.length === 3) {
+        if (parts[0].length === 4) return new Date(dStr).getTime();
+        return new Date(`${parts[2]}-${parts[1]}-${parts[0]}`).getTime();
+      }
+      return new Date(dStr).getTime();
+    };
     const sortedHistory = [...sanitizedBiomarkerHistory].sort((a, b) => {
-      const da = a.date ? new Date(a.date).getTime() : 0;
-      const db = b.date ? new Date(b.date).getTime() : 0;
-      return db - da;
+      return parseDateStr(b.date) - parseDateStr(a.date);
     });
     
     sortedHistory.forEach((log: any) => {
@@ -3960,7 +3966,6 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
         });
       }
     });
-
     const normalBiomarkers: string[] = [];
     
     Object.keys(biomarkerHistories).forEach(key => {
@@ -3968,15 +3973,17 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
       const latestVal = history[0].val;
       const historyStr = history.map(h => `\n       - ${h.date}: ${h.val}`).join('');
       
-      let bStatus = getBiomarkerStatus(key, latestVal, undefined, activeProfile?.customBiomarkers?.[key], activeProfile);
+      const outOfRangeDef = (outOfRangeBiomarkers || []).find((b: any) => b.key === key);
       
-      if (bStatus === 'low' || bStatus === 'high' || bStatus === 'critical') {
-        const statusLabel = getBiomarkerStatusLabel(key, bStatus, activeProfile?.customBiomarkers?.[key], latestVal, activeProfile);
+      if (outOfRangeDef) {
+        const statusLabel = getBiomarkerStatusLabel(key, outOfRangeDef.status, activeProfile?.customBiomarkers?.[key], latestVal, activeProfile);
         const def = biomarkerDefinitions.find(d => d.key === key);
         const customDef = activeProfile?.customBiomarkers?.[key];
         const calibrated = calibratedInsights?.[key];
         const medicalInsight = calibrated?.specificRiskContext || calibrated?.description || customDef?.benefitRisk || def?.benefitRisk || "No specific medical insight defined.";
-        let risks = customDef?.riskCategories || def?.riskCategories || ['Uncategorized'];
+        
+        const meta = getBiomarkerMetadata(key, customDef);
+        let risks = customDef?.riskCategories || meta.riskCategories || ['Uncategorized'];
         if (!Array.isArray(risks)) risks = [risks];
         if (risks.length === 0) risks = ['Uncategorized'];
         
@@ -3988,7 +3995,6 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
         normalBiomarkers.push(`${key}: ${latestVal}`);
       }
     });
-
     let groupedRisksStr = "";
     if (Object.keys(riskGroupingsWithSeverity).length > 0) {
       groupedRisksStr = "Biomarkers at risk:\n";
@@ -3999,14 +4005,10 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
         });
       });
     }
-
     const biomarkerSummary = Object.keys(biomarkerHistories).length > 0 ? 
       `${groupedRisksStr}\n\nNormal/Uncategorized Biomarkers:\n${normalBiomarkers.join('\n')}` : 
       "No medical biomarkers logged.";
-
     const profileText = `UserProfile: Age ${activeProfile.age}, Ethnicity: ${activeProfile.ethnicity}, Weight: ${activeProfile.weight}kg, Height: ${activeProfile.height}cm, Gender: ${activeProfile.gender}, Blood Type: ${activeProfile.bloodType}.`;
-    const foodSummary = foodLogs && foodLogs.length > 0 ? `Recent Food Logs:\n${JSON.stringify(foodLogs.slice(-10))}` : "No food logs registered.";
-
     const nutrientKeysList = [
       "calories", "protein", "totalFat", "saturatedFat", "transFat", "unsaturatedFat", "omega3", 
       "carbohydrates", "addedSugar", "totalFibre", "solubleFibre", "sodium", "potassium", 
@@ -4019,7 +4021,6 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
 
     const promptText = `Perform a comprehensive health baseline analysis using the totality of user information provided below.
     ${profileText}
-    ${foodSummary}
     ${biomarkerSummary}
     ${refinement ? `\nUSER REFINEMENT REQUEST: The user has asked to refine the previous analysis. Please adjust the report considering this feedback: "${refinement.message}". Also consider this chat history: ${JSON.stringify(refinement.chatHistory)}` : ""}
     
