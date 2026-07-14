@@ -1,5 +1,5 @@
 import { toYYYYMMDD } from "../utils/dateUtils";
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { UserProfile, BiomarkerLog, ChatMessage } from '../types';
 import { translations } from '../utils/translations';
 import { ShieldAlert, ClipboardList, Trash2, ChevronDown, ChevronUp, LineChart as LineChartIcon, BrainCircuit, AlertCircle } from 'lucide-react';
@@ -75,6 +75,22 @@ export default function MedicalHistoryTab({
 }: MedicalHistoryTabProps) {
   const t = translations[profile.language] || translations.en;
   const activeHistory = useMemo(() => (biomarkerHistory || []).filter(h => h.sync_state !== 'delete'), [biomarkerHistory]);
+  
+  const getLatestValue = useCallback((key: string) => {
+    const historyLogs = activeHistory.filter(h => h.biomarkers && h.biomarkers[key] !== undefined);
+    if (historyLogs.length > 0) {
+      const sortedLogs = [...historyLogs].sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
+      return sortedLogs[0].biomarkers[key];
+    }
+    return biomarkers?.[key];
+  }, [activeHistory, biomarkers]);
+  const totalUniqueBiomarkers = useMemo(() => {
+    const keys = new Set(Object.keys(biomarkers || {}));
+    activeHistory.forEach(h => {
+      Object.keys(h.biomarkers || {}).forEach(k => keys.add(k));
+    });
+    return keys.size;
+  }, [biomarkers, activeHistory]);
   const [viewType, setViewType] = useState<'risk' | 'condition' | 'practice'>('risk');
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'risk' | 'name'>('risk');
@@ -300,7 +316,7 @@ export default function MedicalHistoryTab({
     } else {
       // Sort by importance: critical > high/low > normal > unknown > no data
       const getSeverityScore = (key: string) => {
-        const val = biomarkers[key];
+        const val = getLatestValue(key);
         if (val === undefined) return -1;
         
         const def = allDefinitions.find(d => d.key === key);
@@ -361,7 +377,7 @@ export default function MedicalHistoryTab({
     let worstMarkerStatusLabel = '';
     
     groupMarkers.forEach(def => {
-      const val = biomarkers[def.key];
+      const val = getLatestValue(def.key);
       if (val !== undefined) {
         const status = getBiomarkerStatus(def.key, val, def.normalRange, def, profile);
         let score = 0;
@@ -395,7 +411,7 @@ export default function MedicalHistoryTab({
         const groupMarkers = getBiomarkersForSubCategory(cat);
         let maxScore = 0;
         groupMarkers.forEach(def => {
-          const val = biomarkers[def.key];
+          const val = getLatestValue(def.key);
           if (val !== undefined) {
             const status = getBiomarkerStatus(def.key, val, def.normalRange, def, profile);
             if (status === 'critical') maxScore = Math.max(maxScore, 4);
@@ -423,7 +439,7 @@ export default function MedicalHistoryTab({
       return [...markers].sort((a, b) => a.name.localeCompare(b.name));
     } else {
       const getSeverityScore = (key: string) => {
-        const val = biomarkers[key];
+        const val = getLatestValue(key);
         if (val === undefined) return -1;
         const def = allDefinitions.find(d => d.key === key);
         const status = getBiomarkerStatus(key, val, def?.normalRange, def, profile);
@@ -533,12 +549,7 @@ export default function MedicalHistoryTab({
                 <div className="divide-y divide-slate-100 dark:divide-slate-800/40 bg-white dark:bg-slate-900">
                   {markers.length > 0 ? (
                     markers.map((def) => {
-                      let val = biomarkers[def.key];
-                      const historyLogs = activeHistory.filter(h => h.biomarkers && h.biomarkers[def.key] !== undefined);
-                      if (historyLogs.length > 0) {
-                        const sortedLogs = [...historyLogs].sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
-                        val = sortedLogs[0].biomarkers[def.key];
-                      }
+                      let val = getLatestValue(def.key);
                       const originalVal = val;
                       const hasVal = val !== undefined;
                       const status = hasVal ? getBiomarkerStatus(def.key, val, def.normalRange, def, profile) : 'unknown';
@@ -665,7 +676,7 @@ export default function MedicalHistoryTab({
         <div className="flex flex-wrap items-center gap-6 text-xs text-slate-500 dark:text-slate-400 font-medium">
           <div className="flex items-center gap-2">
             <ClipboardList className="w-4 h-4 text-indigo-500" />
-            <span>Total Unique Biomarkers: <strong className="text-slate-800 dark:text-slate-200 font-bold">{Object.keys(biomarkers).length}</strong></span>
+            <span>Total Unique Biomarkers: <strong className="text-slate-800 dark:text-slate-200 font-bold">{totalUniqueBiomarkers}</strong></span>
           </div>
           <div className="flex items-center gap-2">
             <BrainCircuit className="w-4 h-4 text-indigo-500" />

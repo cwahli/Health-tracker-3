@@ -2431,42 +2431,7 @@ ${JSON.stringify(profile, null, 2)}`);
                         </div>
                       </div>
                     )}
-                    {msg.id.startsWith('welcome_') && isAgent('food_idea') && (
-                      <div className="mt-3">
-                        <button
-                          type="button"
-                          onClick={() => handleSend('Surprise me')}
-                          disabled={isAnalyzing}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md flex items-center gap-1.5"
-                        >
-                          Surprise Me
-                        </button>
-                      </div>
-                    )}
-                    {msg.id.startsWith('welcome_') && isAgent('daily_recommendation') && (
-                      <div className="mt-3">
-                        <button
-                          type="button"
-                          onClick={() => handleSend("What's up today?")}
-                          disabled={isAnalyzing}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md flex items-center gap-1.5"
-                        >
-                          What's up today?
-                        </button>
-                      </div>
-                    )}
-                    {msg.id.startsWith('welcome_') && (agentType || type === 'food') && !isAgent('food_idea') && !isAgent('daily_recommendation') && (
-                      <div className="mt-3">
-                        <button
-                          type="button"
-                          onClick={() => handleSend(autoSendMessage || 'Start')}
-                          disabled={isAnalyzing}
-                          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md flex items-center gap-1.5"
-                        >
-                          {autoSendMessage ? (autoSendMessage.toLowerCase().includes('calibrate') ? 'Start Calibration' : 'Start Review') : "Let's start"}
-                        </button>
-                      </div>
-                    )}
+
 
                   {/* Render extracted Pending Food Log info */}
                   {(() => {
