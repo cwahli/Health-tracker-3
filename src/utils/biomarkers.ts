@@ -404,6 +404,19 @@ export const getBiomarkerStatus = (key: string, val: number | string, normalRang
   const num = typeof val === 'string' ? parseFloat(val) : val;
   if (isNaN(num)) return 'unknown';
 
+  if (key === 'bmi' && profile) {
+    const isAsian = profile.ethnicity ? isAsianEthnicity(profile.ethnicity) : false;
+    const minNormal = 18.5;
+    const maxNormal = isAsian ? 22.9 : 24.9;
+    const criticalThreshold = isAsian ? 27.5 : 30.0;
+    if (num < minNormal) return 'low';
+    if (num > maxNormal) {
+      if (num >= criticalThreshold) return 'critical';
+      return 'high';
+    }
+    return 'normal';
+  }
+
   if (customDef?.structuredRanges?.length > 0) {
     const ranges = customDef.structuredRanges;
     let matchedRange = null;

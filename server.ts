@@ -3983,9 +3983,8 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
         const medicalInsight = calibrated?.specificRiskContext || calibrated?.description || customDef?.benefitRisk || def?.benefitRisk || "No specific medical insight defined.";
         
         const meta = getBiomarkerMetadata(key, customDef);
-        let risks = customDef?.riskCategories || meta.riskCategories || ['Uncategorized'];
-        if (!Array.isArray(risks)) risks = [risks];
-        if (risks.length === 0) risks = ['Uncategorized'];
+        let group = customDef?.standardMedicalGrouping || meta.standardMedicalGrouping || 'Uncategorized';
+        let risks = [group];
         
         risks.forEach((risk: string) => {
           if (!riskGroupingsWithSeverity[risk]) riskGroupingsWithSeverity[risk] = [];

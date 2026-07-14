@@ -11,7 +11,7 @@ import { biomarkerDefinitions, getBiomarkerStatus, isAsianEthnicity, getBiomarke
 import LLMSelector from './LLMSelector';
 import { AVAILABLE_LLMS } from '../utils/llm';
 import { compressMultipleImages, compressImage } from '../utils/imageCompressor';
-import { getCurrentDateInTimezone } from '../utils/dateUtils';
+import { getCurrentDateInTimezone, toYYYYMMDD } from '../utils/dateUtils';
 import ImageSlider from './ImageSlider';
 import FullScreenLogViewer from './FullScreenLogViewer';
 import FullScreenInstructionViewer from './FullScreenInstructionViewer';
@@ -1007,10 +1007,17 @@ ${logsText}`);
   const outOfRangeBiomarkers = React.useMemo(() => {
     if (!biomarkers) return [];
     const list: { key: string; name: string; value: any; status: string; normalRange: string; unit: string }[] = [];
-    Object.entries(biomarkers || {}).forEach(([key, val]) => {
+    Object.entries(biomarkers || {}).forEach(([key, rawVal]) => {
       const def = biomarkerDefinitions.find(d => d.key === key);
       const customDef = profile?.customBiomarkers?.[key];
       if (!def && !customDef) return;
+      
+      let val = rawVal;
+      const historyLogs = activeHistory ? activeHistory.filter(h => h.biomarkers && h.biomarkers[key] !== undefined) : [];
+      if (historyLogs.length > 0) {
+        const sortedLogs = [...historyLogs].sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
+        val = sortedLogs[0].biomarkers[key];
+      }
       
       const normalRange = customDef?.normalRange || def?.normalRange || '';
       const unit = customDef?.unit || def?.unit || '';
@@ -1029,7 +1036,7 @@ ${logsText}`);
       }
     });
     return list;
-  }, [biomarkers, profile?.ethnicity]);
+  }, [biomarkers, profile?.ethnicity, activeHistory]);
 
   const remainingAllowance = React.useMemo(() => {
     const todayStr = getCurrentDateInTimezone(profile?.timezone);
@@ -2448,7 +2455,7 @@ ${JSON.stringify(profile, null, 2)}`);
                         </button>
                       </div>
                     )}
-                    {msg.id.startsWith('welcome_') && (agentType || type === 'food') && (
+                    {msg.id.startsWith('welcome_') && (agentType || type === 'food') && !isAgent('food_idea') && !isAgent('daily_recommendation') && (
                       <div className="mt-3">
                         <button
                           type="button"

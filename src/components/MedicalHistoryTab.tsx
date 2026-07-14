@@ -315,7 +315,7 @@ export default function MedicalHistoryTab({
       const getLatestDate = (key: string) => {
         const logs = activeHistory.filter(h => h.biomarkers[key] !== undefined);
         if (logs.length === 0) return '0000-00-00';
-        return logs.map(h => h.date).sort().reverse()[0];
+        return logs.map(h => h.date).sort((a, b) => toYYYYMMDD(a).localeCompare(toYYYYMMDD(b))).reverse()[0];
       };
 
       filtered.sort((a, b) => {
@@ -435,7 +435,7 @@ export default function MedicalHistoryTab({
       const getLatestDate = (key: string) => {
         const logs = activeHistory.filter(h => h.biomarkers[key] !== undefined);
         if (logs.length === 0) return '0000-00-00';
-        return logs.map(h => h.date).sort().reverse()[0];
+        return logs.map(h => h.date).sort((a, b) => toYYYYMMDD(a).localeCompare(toYYYYMMDD(b))).reverse()[0];
       };
       
       return [...markers].sort((a, b) => {
@@ -534,6 +534,11 @@ export default function MedicalHistoryTab({
                   {markers.length > 0 ? (
                     markers.map((def) => {
                       let val = biomarkers[def.key];
+                      const historyLogs = activeHistory.filter(h => h.biomarkers && h.biomarkers[def.key] !== undefined);
+                      if (historyLogs.length > 0) {
+                        const sortedLogs = [...historyLogs].sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
+                        val = sortedLogs[0].biomarkers[def.key];
+                      }
                       const originalVal = val;
                       const hasVal = val !== undefined;
                       const status = hasVal ? getBiomarkerStatus(def.key, val, def.normalRange, def, profile) : 'unknown';

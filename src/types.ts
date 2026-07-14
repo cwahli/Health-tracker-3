@@ -134,6 +134,10 @@ export interface UserProfile {
   bmiAutoLogged?: boolean;
   approved_agent1_batches?: { [key: string]: boolean };
   approved_data_review_batches?: { [key: string]: boolean };
+  metadata?: {
+    legacyMigrated?: boolean;
+    [key: string]: any;
+  };
 }
 
 export interface NutrientBreakdown {

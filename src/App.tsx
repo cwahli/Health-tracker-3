@@ -1690,6 +1690,135 @@ export default function App() {
           // Load only from local cache on initial load/session load to prevent automatic Firebase calls.
           // Firestore checks will happen ONLY when the user manually clicks "Sync Now" in the header.
           setSyncState('local');
+
+          // One-Time Legacy Migration & Real-Time onSnapshot setup
+          const uid = user.uid;
+          
+          // A. One-Time Legacy Migration
+          if (loadedProfile) {
+            if (!loadedProfile.metadata) loadedProfile.metadata = {};
+            if (!loadedProfile.metadata.legacyMigrated) {
+              console.log("[Migration] Initiating one-time legacy migration to V2 consolidated bucket logs");
+              try {
+                const legacyFoodsSnap = await getDocs(collection(db, 'users', uid, 'foodLogs'));
+                const legacyHistorySnap = await getDocs(collection(db, 'users', uid, 'biomarkerHistory'));
+                
+                const legacyFoods: FoodLog[] = legacyFoodsSnap.docs.map(d => ({ id: d.id, ...d.data() } as FoodLog));
+                const legacyHistory: BiomarkerLog[] = legacyHistorySnap.docs.map(d => ({ id: d.id, ...d.data() } as BiomarkerLog));
+                
+                if (legacyFoods.length > 0 || legacyHistory.length > 0) {
+                  console.log(`[Migration] Migrating ${legacyFoods.length} foods and ${legacyHistory.length} biomarker entries`);
+                  // Merge legacy into loaded states
+                  const mergedFoods = [...loadedFoods];
+                  legacyFoods.forEach(lf => {
+                    if (!mergedFoods.some(f => f.id === lf.id)) {
+                      mergedFoods.push(lf);
+                    }
+                  });
+                  
+                  const mergedHistory = [...loadedHistory];
+                  legacyHistory.forEach(lh => {
+                    if (!mergedHistory.some(h => h.id === lh.id)) {
+                      mergedHistory.push(lh);
+                    }
+                  });
+                  
+                  // Save to V2 bucket documents
+                  await syncLogsWithTimeBuckets(db, uid, mergedFoods, mergedHistory, (sf, sb) => {
+                    loadedFoods = sf;
+                    loadedHistory = sb;
+                    setFoodLogs(sf);
+                    setBiomarkerHistory(sb);
+                  });
+                }
+                
+                loadedProfile.metadata.legacyMigrated = true;
+                await setDoc(doc(db, 'users', uid), { metadata: { legacyMigrated: true } }, { merge: true });
+                setProfile({ ...loadedProfile });
+              } catch (migErr) {
+                console.warn("[Migration] Failed to complete legacy migration:", migErr);
+              }
+            }
+          }
+          
+          // B. Real-Time V2 Syncing via onSnapshot on consolidated_logs
+          try {
+            console.log("[Realtime Sync] Setting up real-time listener for consolidated_logs");
+            const q = collection(db, 'users', uid, 'consolidated_logs');
+            const unsubSnapshot = onSnapshot(q, (snapshot) => {
+              // Read all buckets from snapshot
+              const allDocs = snapshot.docs.map(d => d.data());
+              if (allDocs.length > 0) {
+                // Merge them into foodLogs and biomarkerHistory
+                let combinedFoods: FoodLog[] = [];
+                let combinedHistory: BiomarkerLog[] = [];
+                
+                allDocs.forEach((docData: any) => {
+                  if (docData.foodLogs && Array.isArray(docData.foodLogs)) {
+                    combinedFoods = [...combinedFoods, ...docData.foodLogs];
+                  }
+                  if (docData.biomarkerHistory && Array.isArray(docData.biomarkerHistory)) {
+                    combinedHistory = [...combinedHistory, ...docData.biomarkerHistory];
+                  }
+                });
+                
+                // De-duplicate and sort
+                setFoodLogs(prevFoods => {
+                  const map = new Map<string, FoodLog>();
+                  // Seed with existing foods to preserve local edits if applicable
+                  prevFoods.forEach(f => map.set(f.id, f));
+                  combinedFoods.forEach(f => {
+                    const existing = map.get(f.id);
+                    if (!existing || (f.updated_at || 0) > (existing.updated_at || 0)) {
+                      map.set(f.id, f);
+                    }
+                  });
+                  const list = Array.from(map.values()).filter(f => f.sync_state !== 'delete');
+                  list.sort((a, b) => b.date.localeCompare(a.date));
+                  return list;
+                });
+                
+                setBiomarkerHistory(prevHistory => {
+                  const map = new Map<string, BiomarkerLog>();
+                  prevHistory.forEach(h => map.set(h.id, h));
+                  combinedHistory.forEach(h => {
+                    const existing = map.get(h.id);
+                    if (!existing || (h.updated_at || 0) > (existing.updated_at || 0)) {
+                      map.set(h.id, h);
+                    }
+                  });
+                  const list = Array.from(map.values()).filter(h => h.sync_state !== 'delete');
+                  list.sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
+                  return list;
+                });
+                
+                // Dynamically recompute biomarkers if history changed
+                setBiomarkers(() => {
+                  const computed: { [key: string]: number | string } = {};
+                  // Group by biomarker key to find the latest value
+                  const histories: { [key: string]: { date: string; val: any }[] } = {};
+                  combinedHistory.forEach(h => {
+                    if (h.biomarkers && h.sync_state !== 'delete') {
+                      Object.entries(h.biomarkers).forEach(([key, val]) => {
+                        if (!histories[key]) histories[key] = [];
+                        histories[key].push({ date: h.date, val });
+                      });
+                    }
+                  });
+                  Object.keys(histories).forEach(key => {
+                    histories[key].sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
+                    computed[key] = histories[key][0].val;
+                  });
+                  return computed;
+                });
+              }
+            }, (snapshotErr) => {
+              console.warn("[Realtime Sync] onSnapshot error:", snapshotErr);
+            });
+            unsubs.push(unsubSnapshot);
+          } catch (snapshotSetupErr) {
+            console.warn("[Realtime Sync] Failed to set up onSnapshot:", snapshotSetupErr);
+          }
         } else {
           // Not signed in, fall back to guest storage if available
           const storageKey = getStorageKey('guest');
