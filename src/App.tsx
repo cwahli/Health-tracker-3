@@ -1340,14 +1340,7 @@ export default function App() {
               }
             });
 
-            // Fallback safety net: preserve local synced items if they are missing from server (and not deleted)
-            filteredLocalFoods.forEach(localItem => {
-              const onServer = mergedFoods.some(m => m.id === localItem.id);
-              if (!onServer) {
-                console.log(`[Sync] Preserving local food log ${localItem.id} not found on server to prevent loss.`);
-                mergedFoods.push(localItem);
-              }
-            });
+
 
             // Bidirectional merge for biomarker history: server is the source of truth for synced items,
             // local unsynced items are preserved and will be pushed in the next step.
@@ -1372,14 +1365,7 @@ export default function App() {
               }
             });
 
-            // Fallback safety net: preserve local synced items if they are missing from server (and not deleted)
-            filteredLocalBioHistory.forEach(localItem => {
-              const onServer = mergedBioHistory.some(m => m.id === localItem.id);
-              if (!onServer) {
-                console.log(`[Sync] Preserving local biomarker log ${localItem.id} not found on server to prevent loss.`);
-                mergedBioHistory.push(localItem);
-              }
-            });
+
 
             mergedActions = [...acts];
             localActions.forEach(localAct => {

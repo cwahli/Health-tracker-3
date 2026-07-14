@@ -43,7 +43,9 @@ export const CroppedFoodImage: React.FC<CroppedFoodImageProps> = ({
     }
 
     const img = new Image();
-    img.crossOrigin = 'anonymous'; // Avoid potential CORS issues
+    if (baseImageSrc && !baseImageSrc.startsWith('data:') && !baseImageSrc.startsWith('blob:')) {
+      img.crossOrigin = 'anonymous'; 
+    }
     img.onload = () => {
       try {
         const canvas = document.createElement('canvas');
