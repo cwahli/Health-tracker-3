@@ -247,10 +247,11 @@ Triggered ONLY when the user asks to modify, add, or correct a weight for an ite
 - Set "mode": "modify". Populate the "modificationCommand" array. Set foodData and comparison to null.
 
 MODE D: EVALUATION / COMPARISON
-Triggered when evaluating alternative foods, OR when the user asks to change the weight of a food currently in a comparison discussion (e.g. changing beef to 200g during a comparison, when the active state is an Apple). 
-- Do NOT output manual math or table strings. Output the specific foods, their dbIds, and their weights in the \`comparison.foods\` array so the backend can calculate the accurate table.
-- Set "mode": "evaluation". Provide the complete "comparison" object. Set modificationCommand and foodData to null.
-- CRITICAL: Do NOT automatically use MODE D (EVALUATION / COMPARISON) just because the past chat history contains a comparison. If the current input is just a single food item (e.g., "cheese") and not part of an explicit comparison request, default to MODE A (NEW FOOD LOGGING). Only trigger MODE D if the user explicitly asks to compare, evaluate alternatives, or add the new item to the previous comparison.
+Triggered when evaluating alternative foods, changing active item weights, OR whenever the VISUAL FOOD SCOUT Content Type is "menu_or_poster".
+- Output specific foods, targetDbId, and weights in \`comparison.foods\` array. Rank the array best-to-worst (array order IS sort order).
+- Set "mode": "evaluation". Provide complete "comparison".
+- MODE D1 — VISUAL COMPARISON (Content Type is "individual_food_items", typically 2-20 items): keyNutrients gets calories + 5 MOST clinically relevant fields (6 total). Full 1-2 paragraph profileRecommendation per item. Include comparisonTable ONLY if comparing 6 or fewer items.
+- MODE D2 — MENU SCREENING (Content Type is "menu_or_poster" or >10 items): Rank ALL items. EVERY item gets suitability tag and shortDescription. Only TOP 3 ranked picks (indices 0-2) get keyNutrients and full profileRecommendation. Indices 3+ get null keyNutrients and ONE short sentence profileRecommendation. NEVER include comparisonTable.
 
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly.
@@ -1561,6 +1562,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
     let scoutConfidenceRating = "High (>90%)";
     let scoutConfidenceComment = "";
     let scoutCookingMethod = "";
+    let scoutContentType = "individual_food_items";
     const dbMatchMap = new Map<string, any>();
     const queriesToSearch: string[] = [];
 
@@ -1580,64 +1582,32 @@ For each image, determine if it is:
   (b) A Nutrition Facts label
   (c) An actual food photo showing prepared or raw ingredients
   (d) A cooking scene (e.g. boiling in a pot, frying on a pan)
+  (e) A restaurant menu, promotional poster, or combo board listing multiple food/dish options
 
 STEP 2 — DATA EXTRACTION & LOCALIZATION:
-- For product/price labels (type a): Read the EXACT food name and weight. Convert kg to grams. Translate local name to English.
-- For Nutrition Facts labels (type b): DO NOT calculate values per 100g or do any division or math yourself if a serving size/portion is provided. Instead, look for the EXACT total package weight, the portion/serving size weight, and the exact amount of nutrients per serving/portion exactly as written on the packaging. Save these EXACT raw figures inside the "rawNutritionLabel" object (without doing any math conversions).
-- For food photos (type c): Identify food items. Estimate weight using visible size references. Output a short English keyword and estimated weight in grams.
-- For cooking scenes (type d) or prepared food photos: Identify the cooking method, and include anything that may contribute to a change of nutrient amount. So if it's grilled, fried, deep fried, or boiled, it needs to be identified. Look at potential seasonings/sauces that could be used, and list the cooking method with type of sauce or seasoning (or note if it is just boiled without anything).
-- CONFIDENCE EVALUATION: Assign a confidence rating of your evaluation. It must be either "Low (<50%)", "Medium (50-90%)", or "High (>90%)". If confidence is Low or Medium, include a "confidenceComment" on why you're not sure (e.g., blurry image, overlapping ingredients) and how to improve confidence (e.g., take closer photo, list main ingredients in text).
-- LOCALIZATION: For EVERY item identified, provide a 2D bounding box [ymin, xmin, ymax, xmax] (0-1000 scale).
+- EXHAUSTIVENESS DIRECTIVE: Extract EVERY distinct food item, ingredient, or menu option visible. Do not stop after 3-5 items. If a menu has up to 100 legible items across all provided images, extract up to 100. If it genuinely has more than that, extract the 100 most legible/prominent ones and note in "confidenceComment" that the menu was only partially screened.
+- GROUPING RULE: If an item is clearly a topping, condiment, sauce, or filling served on or inside a base item, do NOT log them separately. Group into a single item.
+- For product/price labels (type a): Read EXACT food name and weight.
+- For Nutrition Facts labels (type b): Save EXACT raw figures inside "rawNutritionLabel".
+- For food photos (type c): Identify food items, output English keyword and estimated weight.
+- For menus/posters (type e): Extract EVERY distinct menu item or combo listed. Estimate weights based on standard restaurant portion sizing. Draw a tight individual bounding box around each item's specific thumbnail image or text block.
+- CONTENT TYPE: Set "contentType" to "menu_or_poster" if the majority of images are type (e), otherwise "individual_food_items".
 
 STEP 3 — MERGE & DEDUPLICATE:
-If an item appears in multiple images (e.g. a label and a food photo), merge them into one item using the LABEL WEIGHT as authoritative. Do NOT duplicate.
+If an item appears in multiple images, merge them using LABEL WEIGHT as authoritative.
 
 CRITICAL RULES:
-- keyword must be a short, clean English database-friendly name.
-- originalName must capture raw text or local names & prep style.
 - Output ONLY valid JSON matching this schema: 
 { 
   "items": [
     { 
-      "keyword": "string", 
-      "estimatedWeightGrams": "number", 
-      "originalName": "string", 
-      "source": "label | visual",
-      "boundingBox2D": [0, 0, 1000, 1000],
-      "sourceImageIndex": "integer (0-based index of the image array)",
-      "nutritionFacts": {
-        "caloriesPer100g": "number (optional)",
-        "proteinPer100g": "number (optional)",
-        "fatPer100g": "number (optional)",
-        "carbsPer100g": "number (optional)",
-        "saturatedFatPer100g": "number (optional)",
-        "transFatPer100g": "number (optional)",
-        "addedSugarPer100g": "number (optional)",
-        "sodiumPer100g": "number (optional)",
-        "potassiumPer100g": "number (optional)",
-        "totalFibrePer100g": "number (optional)",
-        "solubleFibrePer100g": "number (optional)"
-      },
-      "rawNutritionLabel": {
-        "totalWeightGrams": "number (optional, e.g. 65, total weight of the package as written)",
-        "servingSizeGrams": "number (optional, e.g. 25, portion weight / serving size as written)",
-        "calories": "number (optional, calories per serving/portion as written)",
-        "totalFat": "number (optional, grams of total fat per serving/portion)",
-        "saturatedFat": "number (optional, grams of saturated fat per serving/portion)",
-        "transFat": "number (optional, grams of trans fat per serving/portion)",
-        "cholesterol": "number (optional, mg of cholesterol per serving/portion)",
-        "sodium": "number (optional, mg of sodium per serving/portion)",
-        "carbohydrates": "number (optional, grams of carbs per serving/portion)",
-        "dietaryFiber": "number (optional, grams of fiber per serving/portion)",
-        "addedSugars": "number (optional, grams of added sugars per serving/portion)",
-        "protein": "number (optional, grams of protein per serving/portion)",
-        "potassium": "number (optional, mg of potassium per serving/portion)"
-      }
+      "keyword": "string", "estimatedWeightGrams": "number", "originalName": "string", "source": "label | visual", "boundingBox2D": [0, 0, 1000, 1000], "sourceImageIndex": "integer"
     }
   ], 
-  "cookingMethod": "string (identify the cooking method and seasonings/sauces, or note if boiled without anything)",
+  "cookingMethod": "string",
   "confidenceRating": "Low (<50%) | Medium (50-90%) | High (>90%)",
-  "confidenceComment": "string (optional, explain why not sure and how to improve confidence if Low or Medium, otherwise null)"
+  "confidenceComment": "string",
+  "contentType": "individual_food_items | menu_or_poster"
 }`;
         try {
           const scoutOutput = await callUnifiedLLM({
@@ -1658,6 +1628,7 @@ CRITICAL RULES:
             scoutConfidenceRating = parsedScout.confidenceRating || "High (>90%)";
             scoutConfidenceComment = parsedScout.confidenceComment || "";
             scoutCookingMethod = parsedScout.cookingMethod || "";
+            scoutContentType = parsedScout.contentType === "menu_or_poster" ? "menu_or_poster" : "individual_food_items";
             if (Array.isArray(parsedScout.items)) {
               visionScoutItems = parsedScout.items;
               for (const item of parsedScout.items) {
@@ -1712,7 +1683,8 @@ CRITICAL RULES:
     const cleanQuery = (raw: string) => raw.replace(/\s*\(.*?\)\s*/g, '').replace(/\b(raw|fresh|cooked)\s+/i, '').trim();
 
     const hasImage = imagePayloads && imagePayloads.length > 0;
-    const shouldRunDbSearch = !isWeightModification && (visionScoutRanAndReturnedItems || (!hasImage && queriesToSearch.length > 0));
+    const isMenuScale = scoutContentType === "menu_or_poster" || visionScoutItems.length > 10;
+    const shouldRunDbSearch = !isWeightModification && !isMenuScale && (visionScoutRanAndReturnedItems || (!hasImage && queriesToSearch.length > 0));
     if (shouldRunDbSearch && queriesToSearch.length > 0) {
       addDebugLog(`[Database Search] Performing USDA & OFF searches for queries: ${JSON.stringify(queriesToSearch)}`);
       const searchPromises = queriesToSearch.map(async (q) => {
@@ -1834,6 +1806,7 @@ CRITICAL RULES:
         return `- Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName || ''}" | Source: ${item.source} | BoundingBox: ${bboxStr} | ImageIndex: ${imgIdx}${nutritionStr}${rawLabelStr}`;
       }).join("\n");
       visionScoutCtx = `\n=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===\n${itemsList}\n` +
+        `Content Type: ${scoutContentType} (${visionScoutItems.length} items identified)\n` +
         `Visual Scout Confidence Rating: ${scoutConfidenceRating}\n` +
         (scoutConfidenceComment ? `Visual Scout Confidence Comment: ${scoutConfidenceComment}\n` : "") +
         `Identified Cooking Method & Preparation/Seasonings: ${scoutCookingMethod}\n` +
@@ -1963,9 +1936,15 @@ CRITICAL RULES:
                 type: Type.OBJECT,
                 properties: {
                   name: { type: Type.STRING },
-                  weightGrams: { type: Type.INTEGER, description: "Weight of compared option in grams" },
+                  targetDbId: { type: Type.STRING, nullable: true, description: "Exact dbId from database matches, or null if guesstimating." },
+                  weightGrams: { type: Type.INTEGER },
                   suitability: { type: Type.STRING },
-                  profileRecommendation: { type: Type.STRING, description: "Personalized clinical recommendation sentence or paragraph explaining why this food option is good or bad for their biomarker profile and why (1-2 paragraphs)." },
+                  shortDescription: { type: Type.STRING, nullable: true, description: "Short sentence on what this dish is." },
+                  keyNutrients: {
+                    type: Type.OBJECT, nullable: true, required: ["calories"],
+                    properties: { calories: { type: Type.NUMBER }, protein: { type: Type.NUMBER, nullable: true }, totalFat: { type: Type.NUMBER, nullable: true }, saturatedFat: { type: Type.NUMBER, nullable: true }, sodium: { type: Type.NUMBER, nullable: true }, carbohydrates: { type: Type.NUMBER, nullable: true }, addedSugar: { type: Type.NUMBER, nullable: true }, potassium: { type: Type.NUMBER, nullable: true }, totalFibre: { type: Type.NUMBER, nullable: true } }
+                  },
+                  profileRecommendation: { type: Type.STRING, nullable: true },
                   boundingBox2D: {
                     type: Type.ARRAY,
                     items: { type: Type.INTEGER },
@@ -1983,6 +1962,7 @@ CRITICAL RULES:
             },
             comparisonTable: {
               type: Type.OBJECT,
+              nullable: true,
               properties: {
                 columns: { type: Type.ARRAY, items: { type: Type.STRING } },
                 rows: {
@@ -2019,7 +1999,7 @@ ${visionScoutCtx}
 ${databaseMatchesCtx}
 Current User Input: "${message}"
 
-You can compare up to 10 foods at once. comparisonTable rows must use a 'values' array (not foodA/foodB). Always include the top most clinically relevant nutrient rows for the patient's biomarker context.`;
+You can compare up to 20 individual food items (MODE D1), or up to 100 items when screening a menu (MODE D2). Follow MODE D1/D2 depth rules exactly. comparisonTable rows must use a 'values' array (not foodA/foodB). Always include the top most clinically relevant nutrient rows for the patient's biomarker context.`;
 
     const fullPromptSent = `System Instruction:\n${finalSystemInstruction}\n\n${promptText}`;
     addDebugLog(`[RouteAgent Chat] Sending request to Gemini...`);
@@ -2072,7 +2052,7 @@ You can compare up to 10 foods at once. comparisonTable rows must use a 'values'
       imagePayloads,
       responseMimeType: "application/json",
       responseSchema: foodAnalyzeSchema,
-      maxOutputTokens: 3072 // Raised from 2048 (Jul 12) for headroom now that itemsBreakdown is emitted earlier in the schema; still capped, not removed
+      maxOutputTokens: isMenuScale ? 8000 : 3072 // Boosted for menu mode
     };
 
     let textOutput: string;
@@ -2102,9 +2082,16 @@ You can compare up to 10 foods at once. comparisonTable rows must use a 'values'
     // CASE D: evaluation mode
     if (mode === "evaluation") {
       addDebugLog(`[Mode Routing] EVALUATION mode triggered.`);
-      const comparisonData = rawParsed.comparison || { keyNutrientConcern: "Nutrients of Concern", foods: [] };
-      
-      if (comparisonData && Array.isArray(comparisonData.foods)) {
+      const comparisonData = rawParsed.comparison || { keyNutrientConcern: "Nutrients", foods: [] };
+      comparisonData.isMenuScale = isMenuScale;
+
+      if (isMenuScale && comparisonData && Array.isArray(comparisonData.foods)) {
+        comparisonData.foods.forEach((food: any, idx: number) => {
+          food.weightGrams = sanitizeMealWeight(food.weightGrams, 100);
+          if (idx >= 3) food.keyNutrients = null;
+        });
+        comparisonData.comparisonTable = null;
+      } else if (comparisonData && Array.isArray(comparisonData.foods)) {
         addDebugLog(`[Comparison Calc] Recalculating comparisonTable programmatically for ${comparisonData.foods.length} foods.`);
         
         const calculatedRows: any[] = [
