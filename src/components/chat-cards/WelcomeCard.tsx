@@ -11,9 +11,11 @@ interface WelcomeCardProps {
 }
 
 export const WelcomeCard: React.FC<any> = (props) => {
-  const { msg, handleSend, isAnalyzing, agentType, autoSendMessage } = props;
-  const isFoodIdea = agentType === 'food_idea';
-  const isDailyRec = agentType === 'daily_recommendation';
+  const { msg, handleSend, isAnalyzing, agentType, autoSendMessage, type } = props;
+  const activeType = agentType || type;
+  const isFoodIdea = activeType === 'food_idea';
+  const isDailyRec = activeType === 'daily_recommendation';
+  const isFood = activeType === 'food';
 
   return (
     <div className="mt-3">
@@ -37,7 +39,7 @@ export const WelcomeCard: React.FC<any> = (props) => {
           What's up today?
         </button>
       )}
-      {!isFoodIdea && !isDailyRec && (
+      {!isFoodIdea && !isDailyRec && !isFood && (
         <button
           type="button"
           onClick={() => handleSend(autoSendMessage || 'Start')}

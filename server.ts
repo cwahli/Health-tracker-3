@@ -236,6 +236,7 @@ MODE A: NEW FOOD LOGGING
 MODE B: DISCUSSION 
 - Triggered by general health questions, or if the user's message/query is NOT relevant to food, nutrition, or health. Set "mode": "discussion". Set structural data to null.
 - CRITICAL: If you detect that the user's input/query is not relevant to food, nutrition, or biological tracking, you MUST use MODE B (DISCUSSION). In your conversational response ("message"), politely inform the user of your focus and actively incite, guide, or invite them to provide relevant descriptions, ingredients, weights, or pictures of meals or food items so that you can evaluate them, analyze their nutritional profile, and guide them in their wellness journey.
+- CRITICAL REJECTION RULE: If the user input is a greeting (e.g., "Hi", "Hello", "Start", "Let's start", "greetings"), general conversational inquiry, or focuses purely on clinical/lab biomarkers (e.g., ALT, AST, LDL, cholesterol, liver panel) without any food, meal, ingredient, or recipe context, you MUST immediately classify the request as MODE B (DISCUSSION). Do NOT assume a database match of a greeting/command word (e.g., the word "Start" matching "Start granola") is the user's food item unless they explicitly wrote "I ate..." or "My meal is...". State politely that you are the Food & Nutrition Agent and can only analyze meals, ingredients, recipes, or nutritional values, and advise them to use the Health & Medical Agent for clinical or lab test reviews.
 
 MODE C: MODIFICATION COMMAND (ACTIVE MEAL UPDATE)
 Triggered ONLY when the user asks to modify, add, or correct a weight for an item that currently exists inside the CURRENT_ACTIVE_MEAL_STATE.
@@ -1641,20 +1642,36 @@ CRITICAL RULES:
         }
       } else if (message) {
         addDebugLog(`[Text Search Extraction] No image supplied. Extracting search terms from message: "${message}"`);
-        const cleanMsg = message.replace(/\d+\s*(g|grams|oz|lbs|servings|pcs|pieces)?/gi, '')
-                                .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, ' ')
-                                .replace(/\b(and|or|with|a|an|the|ate|had|for|dinner|lunch|breakfast|meal|snack|some)\b/gi, ' ')
-                                .trim();
-        const keywords = cleanMsg.split(/\s+/).filter(w => w.length > 1);
-        if (keywords.length > 0) {
-          if (cleanMsg.length > 1) {
-            queriesToSearch.push(cleanMsg);
-          }
-          keywords.slice(0, 3).forEach(k => {
-            if (!queriesToSearch.includes(k)) {
-              queriesToSearch.push(k);
+        const lowerMsg = message.trim().toLowerCase();
+        const nonFoodPatterns = [
+          /^(start|let's start|hello|hi|hey|greetings|help|test|yes|no|ok|okay|clear|reset|menu|why|explain|question|info|please)$/i,
+          /\b(alt|ast|cholesterol|ldl|hdl|egfr|creatinine|bilirubin|triglycerides|platelets|wbc|rbc|hemoglobin|hba1c|glucose|blood pressure|systolic|diastolic)\b/i
+        ];
+        
+        const isNonFood = nonFoodPatterns.some(p => p.test(lowerMsg)) && !/\b(eat|ate|eating|had|cooked|fried|grilled|recipe|meal|food|snack|breakfast|lunch|dinner|portion|slice|glass|cup|gram|grams|calorie|calories|nutrient|nutrients)\b/i.test(lowerMsg);
+
+        if (isNonFood) {
+          addDebugLog(`[Text Search Extraction] Message classified as non-food query. Skipping database matches.`);
+        } else {
+          const cleanMsg = message.replace(/\d+\s*(g|grams|oz|lbs|servings|pcs|pieces)?/gi, '')
+                                  .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()?]/g, ' ')
+                                  .replace(/\b(and|or|with|a|an|the|ate|had|for|dinner|lunch|breakfast|meal|snack|some)\b/gi, ' ')
+                                  .trim();
+          const keywords = cleanMsg.split(/\s+/).filter(w => w.length > 1);
+          if (keywords.length > 0) {
+            const excludedTerms = ['start', 'hello', 'hi', 'hey', 'greetings', 'help', 'test', 'yes', 'no', 'ok', 'okay', 'clear', 'reset', 'menu', 'why', 'explain', 'question', 'info', 'please'];
+            const filteredKeywords = keywords.filter(k => !excludedTerms.includes(k.toLowerCase()));
+            const filteredCleanMsg = cleanMsg.split(/\s+/).filter(w => !excludedTerms.includes(w.toLowerCase())).join(' ').trim();
+            
+            if (filteredCleanMsg.length > 1) {
+              queriesToSearch.push(filteredCleanMsg);
             }
-          });
+            filteredKeywords.slice(0, 3).forEach(k => {
+              if (!queriesToSearch.includes(k)) {
+                queriesToSearch.push(k);
+              }
+            });
+          }
         }
       }
     }
