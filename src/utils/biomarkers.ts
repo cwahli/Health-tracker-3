@@ -814,15 +814,15 @@ function getFallbackRiskCategories(key: string): string[] {
 
 function getFallbackMedicalGrouping(key: string): string {
   const k = key.toLowerCase();
-  if (k === 'bmi' || k === 'weight' || k === 'height' || k.includes('waist')) return 'Biometrics';
+  if (k === 'bmi' || k === 'weight' || k === 'height' || k.includes('waist')) return 'Wellness';
   if (k === 'hba1c' || k === 'fasting_glucose' || k === 'fasting_insulin' || k.includes('glucose') || k.includes('sugar') || k.includes('insulin') || k === 'ldl' || k === 'apob' || k === 'hdl' || k === 'triglycerides' || k === 'total_cholesterol' || k === 'hscrp' || k.includes('cholesterol') || k.includes('lipid')) {
     return 'Metabolic';
   }
   if (k === 'creatinine' || k === 'egfr' || k === 'urea' || k === 'uric_acid' || k === 'albumin' || k.includes('kidney') || k.includes('renal')) {
-    return 'Renal';
+    return 'Kidney';
   }
   if (k === 'alt' || k === 'ast' || k === 'alp' || k === 'bilirubin' || k.includes('liver') || k.includes('hepatic')) {
-    return 'Hepatic';
+    return 'Liver';
   }
   if (k === 'wbc' || k === 'rbc' || k === 'hemoglobin' || k === 'haemoglobin' || k === 'platelets' || k === 'hematocrit' || k.includes('cell') || k.includes('blood count') || k.includes('haem')) {
     return 'Hematology';

@@ -3997,15 +3997,17 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
         const def = biomarkerDefinitions.find(d => d.key === key);
         const customDef = activeProfile?.customBiomarkers?.[key];
         const calibrated = calibratedInsights?.[key];
-        const medicalInsight = calibrated?.specificRiskContext || calibrated?.description || customDef?.benefitRisk || def?.benefitRisk || "No specific medical insight defined.";
+        const medicalInsight = calibrated?.specificRiskContext || calibrated?.description || customDef?.specificRiskContext || customDef?.description || customDef?.benefitRisk || def?.benefitRisk || "No specific medical insight defined.";
         
         const meta = getBiomarkerMetadata(key, customDef);
         let group = customDef?.standardMedicalGrouping || meta.standardMedicalGrouping || 'Uncategorized';
         let risks = [group];
         
+        const calibSource = customDef?.calibrationSource ? ` (Calibrated to: ${customDef.calibrationSource})` : "";
+        
         risks.forEach((risk: string) => {
           if (!riskGroupingsWithSeverity[risk]) riskGroupingsWithSeverity[risk] = [];
-          riskGroupingsWithSeverity[risk].push(`${key} (Status: ${statusLabel})${historyStr}\n     Medical Insight: ${medicalInsight}`);
+          riskGroupingsWithSeverity[risk].push(`${key} (Status: ${statusLabel})${calibSource}${historyStr}\n     Medical Insight: ${medicalInsight}`);
         });
       } else {
         normalBiomarkers.push(`${key}: ${latestVal}`);
