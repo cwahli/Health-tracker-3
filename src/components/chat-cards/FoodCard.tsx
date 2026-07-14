@@ -6,6 +6,7 @@ import { NutrientPieChart } from '../NutrientPieChart';
 
 import { nutrientDefinitions } from '../../utils/nutrition';
 import { FoodLog } from '../../types';
+import { resolveFoodImage } from '../../utils/imageResolver';
 
 interface CroppedFoodImageProps {
   src: string;
@@ -173,7 +174,8 @@ export const FoodCard: React.FC<AgentCardProps> = ({
 
   if (msg.agentType !== 'food') return null;
 
-  const userUploadedImages = messages ? (() => {
+  const userUploadedImages = React.useMemo(() => {
+    if (!messages) return [];
     const urls: string[] = [];
     messages.forEach(m => {
       if (m.imageUrls && m.imageUrls.length > 0) {
@@ -182,8 +184,46 @@ export const FoodCard: React.FC<AgentCardProps> = ({
         urls.push(m.imageUrl);
       }
     });
-    return urls;
-  })() : [];
+    return urls.map(url => resolveFoodImage(url, foodLogs) || url);
+  }, [messages, foodLogs]);
+
+  const messageImages = React.useMemo(() => {
+    // 1. If the current assistant message itself has imageUrls or imageUrl
+    const localUrls = msg.imageUrls && msg.imageUrls.length > 0
+      ? msg.imageUrls
+      : (msg.imageUrl ? [msg.imageUrl] : []);
+    
+    if (localUrls.length > 0) {
+      return localUrls.map(url => resolveFoodImage(url, foodLogs) || url);
+    }
+
+    // 2. If the pending food log in msg has imageUrls
+    if (msg.data?.pendingFoodLog?.imageUrls && msg.data.pendingFoodLog.imageUrls.length > 0) {
+      return msg.data.pendingFoodLog.imageUrls.map((url: string) => resolveFoodImage(url, foodLogs) || url);
+    }
+    if (msg.pendingFoodLog?.imageUrls && msg.pendingFoodLog.imageUrls.length > 0) {
+      return msg.pendingFoodLog.imageUrls.map((url: string) => resolveFoodImage(url, foodLogs) || url);
+    }
+
+    // 3. Find the closest preceding user message that has images to make sure we don't bleed images from previous entries
+    if (messages) {
+      const currentIdx = messages.indexOf(msg);
+      if (currentIdx !== -1) {
+        for (let i = currentIdx - 1; i >= 0; i--) {
+          const m = messages[i];
+          if (m.imageUrls && m.imageUrls.length > 0) {
+            return m.imageUrls.map(url => resolveFoodImage(url, foodLogs) || url);
+          }
+          if (m.imageUrl) {
+            return [resolveFoodImage(m.imageUrl, foodLogs) || m.imageUrl];
+          }
+        }
+      }
+    }
+
+    // 4. Fallback to all user uploaded images in the conversation
+    return userUploadedImages;
+  }, [msg, messages, userUploadedImages, foodLogs]);
 
   const getNutrientFromTable = (comparisonTable: any, nutrientNameQuery: string, foodIdx: number): string | null => {
     if (!comparisonTable || !comparisonTable.rows) return null;
@@ -241,16 +281,12 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                           );
 
                           // Food picture priority: user uploaded first based on sourceImageIndex, fallback to external
-                          const currentMsgImages = msg.imageUrls && msg.imageUrls.length > 0
-                            ? msg.imageUrls
-                            : (msg.imageUrl ? [msg.imageUrl] : []);
-                          
                           const imgIdx = typeof food.sourceImageIndex === 'number' 
                             ? food.sourceImageIndex 
-                            : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : -1);
+                            : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0);
                           
-                          const resolvedImgSrc = (imgIdx >= 0 && currentMsgImages[imgIdx])
-                            ? currentMsgImages[imgIdx]
+                          const resolvedImgSrc = (messageImages.length > 0)
+                            ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
                             : getFoodImageUrl(food.name, food.imageUrl);
 
                           // Dynamic nutrient extraction from comparisonTable (or legacy comparisonTableYaml) rows
@@ -285,7 +321,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                       boundingBox={food.boundingBox2D} 
                                       alt={food.name} 
                                       className="w-full h-full object-cover"
-                                      imageUrls={currentMsgImages}
+                                      imageUrls={messageImages}
                                       sourceImageIndex={food.sourceImageIndex}
                                     />
                                   ) : matchingScout?.boundingBox2D ? (
@@ -294,7 +330,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                       boundingBox={matchingScout.boundingBox2D} 
                                       alt={food.name} 
                                       className="w-full h-full object-cover"
-                                      imageUrls={currentMsgImages}
+                                      imageUrls={messageImages}
                                       sourceImageIndex={matchingScout.sourceImageIndex ?? null}
                                     />
                                   ) : (
@@ -513,13 +549,9 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                           <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full">
                             {msg.data.scoutItems.map((item: any, i: number) => {
                               // Food picture priority: user uploaded first based on sourceImageIndex, fallback to external
-                              const currentMsgImages = msg.imageUrls && msg.imageUrls.length > 0
-                                ? msg.imageUrls
-                                : (msg.imageUrl ? [msg.imageUrl] : []);
-                              
                               const imgIdx = typeof item.sourceImageIndex === 'number' ? item.sourceImageIndex : 0;
-                              const resolvedImgSrc = (imgIdx >= 0 && currentMsgImages[imgIdx])
-                                ? currentMsgImages[imgIdx]
+                              const resolvedImgSrc = (messageImages.length > 0)
+                                ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
                                 : getFoodImageUrl(item.keyword);
 
                               const totalWeight = item.rawNutritionLabel?.totalWeightGrams || item.estimatedWeightGrams || 0;
@@ -581,7 +613,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                         alt={item.originalName || item.keyword} 
                                         className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
                                         onTap={() => setFullScreenImg(resolvedImgSrc)}
-                                        imageUrls={currentMsgImages}
+                                        imageUrls={messageImages}
                                         sourceImageIndex={item.sourceImageIndex}
                                       />
                                     ) : (
@@ -599,7 +631,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                   <div className="flex-1 min-w-0 flex flex-col justify-between">
                                     <div className="flex flex-col gap-1">
                                       <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className="text-[11px] font-bold text-slate-800 dark:text-slate-150 truncate max-w-[120px]" title={item.originalName || item.keyword}>
+                                        <span className="text-[11px] font-bold text-slate-800 dark:text-white truncate max-w-[120px]" title={item.originalName || item.keyword}>
                                           {item.originalName || item.keyword}
                                         </span>
                                         <span className="text-[8px] font-bold px-1 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 font-mono shrink-0">
