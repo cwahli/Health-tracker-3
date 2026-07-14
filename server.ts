@@ -1603,7 +1603,7 @@ CRITICAL RULES:
       "estimatedWeightGrams": "number", 
       "originalName": "string", 
       "source": "label | visual",
-      "boundingBox2D": ["[ymin, xmin, ymax, xmax]"],
+      "boundingBox2D": [0, 0, 1000, 1000],
       "sourceImageIndex": "integer (0-based index of the image array)",
       "nutritionFacts": {
         "caloriesPer100g": "number (optional)",
