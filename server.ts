@@ -988,6 +988,10 @@ async function callUnifiedLLM({
           }
         } as any;
         
+        if (configObj.responseSchema) {
+          restPayload.generationConfig.responseSchema = configObj.responseSchema;
+        }
+        
         if (enablePlaceIdTool) {
           restPayload.tools = [{
             functionDeclarations: [

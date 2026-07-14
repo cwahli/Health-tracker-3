@@ -1606,7 +1606,13 @@ I can analyze these, compare them with our database keys, and find standard mapp
       
       const jsonData = typeof data.jsonResponse === 'string' ? JSON.parse(data.jsonResponse) : data.jsonResponse;
       setStandardizationYaml(JSON.stringify(jsonData, null, 2));
-      let parsed = jsonData.mappedBiomarkers || jsonData.categorisedBiomarkers || [];
+      
+      let parsed = [];
+      if (Array.isArray(jsonData)) {
+        parsed = jsonData;
+      } else {
+        parsed = jsonData.mappedBiomarkers || jsonData.categorisedBiomarkers || [];
+      }
       // Normalize key
       parsed = parsed.map((item: any) => ({
         ...item,
