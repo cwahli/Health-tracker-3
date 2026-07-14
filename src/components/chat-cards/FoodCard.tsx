@@ -285,8 +285,8 @@ export const FoodCard: React.FC<AgentCardProps> = ({
 
                       {/* Foods Comparison Cards - Horizontally Scrollable (200px wide, borderless, separated by vertical dividers with 10px spacing) */}
                       <div className="flex gap-0 mt-2 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full overscroll-x-contain">
-                        {(msg.data?.agentResult.comparison.foods || []).map((food: any, idx: number) => {
-                          const lowerSuit = String(food.suitability || '').toLowerCase();
+                        {(msg.data?.agentResult.comparison.groups || []).map((group: any, idx: number) => {
+                          const lowerSuit = String(group.suitability || '').toLowerCase();
                           const isBest = lowerSuit.includes('safe') || lowerSuit.includes('best') || lowerSuit.includes('recommended') || lowerSuit.includes('good') || lowerSuit.includes('perfect');
                           
                           let suitabilityClass = "text-slate-700 dark:text-slate-300";
@@ -302,44 +302,11 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                             suitabilityBadgeBg = "bg-rose-50 dark:bg-rose-950/30 border border-rose-200/50";
                           }
 
-                          // Format suitability text nicely
-                          const suitText = food.suitability ? (
-                            food.suitability.toLowerCase().includes('moderate') ? 'Moderate risk' :
-                            food.suitability.toLowerCase().includes('high') ? 'High risk' :
-                            food.suitability.toLowerCase().includes('low') ? 'Low risk' :
-                            food.suitability.toLowerCase().includes('safe') ? 'Safest option' :
-                            food.suitability.toLowerCase().includes('avoid') ? 'Avoid' :
-                            food.suitability
-                          ) : '';
-
-                          // Find a matching visual scout item for cropping as a fallback
-                          const matchingScout = (msg.data?.scoutItems || []).find((s: any) => 
-                            food.name.toLowerCase().includes(s.keyword.toLowerCase()) || 
-                            s.keyword.toLowerCase().includes(food.name.toLowerCase()) ||
-                            food.name.toLowerCase().split(' ')[0] === s.keyword.toLowerCase().split(' ')[0]
-                          );
-
-                          // Food picture priority: user uploaded first based on sourceImageIndex, fallback to external
-                          const imgIdx = typeof food.sourceImageIndex === 'number' 
-                            ? food.sourceImageIndex 
-                            : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0);
-                          
-                          const resolvedImgSrc = (messageImages.length > 0)
-                            ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
-                            : getFoodImageUrl(food.name, food.imageUrl);
-
-                          // Dynamic nutrient extraction from comparisonTable (or legacy comparisonTableYaml) rows
-                          const yamlTable = msg.data?.agentResult.comparison.comparisonTable || msg.data?.agentResult.comparison.comparisonTableYaml;
-                          const weight = food.weightGrams || getNutrientFromTable(yamlTable, 'weight', idx) || '--';
-                          const calories = food.keyNutrients?.calories ?? (getNutrientFromTable(yamlTable, 'calories', idx) || getNutrientFromTable(yamlTable, 'energy', idx) || '--');
-                          
-                          
                           const concern = (msg.data?.agentResult.comparison.keyNutrientConcern || '').toLowerCase();
-                          // Variable for profile's top nutrients to monitor (can be adjusted later)
                           const PROFILE_TOP_NUTRIENTS = ['saturatedfat', 'sodium'];
                           
-                          const nutrientRows = food.keyNutrients 
-                            ? Object.entries(food.keyNutrients)
+                          const nutrientRows = group.averageNutrients 
+                            ? Object.entries(group.averageNutrients)
                                 .filter(([k,v]) => k !== 'calories' && v !== null && v !== undefined)
                                 .filter(([k,v]) => {
                                   const kLower = k.toLowerCase().replace(/\s+/g, '');
@@ -369,121 +336,121 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                   vals[idx] = v;
                                   return { nutrient: k, values: vals };
                                 }).slice(0, 3)
-                            : (yamlTable?.rows || []).filter((row: any) => {
-                                const name = String(row.nutrient || '').toLowerCase();
-                                return !name.includes('calories') && !name.includes('energy') && !name.includes('pros') && !name.includes('cons') && !name.includes('weight');
-                              }).slice(0, 3);
-
-
-                          const recommendationText = food.profileRecommendation || 
-                            (food.pros || food.cons 
-                              ? `${food.pros ? `✓ Pros: ${food.pros}. ` : ''}${food.cons ? `✗ Cons: ${food.cons}` : ''}` 
-                              : '');
+                            : [];
 
                           return (
                             <React.Fragment key={idx}>
                               {idx > 0 && (
                                 <div className="w-[1px] bg-slate-200 dark:bg-slate-800 self-stretch my-2 shrink-0 mx-[10px]" />
                               )}
-                              <div className="w-[200px] shrink-0 snap-align-start flex flex-col relative space-y-2">
-                                {/* Food Image Box - tap triggers full screen */}
-                                <div 
-                                  className="w-full h-28 overflow-hidden rounded-lg relative bg-slate-100 dark:bg-slate-850 cursor-pointer hover:opacity-90 transition-opacity"
-                                  onClick={() => setFullScreenImg({ src: resolvedImgSrc, boundingBox: food.boundingBox2D })}
-                                >
-                                                                  {food.boundingBox2D ? (
-                                    <CroppedFoodImage 
-                                      src={resolvedImgSrc} 
-                                      boundingBox={food.boundingBox2D} 
-                                      alt={food.name} 
-                                      className="w-full h-full object-cover"
-                                      imageUrls={messageImages}
-                                      sourceImageIndex={food.sourceImageIndex}
-                                    />
-                                  ) : matchingScout?.boundingBox2D ? (
-                                    <CroppedFoodImage 
-                                      src={resolvedImgSrc} 
-                                      boundingBox={matchingScout.boundingBox2D} 
-                                      alt={food.name} 
-                                      className="w-full h-full object-cover"
-                                      imageUrls={messageImages}
-                                      sourceImageIndex={matchingScout.sourceImageIndex ?? null}
-                                    />
-                                  ) : (
-                                    <img 
-                                      src={resolvedImgSrc} 
-                                      alt={food.name} 
-                                      className="w-full h-full object-cover"
-                                      referrerPolicy="no-referrer"
-                                    />
-                                  )}
-                                </div>
-
-                                <div className="flex flex-col items-start min-h-[2.5rem] w-full text-left">
-                                  {/* Wrap title if longer, text-xs bold */}
-                                  <span className="font-bold text-xs text-slate-850 dark:text-slate-100 break-words leading-tight w-full text-left">{food.name}</span>
-                                  {food.suitability && (
-                                    <div className="mt-1 flex">
-                                      <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
-                                        (() => {
-                                          const lowerSuit = food.suitability.toLowerCase();
-                                          if (lowerSuit.includes('good') || lowerSuit.includes('safe') || lowerSuit.includes('best') || lowerSuit.includes('low risk') || lowerSuit.includes('ideal') || lowerSuit.includes('recommend') || lowerSuit.includes('safest')) {
-                                            return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200/20";
-                                          } else if (lowerSuit.includes('moderate') || lowerSuit.includes('medium') || lowerSuit.includes('caution') || lowerSuit.includes('warning') || lowerSuit.includes('amber')) {
-                                            return "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/20";
-                                          } else if (lowerSuit.includes('bad') || lowerSuit.includes('avoid') || lowerSuit.includes('high risk') || lowerSuit.includes('severe') || lowerSuit.includes('red') || lowerSuit.includes('restrict')) {
-                                            return "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300 border border-rose-200/20";
-                                          }
-                                          return "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200";
-                                        })()
-                                      }`}>
-                                        {suitText}
-                                      </span>
+                              <div className="w-[300px] shrink-0 snap-align-start flex flex-col relative space-y-3">
+                                
+                                <div className="flex flex-col gap-1.5">
+                                  <h4 className="font-bold text-slate-800 dark:text-slate-100 text-[15px] leading-snug">
+                                    {group.groupName}
+                                  </h4>
+                                  {group.suitability && (
+                                    <div className={`${suitabilityBadgeBg} ${suitabilityClass} uppercase tracking-wider text-[10px] font-bold px-2 py-0.5 rounded-md inline-block w-fit`}>
+                                      {group.suitability.toUpperCase()}
                                     </div>
                                   )}
                                 </div>
-
-                                {/* Dynamic Table of weight, calories, and top 3 nutrients with no vertical stretching */}
-                                <div className="space-y-1 text-[11px] font-mono leading-tight">
-                                  <div className="flex justify-between border-b border-slate-100/30 dark:border-slate-800/20 py-0.5">
-                                    <span className="font-sans text-slate-450 dark:text-slate-500 font-medium">Weight:</span>
-                                    <span className="text-slate-900 dark:text-slate-200">{weight !== '--' ? `${weight} g` : '--'}</span>
-                                  </div>
-                                  <div className="flex justify-between border-b border-slate-100/30 dark:border-slate-800/20 py-0.5">
-                                    <span className="font-sans text-slate-450 dark:text-slate-500 font-medium">Calories:</span>
-                                    <span className="text-slate-900 dark:text-slate-200">{calories !== '--' && !String(calories).includes('kcal') ? `${calories} kcal` : calories}</span>
-                                  </div>
+                                
+                                {/* Aggregated Nutrients */}
+                                <div className="space-y-1">
+                                  {group.averageNutrients?.calories !== undefined && (
+                                    <div className="flex justify-between items-center text-xs pb-1 border-b border-slate-100 dark:border-slate-800/50">
+                                      <span className="text-slate-500">Average Calories</span>
+                                      <span className="font-bold text-slate-800 dark:text-slate-200">{group.averageNutrients.calories} kcal</span>
+                                    </div>
+                                  )}
                                   {nutrientRows.map((row: any, rIdx: number) => {
-                                    const val = row.values && row.values[idx] !== undefined ? row.values[idx] : '--';
-                                    let displayName = row.nutrient;
-                                    const lower = displayName.toLowerCase();
-                                    if (lower.includes('saturated fat')) displayName = 'Sat Fat';
-                                    else if (lower.includes('cholesterol')) displayName = 'Cholesterol';
-                                    else if (lower.includes('sodium')) displayName = 'Sodium';
-                                    else if (lower.includes('sugar')) displayName = 'Sugar';
-                                    else {
-                                      displayName = displayName.split('(')[0].trim();
-                                    }
+                                    const val = row.values[idx] !== undefined && row.values[idx] !== null ? row.values[idx] : '--';
+                                    const nutDef = nutrientDefinitions.find(n => n.key.toLowerCase() === row.nutrient.toLowerCase());
+                                    const unit = nutDef ? nutDef.unit : 'g';
+                                    const label = nutDef ? (nutDef.labels[profile?.language || 'en'] || nutDef.labels.en) : row.nutrient;
                                     return (
-                                      <div key={rIdx} className="flex justify-between border-b border-slate-100/30 dark:border-slate-800/20 py-0.5">
-                                        <span className="font-sans text-slate-450 dark:text-slate-500 font-medium truncate max-w-[100px]">{displayName}:</span>
-                                        <span className="text-slate-900 dark:text-slate-200">{val}</span>
+                                      <div key={rIdx} className="flex justify-between items-center text-xs pb-1 border-b border-slate-100 dark:border-slate-800/50">
+                                        <span className="text-slate-500">{label}</span>
+                                        <span className="font-bold text-slate-800 dark:text-slate-200">{val} {unit}</span>
                                       </div>
                                     );
                                   })}
                                 </div>
-
-                                {/* Suitability & Pro/Con with matching text-xs font sizes and no odd spacing gaps */}
-                                <div className="pt-1.5 space-y-1.5">
-                                  {recommendationText && (
-                                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-tight font-normal whitespace-pre-wrap text-left select-none">
-                                      {recommendationText}
+                                
+                                {/* Pros and Cons */}
+                                <div className="space-y-1.5 pt-1">
+                                  {group.pros && (
+                                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-tight">
+                                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">✓ Pros:</span> {group.pros}
                                     </p>
                                   )}
+                                  {group.cons && (
+                                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-tight">
+                                      <span className="font-semibold text-rose-600 dark:text-rose-400">✗ Cons:</span> {group.cons}
+                                    </p>
+                                  )}
+                                </div>
                                 
+                                {/* Items in this bucket */}
+                                <div className="pt-2 border-t border-slate-100 dark:border-slate-800/50">
+                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
+                                    Foods in this group
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {(group.items || []).map((item: any, itemIdx: number) => {
+                                      // Find a matching visual scout item for cropping as a fallback
+                                      const matchingScout = (msg.data?.scoutItems || []).find((s: any) => 
+                                        item.name.toLowerCase().includes(s.keyword.toLowerCase()) || 
+                                        s.keyword.toLowerCase().includes(item.name.toLowerCase()) ||
+                                        item.name.toLowerCase().split(' ')[0] === s.keyword.toLowerCase().split(' ')[0]
+                                      );
+
+                                      // Food picture priority: user uploaded first based on sourceImageIndex, fallback to external
+                                      const imgIdx = typeof item.sourceImageIndex === 'number' 
+                                        ? item.sourceImageIndex 
+                                        : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0);
+                                      
+                                      const resolvedImgSrc = (messageImages.length > 0)
+                                        ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
+                                        : getFoodImageUrl(item.name, '');
+
+                                      const bb = item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
+
+                                      return (
+                                        <div key={itemIdx} className="flex flex-col items-center gap-1 w-[72px]">
+                                          <div 
+                                            className="w-16 h-16 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-850 cursor-pointer shadow-sm hover:ring-2 ring-indigo-500/50 transition-all shrink-0"
+                                            onClick={() => setFullScreenImg({ src: resolvedImgSrc, boundingBox: bb })}
+                                          >
+                                            {bb ? (
+                                              <CroppedFoodImage 
+                                                src={resolvedImgSrc} 
+                                                boundingBox={bb} 
+                                                alt={item.name} 
+                                                className="w-full h-full object-cover"
+                                                imageUrls={messageImages}
+                                              />
+                                            ) : (
+                                              <img 
+                                                src={resolvedImgSrc} 
+                                                alt={item.name}
+                                                className="w-full h-full object-cover"
+                                                onError={(e) => {
+                                                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format';
+                                                }}
+                                              />
+                                            )}
+                                          </div>
+                                          <span className="text-[10px] text-center font-medium leading-tight text-slate-700 dark:text-slate-300 break-words w-full line-clamp-2">
+                                            {item.name}
+                                          </span>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
                                 </div>
 
-                                
                               </div>
                             </React.Fragment>
 
@@ -491,7 +458,6 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                         })}
                       </div>
 
-                      
                     </div>
                   )}
 

@@ -250,10 +250,10 @@ Triggered ONLY when the user asks to modify, add, or correct a weight for an ite
 MODE D: EVALUATION / COMPARISON
 Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing two snacks), OR whenever the VISUAL FOOD SCOUT Content Type is "menu_or_poster".
 - CRITICAL: Do NOT use this mode for a standard meal photo or when the user says they ate something.
-- Output specific foods, targetDbId, and weights in \`comparison.foods\` array. Rank the array best-to-worst (array order IS sort order).
-- Set "mode": "evaluation". Provide complete "comparison".
-- - MODE D1 — VISUAL COMPARISON: EXHAUSTIVE DIRECTIVE: If the Visual Scout provides multiple items (e.g. 20 items), you MUST evaluate and return EVERY SINGLE ITEM in the \`comparison.foods\` array. Do NOT skip any items. You MUST rank the items from best-to-worst recommendation. keyNutrients gets calories + 5 MOST clinically relevant fields. Full profileRecommendation per item.
-- - MODE D2 — MENU SCREENING (Content Type is "menu_or_poster"): EXHAUSTIVE DIRECTIVE: You MUST evaluate EVERY SINGLE ITEM from the VISUAL FOOD SCOUT list and include them in the \`comparison.foods\` array. Rank ALL items from best-to-worst recommendation. EVERY item gets a suitability tag, shortDescription, full keyNutrients, and a short profileRecommendation. OMIT comparisonTable entirely. Set it to null. The backend will auto-generate it. DO NOT OMIT ANY ITEMS. If the scout returned 20 items, your array MUST have exactly 20 items. Do not stop early. Do not group them.
+- EXHAUSTIVE DIRECTIVE: Group all identified food items into relevant buckets (groups) based on similar top nutrients (e.g., "Low Saturated Fat Options", "High Protein", "High Risk Items"). 
+- Instead of showing weight, calorie, sat fat for each item individually, show them as an aggregate (average) for the group. 
+- Output the specific groups in comparison.groups. Rank the groups best-to-worst.
+- For each group, provide groupName, suitability, pros, cons, averageNutrients, and an items array containing just the name, targetDbId, boundingBox2D, and sourceImageIndex of each food in the group. OMIT the comparisonTable entirely.
 
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly.
@@ -1374,8 +1374,8 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
 
     addDebugLog(`[Image Payload] Received ${imagePayloads ? imagePayloads.length : 0} image(s). Approx sizes (KB): ${imagePayloads ? imagePayloads.map(p => Math.round((p.data.length * 0.75) / 1024) + 'KB').join(', ') : 'none'}.`);
 
-    const nutrientKeys = [
-      "calories", "protein", "totalFat", "saturatedFat", "transFat", "unsaturatedFat", "omega3", 
+    const analysisNutrientKeys = [
+        "calories", "protein", "totalFat", "saturatedFat", "transFat", "unsaturatedFat", "omega3", 
       "carbohydrates", "addedSugar", "totalFibre", "solubleFibre", "sodium", "potassium", 
       "magnesium", "calcium", "iron", "zinc", "selenium", "iodine", "phosphorus", 
       "vitaminD", "vitaminB12", "folate", "vitaminC", "vitaminE", "vitaminK", 
@@ -1943,34 +1943,41 @@ CRITICAL RULES:
           properties: {
             keyNutrientConcern: { type: Type.STRING, description: "Comma-separated list of 2-3 most critical nutrients to monitor for this patient (e.g., 'Sodium, Saturated Fat, Calories')" },
             comparisonTitle: { type: Type.STRING, nullable: true },
-            foods: {
+            groups: {
               type: Type.ARRAY,
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  name: { type: Type.STRING },
-                  targetDbId: { type: Type.STRING, nullable: true, description: "Exact dbId from database matches, or null if guesstimating." },
-                  weightGrams: { type: Type.INTEGER },
+                  groupName: { type: Type.STRING },
                   suitability: { type: Type.STRING },
-                  shortDescription: { type: Type.STRING, nullable: true, description: "Short sentence on what this dish is." },
-                  keyNutrients: {
+                  pros: { type: Type.STRING },
+                  cons: { type: Type.STRING },
+                  averageNutrients: {
                     type: Type.OBJECT, nullable: true, required: ["calories"],
                     properties: { calories: { type: Type.NUMBER }, protein: { type: Type.NUMBER, nullable: true }, totalFat: { type: Type.NUMBER, nullable: true }, saturatedFat: { type: Type.NUMBER, nullable: true }, sodium: { type: Type.NUMBER, nullable: true }, carbohydrates: { type: Type.NUMBER, nullable: true }, addedSugar: { type: Type.NUMBER, nullable: true }, potassium: { type: Type.NUMBER, nullable: true }, totalFibre: { type: Type.NUMBER, nullable: true } }
                   },
-                  profileRecommendation: { type: Type.STRING, nullable: true },
-                  boundingBox2D: {
+                  items: {
                     type: Type.ARRAY,
-                    items: { type: Type.INTEGER },
-                    description: "Array of 4 integers [ymin, xmin, ymax, xmax] copied exactly from the VISUAL FOOD SCOUT block for this item. Set to null if unavailable.",
-                    nullable: true
-                  },
-                  sourceImageIndex: {
-                    type: Type.INTEGER,
-                    description: "The integer index copied exactly from the VISUAL FOOD SCOUT block. Set to null if unavailable.",
-                    nullable: true
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        name: { type: Type.STRING },
+                        targetDbId: { type: Type.STRING, nullable: true },
+                        boundingBox2D: {
+                          type: Type.ARRAY,
+                          items: { type: Type.INTEGER },
+                          nullable: true
+                        },
+                        sourceImageIndex: {
+                          type: Type.INTEGER,
+                          nullable: true
+                        }
+                      },
+                      required: ["name"]
+                    }
                   }
                 },
-                required: ["name", "weightGrams", "suitability", "profileRecommendation"]
+                required: ["groupName", "suitability", "pros", "cons", "items"]
               }
             },
             comparisonTable: {
@@ -2078,6 +2085,7 @@ You can compare up to 20 individual food items (or more if they come from the vi
       await new Promise(resolve => setTimeout(resolve, 500));
       ({ textOutput, rawParsed } = await callAndParseFoodAnalysis(llmCallArgs));
     }
+
     addDebugLog(`[RouteAgent Chat] Received response from Gemini. Length: ${textOutput.length} chars.`);
 
     const mode = rawParsed.mode || "new_log";
@@ -2096,162 +2104,19 @@ You can compare up to 20 individual food items (or more if they come from the vi
     // CASE D: evaluation mode
     if (mode === "evaluation") {
       addDebugLog(`[Mode Routing] EVALUATION mode triggered.`);
-      const comparisonData = rawParsed.comparison || { keyNutrientConcern: "Nutrients", foods: [] };
+      const comparisonData = rawParsed.comparison || { keyNutrientConcern: "Nutrients", groups: [] };
       comparisonData.isMenuScale = isMenuScale;
-
-      if (comparisonData && Array.isArray(comparisonData.foods)) {
-        addDebugLog(`[Comparison Calc] Recalculating comparisonTable programmatically for ${comparisonData.foods.length} foods.`);
-        
-        const calculatedRows: any[] = [
-          { nutrient: "Weight", values: [] as string[], target: "-" },
-          { nutrient: "Calories", values: [] as string[], target: "< 1651 kcal" },
-          { nutrient: "Saturated Fat", values: [] as string[], target: "< 15g" },
-          { nutrient: "Sodium", values: [] as string[], target: "< 1200mg" },
-          { nutrient: "Protein", values: [] as string[], target: "Balanced" },
-          { nutrient: "Carbohydrates", values: [] as string[], target: "Balanced" },
-          { nutrient: "Total Fat", values: [] as string[], target: "Balanced" }
-        ];
-
-        const cols = ["Nutrient / Aspect"];
-        
-        comparisonData.foods.forEach((food: any, idx: number) => {
-          cols.push(food.name || `Option ${idx + 1}`);
-          const weight = sanitizeMealWeight(food.weightGrams, 100);
-          food.weightGrams = weight;
-          
-          const targetDbId = food.targetDbId ? String(food.targetDbId).trim() : null;
-          
-          let cal = 0;
-          let satFat = 0;
-          let sod = 0;
-          let prot = 0;
-          let carb = 0;
-          let fat = 0;
-
-          // 1. Look up in dbMatchMap first
-          if (targetDbId && dbMatchMap.has(targetDbId)) {
-            const baseNutrients = dbMatchMap.get(targetDbId);
-            const factor = weight / 100;
-            cal = Math.round((baseNutrients.calories || 0) * factor);
-            satFat = Number(((baseNutrients.saturatedFat || 0) * factor).toFixed(1));
-            sod = Math.round((baseNutrients.sodium || 0) * factor);
-            prot = Number(((baseNutrients.protein || 0) * factor).toFixed(1));
-            carb = Number(((baseNutrients.carbohydrates || 0) * factor).toFixed(1));
-            fat = Number(((baseNutrients.totalFat || 0) * factor).toFixed(1));
-            addDebugLog(`[Comparison Calc] Calculated "${food.name}" using dbMatchMap for DB ID ${targetDbId}`);
-          } else if (food.keyNutrients) {
-            // 2. Use LLM provided keyNutrients if available
-            cal = Number(food.keyNutrients.calories) || 0;
-            satFat = Number(food.keyNutrients.saturatedFat) || 0;
-            sod = Number(food.keyNutrients.sodium) || 0;
-            prot = Number(food.keyNutrients.protein) || 0;
-            carb = Number(food.keyNutrients.carbohydrates) || 0;
-            fat = Number(food.keyNutrients.totalFat) || 0;
-            addDebugLog(`[Comparison Calc] Used LLM provided keyNutrients for "${food.name}"`);
-          } else {
-            // 3. Fallback to standard items factors
-            let cFactor = 1.5;
-            let sfFactor = 0.01;
-            let sdFactor = 1.0;
-            let pFactor = 0.10;
-            let cbFactor = 0.15;
-            let fFactor = 0.05;
-
-            const lowerName = (food.name || "").toLowerCase();
-            let matchedStandard = false;
-            for (const [key, factors] of Object.entries(STANDARD_FOOD_FACTORS)) {
-              if (lowerName.includes(key)) {
-                cFactor = factors.calories;
-                sfFactor = factors.saturatedFat;
-                sdFactor = factors.sodium;
-                pFactor = factors.protein;
-                cbFactor = factors.carbohydrates;
-                fFactor = factors.totalFat;
-                matchedStandard = true;
-                break;
-              }
-            }
-            
-            cal = Math.round(weight * cFactor);
-            satFat = Number((weight * sfFactor).toFixed(1));
-            sod = Math.round(weight * sdFactor);
-            prot = Number((weight * pFactor).toFixed(1));
-            carb = Number((weight * cbFactor).toFixed(1));
-            fat = Number((weight * fFactor).toFixed(1));
-            
-            addDebugLog(`[Comparison Calc] Calculated "${food.name}" using ${matchedStandard ? "standard items factors" : "generic default factors"}`);
-          }
-
-          calculatedRows[0].values.push(String(weight));
-          calculatedRows[1].values.push(`${cal} kcal`);
-          calculatedRows[2].values.push(`${satFat} g`);
-          calculatedRows[3].values.push(`${sod} mg`);
-          calculatedRows[4].values.push(`${prot} g`);
-          calculatedRows[5].values.push(`${carb} g`);
-          calculatedRows[6].values.push(`${fat} g`);
-
-          // Ensure food.keyNutrients contains all calculated/fallback core nutrients
-          if (!food.keyNutrients) food.keyNutrients = {};
-          food.keyNutrients.calories = cal;
-          food.keyNutrients.saturatedFat = satFat;
-          food.keyNutrients.sodium = sod;
-          food.keyNutrients.protein = prot;
-          food.keyNutrients.carbohydrates = carb;
-          food.keyNutrients.totalFat = fat;
-        });
-
-        cols.push("Target / Goal");
-
-        comparisonData.comparisonTable = {
-          columns: cols,
-          rows: calculatedRows
-        };
-        comparisonData.comparisonTableYaml = comparisonData.comparisonTable;
-      }
-
+      
       return res.json({
         mode: "evaluation",
-        text: rawParsed.message || "Here is the comparison between the options.",
         comparison: comparisonData,
+        scoutItems: visionScoutItems, // ensure the client has the bounding boxes
         agentPrompt: fullPromptSent,
-        scoutItems: visionScoutItems || []
+        message: rawParsed.message
       });
     }
 
-    // CASE A: new food logging mode
-    if (mode === "new_log") {
-      const rawFoodData = rawParsed.foodData;
-      if (!rawFoodData) {
-        throw new Error("No foodData returned by LLM in new_log mode.");
-      }
-
-      function nutrientsFromDbMatch(dbMatch: any, weightGrams: number): Record<string, number> {
-        let calVal = 0;
-        if (dbMatch.calories !== undefined && dbMatch.calories !== null) {
-          const calStr = String(dbMatch.calories).trim().toLowerCase();
-          if (calStr.endsWith("kj")) {
-            calVal = parseFloat(calStr) / 4.184;
-          } else {
-            calVal = parseFloat(calStr) || 0;
-          }
-        }
-        const per100 = {
-          calories: calVal,
-          protein: parseFloat(dbMatch.protein) || 0,
-          totalFat: parseFloat(dbMatch.fat) || 0,
-          saturatedFat: parseFloat(dbMatch.saturatedFat) || 0,
-          sodium: parseFloat(dbMatch.sodium) || 0,
-        };
-        
-        const ratio = weightGrams / 100;
-        return {
-          calories: Math.round(per100.calories * ratio),
-          protein: parseFloat((per100.protein * ratio).toFixed(2)),
-          totalFat: parseFloat((per100.totalFat * ratio).toFixed(2)),
-          saturatedFat: parseFloat((per100.saturatedFat * ratio).toFixed(2)),
-          sodium: Math.round(per100.sodium * ratio),
-        };
-      }
+      
 
       if (!rawFoodData.itemsBreakdown || rawFoodData.itemsBreakdown.length === 0) {
         // Build itemsBreakdown from Vision Scout output + best DB match per item
@@ -2316,7 +2181,7 @@ You can compare up to 20 individual food items (or more if they come from the vi
       parsedData.scoutConfidenceRating = sanitizeString(rawFoodData.scoutConfidenceRating, scoutConfidenceRating || "High (>90%)");
       parsedData.scoutConfidenceComment = rawFoodData.scoutConfidenceComment !== undefined ? sanitizeString(rawFoodData.scoutConfidenceComment, "") : (scoutConfidenceComment || "");
 
-      const nutrientKeys = [
+      const evaluationNutrientKeys = [
         "calories", "protein", "totalFat", "saturatedFat", "transFat", "unsaturatedFat", "omega3", 
         "carbohydrates", "addedSugar", "totalFibre", "solubleFibre", "sodium", "potassium", 
         "magnesium", "calcium", "iron", "zinc", "selenium", "iodine", "phosphorus", 
@@ -2326,7 +2191,7 @@ You can compare up to 20 individual food items (or more if they come from the vi
 
       // Initialize all nutrients to 0
       parsedData.nutrients = {};
-      for (const key of nutrientKeys) {
+      for (const key of evaluationNutrientKeys) {
         parsedData.nutrients[key] = 0;
       }
 
