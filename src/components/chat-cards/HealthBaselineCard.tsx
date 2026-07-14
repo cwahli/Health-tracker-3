@@ -118,7 +118,6 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
           <div 
             ref={scrollContainerRef}
             onScroll={handleScroll}
-            style={{ touchAction: 'pan-x' }}
             className="flex overflow-x-auto space-x-4 pb-4 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
           >
             {riskCategories.map((category: any, idx: number) => {
