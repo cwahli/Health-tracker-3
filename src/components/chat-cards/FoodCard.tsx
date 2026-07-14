@@ -7,6 +7,8 @@ import { NutrientPieChart } from '../NutrientPieChart';
 import { nutrientDefinitions } from '../../utils/nutrition';
 import { FoodLog } from '../../types';
 import { resolveFoodImage } from '../../utils/imageResolver';
+import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+import { ZoomableImage } from '../ZoomableImage';
 
 interface CroppedFoodImageProps {
   src: string;
@@ -27,7 +29,8 @@ export const CroppedFoodImage: React.FC<CroppedFoodImageProps> = ({
   imageUrls,
   sourceImageIndex
 }) => {
-  const [croppedSrc, setCroppedSrc] = React.useState<string | null>(null);
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
+  const [error, setError] = React.useState<boolean>(false);
 
   const baseImageSrc = React.useMemo(() => {
     if (imageUrls && imageUrls.length > 0 && typeof sourceImageIndex === 'number' && sourceImageIndex >= 0 && sourceImageIndex < imageUrls.length) {
@@ -38,22 +41,23 @@ export const CroppedFoodImage: React.FC<CroppedFoodImageProps> = ({
 
   React.useEffect(() => {
     if (!baseImageSrc || !boundingBox || boundingBox.length !== 4) {
-      setCroppedSrc(null);
+      setError(true);
       return;
     }
-
+    
+    setError(false);
     const img = new Image();
-    if (baseImageSrc && !baseImageSrc.startsWith('data:') && !baseImageSrc.startsWith('blob:')) {
-      img.crossOrigin = 'anonymous'; 
-    }
+    if (baseImageSrc.startsWith('http')) { img.crossOrigin = 'anonymous'; }
+    
     img.onload = () => {
       try {
-        const canvas = document.createElement('canvas');
+        const canvas = canvasRef.current;
+        if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-
-        const [ymin, xmin, ymax, xmax] = boundingBox;
         
+        const [ymin, xmin, ymax, xmax] = boundingBox;
+            
         // Coordinates are normalized 0-1000
         const x = (xmin / 1000) * img.naturalWidth;
         const y = (ymin / 1000) * img.naturalHeight;
@@ -62,36 +66,69 @@ export const CroppedFoodImage: React.FC<CroppedFoodImageProps> = ({
 
         // Ensure we don't have zero dimensions
         if (width <= 0 || height <= 0) {
-          setCroppedSrc(baseImageSrc);
+          setError(true);
           return;
         }
 
         canvas.width = width;
         canvas.height = height;
         ctx.drawImage(img, x, y, width, height, 0, 0, width, height);
-
-        setCroppedSrc(canvas.toDataURL('image/jpeg', 0.9));
       } catch (err) {
-        console.error('Error cropping image:', err);
-        // Fallback to original image if cropping fails
-        setCroppedSrc(baseImageSrc);
+        console.error('Error drawing image:', err);
+        setError(true);
       }
     };
     img.onerror = () => {
-      setCroppedSrc(baseImageSrc);
+      setError(true);
     };
     img.src = baseImageSrc;
   }, [baseImageSrc, boundingBox]);
 
-  const displaySrc = croppedSrc || baseImageSrc;
+  if (error) {
+    if (!boundingBox || boundingBox.length !== 4) {
+      return (
+        <img 
+          src={baseImageSrc} 
+          alt={alt} 
+          className={className}
+          referrerPolicy="no-referrer"
+          onClick={onTap}
+        />
+      );
+    }
+    const [ymin, xmin, ymax, xmax] = boundingBox;
+    const top = ymin / 10;
+    const left = xmin / 10;
+    const height = Math.max((ymax - ymin) / 10, 1);
+    const width = Math.max((xmax - xmin) / 10, 1);
+    const scaleX = 100 / width;
+    const scaleY = 100 / height;
+    
+    return (
+      <div className={`overflow-hidden relative ${className || ''}`} onClick={onTap} title={alt}>
+        <img 
+          src={baseImageSrc} 
+          alt={alt}
+          referrerPolicy="no-referrer"
+          className="absolute max-w-none"
+          style={{
+            top: `-${top * scaleY}%`,
+            left: `-${left * scaleX}%`,
+            width: `${100 * scaleX}%`,
+            height: `${100 * scaleY}%`,
+            objectFit: 'fill'
+          }}
+        />
+      </div>
+    );
+  }
 
   return (
-    <img 
-      src={displaySrc} 
-      alt={alt} 
+    <canvas 
+      ref={canvasRef}
       className={className}
-      referrerPolicy="no-referrer"
       onClick={onTap}
+      title={alt}
     />
   );
 };
@@ -172,7 +209,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
 }) => {
   const [expandedTables, setExpandedTables] = React.useState<Record<string, boolean>>({});
   const [expandedScouts, setExpandedScouts] = React.useState<Record<string, boolean>>({});
-  const [fullScreenImg, setFullScreenImg] = React.useState<string | null>(null);
+  const [fullScreenImg, setFullScreenImg] = React.useState<{ src: string, boundingBox?: number[] } | null>(null);
 
   if (msg.agentType !== 'food') return null;
 
@@ -242,13 +279,13 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                     <div className="space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden bg-transparent">
                       <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2 gap-2">
                         <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm break-words flex flex-wrap items-center gap-1.5 w-full">
-                          <span className="shrink-0">⚖️ Comparison:</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold break-words">{msg.data?.agentResult.comparison.keyNutrientConcern || 'Nutrients of Concern'}</span>
+                          <span className="shrink-0">⚖️ Comparison:</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold break-words">{msg.data?.agentResult.comparison.comparisonTitle || msg.data?.agentResult.comparison.keyNutrientConcern || 'Nutrients of Concern'}</span>
                         </h4>
                       </div>
 
                       {/* Foods Comparison Cards - Horizontally Scrollable (200px wide, borderless, separated by vertical dividers with 10px spacing) */}
-                      <div className="flex gap-0 mt-2 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full">
-                        {(msg.data?.agentResult.comparison.foods || []).slice(0, msg.data?.agentResult.comparison.isMenuScale ? 3 : undefined).map((food: any, idx: number) => {
+                      <div className="flex gap-0 mt-2 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full overscroll-x-contain">
+                        {(msg.data?.agentResult.comparison.foods || []).map((food: any, idx: number) => {
                           const lowerSuit = String(food.suitability || '').toLowerCase();
                           const isBest = lowerSuit.includes('safe') || lowerSuit.includes('best') || lowerSuit.includes('recommended') || lowerSuit.includes('good') || lowerSuit.includes('perfect');
                           
@@ -296,14 +333,47 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                           const weight = food.weightGrams || getNutrientFromTable(yamlTable, 'weight', idx) || '--';
                           const calories = food.keyNutrients?.calories ?? (getNutrientFromTable(yamlTable, 'calories', idx) || getNutrientFromTable(yamlTable, 'energy', idx) || '--');
                           
+                          
+                          const concern = (msg.data?.agentResult.comparison.keyNutrientConcern || '').toLowerCase();
+                          // Variable for profile's top nutrients to monitor (can be adjusted later)
+                          const PROFILE_TOP_NUTRIENTS = ['saturatedfat', 'sodium'];
+                          
                           const nutrientRows = food.keyNutrients 
                             ? Object.entries(food.keyNutrients)
                                 .filter(([k,v]) => k !== 'calories' && v !== null && v !== undefined)
-                                .map(([k,v]) => ({ nutrient: k, values: [v] })).slice(0, 5)
+                                .filter(([k,v]) => {
+                                  const kLower = k.toLowerCase().replace(/\s+/g, '');
+                                  const inConcern = concern.includes(kLower.replace('total', '')) || (kLower === 'sodium' && concern.includes('sod')) || (kLower === 'saturatedfat' && concern.includes('sat'));
+                                  const isTop = PROFILE_TOP_NUTRIENTS.some(n => kLower.includes(n));
+                                  return inConcern || isTop || kLower === 'protein';
+                                })
+                                .sort((a, b) => {
+                                  const aLower = a[0].toLowerCase().replace(/\s+/g, '');
+                                  const bLower = b[0].toLowerCase().replace(/\s+/g, '');
+                                  
+                                  const aConcern = concern.includes(aLower.replace('total', '')) || (aLower === 'sodium' && concern.includes('sod')) || (aLower === 'saturatedfat' && concern.includes('sat'));
+                                  const bConcern = concern.includes(bLower.replace('total', '')) || (bLower === 'sodium' && concern.includes('sod')) || (bLower === 'saturatedfat' && concern.includes('sat'));
+                                  
+                                  if (aConcern && !bConcern) return -1;
+                                  if (!aConcern && bConcern) return 1;
+                                  
+                                  const aTop = PROFILE_TOP_NUTRIENTS.some(n => aLower.includes(n));
+                                  const bTop = PROFILE_TOP_NUTRIENTS.some(n => bLower.includes(n));
+                                  if (aTop && !bTop) return -1;
+                                  if (!aTop && bTop) return 1;
+                                  
+                                  return 0;
+                                })
+                                .map(([k,v]) => {
+                                  const vals: any[] = [];
+                                  vals[idx] = v;
+                                  return { nutrient: k, values: vals };
+                                }).slice(0, 3)
                             : (yamlTable?.rows || []).filter((row: any) => {
                                 const name = String(row.nutrient || '').toLowerCase();
                                 return !name.includes('calories') && !name.includes('energy') && !name.includes('pros') && !name.includes('cons') && !name.includes('weight');
-                              }).slice(0, 5);
+                              }).slice(0, 3);
+
 
                           const recommendationText = food.profileRecommendation || 
                             (food.pros || food.cons 
@@ -319,7 +389,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                 {/* Food Image Box - tap triggers full screen */}
                                 <div 
                                   className="w-full h-28 overflow-hidden rounded-lg relative bg-slate-100 dark:bg-slate-850 cursor-pointer hover:opacity-90 transition-opacity"
-                                  onClick={() => setFullScreenImg(resolvedImgSrc)}
+                                  onClick={() => setFullScreenImg({ src: resolvedImgSrc, boundingBox: food.boundingBox2D })}
                                 >
                                                                   {food.boundingBox2D ? (
                                     <CroppedFoodImage 
@@ -410,125 +480,28 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                       {recommendationText}
                                     </p>
                                   )}
+                                
                                 </div>
+
+                                
                               </div>
                             </React.Fragment>
+
                           );
                         })}
                       </div>
 
-                      {/* Ranked Compact List for Menu Mode (Items 4+) */}
-                      {msg.data?.agentResult.comparison.isMenuScale && msg.data?.agentResult.comparison.foods?.length > 3 && (
-                        <div className="mt-4 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-                          <div className="px-3 py-2 bg-slate-50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-800">
-                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Remaining Menu Options (Ranked)</span>
-                          </div>
-                          <div className="divide-y divide-slate-100 dark:divide-slate-800 max-h-[400px] overflow-y-auto">
-                            {msg.data.agentResult.comparison.foods.slice(3).map((food: any, idx: number) => (
-                              <div key={idx + 3} className="p-3 flex flex-col gap-1">
-                                <div className="flex justify-between items-start gap-2">
-                                  <span className="font-bold text-sm text-slate-900 dark:text-slate-100 leading-tight">{idx + 4}. {food.name}</span>
-                                  {food.suitability && (
-                                    <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                                      {food.suitability}
-                                    </span>
-                                  )}
-                                </div>
-                                {food.shortDescription && <span className="text-xs text-slate-500 dark:text-slate-400">{food.shortDescription}</span>}
-                                {food.profileRecommendation && <span className="text-xs text-slate-600 dark:text-slate-300 mt-1">{food.profileRecommendation}</span>}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Side-by-Side Comparison Matrix with highlighted suitability row */}
-                      {msg.data?.agentResult.comparison && (msg.data?.agentResult.comparison.comparisonTable || msg.data?.agentResult.comparison.comparisonTableYaml) && (
-                        <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/30 dark:bg-slate-900/10 mt-3 text-left">
-                          <div className="px-3 py-1.5 bg-slate-100/70 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
-                            <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                              📊 Side-by-Side Comparison Matrix
-                            </span>
-                          </div>
-                          <div className="p-0 overflow-x-auto">
-                            <table className="w-full text-[11px] text-left border-collapse">
-                              <thead className="bg-slate-50 dark:bg-slate-900 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-800">
-                                <tr>
-                                  <th className="px-3 py-2 font-bold text-slate-600 dark:text-slate-300 font-mono text-[10px] tracking-wider uppercase whitespace-nowrap">Nutrient / Aspect</th>
-                                  {(msg.data?.agentResult.comparison.foods || []).map((food: any, i: number) => (
-                                    <th key={i} className="px-3 py-2 font-bold text-slate-600 dark:text-slate-300 font-mono text-[10px] tracking-wider uppercase whitespace-nowrap">{food.name}</th>
-                                  ))}
-                                  <th className="px-3 py-2 font-bold text-slate-600 dark:text-slate-300 font-mono text-[10px] tracking-wider uppercase whitespace-nowrap">Target</th>
-                                </tr>
-                              </thead>
-                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                                {/* Highlighted Dietitian Suitability Row */}
-                                <tr className="bg-indigo-50/50 dark:bg-indigo-950/20 border-b border-indigo-100 dark:border-indigo-950/40">
-                                  <td className="px-3 py-2 whitespace-nowrap font-bold text-indigo-900 dark:text-indigo-200">
-                                    ✨ Suitability Verdict
-                                  </td>
-                                  {(msg.data?.agentResult.comparison.foods || []).map((food: any, i: number) => {
-                                    const suitability = food.suitability || 'N/A';
-                                    const lowerSuit = suitability.toLowerCase();
-                                    let badgeClass = "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200";
-                                    if (lowerSuit.includes('good') || lowerSuit.includes('safe') || lowerSuit.includes('best') || lowerSuit.includes('low risk') || lowerSuit.includes('ideal') || lowerSuit.includes('recommend')) {
-                                      badgeClass = "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200/20";
-                                    } else if (lowerSuit.includes('moderate') || lowerSuit.includes('medium') || lowerSuit.includes('caution') || lowerSuit.includes('warning') || lowerSuit.includes('amber')) {
-                                      badgeClass = "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/20";
-                                    } else if (lowerSuit.includes('bad') || lowerSuit.includes('avoid') || lowerSuit.includes('high risk') || lowerSuit.includes('severe') || lowerSuit.includes('red') || lowerSuit.includes('restrict')) {
-                                      badgeClass = "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300 border border-rose-200/20";
-                                    }
-                                    return (
-                                      <td key={i} className="px-3 py-2 whitespace-nowrap">
-                                        <span className={`inline-block px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${badgeClass}`}>
-                                          {suitability}
-                                        </span>
-                                      </td>
-                                    );
-                                  })}
-                                  <td className="px-3 py-2 whitespace-nowrap text-indigo-600 dark:text-indigo-400 font-bold font-mono text-[10px]">
-                                    Goal Target
-                                  </td>
-                                </tr>
-
-                                {((msg.data?.agentResult.comparison.comparisonTable || msg.data?.agentResult.comparison.comparisonTableYaml).rows || []).map((row: any, idx: number) => (
-                                  <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 group">
-                                    <td className="px-3 py-1.5 whitespace-nowrap font-bold text-slate-900 dark:text-slate-150">{row.nutrient}</td>
-                                    {(row.values || []).map((val: string, vIdx: number) => (
-                                      <td key={vIdx} className="px-3 py-1.5 whitespace-nowrap font-medium text-slate-700 dark:text-slate-300 group-hover:text-slate-900 dark:group-hover:text-slate-100">{val}</td>
-                                    ))}
-                                    <td className="px-3 py-1.5 whitespace-nowrap text-amber-600 dark:text-amber-400 font-bold">{row.target}</td>
-                                  </tr>
-                                ))}
-                              </tbody>
-                            </table>
-                          </div>
-                        </div>
-                      )}
+                      
                     </div>
                   )}
 
       {/* Full-screen image preview overlay modal */}
       {fullScreenImg && (
-        <div 
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/90 backdrop-blur-md transition-all duration-300"
-          onClick={() => setFullScreenImg(null)}
-        >
-          <div className="relative max-w-[90vw] max-h-[90vh] flex flex-col items-center justify-center">
-            <img 
-              src={fullScreenImg} 
-              alt="Full screen preview" 
-              className="max-w-full max-h-[80vh] rounded-xl object-contain border border-slate-800 shadow-2xl"
-              referrerPolicy="no-referrer"
-            />
-            <button 
-              onClick={() => setFullScreenImg(null)}
-              className="mt-4 px-5 py-2 bg-slate-900/80 hover:bg-slate-800 text-white rounded-full font-bold text-xs border border-slate-700 shadow-md transition-all cursor-pointer"
-            >
-              Close Preview
-            </button>
-          </div>
-        </div>
+        <ZoomableImage 
+          src={fullScreenImg.src} 
+          boundingBox={fullScreenImg.boundingBox}
+          onClose={() => setFullScreenImg(null)}
+        />
       )}
 
                   {msg.data?.pendingFoodLog && (
@@ -643,7 +616,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                         boundingBox={item.boundingBox2D} 
                                         alt={item.originalName || item.keyword} 
                                         className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
-                                        onTap={() => setFullScreenImg(resolvedImgSrc)}
+                                        onTap={() => setFullScreenImg({ src: resolvedImgSrc, boundingBox: item.boundingBox2D })}
                                         imageUrls={messageImages}
                                         sourceImageIndex={item.sourceImageIndex}
                                       />
@@ -653,7 +626,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                         alt={item.originalName || item.keyword} 
                                         className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
                                         referrerPolicy="no-referrer"
-                                        onClick={() => setFullScreenImg(resolvedImgSrc)}
+                                        onClick={() => setFullScreenImg({ src: resolvedImgSrc })}
                                       />
                                     )}
                                   </div>
@@ -892,6 +865,8 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                 </div>
                               )}
 
+                              
+                              
                               {/* B. Full 31-nutrient table */}
                               <div className="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
                                 <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">

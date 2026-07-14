@@ -49,6 +49,7 @@ export interface AgentAnalysis {
 }
 
 export interface UserProfile {
+  topNutrientsToMonitor?: string[];
   nickname: string;
   photoUrl: string;
   email: string;

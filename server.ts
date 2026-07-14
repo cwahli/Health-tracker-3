@@ -230,9 +230,10 @@ TRANS FAT AVOIDANCE: Trans fat (partially hydrogenated oils) is universally harm
 Operate in one of four distinct modes based on current user intent:
 
 MODE A: NEW FOOD LOGGING 
-- Triggered by a completely new food item description or image. Ignore CURRENT_ACTIVE_MEAL_STATE.
+- Triggered by a completely new food item description or image of a meal they ate/want to eat. Ignore CURRENT_ACTIVE_MEAL_STATE.
 - Extract ingredients, estimate weights, and provide the "foodData" block. Set "mode": "new_log".
-- CRITICAL: If the user enters a single food item name or description (e.g., "cheese", "macaroni", "bread") without explicitly asking to compare, add to comparison, or evaluate options, you MUST treat it as a new food entry and use MODE A (NEW FOOD LOGGING). Do NOT automatically trigger a comparison or add it to a previous comparison unless the user explicitly requests a comparison or uses comparison terms (like 'better than', 'versus', 'compare', 'or').
+- CRITICAL: If the user uploads a picture of a meal (e.g. a plate with steak, potatoes, veggies), you MUST treat it as a single meal entry and use MODE A (NEW FOOD LOGGING). Combine the components into the itemsBreakdown array. DO NOT use MODE D (EVALUATION/COMPARISON) to compare the items on the plate unless the user explicitly asks to compare them or choose the best option.
+- CRITICAL: If the user enters a single food item name or phrase like "I ate this steak" without explicitly asking to compare, you MUST use MODE A.
 
 MODE B: DISCUSSION 
 - Triggered by general health questions, or if the user's message/query is NOT relevant to food, nutrition, or health. Set "mode": "discussion". Set structural data to null.
@@ -247,11 +248,12 @@ Triggered ONLY when the user asks to modify, add, or correct a weight for an ite
 - Set "mode": "modify". Populate the "modificationCommand" array. Set foodData and comparison to null.
 
 MODE D: EVALUATION / COMPARISON
-Triggered when evaluating alternative foods, changing active item weights, OR whenever the VISUAL FOOD SCOUT Content Type is "menu_or_poster".
+Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing two snacks), OR whenever the VISUAL FOOD SCOUT Content Type is "menu_or_poster".
+- CRITICAL: Do NOT use this mode for a standard meal photo or when the user says they ate something.
 - Output specific foods, targetDbId, and weights in \`comparison.foods\` array. Rank the array best-to-worst (array order IS sort order).
 - Set "mode": "evaluation". Provide complete "comparison".
-- MODE D1 — VISUAL COMPARISON (Content Type is "individual_food_items", typically 2-20 items): keyNutrients gets calories + 5 MOST clinically relevant fields (6 total). Full 1-2 paragraph profileRecommendation per item. Include comparisonTable ONLY if comparing 6 or fewer items.
-- MODE D2 — MENU SCREENING (Content Type is "menu_or_poster" or >10 items): Rank ALL items. EVERY item gets suitability tag and shortDescription. Only TOP 3 ranked picks (indices 0-2) get keyNutrients and full profileRecommendation. Indices 3+ get null keyNutrients and ONE short sentence profileRecommendation. NEVER include comparisonTable.
+- - MODE D1 — VISUAL COMPARISON: EXHAUSTIVE DIRECTIVE: If the Visual Scout provides multiple items (e.g. 20 items), you MUST evaluate and return EVERY SINGLE ITEM in the \`comparison.foods\` array. Do NOT skip any items. You MUST rank the items from best-to-worst recommendation. keyNutrients gets calories + 5 MOST clinically relevant fields. Full profileRecommendation per item.
+- - MODE D2 — MENU SCREENING (Content Type is "menu_or_poster"): EXHAUSTIVE DIRECTIVE: You MUST evaluate EVERY SINGLE ITEM from the VISUAL FOOD SCOUT list and include them in the \`comparison.foods\` array. Rank ALL items from best-to-worst recommendation. EVERY item gets a suitability tag, shortDescription, full keyNutrients, and a short profileRecommendation. OMIT comparisonTable entirely. Set it to null. The backend will auto-generate it. DO NOT OMIT ANY ITEMS. If the scout returned 20 items, your array MUST have exactly 20 items. Do not stop early. Do not group them.
 
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly.
@@ -302,7 +304,8 @@ Respond ONLY with a structured JSON format matching this schema exactly.
     "recommendation": "Short, contextual tag indicating core health property."
   },
   "comparison": {
-    "keyNutrientConcern": "The specific nutrient string causing primary clinical concern",
+    "keyNutrientConcern": "Comma-separated list of 2-3 most critical nutrients to monitor for this patient (e.g., 'Sodium, Saturated Fat, Calories')",
+    "comparisonTitle": "A short 2-4 word title for this comparison (e.g., 'Nutrients of Concern')", 
     "foods": [
       {
         "name": "Food option item name",
@@ -310,6 +313,14 @@ Respond ONLY with a structured JSON format matching this schema exactly.
         "weightGrams": 120,
         "suitability": "Short tag (e.g., 'Safest option', 'Moderate risk')",
         "profileRecommendation": "A personalized clinical recommendation.",
+        "keyNutrients": {
+          "calories": 0,
+          "protein": 0,
+          "totalFat": 0,
+          "saturatedFat": 0,
+          "carbohydrates": 0,
+          "sodium": 0
+        },
         "boundingBox2D": [0,0,0,0],
         "sourceImageIndex": 0
       }
@@ -1590,6 +1601,7 @@ STEP 2 — DATA EXTRACTION & LOCALIZATION:
 - For product/price labels (type a): Read EXACT food name and weight.
 - For Nutrition Facts labels (type b): Save EXACT raw figures inside "rawNutritionLabel".
 - For food photos (type c): Identify food items, output English keyword and estimated weight.
+- LOCALIZATION: For EVERY item identified, provide a 2D bounding box [ymin, xmin, ymax, xmax] (0-1000 scale).
 - For menus/posters (type e): Extract EVERY distinct menu item or combo listed. Estimate weights based on standard restaurant portion sizing. Draw a tight individual bounding box around each item's specific thumbnail image or text block.
 - CONTENT TYPE: Set "contentType" to "menu_or_poster" if the majority of images are type (e), otherwise "individual_food_items".
 
@@ -1683,7 +1695,7 @@ CRITICAL RULES:
     const cleanQuery = (raw: string) => raw.replace(/\s*\(.*?\)\s*/g, '').replace(/\b(raw|fresh|cooked)\s+/i, '').trim();
 
     const hasImage = imagePayloads && imagePayloads.length > 0;
-    const isMenuScale = scoutContentType === "menu_or_poster" || visionScoutItems.length > 10;
+    const isMenuScale = scoutContentType === "menu_or_poster";
     const shouldRunDbSearch = !isWeightModification && !isMenuScale && (visionScoutRanAndReturnedItems || (!hasImage && queriesToSearch.length > 0));
     if (shouldRunDbSearch && queriesToSearch.length > 0) {
       addDebugLog(`[Database Search] Performing USDA & OFF searches for queries: ${JSON.stringify(queriesToSearch)}`);
@@ -1929,7 +1941,8 @@ CRITICAL RULES:
         comparison: {
           type: Type.OBJECT,
           properties: {
-            keyNutrientConcern: { type: Type.STRING },
+            keyNutrientConcern: { type: Type.STRING, description: "Comma-separated list of 2-3 most critical nutrients to monitor for this patient (e.g., 'Sodium, Saturated Fat, Calories')" },
+            comparisonTitle: { type: Type.STRING, nullable: true },
             foods: {
               type: Type.ARRAY,
               items: {
@@ -1963,6 +1976,7 @@ CRITICAL RULES:
             comparisonTable: {
               type: Type.OBJECT,
               nullable: true,
+              description: "Set to null. Backend auto-generates this.",
               properties: {
                 columns: { type: Type.ARRAY, items: { type: Type.STRING } },
                 rows: {
@@ -1999,7 +2013,7 @@ ${visionScoutCtx}
 ${databaseMatchesCtx}
 Current User Input: "${message}"
 
-You can compare up to 20 individual food items (MODE D1), or up to 100 items when screening a menu (MODE D2). Follow MODE D1/D2 depth rules exactly. comparisonTable rows must use a 'values' array (not foodA/foodB). Always include the top most clinically relevant nutrient rows for the patient's biomarker context.`;
+You can compare up to 20 individual food items (or more if they come from the visual scout). You MUST evaluate EVERY item provided by the scout and rank them by recommendation.`;
 
     const fullPromptSent = `System Instruction:\n${finalSystemInstruction}\n\n${promptText}`;
     addDebugLog(`[RouteAgent Chat] Sending request to Gemini...`);
@@ -2085,13 +2099,7 @@ You can compare up to 20 individual food items (MODE D1), or up to 100 items whe
       const comparisonData = rawParsed.comparison || { keyNutrientConcern: "Nutrients", foods: [] };
       comparisonData.isMenuScale = isMenuScale;
 
-      if (isMenuScale && comparisonData && Array.isArray(comparisonData.foods)) {
-        comparisonData.foods.forEach((food: any, idx: number) => {
-          food.weightGrams = sanitizeMealWeight(food.weightGrams, 100);
-          if (idx >= 3) food.keyNutrients = null;
-        });
-        comparisonData.comparisonTable = null;
-      } else if (comparisonData && Array.isArray(comparisonData.foods)) {
+      if (comparisonData && Array.isArray(comparisonData.foods)) {
         addDebugLog(`[Comparison Calc] Recalculating comparisonTable programmatically for ${comparisonData.foods.length} foods.`);
         
         const calculatedRows: any[] = [
@@ -2131,8 +2139,17 @@ You can compare up to 20 individual food items (MODE D1), or up to 100 items whe
             carb = Number(((baseNutrients.carbohydrates || 0) * factor).toFixed(1));
             fat = Number(((baseNutrients.totalFat || 0) * factor).toFixed(1));
             addDebugLog(`[Comparison Calc] Calculated "${food.name}" using dbMatchMap for DB ID ${targetDbId}`);
+          } else if (food.keyNutrients) {
+            // 2. Use LLM provided keyNutrients if available
+            cal = Number(food.keyNutrients.calories) || 0;
+            satFat = Number(food.keyNutrients.saturatedFat) || 0;
+            sod = Number(food.keyNutrients.sodium) || 0;
+            prot = Number(food.keyNutrients.protein) || 0;
+            carb = Number(food.keyNutrients.carbohydrates) || 0;
+            fat = Number(food.keyNutrients.totalFat) || 0;
+            addDebugLog(`[Comparison Calc] Used LLM provided keyNutrients for "${food.name}"`);
           } else {
-            // 2. Fallback to standard items factors
+            // 3. Fallback to standard items factors
             let cFactor = 1.5;
             let sfFactor = 0.01;
             let sdFactor = 1.0;
@@ -2172,6 +2189,15 @@ You can compare up to 20 individual food items (MODE D1), or up to 100 items whe
           calculatedRows[4].values.push(`${prot} g`);
           calculatedRows[5].values.push(`${carb} g`);
           calculatedRows[6].values.push(`${fat} g`);
+
+          // Ensure food.keyNutrients contains all calculated/fallback core nutrients
+          if (!food.keyNutrients) food.keyNutrients = {};
+          food.keyNutrients.calories = cal;
+          food.keyNutrients.saturatedFat = satFat;
+          food.keyNutrients.sodium = sod;
+          food.keyNutrients.protein = prot;
+          food.keyNutrients.carbohydrates = carb;
+          food.keyNutrients.totalFat = fat;
         });
 
         cols.push("Target / Goal");
@@ -2187,7 +2213,8 @@ You can compare up to 20 individual food items (MODE D1), or up to 100 items whe
         mode: "evaluation",
         text: rawParsed.message || "Here is the comparison between the options.",
         comparison: comparisonData,
-        agentPrompt: fullPromptSent
+        agentPrompt: fullPromptSent,
+        scoutItems: visionScoutItems || []
       });
     }
 
