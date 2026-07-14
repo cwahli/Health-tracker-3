@@ -3975,7 +3975,6 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
     sortedHistory.forEach((log: any) => {
       if (log.biomarkers) {
         Object.keys(log.biomarkers).forEach(key => {
-          if (key === 'steps') return;
           if (!biomarkerHistories[key]) biomarkerHistories[key] = [];
           if (biomarkerHistories[key].length < 5) {
             biomarkerHistories[key].push({ date: log.date, val: log.biomarkers[key] });
@@ -4000,8 +3999,7 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
         const medicalInsight = calibrated?.specificRiskContext || calibrated?.description || customDef?.specificRiskContext || customDef?.description || customDef?.benefitRisk || def?.benefitRisk || "No specific medical insight defined.";
         
         const meta = getBiomarkerMetadata(key, customDef);
-        let group = customDef?.standardMedicalGrouping || meta.standardMedicalGrouping || 'Uncategorized';
-        let risks = [group];
+        let risks = meta.riskCategories && meta.riskCategories.length > 0 ? meta.riskCategories : ['Uncategorized'];
         
         const calibSource = customDef?.calibrationSource ? ` (Calibrated to: ${customDef.calibrationSource})` : "";
         
