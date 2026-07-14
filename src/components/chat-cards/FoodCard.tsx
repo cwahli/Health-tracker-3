@@ -98,6 +98,11 @@ const getFoodImageUrl = (foodName: string, suppliedUrl?: string) => {
   
   const name = foodName.toLowerCase();
   
+  // Specific category: Pepper, Spices, Seasonings, Herbs
+  if (name.includes('pepper') || name.includes('spice') || name.includes('chili') || name.includes('salt') || name.includes('seasoning') || name.includes('powder') || name.includes('herb') || name.includes('curry')) {
+    return "https://images.unsplash.com/photo-1506368249639-73a05d6f6488?w=400&auto=format&fit=crop&q=60";
+  }
+
   // High-quality handpicked Unsplash food images for common categories
   if (name.includes('cheese') || name.includes('cheddar') || name.includes('mozzarella') || name.includes('dairy')) {
     return "https://images.unsplash.com/photo-1486299267070-83823f5448dd?w=400&auto=format&fit=crop&q=60";
@@ -136,6 +141,25 @@ const getFoodImageUrl = (foodName: string, suppliedUrl?: string) => {
     return "https://images.unsplash.com/photo-1519985176271-adb1088fa94c?w=400&auto=format&fit=crop&q=60";
   }
   
+  // Dynamic Host/User Timezone & Locale based fallback
+  try {
+    const tz = Intl.DateTimeFormat().resolvedOptions().timeZone.toLowerCase();
+    
+    // East Asia, Southeast Asia, South Asia, Europe etc. fallback
+    if (tz.includes('tokyo') || tz.includes('seoul') || tz.includes('shanghai') || tz.includes('singapore') || tz.includes('taipei') || tz.includes('bangkok') || tz.includes('jakarta') || tz.includes('manila') || tz.includes('hanoi') || tz.includes('asia') || tz.includes('japan') || tz.includes('korea')) {
+      return "https://images.unsplash.com/photo-1511910849309-0d5f2c18a29e?w=400&auto=format&fit=crop&q=60"; // Asian noodle & soup healthy bowl
+    }
+    if (tz.includes('kolkata') || tz.includes('asia/calcutta') || tz.includes('delhi') || tz.includes('bombay') || tz.includes('india') || tz.includes('chennai') || tz.includes('bengaluru')) {
+      return "https://images.unsplash.com/photo-1585938338392-50a59970d8ee?w=400&auto=format&fit=crop&q=60"; // Indian curry plate
+    }
+    if (tz.includes('europe') || tz.includes('london') || tz.includes('paris') || tz.includes('berlin') || tz.includes('rome') || tz.includes('madrid') || tz.includes('amsterdam') || tz.includes('brussels')) {
+      return "https://images.unsplash.com/photo-1490815685121-030b3e31f29c?w=400&auto=format&fit=crop&q=60"; // Mediterranean European dining
+    }
+  } catch (e) {
+    // Ignore error
+  }
+
+  // Universal healthy food generic fallback
   return "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=400&auto=format&fit=crop&q=60";
 };
 
@@ -282,9 +306,28 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                   )}
                                 </div>
 
-                                <div className="flex items-start justify-between min-h-[1.5rem]">
+                                <div className="flex flex-col items-start min-h-[2.5rem] w-full text-left">
                                   {/* Wrap title if longer, text-xs bold */}
-                                  <span className="font-bold text-xs text-slate-850 dark:text-slate-100 break-words leading-tight w-full">{food.name}</span>
+                                  <span className="font-bold text-xs text-slate-850 dark:text-slate-100 break-words leading-tight w-full text-left">{food.name}</span>
+                                  {food.suitability && (
+                                    <div className="mt-1 flex">
+                                      <span className={`inline-block px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider ${
+                                        (() => {
+                                          const lowerSuit = food.suitability.toLowerCase();
+                                          if (lowerSuit.includes('good') || lowerSuit.includes('safe') || lowerSuit.includes('best') || lowerSuit.includes('low risk') || lowerSuit.includes('ideal') || lowerSuit.includes('recommend') || lowerSuit.includes('safest')) {
+                                            return "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200/20";
+                                          } else if (lowerSuit.includes('moderate') || lowerSuit.includes('medium') || lowerSuit.includes('caution') || lowerSuit.includes('warning') || lowerSuit.includes('amber')) {
+                                            return "bg-amber-100 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-200/20";
+                                          } else if (lowerSuit.includes('bad') || lowerSuit.includes('avoid') || lowerSuit.includes('high risk') || lowerSuit.includes('severe') || lowerSuit.includes('red') || lowerSuit.includes('restrict')) {
+                                            return "bg-rose-100 text-rose-800 dark:bg-rose-950/50 dark:text-rose-300 border border-rose-200/20";
+                                          }
+                                          return "bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200";
+                                        })()
+                                      }`}>
+                                        {suitText}
+                                      </span>
+                                    </div>
+                                  )}
                                 </div>
 
                                 {/* Dynamic Table of weight, calories, and top 3 nutrients with no vertical stretching */}
@@ -436,19 +479,82 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                       )}
 
                       {msg.data?.scoutItems && msg.data.scoutItems.length > 0 && (
-                        <div className="mb-3 p-2.5 bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/30 rounded-xl">
-                          <div className="text-[9px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider mb-1.5">🔍 Visual Scout Identified</div>
-                          <div className="space-y-1">
-                            {msg.data.scoutItems.map((item: any, i: number) => (
-                              <div key={i} className="flex items-center justify-between text-[10px] font-mono">
-                                <span className="text-slate-700 dark:text-slate-300 truncate max-w-[65%]">
-                                  {item.originalName || item.keyword}
-                                </span>
-                                <span className="text-indigo-600 dark:text-indigo-400 font-bold shrink-0">
-                                  {item.source === 'label' ? '🏷️' : '👁️'} {item.estimatedWeightGrams}g
-                                </span>
+                        <div className="mb-4 p-3 bg-slate-50/50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800/40 rounded-2xl text-left">
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-[10px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider">
+                              🔍 Visual Scout Identified
+                            </span>
+                            {msg.data?.pendingFoodLog?.scoutConfidenceRating && (
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                (() => {
+                                  const c = msg.data.pendingFoodLog.scoutConfidenceRating.toLowerCase();
+                                  if (c.includes('low')) return 'bg-rose-50 text-rose-600 border border-rose-200/50 dark:bg-rose-950/20 dark:text-rose-400';
+                                  if (c.includes('medium')) return 'bg-amber-50 text-amber-600 border border-amber-200/50 dark:bg-amber-950/20 dark:text-amber-400';
+                                  return 'bg-emerald-50 text-emerald-600 border border-emerald-200/50 dark:bg-emerald-950/20 dark:text-emerald-400';
+                                })()
+                              }`}>
+                                Confidence: {msg.data.pendingFoodLog.scoutConfidenceRating}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Confidence comment warning flag if low/medium */}
+                          {msg.data?.pendingFoodLog?.scoutConfidenceComment && (msg.data.pendingFoodLog.scoutConfidenceRating?.toLowerCase().includes('low') || msg.data.pendingFoodLog.scoutConfidenceRating?.toLowerCase().includes('medium')) && (
+                            <div className="mb-3 p-2.5 bg-amber-50/85 dark:bg-amber-950/35 border border-amber-200/50 rounded-xl text-[10.5px] text-amber-900 dark:text-amber-300 leading-normal font-medium">
+                              ⚠️ <strong>Low/Medium Scout Confidence:</strong> {msg.data.pendingFoodLog.scoutConfidenceComment}
+                              <div className="mt-1 text-[10px] text-amber-800/90 dark:text-amber-400/90 italic">
+                                Note: You can manually edit any weights or log details below, tell the dietitian what to adjust, or try uploading a clearer picture.
                               </div>
-                            ))}
+                            </div>
+                          )}
+
+                          {/* Horizontal Slider of Identified Items */}
+                          <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 snap-x snap-mandatory">
+                            {msg.data.scoutItems.map((item: any, i: number) => {
+                              // Food picture priority: user uploaded first based on sourceImageIndex, fallback to external
+                              const currentMsgImages = msg.imageUrls && msg.imageUrls.length > 0
+                                ? msg.imageUrls
+                                : (msg.imageUrl ? [msg.imageUrl] : []);
+                              
+                              const imgIdx = typeof item.sourceImageIndex === 'number' ? item.sourceImageIndex : 0;
+                              const resolvedImgSrc = (imgIdx >= 0 && currentMsgImages[imgIdx])
+                                ? currentMsgImages[imgIdx]
+                                : getFoodImageUrl(item.keyword);
+
+                              return (
+                                <div key={i} className="w-[110px] shrink-0 snap-align-start flex flex-col bg-white dark:bg-slate-850 rounded-xl border border-slate-100 dark:border-slate-800/80 p-1.5 space-y-1.5 shadow-sm">
+                                  {/* Cropped Image Box */}
+                                  <div className="w-full h-16 rounded-lg overflow-hidden bg-slate-50 dark:bg-slate-900 relative">
+                                    {item.boundingBox2D ? (
+                                      <CroppedFoodImage 
+                                        src={resolvedImgSrc} 
+                                        boundingBox={item.boundingBox2D} 
+                                        alt={item.keyword} 
+                                        className="w-full h-full object-cover"
+                                        imageUrls={userUploadedImages}
+                                        sourceImageIndex={item.sourceImageIndex}
+                                      />
+                                    ) : (
+                                      <img 
+                                        src={resolvedImgSrc} 
+                                        alt={item.keyword} 
+                                        className="w-full h-full object-cover"
+                                        referrerPolicy="no-referrer"
+                                      />
+                                    )}
+                                  </div>
+                                  {/* Info */}
+                                  <div className="flex flex-col min-w-0 text-left">
+                                    <span className="text-[10px] font-bold text-slate-800 dark:text-slate-150 truncate leading-tight">
+                                      {item.originalName || item.keyword}
+                                    </span>
+                                    <span className="text-[9px] font-semibold text-indigo-600 dark:text-indigo-400 font-mono mt-0.5">
+                                      {item.source === 'label' ? '🏷️' : '👁️'} {item.estimatedWeightGrams}g
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
                           </div>
                         </div>
                       )}
@@ -469,6 +575,9 @@ export const FoodCard: React.FC<AgentCardProps> = ({
 
                       <div className="text-[11.5px] space-y-2 text-slate-800 dark:text-slate-100 font-medium text-left font-sans leading-relaxed">
                         <p><strong className="text-slate-900 dark:text-white">{t.composition}:</strong> {msg.data?.pendingFoodLog.composition}</p>
+                        {msg.data?.pendingFoodLog.cookingMethod && (
+                          <p><strong className="text-slate-900 dark:text-white">🍳 Cooking Method & Seasoning:</strong> {msg.data?.pendingFoodLog.cookingMethod}</p>
+                        )}
                         <p><strong className="text-slate-900 dark:text-white">{t.benefits}:</strong> {msg.data?.pendingFoodLog.benefits}</p>
                         {msg.data?.pendingFoodLog.risks && <p><strong className="text-slate-900 dark:text-white">{t.risks}:</strong> {msg.data?.pendingFoodLog.risks}</p>}
                         <p><strong className="text-slate-900 dark:text-white">{t.impact}:</strong> {msg.data?.pendingFoodLog.healthImpact}</p>

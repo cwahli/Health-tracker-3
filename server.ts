@@ -1558,6 +1558,9 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
     let databaseMatches = "";
     const databaseMatchesArray: any[] = [];
     let visionScoutItems: any[] = [];
+    let scoutConfidenceRating = "High (>90%)";
+    let scoutConfidenceComment = "";
+    let scoutCookingMethod = "";
     const dbMatchMap = new Map<string, any>();
     const queriesToSearch: string[] = [];
 
@@ -1569,7 +1572,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       const hasImage = imagePayloads && imagePayloads.length > 0;
       if (hasImage) {
         addDebugLog(`[Vision Scout] Running Stage 3 lightweight vision scout...`);
-                const scoutSystemInstruction = `You are a fast visual food identification and localization agent. You will receive one or more images.
+        const scoutSystemInstruction = `You are a fast visual food identification and localization agent. You will receive one or more images.
 
 STEP 1 — IMAGE CLASSIFICATION (do this FIRST for every image):
 For each image, determine if it is:
@@ -1582,7 +1585,8 @@ STEP 2 — DATA EXTRACTION & LOCALIZATION:
 - For product/price labels (type a): Read the EXACT food name and weight. Convert kg to grams. Translate local name to English.
 - For Nutrition Facts labels (type b): Read every macro row present, not just calories/protein/fat/carbs. Calculate and provide the values PER 100g (or just extract them if already per 100g) so the dietitian can use them accurately.
 - For food photos (type c): Identify food items. Estimate weight using visible size references. Output a short English keyword and estimated weight in grams.
-- For cooking scenes (type d): Note the method and set cookingMethod.
+- For cooking scenes (type d) or prepared food photos: Identify the cooking method, and include anything that may contribute to a change of nutrient amount. So if it's grilled, fried, deep fried, or boiled, it needs to be identified. Look at potential seasonings/sauces that could be used, and list the cooking method with type of sauce or seasoning (or note if it is just boiled without anything).
+- CONFIDENCE EVALUATION: Assign a confidence rating of your evaluation. It must be either "Low (<50%)", "Medium (50-90%)", or "High (>90%)". If confidence is Low or Medium, include a "confidenceComment" on why you're not sure (e.g., blurry image, overlapping ingredients) and how to improve confidence (e.g., take closer photo, list main ingredients in text).
 - LOCALIZATION: For EVERY item identified, provide a 2D bounding box [ymin, xmin, ymax, xmax] (0-1000 scale).
 
 STEP 3 — MERGE & DEDUPLICATE:
@@ -1616,7 +1620,9 @@ CRITICAL RULES:
       }
     }
   ], 
-  "cookingMethod": "string" 
+  "cookingMethod": "string (identify the cooking method and seasonings/sauces, or note if boiled without anything)",
+  "confidenceRating": "Low (<50%) | Medium (50-90%) | High (>90%)",
+  "confidenceComment": "string (optional, explain why not sure and how to improve confidence if Low or Medium, otherwise null)"
 }`;
         try {
           const scoutOutput = await callUnifiedLLM({
@@ -1633,12 +1639,17 @@ CRITICAL RULES:
           } catch (e) {
             parsedScout = JSON.parse(extractBalancedJson(scoutOutput));
           }
-          if (parsedScout && Array.isArray(parsedScout.items)) {
-            visionScoutItems = parsedScout.items;
-            for (const item of parsedScout.items) {
-              if (item.keyword) {
-                queriesToSearch.push(item.keyword);
-                visionScoutRanAndReturnedItems = true;
+          if (parsedScout) {
+            scoutConfidenceRating = parsedScout.confidenceRating || "High (>90%)";
+            scoutConfidenceComment = parsedScout.confidenceComment || "";
+            scoutCookingMethod = parsedScout.cookingMethod || "";
+            if (Array.isArray(parsedScout.items)) {
+              visionScoutItems = parsedScout.items;
+              for (const item of parsedScout.items) {
+                if (item.keyword) {
+                  queriesToSearch.push(item.keyword);
+                  visionScoutRanAndReturnedItems = true;
+                }
               }
             }
           }
@@ -1806,7 +1817,11 @@ CRITICAL RULES:
         const nutritionStr = item.nutritionFacts && Object.keys(item.nutritionFacts).length > 0 ? ` | Nutrition (per 100g): ${JSON.stringify(item.nutritionFacts)}` : "";
         return `- Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName || ''}" | Source: ${item.source} | BoundingBox: ${bboxStr} | ImageIndex: ${imgIdx}${nutritionStr}`;
       }).join("\n");
-      visionScoutCtx = `\n=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===\n${itemsList}\nUse the observed local name and preparation context above to guide your understanding of how the food was cooked, prepared, or structured (e.g. frying, slow-cooking, char-grilling). Use this context to estimate more accurate core-11 nutrients.\n`;
+      visionScoutCtx = `\n=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===\n${itemsList}\n` +
+        `Visual Scout Confidence Rating: ${scoutConfidenceRating}\n` +
+        (scoutConfidenceComment ? `Visual Scout Confidence Comment: ${scoutConfidenceComment}\n` : "") +
+        `Identified Cooking Method & Preparation/Seasonings: ${scoutCookingMethod}\n` +
+        `Use the observed local name, confidence levels, cooking method, seasonings, and preparation context above to guide your understanding of how the food was cooked, prepared, or structured (e.g., deep frying or pan frying with oil adds significant fat calories, boiling does not add nutrients, seasonings/sauces might add considerable sodium or sugar). Use this context to estimate more accurate core-11 nutrients. Adjust the final nutrients based on these preparation methods.\n`;
     }
 
     let databaseMatchesCtx = "";
@@ -1902,8 +1917,11 @@ CRITICAL RULES:
             quantity: { type: Type.STRING },
             benefits: { type: Type.STRING },
             risks: { type: Type.STRING },
-            healthImpact: { type: Type.STRING },
-            recommendation: { type: Type.STRING }
+            healthImpact: { type: Type.STRING, description: "A very brief 3-5 word verdict/summary of the food's biological impact relative to their biomarker profile (e.g., 'Highly nutrient-dense choice', 'Elevated sodium warning'). Must be extremely concise." },
+            recommendation: { type: Type.STRING },
+            cookingMethod: { type: Type.STRING, description: "Identify the cooking method and list any seasonings/sauces used, as well as their contribution/impact on the total nutrients consumed (e.g. 'Pan-fried in vegetable oil adding approx 5g fat; seasoned with soy sauce contributing 150mg sodium')." },
+            scoutConfidenceRating: { type: Type.STRING, description: "Confidence rating copied from the VISUAL FOOD SCOUT block: 'Low (<50%)', 'Medium (50-90%)', or 'High (>90%)'." },
+            scoutConfidenceComment: { type: Type.STRING, description: "Optional explanation of why confidence is Low or Medium and how to improve it, copied or adapted from VISUAL FOOD SCOUT comments.", nullable: true }
           },
           required: [
             "date",
@@ -2264,6 +2282,9 @@ You can compare up to 10 foods at once. comparisonTable rows must use a 'values'
       parsedData.risks = sanitizeString(rawFoodData.risks, "No specific adverse biomarkers flagged for your profile.");
       parsedData.healthImpact = sanitizeString(rawFoodData.healthImpact, "Contributes to daily macro and micronutrient requirements.");
       parsedData.recommendation = sanitizeString(rawFoodData.recommendation, "neutral");
+      parsedData.cookingMethod = sanitizeString(rawFoodData.cookingMethod, scoutCookingMethod || "Unknown cooking method");
+      parsedData.scoutConfidenceRating = sanitizeString(rawFoodData.scoutConfidenceRating, scoutConfidenceRating || "High (>90%)");
+      parsedData.scoutConfidenceComment = rawFoodData.scoutConfidenceComment !== undefined ? sanitizeString(rawFoodData.scoutConfidenceComment, "") : (scoutConfidenceComment || "");
 
       const nutrientKeys = [
         "calories", "protein", "totalFat", "saturatedFat", "transFat", "unsaturatedFat", "omega3", 
