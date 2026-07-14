@@ -100,27 +100,6 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
 
   return (
     <ErrorBoundary>
-      {!hasStarted ? (
-        <div className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <Activity className="w-5 h-5 text-indigo-500" />
-            <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-              {agentConfig?.displayName || 'Health Baseline Analysis'}
-            </h2>
-          </div>
-          <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
-            {typeof agentConfig?.welcomeMessage === 'function' 
-              ? agentConfig.welcomeMessage() 
-              : (agentConfig?.welcomeMessage || "I've analyzed your health markers and have created a tailored health baseline plan for you. Would you like to review it?")}
-          </p>
-          <button
-            onClick={() => setHasStarted(true)}
-            className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-2xl text-sm font-bold shadow-md shadow-indigo-600/10 transition-all active:scale-[0.98]"
-          >
-            Start Review
-          </button>
-        </div>
-      ) : (
         <div className="space-y-6">
           <div className="flex items-center space-x-2">
             <Activity className="w-5 h-5 text-indigo-500" />
@@ -416,7 +395,6 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
             </div>
           )}
         </div>
-      )}
     </ErrorBoundary>
   );
 };

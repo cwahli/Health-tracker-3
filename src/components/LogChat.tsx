@@ -1005,14 +1005,20 @@ ${logsText}`);
   }, [isOpen, type]);
 
   const outOfRangeBiomarkers = React.useMemo(() => {
-    if (!biomarkers) return [];
     const list: { key: string; name: string; value: any; status: string; normalRange: string; unit: string }[] = [];
-    Object.entries(biomarkers || {}).forEach(([key, rawVal]) => {
+    
+    // Aggregate all unique biomarker keys from both the local snapshot and the active history
+    const allKeys = new Set<string>();
+    Object.keys(biomarkers || {}).forEach(k => allKeys.add(k));
+    (activeHistory || []).forEach(h => {
+      Object.keys(h.biomarkers || {}).forEach(k => allKeys.add(k));
+    });
+    Array.from(allKeys).forEach((key) => {
       const def = biomarkerDefinitions.find(d => d.key === key);
       const customDef = profile?.customBiomarkers?.[key];
       if (!def && !customDef) return;
       
-      let val = rawVal;
+      let val = biomarkers?.[key];
       const historyLogs = activeHistory ? activeHistory.filter(h => h.biomarkers && h.biomarkers[key] !== undefined) : [];
       if (historyLogs.length > 0) {
         const sortedLogs = [...historyLogs].sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
