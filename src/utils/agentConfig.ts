@@ -1,6 +1,6 @@
 import { ChatMessage } from '../types';
 
-export type AgentType = 'food' | 'medical' | 'food_idea' | 'daily_recommendation' | 'medical_extract' | 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review';
+export type AgentType = 'food' | 'medical' | 'food_idea' | 'daily_recommendation' | 'medical_extract' | 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review' | 'health_baseline';
 
 export interface AgentConfig {
   id: AgentType;
@@ -131,6 +131,15 @@ export const AGENT_REGISTRY: Record<AgentType, AgentConfig> = {
     description: 'Formats insights and action plans into a cohesive report.',
     capabilities: ['report_generation', 'insight_card_view'],
     welcomeMessage: 'Hello! I am the Medical Literature Consensus agent. I scan PubMed and clinical trials to bring recent scientific debate to your context.',
+    rolloutStatus: 'unified',
+  },
+  health_baseline: {
+    id: 'health_baseline',
+    category: 'insights',
+    displayName: 'Health Baseline & Trajectory Agent',
+    description: 'Performs an in-depth health baseline analysis and models metabolic trajectory targets.',
+    capabilities: ['health_baseline_view'],
+    welcomeMessage: 'Hello! I am the Health Baseline & Trajectory Agent. I will analyze your historical biological markers, recent dietary patterns, and physiological parameters to map out your overall baseline health, identify risk trajectories, and outline a detailed timeline to optimal metabolic function.',
     rolloutStatus: 'unified',
   }
 };

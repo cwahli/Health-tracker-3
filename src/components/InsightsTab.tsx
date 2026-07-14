@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 import LLMSelector from './LLMSelector';
 import { GenericAgentResultView } from './AgentResultViews';
+import { HealthBaselineCard } from './chat-cards/HealthBaselineCard';
 import { AgentResultTable } from './AgentResultTable';
 import { parse } from 'yaml';
 import { biomarkerDefinitions, getBiomarkerMetadata, getPhysiologicalBucket, BIOMARKER_GROUPING_OPTIONS, getMappedBiomarkerKey } from '../utils/biomarkers';
@@ -29,7 +30,7 @@ interface InsightsTabProps {
   onNavigateToTab?: (tab: string) => void;
   onOpenMedicalChat?: () => void;
   onOpenAgentChat?: (
-    agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review',
+    agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'health_baseline' | 'agent7' | 'data_review',
     options?: { prefillMessage?: string; dataReviewBatchIdx?: number | string; dataReviewBatchKeys?: string[] }
   ) => void;
   onDeleteAnalysis?: (id: string) => Promise<void>;
@@ -85,6 +86,7 @@ export default function InsightsTab({
   onAgentAnalysisSaved
 }: InsightsTabProps) {
   const t = translations[profile.language] || translations.en;
+  const activeHistory = React.useMemo(() => (biomarkerHistory || []).filter(h => h.sync_state !== 'delete'), [biomarkerHistory]);
   const userIdentifier = profile?.email?.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'guest';
   const [isApplying, setIsApplying] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
@@ -155,7 +157,7 @@ export default function InsightsTab({
       agent3: !!(profile.agentAnalyses?.some(a => a.agentType === 'agent3')),
       agent4: !!(profile.agentDiagnosticSummary),
       agent5: !!(profile.agentContextualizerSummary),
-      agent6: !!(profile.agentInterventionSummary),
+      health_baseline: !!(report && report.healthBaselineCategories && report.healthBaselineCategories.length > 0),
       agent7: !!(profile.agentLiteratureSummary)
     };
   });
@@ -202,7 +204,7 @@ export default function InsightsTab({
       agent3: !!(profile.agentAnalyses?.some(a => a.agentType === 'agent3')),
       agent4: !!(profile.agentDiagnosticSummary),
       agent5: !!(profile.agentContextualizerSummary),
-      agent6: !!(profile.agentInterventionSummary),
+      health_baseline: !!(report && report.healthBaselineCategories && report.healthBaselineCategories.length > 0),
       agent7: !!(profile.agentLiteratureSummary)
     };
     
@@ -252,7 +254,7 @@ export default function InsightsTab({
       return parsedRows.some((row: any) => {
         const key = (row.biomarker || '').toLowerCase().replace(/[^a-z0-9]/g, '_');
         if (!key) return false;
-        const existingEntries = (biomarkerHistory || []).filter((h: any) => h.biomarkers[key] !== undefined);
+        const existingEntries = (activeHistory || []).filter((h: any) => h.biomarkers[key] !== undefined);
         const isNew = existingEntries.length === 0;
         if (isNew) return true;
         
@@ -377,7 +379,7 @@ export default function InsightsTab({
   const markerKeys = React.useMemo(() => {
     // Derive all known keys from history, not from the flat biomarkers dict
     const allKnownKeys = new Set<string>();
-    (biomarkerHistory || []).forEach((h: any) => {
+    (activeHistory || []).forEach((h: any) => {
       if (h.biomarkers) {
         Object.keys(h.biomarkers).forEach(k => {
           if (h.biomarkers[k] !== undefined && h.biomarkers[k] !== null && h.biomarkers[k] !== '') {
@@ -405,7 +407,7 @@ export default function InsightsTab({
       }
       return true;
     });
-  }, [biomarkerHistory, biomarkers, excludeStandardized, profile.customBiomarkers]);
+  }, [activeHistory, biomarkers, excludeStandardized, profile.customBiomarkers]);
 
   const [biomarkerBatches, setBiomarkerBatches] = React.useState<string[][]>(() => {
     try {
@@ -672,7 +674,7 @@ export default function InsightsTab({
 
     const isPresent = (key: string) => {
       const inBiomarkers = biomarkers[key] !== undefined && biomarkers[key] !== null && biomarkers[key] !== '';
-      const inHistory = biomarkerHistory?.some(h => h.biomarkers && h.biomarkers[key] !== undefined) || false;
+      const inHistory = activeHistory?.some(h => h.biomarkers && h.biomarkers[key] !== undefined) || false;
       return inBiomarkers || inHistory;
     };
 
@@ -712,7 +714,7 @@ export default function InsightsTab({
     }
 
     return groups;
-  }, [profile, biomarkers, biomarkerHistory]);
+  }, [profile, biomarkers, activeHistory]);
 
   const toggleAgentHistory = (agentType: string) => {
     setExpandedAgentHistory(prev => ({ ...prev, [agentType]: !prev[agentType] }));
@@ -736,7 +738,7 @@ export default function InsightsTab({
 
     // Save customBiomarkers to user profile and history
     const updatedCustoms = { ...(profile.customBiomarkers || {}) };
-    let currentHistory = biomarkerHistory ? biomarkerHistory.map((h: any) => ({
+    let currentHistory = activeHistory ? activeHistory.map((h: any) => ({
       ...h,
       biomarkers: { ...h.biomarkers }
     })) : [];
@@ -953,11 +955,23 @@ export default function InsightsTab({
                       agentType={agentType as 'agent1' | 'agent2' | 'agent3' | 'agent4'}
                       agentResult={item.result}
                       profile={profile}
-                      biomarkerHistory={biomarkerHistory || []}
+                      biomarkerHistory={activeHistory || []}
                       initialRawText=""
                     />
                   </div>
-                ) : ['agent5', 'agent6', 'agent7'].includes(agentType) ? (
+                ) : agentType === 'health_baseline' ? (
+                  <div className="mt-2 border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden">
+                    <HealthBaselineCard
+                      msg={{ id: 'mock', role: 'assistant', content: '', agentType: 'health_baseline', data: { agentResult: item.result } } as any}
+                      idx={0}
+                      messages={[]}
+                      t={(key: string) => key}
+                      formatNutrientValue={(val: number) => String(val)}
+                      onLogFood={async () => {}}
+                      onLogFoodIdeas={async () => {}}
+                    />
+                  </div>
+                ) : ['agent5', 'agent7'].includes(agentType) ? (
                   <div className="mt-2">
                     <GenericAgentResultView rawResult={item.result} />
                   </div>
@@ -1043,9 +1057,9 @@ export default function InsightsTab({
       valueProposition: 'Provides interactive review of your biomarkers with custom reference range adjustments.'
     },
     {
-      id: 'agent6',
-      title: 'Diagnostic',
-      agentType: 'agent6',
+      id: 'health_baseline',
+      title: 'Health Baseline & Trajectory',
+      agentType: 'health_baseline',
       description: 'Translates diagnostic risk into strict, mathematically projected dietary and movement targets.',
       valueProposition: 'Generates precision physical and nutritional modifiers targeted to mitigate risk trajectories.'
     },
@@ -1154,7 +1168,7 @@ export default function InsightsTab({
         }
         return `${count || 5} biomarkers extracted, ${recWord}`;
       }
-      case 'agent6':
+      case 'health_baseline':
         return `Precision diet and exercise recommendations generated, ${recWord}`;
       case 'agent4':
         return `10-year trajectories projected, ${recWord}`;
@@ -1838,7 +1852,7 @@ export default function InsightsTab({
                                                 agentType="agent1"
                                                 agentResult={result}
                                                 profile={profile}
-                                                biomarkerHistory={biomarkerHistory}
+                                                biomarkerHistory={activeHistory}
                                                 initialRawText={""}
                                                 onApplyChanges={async () => {
                                                   await handleApproveBatchStep1(bIdx, result);
@@ -1955,7 +1969,7 @@ export default function InsightsTab({
 
                                                       // Save customBiomarkers to user profile and history
                                                       const updatedCustoms = { ...(profile.customBiomarkers || {}) };
-                                                      let currentHistory = biomarkerHistory ? biomarkerHistory.map((h: any) => ({
+                                                      let currentHistory = activeHistory ? activeHistory.map((h: any) => ({
                                                         ...h,
                                                         biomarkers: { ...h.biomarkers }
                                                       })) : [];
@@ -2367,7 +2381,7 @@ export default function InsightsTab({
                                                 agentType="data_review"
                                                 agentResult={result}
                                                 profile={profile}
-                                                biomarkerHistory={biomarkerHistory}
+                                                biomarkerHistory={activeHistory}
                                                 selectedMissingKeys={selectedMissingKeysToMove[bIdx] || STABLE_EMPTY_ARRAY}
                                                 onChangeSelectedMissingKeys={(keys) => setSelectedMissingKeysToMove(prev => ({ ...prev, [bIdx]: keys }))}
                                                 onApplyChanges={async () => {
@@ -2584,11 +2598,23 @@ export default function InsightsTab({
                                     agentType={step.agentType! as 'agent1' | 'agent2' | 'agent3' | 'agent4'}
                                     agentResult={latestAnalysis.result}
                                     profile={profile}
-                                    biomarkerHistory={biomarkerHistory || []}
+                                    biomarkerHistory={activeHistory || []}
                                     initialRawText=""
                                   />
                                 </div>
-                              ) : ['agent5', 'agent6', 'agent7'].includes(step.agentType!) ? (
+                              ) : step.agentType === 'health_baseline' ? (
+                                <div className="border border-slate-100 dark:border-slate-850 rounded-xl overflow-hidden">
+                                  <HealthBaselineCard
+                                    msg={{ id: 'mock', role: 'assistant', content: '', agentType: 'health_baseline', data: { agentResult: latestAnalysis.result } } as any}
+                                    idx={0}
+                                    messages={[]}
+                                    t={(key: string) => key}
+                                    formatNutrientValue={(val: number) => String(val)}
+                                    onLogFood={async () => {}}
+                                    onLogFoodIdeas={async () => {}}
+                                  />
+                                </div>
+                              ) : ['agent5', 'agent7'].includes(step.agentType!) ? (
                                 <div className="bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-100 dark:border-slate-850">
                                   <GenericAgentResultView rawResult={latestAnalysis.result} />
                                 </div>
@@ -2922,7 +2948,7 @@ export default function InsightsTab({
                 agentType="data_review"
                 agentResult={batchAnalysisResults[fullscreenBatchIndex]}
                 profile={profile}
-                biomarkerHistory={biomarkerHistory}
+                biomarkerHistory={activeHistory}
                 selectedMissingKeys={selectedMissingKeysToMove[fullscreenBatchIndex] || STABLE_EMPTY_ARRAY}
                 onChangeSelectedMissingKeys={(keys) => setSelectedMissingKeysToMove(prev => ({ ...prev, [fullscreenBatchIndex]: keys }))}
                 onApplyChanges={async () => {
@@ -3118,7 +3144,7 @@ export default function InsightsTab({
         <BiomarkerDictionaryModal
           profile={profile}
           biomarkers={biomarkers}
-          biomarkerHistory={biomarkerHistory || []}
+          biomarkerHistory={activeHistory || []}
           onClose={() => {
             setShowDictionaryModal(false);
             setDictionaryPreFillKey(null);

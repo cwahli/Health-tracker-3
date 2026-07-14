@@ -288,6 +288,8 @@ export interface RecommendationReport {
   dailyBenefits: DailyBenefit[];
   latestInsights: InsightArticle[];
   healthRiskForecast: HealthRiskForecast;
+  healthBaselineCategories?: any[]; // Stores accepted risk-category analysis
+  topNutrientTargets?: string[];
 }
 
 export interface ChatMessage {

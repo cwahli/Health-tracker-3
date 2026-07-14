@@ -112,6 +112,8 @@ export default function TrendsTab({
   onSelectFood
 }: TrendsTabProps) {
   const t = translations[profile.language] || translations.en;
+  const activeHistory = React.useMemo(() => (biomarkerHistory || []).filter(h => h.sync_state !== 'delete'), [biomarkerHistory]);
+  const activeFoodLogs = React.useMemo(() => (foodLogs || []).filter(f => f.sync_state !== 'delete'), [foodLogs]);
   const [selectedMetric, setSelectedMetric] = useState<string>(() => {
     return localStorage.getItem('trends_selected_metric') || 'calories';
   });
@@ -141,8 +143,8 @@ export default function TrendsTab({
     // Collect all unique dates from both logs normalized to YYYY-MM-DD
     const emailSuffix = profile?.email ? `_${profile.email.toLowerCase().trim()}` : '_guest';
     const datesSet = new Set<string>();
-    foodLogs.forEach(f => datesSet.add(toYYYYMMDD(f.date)));
-    biomarkerHistory.forEach(b => datesSet.add(toYYYYMMDD(b.date)));
+    activeFoodLogs.forEach(f => datesSet.add(toYYYYMMDD(f.date)));
+    activeHistory.forEach(b => datesSet.add(toYYYYMMDD(b.date)));
     
     let stepsHistory: { date: string, value: number }[] = [];
     if (selectedMetric === 'steps') {
@@ -162,10 +164,10 @@ export default function TrendsTab({
 
     const compiled = sortedDates.map(dateStr => {
       // Aggregate foods for this day
-      const daysFoods = foodLogs.filter(f => toYYYYMMDD(f.date) === dateStr);
+      const daysFoods = activeFoodLogs.filter(f => toYYYYMMDD(f.date) === dateStr);
 
       // Extract biomarker if logged on this day
-      const dayBio = biomarkerHistory.find(b => toYYYYMMDD(b.date) === dateStr);
+      const dayBio = activeHistory.find(b => toYYYYMMDD(b.date) === dateStr);
       const ldlVal = dayBio?.biomarkers.ldl;
       const hba1cVal = dayBio?.biomarkers.hba1c;
       const egfrVal = dayBio?.biomarkers.egfr;
@@ -273,7 +275,7 @@ export default function TrendsTab({
     
     let daysWithFood = 0;
     dateStrs.forEach(dStr => {
-      const dFoods = foodLogs.filter(f => toYYYYMMDD(f.date) === dStr);
+      const dFoods = activeFoodLogs.filter(f => toYYYYMMDD(f.date) === dStr);
       if (dFoods.length > 0) daysWithFood++;
       nutrientDefinitions.forEach(nut => {
         const sum = dFoods.reduce((acc, f) => acc + (f.nutrients?.[nut.key] || 0), 0);
@@ -289,11 +291,11 @@ export default function TrendsTab({
     
     const bioAverages: { [key: string]: number } = {};
     const allBioKeys = new Set<string>(['ldl', 'hba1c', 'egfr']);
-    biomarkerHistory.forEach(b => {
+    activeHistory.forEach(b => {
       Object.keys(b.biomarkers).forEach(k => allBioKeys.add(k));
     });
     
-    const sortedHistory = [...biomarkerHistory].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    const sortedHistory = [...activeHistory].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     
     Array.from(allBioKeys).forEach(k => {
       for (const log of sortedHistory) {
@@ -706,7 +708,7 @@ export default function TrendsTab({
               : chartData.map(c => c.date).sort((a, b) => b.localeCompare(a));
             
             return datesToShow.map(dateStr => {
-              const dayFoods = foodLogs.filter(f => toYYYYMMDD(f.date) === toYYYYMMDD(dateStr));
+              const dayFoods = activeFoodLogs.filter(f => toYYYYMMDD(f.date) === toYYYYMMDD(dateStr));
               if (dayFoods.length === 0) return null;
 
               const totalValue = dayFoods.reduce((acc, f) => acc + (f.nutrients?.[selectedMetric as keyof NutrientBreakdown] || 0), 0);

@@ -46,7 +46,7 @@ There is NO gemini-2.5-flash. Always default to Flash Lite.
   - Stage 2: DB Search (USDA + OpenFoodFacts using Vision Scout keywords)
   - Stage 3: RouteAgent (full clinical dietitian JSON response, 4 modes: new_log / discuss / modify / evaluation)
   - JSON parse with truncation repair fallback.
-- maxOutputTokens: 2048 is set on the RouteAgent call to prevent truncation.
+- maxOutputTokens: 3072 is set on the RouteAgent call to prevent truncation (raised from 2048 on Jul 12 for headroom now that itemsBreakdown is emitted earlier in the schema).
 
 ### Frontend
 - `src/components/LogChat.tsx` — chat component used by food log agent.
@@ -173,3 +173,14 @@ Solution: Always use the robust extractUSDANutrientsPer100g helper which uses .i
    - Step 2: Implement a feature flag to toggle between the old modal and the new unified chat for that specific agent.
    - Step 3: Gradually port complex agents (like the Biomarker Clinical Calibration). Wrap their unique tables (like `AgentResultTable`) as modular sub-components inside `LogChat.tsx`.
 4. **State Normalization**: Unify the message payload format across all agents so that `LogChat.tsx` only ever deals with a standardized `ChatMessage` interface, while parsing specific agent outputs in the backend.
+
+## 12. Known Intentional Behaviors (Do Not "Fix")
+- **Hardcoded static report for chiwah.liu@gmail.com / cwah.liu@gmail.com / john@mail.com** in `/api/gemini/insight-analyze` (server.ts) and `src/utils/fallbackReport.ts`: on first report generation (`refinement` falsy), these accounts receive a fixed, non-live report instead of a fresh Gemini call. This is INTENTIONAL (confirmed 2026-07-13). Only follow-up refinement messages call the live model. Do not remove or "fix" this without explicit new instruction.
+
+## 13. Audit Log
+### 2026-07-13 — Diagnostic review
+- Verified `foodAnalyzeSchema.foodData.required` correctly lists composition/benefits/risks/healthImpact/recommendation. Confirmed maxOutputTokens raised to 3072.
+- Verified commit `0f516a9` fixes two real causes of the Firestore quota spike: (1) image recompression in App.tsx now only writes when the result is actually smaller; (2) `runCleanupMigration` now keyed by uid instead of email (email never matched Firestore rules requiring `request.auth.uid == userId`, so the migration silently failed/retried every session).
+- Verified AGENT_REGISTRY: 12/13 agents at rolloutStatus 'unified', medical_extract still 'legacy' by design.
+- Found and fixed PII leak: `/api/gemini/daily-recommendation-chat` was embedding the raw, unfiltered `userProfile` (including email, lastUpdatedAt, deleted-ID arrays) into the Gemini prompt. Replaced with whitelisted `cleanProfile`.
+- This document was stale — last updated after commit `02ecd52`. Ten commits since then were undocumented. Future sessions: run `git log --oneline -20` first and reconcile against this file.

@@ -368,9 +368,9 @@ interface LogChatProps {
   report?: any;
   actions?: any[];
   googleSteps?: number | null;
-  agentType?: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review' | null;
+  agentType?: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review' | 'health_baseline' | null;
   biomarkerHistory?: any[];
-  onAgentFinish?: (agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review', agentResult:  any) => Promise<void>;
+  onAgentFinish?: (agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review' | 'health_baseline', agentResult:  any) => Promise<void>;
   onAgentAnalysisSaved?: (agentType: string, agentResult:  any) => Promise<void>;
   onGoToManualEdit?: (errorMsg?: string) => void;
   autoSendMessage?: string | null;
@@ -591,6 +591,8 @@ ${logsText}`);
     }
   };
 
+  const activeFoodLogs = React.useMemo(() => (foodLogs || []).filter(f => f.sync_state !== 'delete'), [foodLogs]);
+  const activeHistory = (biomarkerHistory || []).filter(h => h.sync_state !== 'delete');
   const userIdentifier = profile?.email?.toLowerCase().replace(/[^a-z0-9]/g, '_') || 'guest';
 
   const payloadStorageKey = agentType ? `last_sent_payload_${userIdentifier}_${type}_${agentType}_${dataReviewBatchIdx ?? 'none'}` : `last_sent_payload_${userIdentifier}_${type}`;
@@ -1024,7 +1026,7 @@ ${logsText}`);
 
   const remainingAllowance = React.useMemo(() => {
     const todayStr = getCurrentDateInTimezone(profile?.timezone);
-    const todaysFoods = foodLogs ? foodLogs.filter(f => f.date === todayStr) : [];
+    const todaysFoods = activeFoodLogs ? activeFoodLogs.filter(f => f.date === todayStr) : [];
 
     const todaysTotals = todaysFoods.reduce((acc, curr) => {
       if (curr.nutrients) {
@@ -1076,12 +1078,12 @@ ${logsText}`);
   }, [isAnalyzing, messages]);
 
   const matchingPreviousLogs = React.useMemo(() => {
-    if (type !== 'food' || !foodLogs || inputText.trim().length < 3) return [];
+    if (type !== 'food' || !activeFoodLogs || inputText.trim().length < 3) return [];
     const query = inputText.toLowerCase().trim();
     const uniqueMatches: FoodLog[] = [];
     const seenNames = new Set<string>();
     
-    const reversedLogs = [...foodLogs].reverse();
+    const reversedLogs = [...activeFoodLogs].reverse();
     for (const log of reversedLogs) {
       if (log.name && log.name.toLowerCase().includes(query)) {
         if (!seenNames.has(log.name.toLowerCase())) {
@@ -1091,7 +1093,7 @@ ${logsText}`);
       }
     }
     return uniqueMatches;
-  }, [type, foodLogs, inputText]);
+  }, [type, activeFoodLogs, inputText]);
 
 
 
@@ -1192,6 +1194,7 @@ ${logsText}`);
       if (isAgent('food')) endpoint = '/api/gemini/food-analyze';
       else if (isAgent('food_idea')) endpoint = '/api/gemini/food-idea';
       else if (isAgent('daily_recommendation')) endpoint = '/api/gemini/daily-recommendation-chat';
+      else if (isAgent('health_baseline')) endpoint = '/api/gemini/health-baseline-analyze';
       else endpoint = '/api/gemini/medical-analyze';
 
       const lightProfile = profile ? { ...profile } as any : null;
@@ -1282,7 +1285,7 @@ ${logsText}`);
         const monthPrefix = `${currentYear}-${currentMonth}`;
 
         // Filter food logs for this month
-        const thisMonthFoodLogs = (foodLogs || []).filter(f => f.date && f.date.startsWith(monthPrefix));
+        const thisMonthFoodLogs = (activeFoodLogs || []).filter(f => f.date && f.date.startsWith(monthPrefix));
 
         // Group by day
         const dailyNutrientIntake: { [date: string]: { [nutrient: string]: number } } = {};
@@ -1317,7 +1320,7 @@ ${logsText}`);
         }
         const thisMonthSteps = stepsHistory.filter(h => h.date && h.date.startsWith(monthPrefix));
 
-        bodyData.foodLogs = (foodLogs || []).map(f => ({ name: f.name, date: f.date, nutrients: f.nutrients }));
+        bodyData.foodLogs = (activeFoodLogs || []).map(f => ({ name: f.name, date: f.date, nutrients: f.nutrients }));
         bodyData.biomarkers = biomarkers;
         bodyData.report = report;
         bodyData.actions = actions;
@@ -1329,7 +1332,7 @@ ${logsText}`);
         };
       } else if (isAgent('food_idea')) {
         bodyData.location = loc;
-        bodyData.recentMeals = (foodLogs || []).slice(-20).map(f => f.name);
+        bodyData.recentMeals = (activeFoodLogs || []).slice(-20).map(f => f.name);
         bodyData.budget = budget;
         bodyData.currency = currency;
         bodyData.maxDistance = maxDistance;
@@ -1417,9 +1420,10 @@ ${logsText}`);
               });
             }
           } else {
-            bodyData.biomarkerHistory = biomarkerHistory || [];
+            const deletedIds = profile?.deletedBiomarkerLogIds || [];
+            bodyData.biomarkerHistory = (biomarkerHistory || []).filter(h => h.sync_state !== 'delete' && !deletedIds.includes(h.id));
             bodyData.biomarkers = biomarkers || {};
-            bodyData.recentMeals = foodLogs ? (foodLogs || []).slice(-20).map(f => f.name) : [];
+            bodyData.recentMeals = activeFoodLogs ? (activeFoodLogs || []).slice(-20).map(f => f.name) : [];
             bodyData.agentDiagnosticSummary = profile?.agentDiagnosticSummary || '';
           }
 
@@ -1645,17 +1649,21 @@ ${logsText}`);
     }
   };
 
+  const autoSendHandledRef = useRef(false);
+
   useEffect(() => {
-    if (isOpen && autoSendMessage && (isAgent('medical') || isAgent('daily_recommendation'))) {
+    if (isOpen && autoSendMessage && !autoSendHandledRef.current && (isAgent('medical') || isAgent('daily_recommendation'))) {
       if (agentType === 'agent1' || agentType === 'agent2' || agentType === 'agent3' || agentType === 'agent4' || agentType === 'agent5' || agentType === 'agent6' || agentType === 'agent7') {
         return;
       }
       if (agentType === 'data_review') {
         setInputText(autoSendMessage);
+        autoSendHandledRef.current = true;
         return;
       }
       const alreadySent = messages.some(m => m.role === 'user');
       if (!alreadySent) {
+        autoSendHandledRef.current = true;
         const timer = setTimeout(() => {
           handleSend(autoSendMessage);
         }, 400);
@@ -2128,7 +2136,7 @@ ${logsText}`);
                       <div className="bg-slate-100/50 dark:bg-slate-950/20 p-2 rounded-xl border border-slate-150 dark:border-slate-800/30 font-size-xs">
                         <span className="text-slate-400 dark:text-slate-500 font-bold block font-size-xs uppercase tracking-wider mb-0.5">Last 20 Meals</span>
                         <span className="font-bold text-slate-700 dark:text-slate-200 max-h-20 overflow-y-auto block whitespace-pre-wrap">
-                          {(foodLogs || []).slice(-20).map(f => f.name).join(', ') || 'No meals logged yet'}
+                          {(activeFoodLogs || []).slice(-20).map(f => f.name).join(', ') || 'No meals logged yet'}
                         </span>
                       </div>
                     </>
@@ -2140,10 +2148,10 @@ ${logsText}`);
                         <span className="text-slate-400 dark:text-slate-500 font-bold block font-size-xs uppercase tracking-wider mb-0.5">Biomarker History Logs</span>
                         <details className="group cursor-pointer">
                           <summary className="font-bold text-slate-700 dark:text-slate-200 select-none">
-                            {biomarkerHistory?.length || 0} historic logs
+                            {activeHistory.length || 0} historic logs
                           </summary>
                           <div className="mt-2 text-[10px] font-mono text-slate-500 max-h-32 overflow-y-auto pl-2 border-l-2 border-slate-200 dark:border-slate-800">
-                            {biomarkerHistory?.map((h, i) => (
+                            {activeHistory.map((h, i) => (
                               <div key={i} className="mb-1">{h.date}: {Object.keys(h.biomarkers || {}).length} markers</div>
                             ))}
                           </div>
@@ -2464,7 +2472,7 @@ ${JSON.stringify(profile, null, 2)}`);
                         idx={idx}
                         messages={messages}
                         report={report}
-                        foodLogs={foodLogs}
+                        foodLogs={activeFoodLogs}
                         t={t}
                         formatNutrientValue={formatNutrientValue}
                         onLogFood={onLogFood}
@@ -2472,13 +2480,14 @@ ${JSON.stringify(profile, null, 2)}`);
                         setLoggedMessageIds={setLoggedMessageIds}
                         loggedMessageIds={loggedMessageIds}
                         profile={profile}
-                        biomarkerHistory={biomarkerHistory}
+                        biomarkerHistory={activeHistory}
                         handleAgent1Step={handleAgent1Step}
                         handleContinueExtractionChunk={handleContinueExtractionChunk}
                         onAgentFinish={onAgentFinish}
                         handleSend={handleSend}
                         setActiveInstructionAgentType={setActiveInstructionAgentType}
                         setActiveInstructionPrompt={setActiveInstructionPrompt}
+                        onDeleteMessage={(id) => setMessages(prev => prev.filter(m => m.id !== id))}
                         onLogMedical={onLogMedical}
                         isAnalyzing={isAnalyzing}
                         agentType={agentType}
@@ -2570,7 +2579,7 @@ ${JSON.stringify(profile, null, 2)}`);
                     <div className="flex items-center gap-2.5 min-w-0">
                       {log.imageUrl || (log.imageUrls && log.imageUrls.length > 0) ? (
                         <img 
-                          src={resolveFoodImage(log.imageUrl || log.imageUrls?.[0], foodLogs)} 
+                          src={resolveFoodImage(log.imageUrl || log.imageUrls?.[0], activeFoodLogs)} 
                           alt={log.name} 
                           className="w-8 h-8 rounded-lg object-cover border border-slate-100 dark:border-slate-700 shrink-0"
                           referrerPolicy="no-referrer"
@@ -2847,7 +2856,7 @@ ${JSON.stringify(profile, null, 2)}`);
         }}
         agentType={activeInstructionAgentType || ''}
         profile={profile}
-        biomarkerHistory={biomarkerHistory}
+        biomarkerHistory={activeHistory}
         agentPrompt={activeInstructionPrompt || undefined}
         outOfRangeBiomarkers={outOfRangeBiomarkers}
         remainingAllowance={remainingAllowance}

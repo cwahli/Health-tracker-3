@@ -344,9 +344,9 @@ export default function ReviewBiomarkerModal({
         id: (Date.now() + 1).toString(),
         role: 'assistant',
         content: data.reply,
-        pendingBiomarkers: data.pendingBiomarkers || (data.proposedValue !== undefined && data.proposedValue !== null ? { [biomarkerKey]: data.proposedValue } : undefined),
-        proposal: data.proposal || undefined,
-        agentResult: { agentPrompt: data.agentPrompt },
+        data: { pendingBiomarkers: data.pendingBiomarkers || (data.proposedValue !== undefined && data.proposedValue !== null ? { [biomarkerKey]: data.proposedValue } : undefined), proposal: data.proposal || undefined, agentResult: { agentPrompt: data.agentPrompt } },
+
+
         timestamp: new Date().toISOString()
       };
       

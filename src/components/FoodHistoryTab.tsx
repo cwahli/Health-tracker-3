@@ -313,7 +313,8 @@ export default function FoodHistoryTab({
     });
   };
 
-  const filteredLogs = [...foodLogs]
+  const activeFoodLogs = React.useMemo(() => (foodLogs || []).filter(f => f.sync_state !== 'delete'), [foodLogs]);
+  const filteredLogs = [...activeFoodLogs]
     .filter(log => {
       const name = log.name || '';
       const composition = log.composition || '';
@@ -803,8 +804,8 @@ export default function FoodHistoryTab({
           {filteredLogs.map((log) => {
             const isExpanded = expandedLogId === log.id;
             const isEditing = editingLogId === log.id;
-            const resolvedImg = resolveFoodImage(log.imageUrl, foodLogs);
-            const resolvedImgs = resolveFoodImages(log.imageUrls, foodLogs);
+            const resolvedImg = resolveFoodImage(log.imageUrl, activeFoodLogs);
+            const resolvedImgs = resolveFoodImages(log.imageUrls, activeFoodLogs);
             
             return (
               <div
@@ -913,7 +914,7 @@ export default function FoodHistoryTab({
                                       draggedPhotoIndex === idx ? 'border-indigo-500 scale-105 opacity-50' : 'border-slate-200 dark:border-slate-850'
                                     } cursor-grab active:cursor-grabbing`}
                                   >
-                                    <img src={resolveFoodImage(img, foodLogs) || img} className="w-full h-full object-cover pointer-events-none" referrerPolicy="no-referrer" />
+                                    <img src={resolveFoodImage(img, activeFoodLogs) || img} className="w-full h-full object-cover pointer-events-none" referrerPolicy="no-referrer" />
                                     <button
                                       type="button"
                                       onClick={() => {
@@ -1222,70 +1223,42 @@ export default function FoodHistoryTab({
                             return isNaN(parsed) ? fallback : parsed;
                           };
 
-                          const caloriesTarget = report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.calories, 1700) : 1800;
-                          const satFatTarget = report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.saturatedFat, 15) : 15;
-                          const sodiumTarget = report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.sodium, 1200) : 1200;
+                          const defaultKeys = ['calories', 'saturatedFat', 'sodium'];
+                          const targetKeys = ((report as any)?.topNutrientTargets && (report as any).topNutrientTargets.length > 0) 
+                            ? (report as any).topNutrientTargets.slice(0, 6) 
+                            : defaultKeys;
+                          const activeKeys = targetKeys;
 
                           const logDate = log.date;
-                          const dayLogs = foodLogs ? foodLogs.filter(f => f.date === logDate) : [];
-
-                          // Sort day logs chronologically (by id or timestamp) so we can compute correct running sum
+                          const dayLogs = activeFoodLogs ? activeFoodLogs.filter(f => f.date === logDate) : [];
                           const dayLogsChronological = [...dayLogs].sort((a, b) => a.id.localeCompare(b.id));
                           const currentIndex = dayLogsChronological.findIndex(f => f.id === log.id);
                           const logsBefore = currentIndex !== -1 ? dayLogsChronological.slice(0, currentIndex) : [];
 
-                          const caloriesInMeal = (log.nutrients && log.nutrients.calories) || 0;
-                          const satFatInMeal = (log.nutrients && log.nutrients.saturatedFat) || 0;
-                          const sodiumInMeal = (log.nutrients && log.nutrients.sodium) || 0;
-
-                          const caloriesConsumedBefore = logsBefore.reduce((acc, curr) => acc + (curr.nutrients?.calories || 0), 0);
-                          const satFatConsumedBefore = logsBefore.reduce((acc, curr) => acc + (curr.nutrients?.saturatedFat || 0), 0);
-                          const sodiumConsumedBefore = logsBefore.reduce((acc, curr) => acc + (curr.nutrients?.sodium || 0), 0);
-
                           return (
                             <div className="flex items-center gap-3 overflow-x-auto py-1 scrollbar-none flex-nowrap max-w-full text-left">
-                              <div className="flex items-center gap-1.5 shrink-0">
-                                <NutrientPieChart
-                                  allowance={caloriesTarget}
-                                  alreadyConsumed={caloriesConsumedBefore}
-                                  mealValue={caloriesInMeal}
-                                  nutrientKey="calories"
-                                  size="sm"
-                                />
-                                <span className="text-[11px] font-extrabold" style={{ color: 'rgb(249, 115, 22)' }}>
-                                  {caloriesInMeal} kcal
-                                </span>
-                              </div>
+                              {activeKeys.map((key: string) => {
+                                const allowance = report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets[key], 1000) : 1000;
+                                const consumedBefore = logsBefore.reduce((acc, curr) => acc + ((curr.nutrients as any)?.[key] || 0), 0);
+                                const inMeal = (log.nutrients as any)?.[key] || 0;
+                                const nutrientDef = nutrientDefinitions.find(n => n.key === key);
+                                const unit = nutrientDef ? nutrientDef.unit : '';
 
-                              {log.nutrients && log.nutrients.saturatedFat !== undefined && (
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <NutrientPieChart
-                                    allowance={satFatTarget}
-                                    alreadyConsumed={satFatConsumedBefore}
-                                    mealValue={satFatInMeal}
-                                    nutrientKey="saturatedFat"
-                                    size="sm"
-                                  />
-                                  <span className="text-[11px] font-bold" style={{ color: 'rgb(234, 179, 8)' }}>
-                                    Sat Fat: {satFatInMeal}g
-                                  </span>
-                                </div>
-                              )}
-
-                              {log.nutrients && log.nutrients.sodium !== undefined && (
-                                <div className="flex items-center gap-1.5 shrink-0">
-                                  <NutrientPieChart
-                                    allowance={sodiumTarget}
-                                    alreadyConsumed={sodiumConsumedBefore}
-                                    mealValue={sodiumInMeal}
-                                    nutrientKey="sodium"
-                                    size="sm"
-                                  />
-                                  <span className="text-[11px] font-bold" style={{ color: 'rgb(34, 197, 94)' }}>
-                                    Sodium: {sodiumInMeal}mg
-                                  </span>
-                                </div>
-                              )}
+                                return (
+                                  <div key={key} className="flex items-center gap-1.5 shrink-0">
+                                    <NutrientPieChart
+                                      allowance={allowance}
+                                      alreadyConsumed={consumedBefore}
+                                      mealValue={inMeal}
+                                      nutrientKey={key as any}
+                                      size="sm"
+                                    />
+                                    <span className="text-[11px] font-extrabold text-slate-700 dark:text-slate-300">
+                                      {inMeal} {unit}
+                                    </span>
+                                  </div>
+                                );
+                              })}
                             </div>
                           );
                         })()}

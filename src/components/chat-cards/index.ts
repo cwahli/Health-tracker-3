@@ -3,14 +3,17 @@ export * from './FoodIdeaCard';
 export * from './FoodCard';
 export * from './BiomarkerCard';
 export * from './WelcomeCard';
+export * from './HealthBaselineCard';
 
 import { FoodIdeaCard } from './FoodIdeaCard';
 import { FoodCard } from './FoodCard';
 import { BiomarkerCard } from './BiomarkerCard';
 import { WelcomeCard } from './WelcomeCard';
+import { HealthBaselineCard } from './HealthBaselineCard';
 import { AgentType } from '../../utils/agentConfig';
 
 export const agentCardRegistry: Record<string, React.FC<any>> = {
+  health_baseline: HealthBaselineCard,
   food_idea: FoodIdeaCard,
   food: FoodCard,
   agent1: BiomarkerCard,

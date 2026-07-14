@@ -579,7 +579,7 @@ export default function App() {
   const [isManualFoodLogOpen, setIsManualFoodLogOpen] = useState(false);
   const [manualFoodLogError, setManualFoodLogError] = useState<string | null>(null);
   const [isMedicalChatOpen, setIsMedicalChatOpen] = useState(false);
-  const [activeAgentType, setActiveAgentType] = useState<'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review' | null>(null);
+  const [activeAgentType, setActiveAgentType] = useState<'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'health_baseline' | 'agent7' | 'data_review' | null>(null);
   const [activeDataReviewBatchIdx, setActiveDataReviewBatchIdx] = useState<number | string | null>(null);
   const [activeDataReviewBatchKeys, setActiveDataReviewBatchKeys] = useState<string[]>([]);
   const [calibratingBatchIdx, setCalibratingBatchIdx] = useState<number | null>(null);
@@ -675,7 +675,7 @@ export default function App() {
       }
 
       const recomputedBiomarkers: { [key: string]: number | string } = {};
-      [...updatedHistory].sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+      [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
         Object.entries(log.biomarkers).forEach(([k, v]) => {
           recomputedBiomarkers[k] = v as string | number;
         });
@@ -1425,7 +1425,7 @@ export default function App() {
         // Save merged profile to Firestore (profile doc only, not food logs)
         if (forcePull && hasUnsynced) {
           const tempBiomarkers: { [key: string]: number | string } = {};
-          [...mergedBioHistory].sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+          [...mergedBioHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
             Object.entries(log.biomarkers).forEach(([k, v]) => {
               tempBiomarkers[k] = v as string | number;
             });
@@ -1441,7 +1441,7 @@ export default function App() {
         setReport(cloudReport);
         // Recompute active biomarkers (sorted ascending so that newer logs overwrite older values)
         const computedBiomarkers: { [key: string]: number | string } = {};
-        [...mergedBioHistory].sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+        [...mergedBioHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
           Object.entries(log.biomarkers).forEach(([k, v]) => {
             computedBiomarkers[k] = v as string | number;
           });
@@ -1475,7 +1475,7 @@ export default function App() {
         
         // Recompute active biomarkers (sorted ascending so that newer logs overwrite older values)
         const computedBiomarkers: { [key: string]: number | string } = {};
-        [...localBioHistory].sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach((log: BiomarkerLog) => {
+        [...localBioHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach((log: BiomarkerLog) => {
           Object.entries(log.biomarkers).forEach(([k, v]) => {
             computedBiomarkers[k] = v as string | number;
           });
@@ -2236,7 +2236,7 @@ export default function App() {
 
     // 3. Compute active biomarkers
     const computedBiomarkers: { [key: string]: number | string } = {};
-    [...resolvedBioHistory].sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+    [...resolvedBioHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
       Object.entries(log.biomarkers).forEach(([k, v]) => {
         computedBiomarkers[k] = v as string | number;
       });
@@ -2726,7 +2726,7 @@ export default function App() {
       setBiomarkerHistory(updatedHistory);
       // Recompute the latest biomarkers from history so they reflect the latest dates (sorted ascending)
       const recomputedBiomarkers: { [key: string]: number | string } = {};
-      [...updatedHistory].sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+      [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
         Object.entries(log.biomarkers).forEach(([k, v]) => {
           recomputedBiomarkers[k] = v as string | number;
         });
@@ -2934,7 +2934,7 @@ export default function App() {
 
     // 4. Recompute the biomarkers state
     const recomputedBiomarkers: { [key: string]: number | string } = {};
-    [...updatedHistory].filter(b => b.sync_state !== 'delete').sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
       Object.entries(log.biomarkers).forEach(([k, v]) => {
         recomputedBiomarkers[k] = v as string | number;
       });
@@ -2979,7 +2979,7 @@ export default function App() {
     
     // We filter it out for the recomputed local state map
     const recomputedBiomarkers: { [key: string]: number | string } = {};
-    [...updatedHistory].filter(b => b.sync_state !== 'delete').sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
       Object.entries(log.biomarkers).forEach(([k, v]) => {
         recomputedBiomarkers[k] = v as string | number;
       });
@@ -3022,7 +3022,7 @@ export default function App() {
       setBiomarkerHistory(updatedHistory);
       
       const recomputedBiomarkers: { [key: string]: number | string } = {};
-      [...updatedHistory].sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+      [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
         Object.entries(log.biomarkers).forEach(([k, v]) => {
           recomputedBiomarkers[k] = v as string | number;
         });
@@ -3054,7 +3054,7 @@ export default function App() {
     updatedHistory.sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
     setBiomarkerHistory(updatedHistory);
     const recomputedBiomarkers: { [key: string]: number | string } = {};
-    [...updatedHistory].sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
       Object.entries(log.biomarkers).forEach(([k, v]) => {
         recomputedBiomarkers[k] = v as string | number;
       });
@@ -3169,7 +3169,7 @@ export default function App() {
     };
 
     const recomputedBiomarkers: { [key: string]: number | string } = {};
-    [...updatedHistory].sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
       Object.entries(log.biomarkers).forEach(([k, v]) => {
         recomputedBiomarkers[k] = v as string | number;
       });
@@ -3259,7 +3259,7 @@ export default function App() {
     updatedHistory.sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
     // 3. Recompute latest biomarkers
     const recomputedBiomarkers: { [key: string]: number | string } = {};
-    [...updatedHistory].sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
       Object.entries(log.biomarkers).forEach(([k, v]) => {
         recomputedBiomarkers[k] = v as string | number;
       });
@@ -3390,7 +3390,7 @@ export default function App() {
     updatedHistory.sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
 
     const recomputedBiomarkers: { [key: string]: number | string } = {};
-    [...updatedHistory].sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
       Object.entries(log.biomarkers).forEach(([k, v]) => {
         recomputedBiomarkers[k] = v as string | number;
       });
@@ -3505,6 +3505,7 @@ export default function App() {
     // Auto-navigate to dashboard for glorious preview of newly updated targets
     setActiveTab('home');
   };
+
   const handleRejectReport = () => {
     setDraftReport(null);
   };
@@ -3782,7 +3783,7 @@ export default function App() {
                 localStorage.setItem('biomarker_batch_size', size.toString());
               } catch (e) {}
             }}
-            onOpenAgentChat={(agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review', options?: { prefillMessage?: string; dataReviewBatchIdx?: number | string; dataReviewBatchKeys?: string[] }) => {
+            onOpenAgentChat={(agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'health_baseline' | 'agent7' | 'data_review', options?: { prefillMessage?: string; dataReviewBatchIdx?: number | string; dataReviewBatchKeys?: string[] }) => {
               setActiveAgentType(agentType);
               setPrefillMessage(options?.prefillMessage || null);
               setActiveDataReviewBatchIdx(options?.dataReviewBatchIdx !== undefined ? options.dataReviewBatchIdx : null);
@@ -3978,6 +3979,9 @@ export default function App() {
           const updatedProfile = { ...profile };
           
           let currentHistory = [...biomarkerHistory];
+          let currentReport = report ? { ...report } : null;
+          let currentDailyBenefits = [...dailyBenefits];
+          
           if (agentType === 'agent1') {
             const batchIdx = agentResult.batchIdx !== undefined && agentResult.batchIdx !== null 
               ? agentResult.batchIdx 
@@ -4133,7 +4137,7 @@ export default function App() {
 
               // Recompute biomarkers list
               const recomputedBiomarkers: { [key: string]: number | string } = {};
-              [...hHistory].sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+              [...hHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
                 Object.entries(log.biomarkers).forEach(([k, v]) => {
                   recomputedBiomarkers[k] = v as string | number;
                 });
@@ -4265,7 +4269,7 @@ export default function App() {
                 setBiomarkerHistory(currentHistory);
                 
                 const recomputedBiomarkers: { [key: string]: number | string } = {};
-                [...currentHistory].sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+                [...currentHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
                   Object.entries(log.biomarkers).forEach(([k, v]) => {
                     recomputedBiomarkers[k] = v as string | number;
                   });
@@ -4301,9 +4305,6 @@ export default function App() {
             updatedProfile.agent2GapTasks = agentResult.recommendedTests?.map((t: any) => `${t.testName}: ${t.reason}`);
           } else if (agentType === 'agent5') {
             updatedProfile.agentContextualizerSummary = agentResult.message;
-          } else if (agentType === 'agent6') {
-            updatedProfile.agentInterventionSummary = agentResult.message;
-            updatedProfile.agent4Projections = agentResult.projections;
           } else if (agentType === 'agent7') {
             updatedProfile.agentLiteratureSummary = agentResult.message;
           } else if (agentType === 'data_review') {
@@ -4414,6 +4415,80 @@ export default function App() {
                 console.error("Error moving missing biomarkers on clinical calibration finish:", e);
               }
             }
+          } else if (agentType === 'health_baseline') {
+             setIsMedicalChatOpen(false);
+             const data = agentResult?.report || agentResult || {};
+             const unselected = new Set(agentResult.unselectedRowKeys || []);
+             const riskCategories = Array.isArray(data.riskCategories) ? data.riskCategories : [];
+             const acceptedCategories = riskCategories.filter((_: any, idx: number) => !unselected.has(idx));
+             
+             const globalNutrientTargets = Array.isArray(data.nutrientTargets) ? data.nutrientTargets : (Array.isArray(data.topNutrientTargets) ? data.topNutrientTargets : []);
+             const globalDailyActivities = Array.isArray(data.dailyActivities) ? data.dailyActivities : [];
+             const generalNutrientTargets = data.generalNutrientTargets || {};
+
+             if (!currentReport) {
+               currentReport = {
+                 timestamp: new Date().toISOString(),
+                 dailyNutrientTargets: {},
+                 mostImportantNextStep: '',
+                 actions: [],
+                 dailyBenefits: [],
+                 latestInsights: [],
+                 healthRiskForecast: { year5: '', year10: '', year20: '', optimized5: '', optimized10: '', optimized20: '' }
+               };
+             }
+
+             let newDailyNutrientTargets = { ...(currentReport.dailyNutrientTargets || {}) };
+
+             Object.entries(generalNutrientTargets).forEach(([key, val]) => {
+               newDailyNutrientTargets[key] = String(val);
+             });
+
+             globalNutrientTargets.forEach((nt: any) => {
+               if (nt.nutrientKey && nt.targetValue) {
+                 newDailyNutrientTargets[nt.nutrientKey] = nt.targetValue;
+               }
+             });
+
+             globalDailyActivities.forEach((da: any) => {
+               if (da.activity && da.target) {
+                 currentDailyBenefits.push({
+                   id: `db_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                   activity: da.activity,
+                   target: da.target,
+                   completed: false
+                 });
+               }
+             });
+
+             acceptedCategories.forEach((cat: any) => {
+               if (Array.isArray(cat.nutrientTargets)) {
+                 cat.nutrientTargets.forEach((nt: any) => {
+                   if (nt.nutrientKey && nt.targetValue) {
+                     newDailyNutrientTargets[nt.nutrientKey] = nt.targetValue;
+                   }
+                 });
+               }
+               if (Array.isArray(cat.dailyActivities)) {
+                 cat.dailyActivities.forEach((da: any) => {
+                   if (da.activity && da.target) {
+                     currentDailyBenefits.push({
+                       id: `db_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                       activity: da.activity,
+                       target: da.target,
+                       completed: false
+                     });
+                   }
+                 });
+               }
+             });
+
+             currentReport.dailyNutrientTargets = newDailyNutrientTargets;
+             currentReport.topNutrientTargets = Array.isArray(data.topNutrientTargets) ? data.topNutrientTargets.map((nt: any) => nt.nutrientKey) : [];
+             currentReport.healthBaselineCategories = acceptedCategories;
+             
+             setReport(currentReport);
+             setDailyBenefits(currentDailyBenefits);
           }
           
           setProfile(updatedProfile);
@@ -4435,7 +4510,7 @@ export default function App() {
               }
             }
 
-            await saveAndSync(updatedProfile, foodLogs, biomarkers, currentHistory, actions, dailyBenefits, report);
+            await saveAndSync(updatedProfile, foodLogs, biomarkers, currentHistory, actions, currentDailyBenefits, currentReport || report);
           } finally {
             setCalibratingBatchIdx(null);
             setCalibratingAgentType(null);
@@ -4457,7 +4532,7 @@ export default function App() {
               const getStepIndexForAgent = (aType: string) => {
                 if (aType === 'agent1') return 1;
                 if (aType === 'data_review') return 2;
-                if (aType === 'agent6') return 3;
+                if (aType === 'health_baseline') return 3;
                 if (aType === 'agent4') return 4;
                 if (aType === 'agent7') return 5;
                 return -1;

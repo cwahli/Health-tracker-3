@@ -74,6 +74,7 @@ export default function MedicalHistoryTab({
   onDeleteAnalysis,
 }: MedicalHistoryTabProps) {
   const t = translations[profile.language] || translations.en;
+  const activeHistory = useMemo(() => (biomarkerHistory || []).filter(h => h.sync_state !== 'delete'), [biomarkerHistory]);
   const [viewType, setViewType] = useState<'risk' | 'condition' | 'practice'>('risk');
   const [selectedSubCategory, setSelectedSubCategory] = useState<string>('all');
   const [sortBy, setSortBy] = useState<'risk' | 'name'>('risk');
@@ -105,7 +106,7 @@ export default function MedicalHistoryTab({
   };
 
   const hasEmptyBiomarkers = useMemo(() => {
-    const hasEmptyVal = biomarkerHistory.some(log => {
+    const hasEmptyVal = activeHistory.some(log => {
       return Object.values(log.biomarkers).some(val => 
         val === undefined || val === null || val === '' || Number.isNaN(val) || (typeof val === 'string' && val.trim() === '')
       );
@@ -114,14 +115,14 @@ export default function MedicalHistoryTab({
 
     if (profile?.customBiomarkers) {
       const usedKeys = new Set<string>();
-      biomarkerHistory.forEach(log => {
+      activeHistory.forEach(log => {
         Object.keys(log.biomarkers).forEach(key => usedKeys.add(key));
       });
       const hasUnusedCustom = Object.keys(profile.customBiomarkers).some(key => !usedKeys.has(key));
       if (hasUnusedCustom) return true;
     }
     return false;
-  }, [biomarkerHistory, profile?.customBiomarkers]);
+  }, [activeHistory, profile?.customBiomarkers]);
 
   // Important/highlighted biomarkers for user cardiovascular/kidney health
   const highlightKeys = ['ldl', 'apob', 'hba1c', 'egfr', 'hscrp'];
@@ -132,7 +133,7 @@ export default function MedicalHistoryTab({
     // ONLY show standard definitions if they have data!
     const hasData = (key: string) => {
       if (biomarkers && biomarkers[key] !== undefined) return true;
-      return (biomarkerHistory || []).some(h => h.biomarkers && h.biomarkers[key] !== undefined);
+      return (activeHistory || []).some(h => h.biomarkers && h.biomarkers[key] !== undefined);
     };
     const combined = biomarkerDefinitions.filter(d => hasData(d.key)).map(d => {
       if (d.key === 'bmi') {
@@ -201,7 +202,7 @@ export default function MedicalHistoryTab({
     }
 
     const allHistoryKeys = new Set<string>();
-    (biomarkerHistory || []).forEach(h => {
+    (activeHistory || []).forEach(h => {
       if (h.biomarkers) {
         Object.keys(h.biomarkers).forEach(k => allHistoryKeys.add(k));
       }
@@ -237,7 +238,7 @@ export default function MedicalHistoryTab({
       };
     });
     return withMetadata;
-  }, [biomarkers, biomarkerHistory, profile.customBiomarkers, profile.ethnicity, profile.gender, profile.height]);
+  }, [biomarkers, activeHistory, profile.customBiomarkers, profile.ethnicity, profile.gender, profile.height]);
 
   // Dynamic list of subcategories based on current viewType
   const subCategories = useMemo(() => {
@@ -312,7 +313,7 @@ export default function MedicalHistoryTab({
       };
 
       const getLatestDate = (key: string) => {
-        const logs = biomarkerHistory.filter(h => h.biomarkers[key] !== undefined);
+        const logs = activeHistory.filter(h => h.biomarkers[key] !== undefined);
         if (logs.length === 0) return '0000-00-00';
         return logs.map(h => h.date).sort().reverse()[0];
       };
@@ -333,7 +334,7 @@ export default function MedicalHistoryTab({
     }
 
     return filtered;
-  }, [allDefinitions, viewType, selectedSubCategory, sortBy, biomarkerHistory, biomarkers, searchQuery]);
+  }, [allDefinitions, viewType, selectedSubCategory, sortBy, activeHistory, biomarkers, searchQuery]);
 
   // Helper to filter biomarkers for a subcategory
   const getBiomarkersForSubCategory = (cat: string) => {
@@ -432,7 +433,7 @@ export default function MedicalHistoryTab({
         return 1;
       };
       const getLatestDate = (key: string) => {
-        const logs = biomarkerHistory.filter(h => h.biomarkers[key] !== undefined);
+        const logs = activeHistory.filter(h => h.biomarkers[key] !== undefined);
         if (logs.length === 0) return '0000-00-00';
         return logs.map(h => h.date).sort().reverse()[0];
       };
@@ -620,7 +621,7 @@ export default function MedicalHistoryTab({
                             <BiomarkerExpandedSection
                               def={def}
                               profile={profile}
-                              biomarkerHistory={biomarkerHistory}
+                              biomarkerHistory={activeHistory}
                               biomarkers={biomarkers}
                               onEditBiomarkerLog={onEditBiomarkerLog}
                               onDeleteBiomarkerLog={onDeleteBiomarkerLog}
@@ -663,7 +664,7 @@ export default function MedicalHistoryTab({
           </div>
           <div className="flex items-center gap-2">
             <BrainCircuit className="w-4 h-4 text-indigo-500" />
-            <span>Total Log Entries: <strong className="text-slate-800 dark:text-slate-200 font-bold">{biomarkerHistory.reduce((sum, h) => sum + Object.keys(h.biomarkers).length, 0)}</strong></span>
+            <span>Total Log Entries: <strong className="text-slate-800 dark:text-slate-200 font-bold">{activeHistory.reduce((sum, h) => sum + Object.keys(h.biomarkers).length, 0)}</strong></span>
           </div>
         </div>
       </div>
@@ -697,7 +698,7 @@ export default function MedicalHistoryTab({
           biomarkerKey={reviewingBiomarkerKey}
           currentValue={biomarkers[reviewingBiomarkerKey]}
           onClose={() => setReviewingBiomarkerKey(null)}
-          biomarkerHistory={biomarkerHistory}
+          biomarkerHistory={activeHistory}
           initialMessages={reviewHistories[reviewingBiomarkerKey] || []}
           onUpdateMessages={(msgs) => {
             setReviewHistories(prev => ({
@@ -753,7 +754,7 @@ export default function MedicalHistoryTab({
           isOpen={true}
           initialKey={combineBiomarkerKey}
           biomarkers={biomarkers}
-          biomarkerHistory={biomarkerHistory}
+          biomarkerHistory={activeHistory}
           allDefinitions={allDefinitions}
           onClose={() => setCombineBiomarkerKey(null)}
           onSaveCombine={onCombineBiomarkers}
@@ -765,7 +766,7 @@ export default function MedicalHistoryTab({
         <BiomarkerDictionaryModal
           profile={profile}
           biomarkers={biomarkers}
-          biomarkerHistory={biomarkerHistory}
+          biomarkerHistory={activeHistory}
           onClose={() => setShowDictionaryModal(false)}
           onUpdateProfile={onUpdateProfile ? (updates) => onUpdateProfile(updates) : (updates) => onLogMedical({}, updates, undefined, undefined, undefined, true)}
           onDeleteBiomarker={onDeleteBiomarker}

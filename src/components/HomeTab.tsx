@@ -69,6 +69,8 @@ export default function HomeTab({
   onUpdateReport,
 }: HomeTabProps) {
   const t = translations[profile.language] || translations.en;
+  const activeFoodLogs = React.useMemo(() => (foodLogs || []).filter(f => f.sync_state !== 'delete'), [foodLogs]);
+  const activeHistory = React.useMemo(() => (biomarkerHistory || []).filter(h => h.sync_state !== 'delete'), [biomarkerHistory]);
   const [showAllTargets, setShowAllTargets] = React.useState(false);
   const [expandedKey, setExpandedKey] = React.useState<string | null>(null);
   const [reviewingBiomarkerKey, setReviewingBiomarkerKey] = React.useState<string | null>(null);
@@ -188,7 +190,7 @@ export default function HomeTab({
   const resolvedBiomarkers = React.useMemo(() => {
     // Collect all keys from history + biomarkers
     const keys = new Set<string>();
-    (biomarkerHistory || []).forEach(h => {
+    (activeHistory || []).forEach(h => {
       if (h.biomarkers) {
         Object.keys(h.biomarkers).forEach(k => keys.add(k));
       }
@@ -200,7 +202,7 @@ export default function HomeTab({
     // Derive the latest value for each key from history, fallback to biomarkers
     const res: Record<string, number | string> = {};
     keys.forEach(key => {
-      const relevantLogs = (biomarkerHistory || [])
+      const relevantLogs = (activeHistory || [])
         .filter(h => h.biomarkers && h.biomarkers[key] !== undefined && h.biomarkers[key] !== null && h.biomarkers[key] !== '')
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       if (relevantLogs.length > 0) {
@@ -216,7 +218,7 @@ export default function HomeTab({
       res.bmi = parseFloat(bmiScore.toFixed(1));
     }
     return res;
-  }, [biomarkers, biomarkerHistory, profile.weight, profile.height]);
+  }, [biomarkers, activeHistory, profile.weight, profile.height]);
 
   const problematicBiomarkers = React.useMemo(() => {
     const list = Object.entries(resolvedBiomarkers)
@@ -260,7 +262,7 @@ export default function HomeTab({
 
   // Compute daily consumption from food history for today
   const todayStr = getCurrentDateInTimezone(profile.timezone);
-  const todaysFoods = foodLogs.filter(f => f.date === todayStr);
+  const todaysFoods = activeFoodLogs.filter(f => f.date === todayStr);
 
   const todaysTotals = todaysFoods.reduce((acc, curr) => {
     if (curr.nutrients) {
@@ -294,7 +296,7 @@ export default function HomeTab({
       targetDates.add(`${yyyy}-${mm}-${dd}`);
     }
     
-    const foodsInRange = foodLogs.filter(f => targetDates.has(f.date));
+    const foodsInRange = activeFoodLogs.filter(f => targetDates.has(f.date));
     
     foodsInRange.forEach(f => {
       if (f.nutrients) {
@@ -316,7 +318,7 @@ export default function HomeTab({
     });
     
     return averages;
-  }, [viewTimeframe, todaysTotals, foodLogs, todayStr]);
+  }, [viewTimeframe, todaysTotals, activeFoodLogs, todayStr]);
 
   const toggleAction = (id: string) => {
     setActions(actions.map(act => act.id === id ? { ...act, completed: !act.completed } : act));
@@ -406,7 +408,7 @@ export default function HomeTab({
       const dd = String(prevDate.getDate()).padStart(2, '0');
       const targetDateStr = `${yyyy}-${mm}-${dd}`;
       
-      const dayFoods = foodLogs.filter(f => f.date === targetDateStr);
+      const dayFoods = activeFoodLogs.filter(f => f.date === targetDateStr);
       if (dayFoods.length > 0) {
         const dayTotal = dayFoods.reduce((acc, curr) => {
           return acc + (Number(curr.nutrients?.[key]) || 0);
@@ -472,7 +474,7 @@ export default function HomeTab({
   const complianceScore7Day = Math.min(100, rawScore);
   const complianceScore30Day = Math.min(100, Math.round(rawScore * 0.95));
 
-  const distinctDaysOfData = new Set(foodLogs.map(l => l.date)).size;
+  const distinctDaysOfData = new Set(activeFoodLogs.map(l => l.date)).size;
 
   const missingProfilePoints: string[] = [];
   if (profile.age === undefined || profile.age === null || String(profile.age).trim() === '') missingProfilePoints.push('Age');
@@ -484,7 +486,7 @@ export default function HomeTab({
     const basicInfoMissing = ['Age', 'Ethnicity', 'Weight', 'Height'].filter(f => missingProfilePoints.includes(f));
     const missing = [];
     if (basicInfoMissing.length > 0) missing.push('basic profile info (Age, Height, etc)');
-    if (foodLogs.length === 0) missing.push('some food logs');
+    if (activeFoodLogs.length === 0) missing.push('some food logs');
     if (Object.keys(biomarkers).length === 0) missing.push('medical biomarkers');
     return missing;
   };
@@ -572,7 +574,7 @@ export default function HomeTab({
     return () => window.removeEventListener('googleStepsUpdated', handleGoogleUpdate);
   }, [emailSuffix]);
 
-  const hasNoData = foodLogs.length === 0 && biomarkerHistory.length === 0;
+  const hasNoData = activeFoodLogs.length === 0 && activeHistory.length === 0;
 
   if (hasNoData) {
     return (
@@ -1193,6 +1195,51 @@ export default function HomeTab({
                   return (
                     <div key={category} className="space-y-4 mb-6 last:mb-0">
                       <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pl-1 border-b border-slate-100 dark:border-slate-800 pb-2">{category}</h4>
+                      
+                      {(() => {
+                        const baselineCat = report?.healthBaselineCategories?.find((c: any) => 
+                          c.categoryName?.toLowerCase() === category.toLowerCase() || 
+                          category.toLowerCase().includes(c.categoryName?.toLowerCase()) || 
+                          c.categoryName?.toLowerCase().includes(category.toLowerCase())
+                        );
+                        if (baselineCat) {
+                          return (
+                            <details className="group border border-slate-200 dark:border-slate-700/50 rounded-xl overflow-hidden mb-3">
+                              <summary className="cursor-pointer bg-slate-50 dark:bg-slate-800/50 px-4 py-3 flex items-center justify-between text-sm font-semibold text-slate-800 dark:text-slate-200 list-none" style={{ listStyle: 'none' }}>
+                                <div className="flex items-center gap-2">
+                                  <Sparkles className="w-4 h-4 text-indigo-500" />
+                                  AI Baseline Analysis & Risks
+                                </div>
+                                <ChevronDown className="w-4 h-4 text-slate-400 group-open:-rotate-180 transition-transform" />
+                              </summary>
+                              <div className="p-4 bg-white dark:bg-slate-900 space-y-3">
+                                <div>
+                                  <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Analysis</span>
+                                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{baselineCat.analysis}</p>
+                                </div>
+                                {baselineCat.unaddressedRisk && (
+                                  <div className="bg-amber-50 dark:bg-amber-950/20 p-3 rounded-lg border border-amber-100 dark:border-amber-900/30">
+                                    <span className="text-xs font-bold text-amber-700 dark:text-amber-500 uppercase tracking-wider block mb-1">Unaddressed Risk</span>
+                                    <p className="text-sm text-amber-900 dark:text-amber-400">{baselineCat.unaddressedRisk}</p>
+                                  </div>
+                                )}
+                                {baselineCat.biomarkerTargets && baselineCat.biomarkerTargets.length > 0 && (
+                                  <div>
+                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Biomarker Targets</span>
+                                    <ul className="list-disc list-inside text-sm text-slate-700 dark:text-slate-300 space-y-1">
+                                      {baselineCat.biomarkerTargets.map((bt: any, idx: number) => (
+                                        <li key={idx}><strong>{bt.name}</strong>: {bt.targetValue}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            </details>
+                          );
+                        }
+                        return null;
+                      })()}
+
                       <div className="space-y-4">
                         {chunks.map((chunk, chunkIdx) => {
                           const expandedInChunk = chunk.find(b => expandedKey === b.key);
@@ -1264,7 +1311,7 @@ export default function HomeTab({
                           <BiomarkerExpandedSection
                             def={expandedInChunk.def}
                             profile={profile}
-                            biomarkerHistory={biomarkerHistory}
+                            biomarkerHistory={activeHistory}
                             biomarkers={resolvedBiomarkers}
                             onEditBiomarkerLog={onEditBiomarkerLog}
                             onDeleteBiomarkerLog={onDeleteBiomarkerLog}
@@ -1421,7 +1468,7 @@ export default function HomeTab({
           biomarkerKey={reviewingBiomarkerKey}
           currentValue={resolvedBiomarkers[reviewingBiomarkerKey]}
           onClose={() => setReviewingBiomarkerKey(null)}
-          biomarkerHistory={biomarkerHistory}
+          biomarkerHistory={activeHistory}
           initialMessages={reviewHistories[reviewingBiomarkerKey] || []}
           onUpdateMessages={(msgs) => {
             setReviewHistories(prev => ({
@@ -1461,9 +1508,9 @@ export default function HomeTab({
           isOpen={isFoodIdeaChatOpen}
           onClose={() => setIsFoodIdeaChatOpen(false)}
           profile={profile}
-          foodLogs={foodLogs}
+          foodLogs={activeFoodLogs}
           biomarkers={biomarkers}
-          biomarkerHistory={biomarkerHistory}
+          biomarkerHistory={activeHistory}
           selectedModelId={selectedModelId}
           onChangeModelId={onChangeModelId}
           onLogFoodIdeas={(ideas) => {
@@ -1479,9 +1526,9 @@ export default function HomeTab({
           isOpen={isDailyRecommendationChatOpen}
           onClose={() => setIsDailyRecommendationChatOpen(false)}
           profile={profile}
-          foodLogs={foodLogs}
+          foodLogs={activeFoodLogs}
           biomarkers={biomarkers}
-          biomarkerHistory={biomarkerHistory}
+          biomarkerHistory={activeHistory}
           report={report}
           actions={actions}
           googleSteps={googleSteps}

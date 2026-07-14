@@ -21,4 +21,5 @@ export interface AgentCardProps {
   handleSend?: (msg: string) => void;
   setActiveInstructionAgentType?: (type: string) => void;
   setActiveInstructionPrompt?: (prompt: string | null) => void;
+  onDeleteMessage?: (id: string) => void;
 }

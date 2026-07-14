@@ -12,7 +12,7 @@ import { getTraceNutrientsForFoodType } from "./server_food_db";
 import dotenv from "dotenv";
 import YAML from "yaml";
 import { AsyncLocalStorage } from "async_hooks";
-import { biomarkerDefinitions } from "./src/utils/biomarkers";
+import { biomarkerDefinitions, getBiomarkerStatus, getBiomarkerStatusLabel } from "./src/utils/biomarkers";
 
 // Simple and robust custom JS object-to-YAML stringifier
 function jsToYaml(val: any, indent: number = 0): string {
@@ -371,7 +371,7 @@ function addDebugLog(msg: string, explicitSessionId?: string) {
   }
   
   // Keep the container stdout clean by truncating huge multiline logs in console.log
-  const singleLineLog = sanitizedMsg.replace(/\n/g, '\\n');
+  const singleLineLog = sanitizedMsg.replace(/\n/g, '\n');
   if (singleLineLog.length > 300) {
     console.log(`[LLM DEBUG ${timestamp}]: ${singleLineLog.substring(0, 300)}... [Truncated ${singleLineLog.length - 300} chars. Full detailed payload is saved in session memory and visible via the Full-Screen Diagnostic Log Viewer UI]`);
   } else {
@@ -1558,27 +1558,28 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       const hasImage = imagePayloads && imagePayloads.length > 0;
       if (hasImage) {
         addDebugLog(`[Vision Scout] Running Stage 3 lightweight vision scout...`);
-        const scoutSystemInstruction = `You are a fast visual food identification and localization agent. You will receive one or more images.
+                const scoutSystemInstruction = `You are a fast visual food identification and localization agent. You will receive one or more images.
 
 STEP 1 — IMAGE CLASSIFICATION (do this FIRST for every image):
 For each image, determine if it is:
   (a) A product label, price tag, or packaging showing food name and/or weight in grams/kg
-  (b) An actual food photo showing prepared or raw ingredients
-  (c) A cooking scene (e.g. boiling in a pot, frying on a pan)
+  (b) A Nutrition Facts label
+  (c) An actual food photo showing prepared or raw ingredients
+  (d) A cooking scene (e.g. boiling in a pot, frying on a pan)
 
 STEP 2 — DATA EXTRACTION & LOCALIZATION:
-- For label images (type a): Read the EXACT food name (even if in a local language) and the EXACT weight. Convert kg to grams (e.g., 0.192 kg = 192g). Translate name to English: "Bayam Hju" → "spinach", "Daging Empal" → "beef stew cut", "Blade Kong" → "beef blade cut", "Daging Sapi" → "beef".
-- For food photos (type b): Identify food items. Estimate weight using visible size references (hands, plates, forks, containers). Output a short English keyword and estimated weight in grams.
-- For cooking scenes (type c): Note the method (e.g., "boiling, no oil", "deep frying") and set cookingMethod.
-- LOCALIZATION: For EVERY item identified, provide a 2D bounding box indicating its location in the image. Format this as an array of four integers [ymin, xmin, ymax, xmax], normalized to a scale of 0 to 1000 (where [0,0] is top-left and [1000,1000] is bottom-right).
+- For product/price labels (type a): Read the EXACT food name and weight. Convert kg to grams. Translate local name to English.
+- For Nutrition Facts labels (type b): Read the exact macros. Calculate and provide the values PER 100g (or just extract them if already per 100g) so the dietitian can use them accurately.
+- For food photos (type c): Identify food items. Estimate weight using visible size references. Output a short English keyword and estimated weight in grams.
+- For cooking scenes (type d): Note the method and set cookingMethod.
+- LOCALIZATION: For EVERY item identified, provide a 2D bounding box [ymin, xmin, ymax, xmax] (0-1000 scale).
 
 STEP 3 — MERGE & DEDUPLICATE:
-If an item appears in BOTH a label and a food photo, use the LABEL WEIGHT as the authoritative weight. Do NOT duplicate.
+If an item appears in multiple images (e.g. a label and a food photo), merge them into one item using the LABEL WEIGHT as authoritative. Do NOT duplicate.
 
 CRITICAL RULES:
-- Always translate local/regional food names to short, clean English database-friendly names as the keyword.
-- keyword must be short and clean (e.g. "beef blade cut" not "raw beef slices (daging empal and blade)").
-- originalName must capture the raw text from the label OR the observed food name including local language names and preparation/cooking style (e.g. "daging empal (boiled then fried beef)", "nasi goreng (fried rice with egg)", "bayam hijau boiled"). This is critical so the clinical LLM knows how it was prepared.
+- keyword must be a short, clean English database-friendly name.
+- originalName must capture raw text or local names & prep style.
 - Output ONLY valid JSON matching this schema: 
 { 
   "items": [
@@ -1588,7 +1589,13 @@ CRITICAL RULES:
       "originalName": "string", 
       "source": "label | visual",
       "boundingBox2D": ["[ymin, xmin, ymax, xmax]"],
-      "sourceImageIndex": "integer (0-based index of the image array)"
+      "sourceImageIndex": "integer (0-based index of the image array)",
+      "nutritionFacts": {
+        "caloriesPer100g": "number (optional)",
+        "proteinPer100g": "number (optional)",
+        "fatPer100g": "number (optional)",
+        "carbsPer100g": "number (optional)"
+      }
     }
   ], 
   "cookingMethod": "string" 
@@ -2148,17 +2155,37 @@ You can compare up to 10 foods at once. comparisonTable rows must use a 'values'
       if (!rawFoodData.itemsBreakdown || rawFoodData.itemsBreakdown.length === 0) {
         // Build itemsBreakdown from Vision Scout output + best DB match per item
         if (visionScoutItems && visionScoutItems.length > 0) {
-          rawFoodData.itemsBreakdown = visionScoutItems.map((item: any) => {
+                    rawFoodData.itemsBreakdown = visionScoutItems.map((item: any) => {
             const bestMatch = databaseMatchesArray.find((m: any) => 
               m.name.toLowerCase().includes(item.keyword.split(' ').pop()) ||
               item.keyword.toLowerCase().includes(m.name.toLowerCase().split(' ')[0])
             );
+            
+            let labelNutrients = null;
+            if (item.nutritionFacts && Object.keys(item.nutritionFacts).length > 0) {
+              labelNutrients = {
+                servingSizeGrams: 100,
+                calories: Number(item.nutritionFacts.caloriesPer100g) || 0,
+                protein: Number(item.nutritionFacts.proteinPer100g) || 0,
+                totalFat: Number(item.nutritionFacts.fatPer100g) || 0,
+                saturatedFat: 0,
+                transFat: 0,
+                carbohydrates: Number(item.nutritionFacts.carbsPer100g) || 0,
+                addedSugar: 0,
+                sodium: 0,
+                potassium: 0,
+                totalFibre: 0,
+                solubleFibre: 0
+              };
+            }
+            
             return {
               canonicalDbName: item.keyword,
               weightGrams: String(sanitizeMealWeight(item.estimatedWeightGrams, 100)),
-              dbSource: bestMatch ? (bestMatch.source === 'usda' ? 'usda' : 'off') : 'estimated',
+              dbSource: labelNutrients ? 'label' : (bestMatch ? (bestMatch.source === 'usda' ? 'usda' : 'off') : 'estimated'),
               dbId: bestMatch ? bestMatch.id : null,
-              labelNutrientsPerServing: null
+              labelNutrientsPerServing: labelNutrients,
+              foodType: 'unknown'
             };
           });
           addDebugLog(`[Fallback] Built itemsBreakdown from Vision Scout output (LLM truncated)`);
@@ -3706,9 +3733,44 @@ app.post("/api/gemini/insight-analyze", async (req, res) => {
       });
     }
 
+    const sanitizedBiomarkerHistory = (biomarkerHistory || []).map((log: any) => {
+      const clean = { ...log };
+      delete clean.tests;
+      delete clean.updated_at;
+      delete clean.sync_state;
+      delete clean.note;
+      delete clean.summary;
+      delete clean.id;
+      return clean;
+    }).filter((log: any) => {
+      if (log.biomarkers && Object.keys(log.biomarkers).length === 1 && log.biomarkers.steps !== undefined) {
+        return false;
+      }
+      return true;
+    });
+
+    const riskGroupings: Record<string, string[]> = {};
+    sanitizedBiomarkerHistory.forEach((log: any) => {
+      if (log.biomarkers) {
+        Object.keys(log.biomarkers).forEach(key => {
+          if (key === 'steps') return;
+          const def = biomarkerDefinitions.find(d => d.key === key);
+          const customDef = activeProfile?.customBiomarkers?.[key];
+          let risks = customDef?.riskCategories || def?.riskCategories || ['Uncategorized'];
+          if (!Array.isArray(risks)) risks = [risks];
+          if (risks.length === 0) risks = ['Uncategorized'];
+          
+          risks.forEach((risk: string) => {
+            if (!riskGroupings[risk]) riskGroupings[risk] = [];
+            if (!riskGroupings[risk].includes(key)) riskGroupings[risk].push(key);
+          });
+        });
+      }
+    });
+
     const profileText = `UserProfile: Age ${activeProfile.age}, Ethnicity: ${activeProfile.ethnicity}, Weight: ${activeProfile.weight}kg, Height: ${activeProfile.height}cm, Email: ${activeProfile.email}.`;
     const foodSummary = foodLogs && foodLogs.length > 0 ? `Recent Food Logs:\n${JSON.stringify(foodLogs.slice(-10))}` : "No food logs registered.";
-    const biomarkerSummary = biomarkerHistory && biomarkerHistory.length > 0 ? `Biomarker Logs:\n${JSON.stringify(biomarkerHistory)}` : "No medical biomarkers logged.";
+    const biomarkerSummary = sanitizedBiomarkerHistory.length > 0 ? `Biomarker Logs:\n${JSON.stringify(sanitizedBiomarkerHistory)}\n\nUser's Logged Biomarkers Grouped by Risk Categories:\n${JSON.stringify(riskGroupings)}` : "No medical biomarkers logged.";
 
     const promptText = `Perform a comprehensive health profiling analysis using the totality of user information provided below.
     ${profileText}
@@ -3824,6 +3886,185 @@ app.post("/api/gemini/insight-analyze", async (req, res) => {
   }
 });
 
+app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
+  try {
+    const { profile, userProfile, foodLogs, biomarkerHistory, engine, refinement } = req.body;
+    const activeProfile = profile || userProfile || {};
+
+    const sanitizedBiomarkerHistory = (biomarkerHistory || []).map((log: any) => {
+      const clean = { ...log };
+      delete clean.tests;
+      delete clean.updated_at;
+      delete clean.sync_state;
+      delete clean.note;
+      delete clean.summary;
+      delete clean.id;
+      return clean;
+    }).filter((log: any) => {
+      if (log.biomarkers && Object.keys(log.biomarkers).length === 1 && log.biomarkers.steps !== undefined) {
+        return false;
+      }
+      return true;
+    });
+
+        const riskGroupingsWithSeverity: Record<string, string[]> = {};
+    const biomarkerHistories: Record<string, {date: string, val: any}[]> = {};
+    
+    // Sort by date descending so first seen is latest
+    const sortedHistory = [...sanitizedBiomarkerHistory].sort((a, b) => {
+      const da = a.date ? new Date(a.date).getTime() : 0;
+      const db = b.date ? new Date(b.date).getTime() : 0;
+      return db - da;
+    });
+    
+    sortedHistory.forEach((log: any) => {
+      if (log.biomarkers) {
+        Object.keys(log.biomarkers).forEach(key => {
+          if (key === 'steps') return;
+          if (!biomarkerHistories[key]) biomarkerHistories[key] = [];
+          if (biomarkerHistories[key].length < 5) {
+            biomarkerHistories[key].push({ date: log.date, val: log.biomarkers[key] });
+          }
+        });
+      }
+    });
+
+    const normalBiomarkers: string[] = [];
+    
+    Object.keys(biomarkerHistories).forEach(key => {
+      const history = biomarkerHistories[key];
+      const latestVal = history[0].val;
+      const historyStr = history.map(h => `\n       - ${h.date}: ${h.val}`).join('');
+      
+      let bStatus = getBiomarkerStatus(key, latestVal, undefined, activeProfile?.customBiomarkers?.[key], activeProfile);
+      
+      if (bStatus === 'low' || bStatus === 'high' || bStatus === 'critical') {
+        const statusLabel = getBiomarkerStatusLabel(key, bStatus, activeProfile?.customBiomarkers?.[key], latestVal, activeProfile);
+        const def = biomarkerDefinitions.find(d => d.key === key);
+        const customDef = activeProfile?.customBiomarkers?.[key];
+        const medicalInsight = customDef?.benefitRisk || def?.benefitRisk || "No specific medical insight defined.";
+        let risks = customDef?.riskCategories || def?.riskCategories || ['Uncategorized'];
+        if (!Array.isArray(risks)) risks = [risks];
+        if (risks.length === 0) risks = ['Uncategorized'];
+        
+        risks.forEach((risk: string) => {
+          if (!riskGroupingsWithSeverity[risk]) riskGroupingsWithSeverity[risk] = [];
+          riskGroupingsWithSeverity[risk].push(`${key} (Status: ${statusLabel})${historyStr}\n     Medical Insight: ${medicalInsight}`);
+        });
+      } else {
+        normalBiomarkers.push(`${key}: ${latestVal}`);
+      }
+    });
+
+    let groupedRisksStr = "";
+    if (Object.keys(riskGroupingsWithSeverity).length > 0) {
+      groupedRisksStr = "Biomarkers at risk:\n";
+      Object.keys(riskGroupingsWithSeverity).forEach(risk => {
+        groupedRisksStr += `\n[${risk}]\n`;
+        riskGroupingsWithSeverity[risk].forEach(line => {
+          groupedRisksStr += `  - ${line}\n`;
+        });
+      });
+    }
+
+    const biomarkerSummary = Object.keys(biomarkerHistories).length > 0 ? 
+      `${groupedRisksStr}\n\nNormal/Uncategorized Biomarkers:\n${normalBiomarkers.join('\n')}` : 
+      "No medical biomarkers logged.";
+
+    const profileText = `UserProfile: Age ${activeProfile.age}, Ethnicity: ${activeProfile.ethnicity}, Weight: ${activeProfile.weight}kg, Height: ${activeProfile.height}cm, Gender: ${activeProfile.gender}, Blood Type: ${activeProfile.bloodType}.`;
+    const foodSummary = foodLogs && foodLogs.length > 0 ? `Recent Food Logs:\n${JSON.stringify(foodLogs.slice(-10))}` : "No food logs registered.";
+
+    const nutrientKeysList = [
+      "calories", "protein", "totalFat", "saturatedFat", "transFat", "unsaturatedFat", "omega3", 
+      "carbohydrates", "addedSugar", "totalFibre", "solubleFibre", "sodium", "potassium", 
+      "magnesium", "calcium", "iron", "zinc", "selenium", "iodine", "phosphorus", 
+      "vitaminD", "vitaminB12", "folate", "vitaminC", "vitaminE", "vitaminK", 
+      "vitaminA", "vitaminB6", "thiamine", "riboflavin", "niacin"
+    ];
+    
+    const biomarkerKeysList = biomarkerDefinitions.map(d => d.key);
+
+    const promptText = `Perform a comprehensive health baseline analysis using the totality of user information provided below.
+    ${profileText}
+    ${foodSummary}
+    ${biomarkerSummary}
+    ${refinement ? `\nUSER REFINEMENT REQUEST: The user has asked to refine the previous analysis. Please adjust the report considering this feedback: "${refinement.message}". Also consider this chat history: ${JSON.stringify(refinement.chatHistory)}` : ""}
+    
+    === AVAILABLE NUTRIENT KEYS ===
+    You MUST use exactly these 31 keys for any nutrient references in 'nutrientTargets', 'topNutrientTargets' or 'generalNutrientTargets':
+    ${nutrientKeysList.join(", ")}
+    
+    === AVAILABLE BIOMARKER KEYS ===
+    You MUST use the biomarkers name exactly as shared.
+    
+    Respond strictly with a JSON object conforming exactly to this structure (use camelCase):
+    {
+      "report": {
+        "globalSummary": "High-level overview of current health trajectory.",
+        "timelineToOptimal": "Estimated timeframe to stabilize at-risk markers.",
+        "riskCategories": [
+          {
+            "categoryName": "e.g., Cardiovascular",
+            "analysis": "Insight based on biomarkers",
+            "unaddressedRisk": "What happens long-term if ignored",
+            "biomarkerTargets": [
+              {"name": "HbA1c", "targetValue": "< 5.7%"}
+            ],
+            "nutrientTargets": [
+              {"nutrientKey": "exact matching key", "targetValue": "< 1g/day", "rationale": "..."}
+            ],
+            "dailyActivities": [
+              {"activity": "Zone 2 Cardio", "target": "30 mins"}
+            ]
+          }
+        ],
+        "topNutrientTargets": [
+          {"nutrientKey": "exact matching key", "targetValue": "1650", "rationale": "..."}
+        ],
+        "generalNutrientTargets": {
+          "vitaminD": "1000 IU"
+        }
+      }
+    }
+    
+    CRITICAL REQUIREMENTS:
+    1. Provide the top 3-6 priority nutrient targets in 'topNutrientTargets' with reason how it would help the risk category.
+    2. Provide target values for ALL remaining applicable nutrient keys (approx 20+) in 'generalNutrientTargets'.
+    3. Include recommendation for nutrition target for all biomarker at risk. So all risk category listed should have at least 1 recommendation in term of nutrient and activity target.
+    4. Consolidate the activity and nutrient targets. If an activity or nutrient target is required for multiple risk categories, reuse the same recommendation rather than creating a slightly different one.
+    5. Think globally for the most relevant top nutrient to share. Do not share relative targets (e.g., 1.2g/kg); you MUST compute the absolute amount (e.g., body weight * 1.2g) and give the final exact number based on the user's profile weight. Choose the most effective constraint globally (e.g. general calorie restriction vs added sugar restriction) depending on the most critical risks. Also, specify the exact type of nutrient if relevant (e.g. soluble fiber vs total fiber).`;
+
+    const systemInstruction = "You are a world-class preventative cardiologist, endocrinologist, and clinical longevity researcher. Your response must be an exact single JSON matching the requested schema using strictly the allowed keys. Never add markdown wrappers.";
+    const fullPromptSent = `System Instruction:\n${systemInstruction}\n\n${promptText}`;
+
+    const textOutput = await callUnifiedLLM({
+      modelId: engine || "gemini-3.1-pro",
+      systemInstruction,
+      promptText,
+      responseMimeType: "application/json"
+    });
+
+    let cleanJson = textOutput.replace(/```(?:json)?/gi, "").trim();
+    let parsedData;
+    try {
+      parsedData = JSON.parse(cleanJson);
+    } catch (parseErr) {
+      const firstBrace = cleanJson.indexOf("{");
+      const lastBrace = cleanJson.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        parsedData = JSON.parse(cleanJson.substring(firstBrace, lastBrace + 1));
+      } else {
+        throw parseErr;
+      }
+    }
+
+    parsedData.agentPrompt = `System Instruction:\nYou are a world-class preventative cardiologist, endocrinologist, and clinical longevity researcher. Your response must be an exact JSON matching the requested schema. Never add markdown wrappers.\n\n${promptText}`;
+    res.json(parsedData);
+  } catch (error: any) {
+    console.error("[Health Baseline Analyze Error]:", error);
+    res.status(500).json({ error: "Failed to generate health baseline: " + error.message });
+  }
+});
 app.post("/api/gemini/route-biomarker", async (req, res) => {
   res.json({ text: "Not implemented in V2" });
 });
@@ -4309,12 +4550,27 @@ app.post("/api/gemini/daily-recommendation-chat", async (req, res) => {
   addDebugLog('[DailyRecommendation] Starting daily recommendation chat process.');
   try {
     const { message, userProfile, engine, history, foodLogs, biomarkers, report, actions, steps, location, thisMonthTrends } = req.body;
+
+    const cleanProfile: any = {
+      age: userProfile?.age,
+      gender: userProfile?.gender,
+      ethnicity: userProfile?.ethnicity,
+      bloodType: userProfile?.bloodType,
+      weight: userProfile?.weight,
+      height: userProfile?.height,
+      timezone: userProfile?.timezone
+    };
+    Object.keys(cleanProfile).forEach((key) => {
+      if (cleanProfile[key] === undefined || cleanProfile[key] === null) {
+        delete cleanProfile[key];
+      }
+    });
     
     const systemInstruction = `You are a personalized AI Health Coach. 
 Your goal is to look at the user's data (biomarkers, food logs, goals, daily steps, etc.) and provide an actionable, friendly, and clinical daily recommendation or answer their questions.
 
 ### User Data Context
-Profile: ${JSON.stringify(userProfile)}
+Profile: ${JSON.stringify(cleanProfile)}
 Report/Nutrient Targets: ${JSON.stringify(report?.dailyNutrientTargets || {})}
 Biomarkers: ${JSON.stringify(biomarkers || {})}
 Clinical Actions: ${JSON.stringify(actions || {})}
