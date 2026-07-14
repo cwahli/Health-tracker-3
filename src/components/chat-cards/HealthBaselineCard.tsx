@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { AgentCardProps } from './types';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { AGENT_REGISTRY } from '../../utils/agentConfig';
-import { CheckCircle, XCircle, Activity, Target, Calendar, Check, Trash2 } from 'lucide-react';
+import { CheckCircle, XCircle, Activity, Target, Calendar, Check, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 
 export const HealthBaselineCard: React.FC<AgentCardProps> = ({
   msg,
@@ -12,6 +12,8 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
   onDeleteMessage
 }) => {
   const [unselectedKeys, setUnselectedKeys] = useState<Set<number>>(new Set());
+  const [currentCardIndex, setCurrentCardIndex] = useState(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   if (msg.agentType !== 'health_baseline') return null;
 
@@ -27,6 +29,43 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
   const timelineToOptimal = report.timelineToOptimal || '';
 
   const isHandled = (loggedMessageIds || []).includes(msg.id);
+
+  const scrollToCard = (index: number) => {
+    const container = scrollContainerRef.current;
+    if (container) {
+      const children = container.children;
+      if (children && children[index]) {
+        (children[index] as HTMLElement).scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'center'
+        });
+        setCurrentCardIndex(index);
+      }
+    }
+  };
+
+  const handleScroll = () => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const children = container.children;
+    if (!children || children.length === 0) return;
+    
+    let closestIndex = 0;
+    let minDistance = Infinity;
+    const containerCenter = container.getBoundingClientRect().left + container.clientWidth / 2;
+    
+    for (let i = 0; i < children.length; i++) {
+      const childRect = children[i].getBoundingClientRect();
+      const childCenter = childRect.left + childRect.width / 2;
+      const distance = Math.abs(containerCenter - childCenter);
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestIndex = i;
+      }
+    }
+    setCurrentCardIndex(closestIndex);
+  };
 
   const toggleSelection = (idx: number) => {
     setUnselectedKeys(prev => {
@@ -58,7 +97,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
   return (
     <ErrorBoundary>
       <div className="space-y-6">
-        <div className="flex items-center space-x-2 px-2">
+        <div className="flex items-center space-x-2">
           <Activity className="w-5 h-5 text-indigo-500" />
           <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
             {agentConfig?.displayName || 'Health Baseline Analysis'}
@@ -66,30 +105,32 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
         </div>
 
         {globalSummary && (
-          <div className="p-4 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700/50">
-            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Global Summary</h3>
+          <div className="py-2">
+            <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2">Global Summary</h3>
             <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{globalSummary}</p>
           </div>
         )}
 
-        <div className="flex overflow-x-auto space-x-4 pb-4 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] -mx-2 px-2">
+        <div 
+          ref={scrollContainerRef}
+          onScroll={handleScroll}
+          style={{ touchAction: 'pan-x' }}
+          className="flex overflow-x-auto space-x-4 pb-4 snap-x snap-mandatory [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+        >
           {riskCategories.map((category: any, idx: number) => {
             const isSelected = !unselectedKeys.has(idx);
-            const categoryBiomarkers = category.implicatedBiomarkers || [];
-            const mappedBiomarkerTargets = biomarkerTargets.filter((bt: any) => 
-              categoryBiomarkers.includes(bt.biomarkerKey)
-            );
+            const mappedBiomarkerTargets = Array.isArray(category.biomarkerTargets) ? category.biomarkerTargets : [];
 
             return (
               <div 
                 key={idx} 
-                className={`min-w-[85vw] sm:min-w-[340px] snap-center shrink-0 border rounded-3xl overflow-hidden transition-all duration-200 ${
+                className={`w-[75%] snap-center shrink-0 transition-all duration-200 ${
                   isSelected 
-                    ? 'border-indigo-200 dark:border-indigo-800 bg-white dark:bg-slate-900 shadow-md shadow-indigo-100/50 dark:shadow-indigo-900/20' 
-                    : 'border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 opacity-60'
+                    ? 'opacity-100' 
+                    : 'opacity-40'
                 }`}
               >
-                <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800/50 flex justify-between items-center bg-slate-50/30 dark:bg-slate-800/20">
+                <div className="py-3 flex justify-between items-center">
                   <div className="flex items-center space-x-3">
                     <div className="flex-shrink-0">
                       <div className={`w-2.5 h-2.5 rounded-full ${
@@ -125,7 +166,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                   )}
                 </div>
 
-                <div className="p-5 space-y-5 divide-y divide-slate-100 dark:divide-slate-800/50">
+                <div className="py-2 space-y-5">
                   <div className="space-y-2">
                     <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Analysis</div>
                     <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
@@ -134,7 +175,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                   </div>
 
                   {category.unaddressedRisk && (
-                    <div className="pt-4 space-y-2">
+                    <div className="space-y-2">
                       <div className="text-xs font-bold text-red-500 uppercase tracking-wider">Unaddressed Risk</div>
                       <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
                         {category.unaddressedRisk}
@@ -143,19 +184,19 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                   )}
 
                   {mappedBiomarkerTargets.length > 0 && (
-                    <div className="pt-4 space-y-3">
+                    <div className="space-y-3">
                       <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center space-x-1.5">
                         <Target className="w-3.5 h-3.5" />
                         <span>Biomarker Targets</span>
                       </div>
                       <div className="grid gap-2">
                         {mappedBiomarkerTargets.map((bt: any, i: number) => (
-                          <div key={i} className="flex justify-between items-center p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-800/60">
+                          <div key={i} className="flex justify-between items-center py-2">
                             <div className="space-y-1">
-                              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{bt.biomarkerKey}</div>
-                              {bt.reasoning && <div className="text-xs text-slate-500">{bt.reasoning}</div>}
+                              <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{bt.name || bt.biomarkerKey}</div>
+                              {bt.reasoning && <div className="text-xs text-slate-500 leading-relaxed">{bt.reasoning}</div>}
                             </div>
-                            <div className="text-sm font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap ml-4 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-1 rounded-lg">
+                            <div className="text-sm font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap ml-4">
                               {bt.targetValue}
                             </div>
                           </div>
@@ -166,16 +207,16 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                   
                   {/* Additional Targets (if any mapped directly to category) */}
                   {(category.nutrientTargets?.length > 0 || category.dailyActivities?.length > 0) && (
-                     <div className="pt-4 space-y-5">
+                     <div className="space-y-5">
                        {category.nutrientTargets?.length > 0 && (
                          <div className="space-y-3">
                             <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Nutrient Targets</div>
                             <div className="grid gap-2">
                               {category.nutrientTargets.map((nt: any, i: number) => (
-                                <div key={i} className="p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-800/60 flex flex-col space-y-1">
+                                <div key={i} className="py-2 flex flex-col space-y-1">
                                   <div className="flex justify-between items-center">
-                                    <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{nt.nutrientKey}</span>
-                                    <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-lg">{nt.targetValue}</span>
+                                    <span className="text-sm font-medium text-slate-800 dark:text-slate-200 capitalize">{nt.nutrientKey}</span>
+                                    <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400">{nt.targetValue}</span>
                                   </div>
                                   {(nt.rationale || nt.reasoning) && <div className="text-xs text-slate-500 leading-relaxed">{nt.rationale || nt.reasoning}</div>}
                                 </div>
@@ -188,9 +229,9 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                             <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Daily Activities</div>
                             <div className="space-y-2">
                               {category.dailyActivities.map((da: any, i: number) => (
-                                <div key={i} className="p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-800/60">
+                                <div key={i} className="py-2 flex justify-between items-center">
                                   <div className="text-sm font-medium text-slate-800 dark:text-slate-200">{da.activity}</div>
-                                  <div className="text-sm font-bold text-indigo-500 mt-1">{da.target}</div>
+                                  <div className="text-sm font-bold text-indigo-500">{da.target}</div>
                                 </div>
                               ))}
                             </div>
@@ -204,9 +245,54 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
           })}
         </div>
 
+        {riskCategories.length > 1 && (
+          <div className="flex items-center justify-between py-2">
+            <button
+              type="button"
+              onClick={() => scrollToCard(Math.max(0, currentCardIndex - 1))}
+              disabled={currentCardIndex === 0}
+              className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 disabled:opacity-30 disabled:pointer-events-none hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center shadow-sm"
+              aria-label="Previous category"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </button>
+
+            <div className="flex items-center space-x-3">
+              <div className="flex space-x-1.5">
+                {riskCategories.map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => scrollToCard(idx)}
+                    className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                      currentCardIndex === idx 
+                        ? 'w-4 bg-indigo-600 dark:bg-indigo-500' 
+                        : 'bg-slate-300 dark:bg-slate-700 hover:bg-slate-400'
+                    }`}
+                    aria-label={`Go to category ${idx + 1}`}
+                  />
+                ))}
+              </div>
+              <span className="text-xs font-mono text-slate-500 dark:text-slate-450 font-medium">
+                {currentCardIndex + 1} / {riskCategories.length}
+              </span>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => scrollToCard(Math.min(riskCategories.length - 1, currentCardIndex + 1))}
+              disabled={currentCardIndex === riskCategories.length - 1}
+              className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 disabled:opacity-30 disabled:pointer-events-none hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center shadow-sm"
+              aria-label="Next category"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Global Targets & Activities */}
         {(nutrientTargets.length > 0 || dailyActivities.length > 0) && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 space-y-6">
+          <div className="py-4 space-y-6">
             <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Global Action Plan</h3>
             
             {nutrientTargets.length > 0 && (
@@ -214,10 +300,10 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                 <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Key Nutrient Targets</div>
                 <div className="grid gap-3 sm:grid-cols-2">
                   {nutrientTargets.map((nt: any, i: number) => (
-                    <div key={i} className="p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-800/60">
+                    <div key={i} className="py-2">
                       <div className="flex justify-between items-start mb-1.5">
                         <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 capitalize">{nt.nutrientKey}</span>
-                        <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-500/10 px-2 py-1 rounded-lg ml-2 text-right">{nt.targetValue}</span>
+                        <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 ml-2 text-right">{nt.targetValue}</span>
                       </div>
                       {(nt.rationale || nt.reasoning) && <div className="text-xs text-slate-500 leading-relaxed">{nt.rationale || nt.reasoning}</div>}
                     </div>
@@ -234,9 +320,9 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                 </div>
                 <div className="space-y-2">
                   {dailyActivities.map((da: any, i: number) => (
-                    <div key={i} className="flex justify-between items-center p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-800/60">
+                    <div key={i} className="flex justify-between items-center py-2">
                       <span className="text-sm font-medium text-slate-800 dark:text-slate-200">{da.activity}</span>
-                      <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-500/10 px-2 py-1 rounded-lg ml-3 text-right">{da.target}</span>
+                      <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400 ml-3 text-right">{da.target}</span>
                     </div>
                   ))}
                 </div>
@@ -246,7 +332,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
         )}
         
         {timelineToOptimal && (
-          <div className="bg-gradient-to-br from-indigo-50 to-blue-50 dark:from-indigo-900/20 dark:to-blue-900/20 border border-indigo-100 dark:border-indigo-800/30 rounded-3xl p-5 space-y-3">
+          <div className="py-4 space-y-3">
             <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center space-x-1.5">
               <Calendar className="w-4 h-4" />
               <span>Timeline to Optimal</span>
@@ -256,11 +342,11 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
         )}
 
         {Object.keys(generalNutrientTargets).length > 0 && (
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl p-5">
+          <div className="py-4">
             <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-4">General Nutrient Targets</h3>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               {Object.entries(generalNutrientTargets).map(([key, value]: [string, any]) => (
-                <div key={key} className="p-3 bg-slate-50/50 dark:bg-slate-800/30 rounded-xl border border-slate-100 dark:border-slate-800/60 flex flex-col justify-center">
+                <div key={key} className="py-2 flex flex-col justify-center">
                   <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1 capitalize tracking-wide">{key.replace(/([A-Z])/g, ' $1').trim()}</div>
                   <div className="text-sm font-bold text-slate-800 dark:text-slate-200">{value}</div>
                 </div>

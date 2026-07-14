@@ -368,9 +368,9 @@ interface LogChatProps {
   report?: any;
   actions?: any[];
   googleSteps?: number | null;
-  agentType?: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review' | 'health_baseline' | null;
+  agentType?: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent7' | 'data_review' | 'health_baseline' | null;
   biomarkerHistory?: any[];
-  onAgentFinish?: (agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review' | 'health_baseline', agentResult:  any) => Promise<void>;
+  onAgentFinish?: (agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent7' | 'data_review' | 'health_baseline', agentResult:  any) => Promise<void>;
   onAgentAnalysisSaved?: (agentType: string, agentResult:  any) => Promise<void>;
   onGoToManualEdit?: (errorMsg?: string) => void;
   autoSendMessage?: string | null;
@@ -1399,33 +1399,11 @@ ${logsText}`);
             currentStep = agentType;
           }
           bodyData.agentType = currentStep;
-          if (currentStep === 'agent6') {
-            bodyData.biomarkerHistory = [];
-            bodyData.biomarkers = biomarkers || {};
-            bodyData.recentMeals = [];
-            bodyData.agentDiagnosticSummary = profile?.agentDiagnosticSummary || '';
-            if (bodyData.history && bodyData.history.length > 0) {
-              bodyData.history = bodyData.history.filter((h: any) => {
-                if (!h.content) return false;
-                const lower = h.content.toLowerCase();
-                return !(
-                  lower.includes("food log") || 
-                  lower.includes("[extracted food") || 
-                  lower.includes("active meal") || 
-                  lower.includes("[extracted biomarkers") ||
-                  lower.includes("meal log") ||
-                  lower.includes("banana") ||
-                  lower.includes("pineapple")
-                );
-              });
-            }
-          } else {
-            const deletedIds = profile?.deletedBiomarkerLogIds || [];
-            bodyData.biomarkerHistory = (biomarkerHistory || []).filter(h => h.sync_state !== 'delete' && !deletedIds.includes(h.id));
-            bodyData.biomarkers = biomarkers || {};
-            bodyData.recentMeals = activeFoodLogs ? (activeFoodLogs || []).slice(-20).map(f => f.name) : [];
-            bodyData.agentDiagnosticSummary = profile?.agentDiagnosticSummary || '';
-          }
+          const deletedIds = profile?.deletedBiomarkerLogIds || [];
+          bodyData.biomarkerHistory = (biomarkerHistory || []).filter(h => h.sync_state !== 'delete' && !deletedIds.includes(h.id));
+          bodyData.biomarkers = biomarkers || {};
+          bodyData.recentMeals = activeFoodLogs ? (activeFoodLogs || []).slice(-20).map(f => f.name) : [];
+          bodyData.agentDiagnosticSummary = profile?.agentDiagnosticSummary || '';
 
           if ((currentStep === 'data_review' || currentStep === 'agent1') && dataReviewBatchIdx !== null && dataReviewBatchIdx !== undefined) {
             let batchKeys: string[] = [];
@@ -1602,9 +1580,12 @@ ${logsText}`);
               updated = true;
               return {
                 ...m,
-                pendingFoodLog: {
-                  ...m.data?.pendingFoodLog,
-                  ...resData.data
+                data: {
+                  ...m.data,
+                  pendingFoodLog: {
+                    ...m.data?.pendingFoodLog,
+                    ...resData.data
+                  }
                 }
               };
             }
@@ -1653,7 +1634,7 @@ ${logsText}`);
 
   useEffect(() => {
     if (isOpen && autoSendMessage && !autoSendHandledRef.current && (isAgent('medical') || isAgent('daily_recommendation'))) {
-      if (agentType === 'agent1' || agentType === 'agent2' || agentType === 'agent3' || agentType === 'agent4' || agentType === 'agent5' || agentType === 'agent6' || agentType === 'agent7') {
+      if (agentType === 'agent1' || agentType === 'agent2' || agentType === 'agent3' || agentType === 'agent4' || agentType === 'agent5' || agentType === 'agent7') {
         return;
       }
       if (agentType === 'data_review') {

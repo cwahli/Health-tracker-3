@@ -4444,14 +4444,37 @@ export default function App() {
                newDailyNutrientTargets[key] = String(val);
              });
 
+             // Extract justified nutrient keys and activities from accepted categories
+             const justifiedNutrientKeys = new Set();
+             const justifiedActivities = new Set();
+
+             acceptedCategories.forEach((cat) => {
+               if (Array.isArray(cat.nutrientTargets)) {
+                 cat.nutrientTargets.forEach((nt) => {
+                   if (nt.nutrientKey) {
+                     justifiedNutrientKeys.add(nt.nutrientKey.toLowerCase().trim());
+                   }
+                 });
+               }
+               if (Array.isArray(cat.dailyActivities)) {
+                 cat.dailyActivities.forEach((da) => {
+                   if (da.activity) {
+                     justifiedActivities.add(da.activity.toLowerCase().trim());
+                   }
+                 });
+               }
+             });
+
              globalNutrientTargets.forEach((nt: any) => {
                if (nt.nutrientKey && nt.targetValue) {
-                 newDailyNutrientTargets[nt.nutrientKey] = nt.targetValue;
+                 if (justifiedNutrientKeys.has(nt.nutrientKey.toLowerCase().trim())) {
+                   newDailyNutrientTargets[nt.nutrientKey] = nt.targetValue;
+                 }
                }
              });
 
              globalDailyActivities.forEach((da: any) => {
-               if (da.activity && da.target) {
+               if (da.activity && da.target && justifiedActivities.has(da.activity.toLowerCase().trim())) {
                  currentDailyBenefits.push({
                    id: `db_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
                    activity: da.activity,

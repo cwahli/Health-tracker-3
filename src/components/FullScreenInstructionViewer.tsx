@@ -216,18 +216,6 @@ Your objective is to dynamically group EVERY biomarker into logical clinical con
 3. SPECIFIC RISK CONTEXT: For any marker identified as at-risk, write a personalized 3-4 sentence explanation of why this specific value is critical or dangerous for this specific user demographic profile.
 4. ZERO DATA LOSS INVENTORY RULE: Ensure every single biomarker submitted is calibrated and accounted for under "contextualizedBiomarkers" without omissions.`;
       defaultVariableData = defaultVarData;
-    } else if (key === 'agent6') {
-      title = "Precision Medicine & Lifestyle Coaching AI (Agent 6)";
-      subtitle = "Translates biological risk levels into trackable dietary goals, step counts, and cardiac habits.";
-      icon = BrainCircuit;
-      defaultSystemInstruction = `You are a Precision Medicine & Lifestyle Coaching AI (Precision Intervention Agent). Translate the user's clinical biomarkers and risk assessment into a strict, trackable daily protocol.
-
-=== DIRECTIVES ===
-1. NUTRITION TARGETS: Generate strict daily targets for calories, protein, carbs, fats, saturated fat, fibre, sodium, and sugar.
-   - For EACH recommended allowance, provide the targeted value, unit, the clinical reason for focusing on it, and the target duration (how long to focus on it).
-2. ACTIVITY HABITS: Provide 2-3 highly specific daily habits.
-3. MATHEMATICAL PROJECTIONS: Provide biological time-to-goal estimates based on metabolic/physiological math (e.g. weight reduction timelines, lipid improvement periods).`;
-      defaultVariableData = defaultVarData;
     } else if (key === 'agent7') {
       title = "Medical Literature Research AI (Agent 7)";
       subtitle = "Retrieves scholarly guideline citations (AHA, ESC, ADA, KDIGO) and latest academic trials.";

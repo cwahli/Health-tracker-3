@@ -176,6 +176,7 @@ Solution: Always use the robust extractUSDANutrientsPer100g helper which uses .i
 
 ## 12. Known Intentional Behaviors (Do Not "Fix")
 - **Hardcoded static report for chiwah.liu@gmail.com / cwah.liu@gmail.com / john@mail.com** in `/api/gemini/insight-analyze` (server.ts) and `src/utils/fallbackReport.ts`: on first report generation (`refinement` falsy), these accounts receive a fixed, non-live report instead of a fresh Gemini call. This is INTENTIONAL (confirmed 2026-07-13). Only follow-up refinement messages call the live model. Do not remove or "fix" this without explicit new instruction.
+- **Replacement of agent6 with health_baseline in Clinical Calibration**: The Action Plan Agent (`agent6`) was fully replaced by the new Health Baseline Agent (`health_baseline`). Dead code paths for `agent6` have been cleaned up from the frontend, and the sequence now transitions directly using `health_baseline`. This replacement is intentional (confirmed 2026-07-14).
 
 ## 13. Audit Log
 ### 2026-07-13 — Diagnostic review

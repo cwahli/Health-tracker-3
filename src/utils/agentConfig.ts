@@ -1,6 +1,6 @@
 import { ChatMessage } from '../types';
 
-export type AgentType = 'food' | 'medical' | 'food_idea' | 'daily_recommendation' | 'medical_extract' | 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent6' | 'agent7' | 'data_review' | 'health_baseline';
+export type AgentType = 'food' | 'medical' | 'food_idea' | 'daily_recommendation' | 'medical_extract' | 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent7' | 'data_review' | 'health_baseline';
 
 export interface AgentConfig {
   id: AgentType;
@@ -113,15 +113,6 @@ export const AGENT_REGISTRY: Record<AgentType, AgentConfig> = {
     description: 'Reviews profile holistically to generate broad insights.',
     capabilities: ['holistic_analysis', 'insight_card_view'],
     welcomeMessage: 'Hello! I am the Personalized Reference Ranges agent. I calibrate normal biomarker reference ranges to your exact demographics.',
-    rolloutStatus: 'unified',
-  },
-  agent6: {
-    id: 'agent6',
-    category: 'insights',
-    displayName: 'Action Plan Agent',
-    description: 'Develops targeted action plans based on holistic review.',
-    capabilities: ['action_planning'],
-    welcomeMessage: 'Hello! I am the Lifestyle Precision Intervention agent. I translate diagnostic risk into strict dietary and movement targets.',
     rolloutStatus: 'unified',
   },
   agent7: {

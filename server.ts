@@ -1569,7 +1569,7 @@ For each image, determine if it is:
 
 STEP 2 — DATA EXTRACTION & LOCALIZATION:
 - For product/price labels (type a): Read the EXACT food name and weight. Convert kg to grams. Translate local name to English.
-- For Nutrition Facts labels (type b): Read the exact macros. Calculate and provide the values PER 100g (or just extract them if already per 100g) so the dietitian can use them accurately.
+- For Nutrition Facts labels (type b): Read every macro row present, not just calories/protein/fat/carbs. Calculate and provide the values PER 100g (or just extract them if already per 100g) so the dietitian can use them accurately.
 - For food photos (type c): Identify food items. Estimate weight using visible size references. Output a short English keyword and estimated weight in grams.
 - For cooking scenes (type d): Note the method and set cookingMethod.
 - LOCALIZATION: For EVERY item identified, provide a 2D bounding box [ymin, xmin, ymax, xmax] (0-1000 scale).
@@ -1594,7 +1594,14 @@ CRITICAL RULES:
         "caloriesPer100g": "number (optional)",
         "proteinPer100g": "number (optional)",
         "fatPer100g": "number (optional)",
-        "carbsPer100g": "number (optional)"
+        "carbsPer100g": "number (optional)",
+        "saturatedFatPer100g": "number (optional)",
+        "transFatPer100g": "number (optional)",
+        "addedSugarPer100g": "number (optional)",
+        "sodiumPer100g": "number (optional)",
+        "potassiumPer100g": "number (optional)",
+        "totalFibrePer100g": "number (optional)",
+        "solubleFibrePer100g": "number (optional)"
       }
     }
   ], 
@@ -1751,7 +1758,8 @@ CRITICAL RULES:
       const itemsList = visionScoutItems.map((item: any) => {
         const bboxStr = item.boundingBox2D ? JSON.stringify(item.boundingBox2D) : "null";
         const imgIdx = item.sourceImageIndex !== undefined && item.sourceImageIndex !== null ? item.sourceImageIndex : "0";
-        return `- Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName || ''}" | Source: ${item.source} | BoundingBox: ${bboxStr} | ImageIndex: ${imgIdx}`;
+        const nutritionStr = item.nutritionFacts && Object.keys(item.nutritionFacts).length > 0 ? ` | Nutrition (per 100g): ${JSON.stringify(item.nutritionFacts)}` : "";
+        return `- Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName || ''}" | Source: ${item.source} | BoundingBox: ${bboxStr} | ImageIndex: ${imgIdx}${nutritionStr}`;
       }).join("\n");
       visionScoutCtx = `\n=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===\n${itemsList}\nUse the observed local name and preparation context above to guide your understanding of how the food was cooked, prepared, or structured (e.g. frying, slow-cooking, char-grilling). Use this context to estimate more accurate core-11 nutrients.\n`;
     }
@@ -2168,14 +2176,14 @@ You can compare up to 10 foods at once. comparisonTable rows must use a 'values'
                 calories: Number(item.nutritionFacts.caloriesPer100g) || 0,
                 protein: Number(item.nutritionFacts.proteinPer100g) || 0,
                 totalFat: Number(item.nutritionFacts.fatPer100g) || 0,
-                saturatedFat: 0,
-                transFat: 0,
+                saturatedFat: Number(item.nutritionFacts.saturatedFatPer100g) || 0,
+                transFat: Number(item.nutritionFacts.transFatPer100g) || 0,
                 carbohydrates: Number(item.nutritionFacts.carbsPer100g) || 0,
-                addedSugar: 0,
-                sodium: 0,
-                potassium: 0,
-                totalFibre: 0,
-                solubleFibre: 0
+                addedSugar: Number(item.nutritionFacts.addedSugarPer100g) || 0,
+                sodium: Number(item.nutritionFacts.sodiumPer100g) || 0,
+                potassium: Number(item.nutritionFacts.potassiumPer100g) || 0,
+                totalFibre: Number(item.nutritionFacts.totalFibrePer100g) || 0,
+                solubleFibre: Number(item.nutritionFacts.solubleFibrePer100g) || 0
               };
             }
             
@@ -2257,6 +2265,7 @@ You can compare up to 10 foods at once. comparisonTable rows must use a 'values'
             addDebugLog(`[Nutrient] "${canonicalName}" core-11 from LLM estimate (servingSizeGrams=${servingSizeGrams}).`);
           } else if (dbSource === "estimated") {
             addDebugLog(`[Nutrient Warning] "${canonicalName}" is 'estimated' but LLM did not provide labelNutrientsPerServing. Core-11 will be zero.`);
+            itemNutrients.isUnverified = true;
           }
           // STEP 2: If USDA/OFF match found, override core-11 with verified DB data (reinforcement)
           if ((dbSource === "usda" || dbSource === "off") && dbId) {
@@ -2313,7 +2322,8 @@ You can compare up to 10 foods at once. comparisonTable rows must use a 'values'
             saturatedFat: itemNutrients.saturatedFat || 0,
             sodium: itemNutrients.sodium || 0,
             dbSource,
-            dbId
+            dbId,
+            isUnverified: itemNutrients.isUnverified || false
           };
         });
       } else {
@@ -4005,6 +4015,7 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
         "riskCategories": [
           {
             "categoryName": "e.g., Cardiovascular",
+            "level": "high | medium | low",
             "analysis": "Insight based on biomarkers",
             "unaddressedRisk": "What happens long-term if ignored",
             "biomarkerTargets": [
@@ -4032,7 +4043,8 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
     2. Provide target values for ALL remaining applicable nutrient keys (approx 20+) in 'generalNutrientTargets'.
     3. Include recommendation for nutrition target for all biomarker at risk. So all risk category listed should have at least 1 recommendation in term of nutrient and activity target.
     4. Consolidate the activity and nutrient targets. If an activity or nutrient target is required for multiple risk categories, reuse the same recommendation rather than creating a slightly different one.
-    5. Think globally for the most relevant top nutrient to share. Do not share relative targets (e.g., 1.2g/kg); you MUST compute the absolute amount (e.g., body weight * 1.2g) and give the final exact number based on the user's profile weight. Choose the most effective constraint globally (e.g. general calorie restriction vs added sugar restriction) depending on the most critical risks. Also, specify the exact type of nutrient if relevant (e.g. soluble fiber vs total fiber).`;
+    5. Think globally for the most relevant top nutrient to share. Do not share relative targets (e.g., 1.2g/kg); you MUST compute the absolute amount (e.g., body weight * 1.2g) and give the final exact number based on the user's profile weight. Choose the most effective constraint globally (e.g. general calorie restriction vs added sugar restriction) depending on the most critical risks. Also, specify the exact type of nutrient if relevant (e.g. soluble fiber vs total fiber).
+    6. For every risk category, set "level" to "high", "medium", or "low" based on how far the underlying biomarkers deviate from reference range and how clinically urgent the category is. This field is required and drives the app's risk color indicator.`;
 
     const systemInstruction = "You are a world-class preventative cardiologist, endocrinologist, and clinical longevity researcher. Your response must be an exact single JSON matching the requested schema using strictly the allowed keys. Never add markdown wrappers.";
     const fullPromptSent = `System Instruction:\n${systemInstruction}\n\n${promptText}`;

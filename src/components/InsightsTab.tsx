@@ -960,7 +960,7 @@ export default function InsightsTab({
                     />
                   </div>
                 ) : agentType === 'health_baseline' ? (
-                  <div className="mt-2 border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden">
+                  <div className="mt-2">
                     <HealthBaselineCard
                       msg={{ id: 'mock', role: 'assistant', content: '', agentType: 'health_baseline', data: { agentResult: item.result } } as any}
                       idx={0}
@@ -2603,7 +2603,7 @@ export default function InsightsTab({
                                   />
                                 </div>
                               ) : step.agentType === 'health_baseline' ? (
-                                <div className="border border-slate-100 dark:border-slate-850 rounded-xl overflow-hidden">
+                                <div>
                                   <HealthBaselineCard
                                     msg={{ id: 'mock', role: 'assistant', content: '', agentType: 'health_baseline', data: { agentResult: latestAnalysis.result } } as any}
                                     idx={0}
