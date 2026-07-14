@@ -4,7 +4,7 @@ import { UserProfile, BiomarkerLog, ChatMessage } from '../types';
 import { translations } from '../utils/translations';
 import { ShieldAlert, ClipboardList, Trash2, ChevronDown, ChevronUp, LineChart as LineChartIcon, BrainCircuit, AlertCircle } from 'lucide-react';
 import { standardizeUnit, reverseStandardizeUnit, formatNormalRange } from '../utils/unitConversion';
-import { biomarkerDefinitions, getBiomarkerStatus, getBiomarkerColor, getBiomarkerStatusLabel, getBiomarkerRiskTag, BiomarkerDefinition, isAsianEthnicity, getPhysiologicalBucket, getBiomarkerMetadata, BIOMARKER_GROUPING_OPTIONS } from '../utils/biomarkers';
+import { biomarkerDefinitions, getBiomarkerStatus, getBiomarkerColor, getBiomarkerStatusLabel, getBiomarkerRiskTag, BiomarkerDefinition, isAsianEthnicity, getPhysiologicalBucket, getBiomarkerMetadata, BIOMARKER_GROUPING_OPTIONS, getCustomBiomarkerDef } from '../utils/biomarkers';
 import ReviewBiomarkerModal from './ReviewBiomarkerModal';
 import { BiomarkerExpandedSection } from './BiomarkerExpandedSection';
 import CombineBiomarkersModal from './CombineBiomarkersModal';
@@ -232,19 +232,19 @@ export default function MedicalHistoryTab({
       if (!combined.find(d => d.key === key)) {
         combined.push({
           key,
-          name: profile.customBiomarkers?.[key]?.name || key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          name: getCustomBiomarkerDef(profile, key)?.name || key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
           category: 'other',
-          unit: profile.customBiomarkers?.[key]?.unit || '',
-          normalRange: profile.customBiomarkers?.[key]?.normalRange || 'Unknown',
+          unit: getCustomBiomarkerDef(profile, key)?.unit || '',
+          normalRange: getCustomBiomarkerDef(profile, key)?.normalRange || 'Unknown',
           descriptions: {
-            en: profile.customBiomarkers?.[key]?.description || ''
+            en: getCustomBiomarkerDef(profile, key)?.description || ''
           }
         } as any);
       }
     });
 
     const withMetadata = combined.map(def => {
-      const customDef = profile.customBiomarkers?.[def.key];
+      const customDef = getCustomBiomarkerDef(profile, def.key);
       const meta = getBiomarkerMetadata(def.key, customDef);
       return {
         ...def,
@@ -389,7 +389,7 @@ export default function MedicalHistoryTab({
         if (score > maxScore) {
           maxScore = score;
           worstMarkerName = def.name;
-          worstMarkerStatusLabel = getBiomarkerStatusLabel(def.key, status, profile.customBiomarkers?.[def.key], val, profile);
+          worstMarkerStatusLabel = getBiomarkerStatusLabel(def.key, status, getCustomBiomarkerDef(profile, def.key), val, profile);
         }
       }
     });
@@ -555,7 +555,7 @@ export default function MedicalHistoryTab({
                       const status = hasVal ? getBiomarkerStatus(def.key, val, def.normalRange, def, profile) : 'unknown';
                       const colorClass = getBiomarkerColor(status);
                       const isExpanded = expandedKey === def.key;
-                      const riskTag = hasVal ? getBiomarkerRiskTag(def.key, status, profile.customBiomarkers?.[def.key], val, profile) : null;
+                      const riskTag = hasVal ? getBiomarkerRiskTag(def.key, status, getCustomBiomarkerDef(profile, def.key), val, profile) : null;
                       
                       let displayUnit = def.unit || '';
                       if (profile.unitPreference === 'US' && typeof val === 'number') {
@@ -623,7 +623,7 @@ export default function MedicalHistoryTab({
                                 </span>
                                 {hasVal && (
                                   <span className={`text-[9px] font-bold uppercase tracking-wider ${colorClass}`}>
-                                    {getBiomarkerStatusLabel(def.key, status, profile.customBiomarkers?.[def.key], val, profile)}
+                                    {getBiomarkerStatusLabel(def.key, status, getCustomBiomarkerDef(profile, def.key), val, profile)}
                                   </span>
                                 )}
                               </div>
@@ -726,7 +726,7 @@ export default function MedicalHistoryTab({
             if (onLogMedical) {
               const profileUpdates: Partial<UserProfile> = {};
               if (proposal) {
-                const currentDef: any = profile.customBiomarkers?.[key] || {};
+                const currentDef: any = getCustomBiomarkerDef(profile, key) || {};
                 profileUpdates.customBiomarkers = {
                   ...(profile.customBiomarkers || {}),
                   [key]: {

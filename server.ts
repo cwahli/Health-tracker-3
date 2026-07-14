@@ -12,7 +12,7 @@ import { getTraceNutrientsForFoodType } from "./server_food_db";
 import dotenv from "dotenv";
 import YAML from "yaml";
 import { AsyncLocalStorage } from "async_hooks";
-import { biomarkerDefinitions, getBiomarkerStatus, getBiomarkerStatusLabel, getBiomarkerMetadata } from "./src/utils/biomarkers";
+import { biomarkerDefinitions, getBiomarkerStatus, getBiomarkerStatusLabel, getBiomarkerMetadata, getCustomBiomarkerDef } from "./src/utils/biomarkers";
 import { NUTRIENT_KEYS } from "./src/utils/nutrients";
 
 // Simple and robust custom JS object-to-YAML stringifier
@@ -3988,9 +3988,9 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
       const outOfRangeDef = (outOfRangeBiomarkers || []).find((b: any) => b.key === key);
       
       if (outOfRangeDef) {
-        const statusLabel = getBiomarkerStatusLabel(key, outOfRangeDef.status, activeProfile?.customBiomarkers?.[key], latestVal, activeProfile);
+        const customDef = getCustomBiomarkerDef(activeProfile, key);
+        const statusLabel = getBiomarkerStatusLabel(key, outOfRangeDef.status, customDef, latestVal, activeProfile);
         const def = biomarkerDefinitions.find(d => d.key === key);
-        const customDef = activeProfile?.customBiomarkers?.[key];
         const calibrated = calibratedInsights?.[key];
         const medicalInsight = calibrated?.specificRiskContext || calibrated?.description || customDef?.specificRiskContext || customDef?.description || customDef?.benefitRisk || def?.benefitRisk || "No specific medical insight defined.";
         
@@ -4072,7 +4072,7 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
     CRITICAL REQUIREMENTS:
     1. Provide the top 3-6 priority nutrient targets in 'topNutrientTargets' with reason how it would help the risk category.
     2. Provide target values for ALL remaining applicable nutrient keys (approx 20+) in 'generalNutrientTargets'.
-    3. Include recommendation for nutrition target for all biomarker at risk. So all risk category listed should have at least 1 recommendation in term of nutrient and activity target.
+    3. CRITICAL: Your 'biomarkerTargets' array MUST explicitly include every single individual biomarker that was listed under 'Biomarkers at risk' for its respective risk category. Do not summarize or omit any at-risk biomarkers. Every risk category must also have at least 1 recommendation in terms of nutrient and activity target.
     4. Consolidate the activity and nutrient targets. If an activity or nutrient target is required for multiple risk categories, reuse the same recommendation rather than creating a slightly different one.
     5. Think globally for the most relevant top nutrient to share. Do not share relative targets (e.g., 1.2g/kg); you MUST compute the absolute amount (e.g., body weight * 1.2g) and give the final exact number based on the user's profile weight. Choose the most effective constraint globally (e.g. general calorie restriction vs added sugar restriction) depending on the most critical risks. Also, specify the exact type of nutrient if relevant (e.g. soluble fiber vs total fiber).
     6. For every risk category, set "level" to "high", "medium", or "low" based on how far the underlying biomarkers deviate from reference range and how clinically urgent the category is. This field is required and drives the app's risk color indicator.`;

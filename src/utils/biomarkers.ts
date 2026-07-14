@@ -467,6 +467,22 @@ export function getMappedBiomarkerKey(rawKey: string): string {
   return rawKey;
 }
 
+export function getCustomBiomarkerDef(profile: any, coreKey: string) {
+  if (!profile || !profile.customBiomarkers) return undefined;
+  
+  // 1. Try the core key first
+  if (profile.customBiomarkers[coreKey]) return profile.customBiomarkers[coreKey];
+  
+  // 2. Fallback to aliases: if the database has a legacy key, return that!
+  const centralDef = biomarkerDefinitions.find(d => d.key === coreKey);
+  if (centralDef && centralDef.aliases) {
+    for (const alias of centralDef.aliases) {
+      if (profile.customBiomarkers[alias]) return profile.customBiomarkers[alias];
+    }
+  }
+  return undefined;
+}
+
 export const categoryLabels: { [key: string]: { [lang: string]: string } } = {
   blood_sugar: { en: 'Blood Sugar', fr: 'Glycémie', zh: '血糖管理', id: 'Gula Darah' },
   lipids: { en: 'Cardiovascular Lipids', fr: 'Lipides & Cardiovasculaire', zh: '心血管与血脂', id: 'Profil Lipid' },
