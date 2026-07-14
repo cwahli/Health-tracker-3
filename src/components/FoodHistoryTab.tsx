@@ -85,6 +85,12 @@ export default function FoodHistoryTab({
   const t = translations[profile.language] || translations.en;
   const [searchTerm, setSearchTerm] = useState('');
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 20;
+  
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm]);
 
   useEffect(() => {
     if (initiallyExpandedFoodId) {
@@ -801,7 +807,7 @@ export default function FoodHistoryTab({
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredLogs.map((log) => {
+          {filteredLogs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((log) => {
             const isExpanded = expandedLogId === log.id;
             const isEditing = editingLogId === log.id;
             const resolvedImg = resolveFoodImage(log.imageUrl, activeFoodLogs);
@@ -1432,6 +1438,28 @@ export default function FoodHistoryTab({
               </div>
             );
           })}
+          {/* Pagination Controls */}
+          {filteredLogs.length > itemsPerPage && (
+            <div className="flex items-center justify-between pt-6 pb-4 px-2">
+              <button 
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed dark:bg-slate-800 dark:text-slate-300 transition-colors hover:bg-slate-200 dark:hover:bg-slate-700"
+              >
+                Previous
+              </button>
+              <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+                Page {currentPage} of {Math.ceil(filteredLogs.length / itemsPerPage)}
+              </span>
+              <button 
+                onClick={() => setCurrentPage(p => Math.min(Math.ceil(filteredLogs.length / itemsPerPage), p + 1))}
+                disabled={currentPage === Math.ceil(filteredLogs.length / itemsPerPage)}
+                className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 rounded-xl disabled:opacity-50 disabled:cursor-not-allowed dark:bg-slate-800 dark:text-slate-300 transition-colors hover:bg-slate-200 dark:hover:bg-slate-700"
+              >
+                Next
+              </button>
+            </div>
+          )}
         </div>
       )}
 

@@ -649,12 +649,12 @@ ${logsText}`);
     if (typeof obj === 'string') {
       if (obj.startsWith('data:image/') && obj.length > 8000) {
         try {
-          // Compress base64 to maximum 240x240 pixels at 0.5 quality to stay well under the 1MB Firestore limit
-          const compressed = await compressImage(obj, 240, 240, 0.5);
+          // Compress base64 to maximum 1400x1400 pixels at 0.8 quality
+          const compressed = await compressImage(obj, 1400, 1400, 0.8);
           return compressed;
         } catch (e) {
           console.warn("Failed to compress base64 image in object:", e);
-          if (obj.length > 150000) {
+          if (obj.length > 900000) {
             return obj.substring(0, 100) + "... [large base64 image stripped to prevent Firestore size limit error]";
           }
           return obj;
@@ -1143,8 +1143,8 @@ ${logsText}`);
             total: progress.totalCount,
             percent: progress.percentage
           });
-        }, 400, 400, 0.5);
-        const analysisCompressed = await compressMultipleImages(validFiles, () => {}, 1280, 1280, 0.85);
+        }, 1400, 1400, 0.8);
+        const analysisCompressed = await compressMultipleImages(validFiles, () => {}, 1400, 1400, 0.85);
         const dates = await Promise.all(validFiles.map(async (f: any) => {
           try {
             const exifData = await exifr.parse(f, ['DateTimeOriginal']);

@@ -604,7 +604,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                               return (
                                 <div 
                                   key={i} 
-                                  className="w-[185px] shrink-0 snap-align-start flex flex-col relative bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 rounded-xl p-2.5 space-y-2 text-left"
+                                  className="w-[185px] shrink-0 snap-align-start flex flex-col relative p-1 space-y-2 text-left"
                                 >
                                   {/* Photo Box */}
                                   <div className="w-full h-24 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-850 relative shrink-0">
@@ -633,31 +633,35 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                   <div className="flex-1 min-w-0 flex flex-col justify-between">
                                     <div className="flex flex-col gap-1">
                                       <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className="text-[11px] font-bold text-slate-800 dark:text-white truncate max-w-[120px]" title={item.originalName || item.keyword}>
+                                        <span className="text-[11px] font-bold text-slate-800 dark:text-white whitespace-normal break-words leading-tight" title={item.originalName || item.keyword}>
                                           {item.originalName || item.keyword}
-                                        </span>
-                                        <span className="text-[8px] font-bold px-1 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 font-mono shrink-0">
-                                          {item.source === 'label' ? '🏷️' : '👁️'}
                                         </span>
                                       </div>
                                     </div>
 
                                     {/* Toggle expanded details button */}
-                                    <button
-                                      type="button"
-                                      onClick={() => setExpandedScouts(prev => ({ ...prev, [`${msg.id}-${i}`]: !isExpanded }))}
-                                      className="mt-1.5 w-full flex items-center justify-between text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors py-1 cursor-pointer font-sans"
-                                    >
-                                      <span>{isExpanded ? 'Hide Details' : 'Show Details'}</span>
-                                      {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                                    </button>
+                                    {nutrientsToDisplay.length > 0 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setExpandedScouts(prev => ({ ...prev, [`${msg.id}-${i}`]: !isExpanded }))}
+                                        className="mt-1.5 w-full flex items-center justify-between text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 transition-colors py-1 cursor-pointer font-sans"
+                                      >
+                                        <span>{isExpanded ? 'Hide Details' : 'Show Details'}</span>
+                                        {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                                      </button>
+                                    )}
 
                                     {/* Expanded Weight & Nutrition Details */}
-                                    {isExpanded && (
+                                    {(isExpanded || nutrientsToDisplay.length === 0) && (
                                       <div className="mt-1 space-y-1.5 border-t border-slate-200/50 dark:border-slate-800/30 pt-1.5 animation-fade-in">
                                         {/* Weights Details */}
                                         <div className="text-[9.5px] text-slate-500 dark:text-slate-400 font-mono space-y-0.5 leading-normal">
-                                          <div>Total weight: {totalWeight}g</div>
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span>Total weight: {totalWeight}g</span>
+                                            <span className="text-[8px] font-bold px-1 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/30 text-indigo-600 dark:text-indigo-400 font-mono shrink-0">
+                                              {item.source === 'label' ? '🏷️' : '👁️'}
+                                            </span>
+                                          </div>
                                           {portionWeight && <div>Portion weight: {portionWeight}g</div>}
                                         </div>
 
