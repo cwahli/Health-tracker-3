@@ -67,6 +67,7 @@ export interface BiomarkerDefinition {
   riskCategories?: string[];
   standardMedicalGrouping?: string;
   potentialMedicalConditions?: string[];
+  aliases?: string[];
 }
 
 export const biomarkerDefinitions: BiomarkerDefinition[] = [
@@ -82,7 +83,10 @@ export const biomarkerDefinitions: BiomarkerDefinition[] = [
       fr: 'Moyenne de la glycémie sur les 2-3 derniers mois.',
       zh: '过去2-3个月的平均血糖水平。',
       id: 'Rata-rata kadar glukosa darah selama 2-3 bulan terakhir.'
-    }
+    },
+    riskCategories: ['Metabolic'],
+    standardMedicalGrouping: 'Metabolic',
+    aliases: ['hba1cc', 'glycatedhaemoglobin', 'hemoglobin_a1c_mmol_mol', 'hba1c_mmol_mol', 'hemoglobin_a1c']
   },
   {
     key: 'fasting_glucose',
@@ -123,7 +127,10 @@ export const biomarkerDefinitions: BiomarkerDefinition[] = [
       fr: 'Cholestérol LDL, dit "mauvais" cholestérol lié aux risques cardiovasculaires.',
       zh: '低密度脂蛋白胆固醇（“坏”胆固醇），与心血管风险高度相关。',
       id: 'Low-Density Lipoprotein, kolesterol "jahat" terkait risiko jantung.'
-    }
+    },
+    riskCategories: ['Cardiovascular'],
+    standardMedicalGrouping: 'Metabolic',
+    aliases: ['ldlc', 'ldlcholesterol', 'calculatedldlcholesterol', 'calculatedldl', 'calculated_ldl_cholesterol_mmol_l', 'calculated_ldl_cholesterol']
   },
   {
     key: 'apob',
@@ -149,7 +156,10 @@ export const biomarkerDefinitions: BiomarkerDefinition[] = [
       fr: 'Quantité totale de cholestérol dans le sang.',
       zh: '血液中的总胆固醇含量。',
       id: 'Jumlah total kolesterol dalam darah.'
-    }
+    },
+    riskCategories: ['Cardiovascular'],
+    standardMedicalGrouping: 'Metabolic',
+    aliases: ['cholesterol', 'serumtotalcholesterol', 'serum_cholesterol']
   },
   {
     key: 'hdl',
@@ -162,7 +172,10 @@ export const biomarkerDefinitions: BiomarkerDefinition[] = [
       fr: 'Cholestérol HDL, dit "bon" cholestérol favorisant le retour des lipides.',
       zh: '高密度脂蛋白胆固醇（“好”胆固醇），协助清除血管内多余脂质。',
       id: 'High-Density Lipoprotein, kolesterol "baik" pembersih lipid berlebih.'
-    }
+    },
+    riskCategories: ['Cardiovascular'],
+    standardMedicalGrouping: 'Metabolic',
+    aliases: ['hdlc', 'hdlcholesterol', 'serum_hdl_cholesterol', 'serum_hdl_cholesterol_mmol_l']
   },
   {
     key: 'triglycerides',
@@ -175,7 +188,10 @@ export const biomarkerDefinitions: BiomarkerDefinition[] = [
       fr: 'Type de graisse circulante servant à stocker l\'énergie.',
       zh: '血液中用于能量储存的游离脂肪分子。',
       id: 'Jenis lemak dalam darah yang digunakan untuk penyimpanan energi.'
-    }
+    },
+    riskCategories: ['Cardiovascular'],
+    standardMedicalGrouping: 'Metabolic',
+    aliases: ['trig', 'serum_triglycerides', 'serum_triglycerides_mmol_l']
   },
 
   // Kidneys
@@ -190,7 +206,10 @@ export const biomarkerDefinitions: BiomarkerDefinition[] = [
       fr: 'Débit de filtration glomérulaire estimé, reflétant la santé rénale.',
       zh: '估算肾小球滤过率，反映肾脏滤过排毒功能。',
       id: 'Laju Filtrasi Glomerulus Estimasi, menunjukkan fungsi penyaringan ginjal.'
-    }
+    },
+    riskCategories: ['Kidney'],
+    standardMedicalGrouping: 'Renal',
+    aliases: ['egfrmlmin173m2', 'egfrmlmin173', 'egfr_ml_min_1_73m2', 'egfr_mlmin173m2']
   },
 
   {
@@ -220,7 +239,10 @@ export const biomarkerDefinitions: BiomarkerDefinition[] = [
       fr: 'Nombre total de globules rouges transportant l\'oxygène.',
       zh: '红细胞总数，负责向全身组织输送氧气。',
       id: 'Jumlah sel darah merah yang membawa oksigen ke seluruh tubuh.'
-    }
+    },
+    riskCategories: ['Hematology'],
+    standardMedicalGrouping: 'Hematology',
+    aliases: ['redbloodcell', 'redbloodcells', 'redbloodcellcount', 'red_blood_cell_count_10_12_l', 'red_blood_cell_count']
   },
 
   {
@@ -233,8 +255,11 @@ export const biomarkerDefinitions: BiomarkerDefinition[] = [
       en: 'Cells responsible for blood clotting and wound repair.',
       fr: 'Plaquettes jouant un rôle clé dans la coagulation.',
       zh: '血小板，负责血液凝固与创伤修复。',
-      id: 'Keping darah, agen pembekuan darah dan penutupan luka.'
-    }
+      id: 'Keping darah, agen pembekuan darah dan penutupati luka.'
+    },
+    riskCategories: ['Hematology'],
+    standardMedicalGrouping: 'Hematology',
+    aliases: ['plateletcount', 'platelet', 'platelet_count_10_9_l', 'platelet_count']
   },
 
   // Inflammation
@@ -305,7 +330,10 @@ export const biomarkerDefinitions: BiomarkerDefinition[] = [
       fr: 'Une mesure de la corpulence basée sur la taille et le poids.',
       zh: '基于身高和体重的身体质量指数。',
       id: 'Ukuran lemak tubuh berdasarkan tinggi dan berat badan.'
-    }
+    },
+    riskCategories: ['Wellness'],
+    standardMedicalGrouping: 'Biometrics',
+    aliases: ['bodymassindex', 'bmi_kg_m2']
   },
   {
     key: 'creatinine',
@@ -316,9 +344,12 @@ export const biomarkerDefinitions: BiomarkerDefinition[] = [
     descriptions: {
       en: 'A waste product from muscle breakdown, filtered by kidneys.',
       fr: 'Déchet de l\'activité musculaire éliminé par les reins.',
-      zh: '肌肉代谢产生并由肾脏滤过排出的代谢废物。',
+      zh: '肌肉代谢产生并由肾脏滤过排出的代谢废物.',
       id: 'Produk sisa dari pemecahan otot, disaring oleh ginjal.'
-    }
+    },
+    riskCategories: ['Kidney'],
+    standardMedicalGrouping: 'Renal',
+    aliases: ['serumcreatinine', 'serumcreatinineumoll', 'serum_creatinine_umol_l', 'serum_creatinine']
   },
   {
     key: 'hematocrit',
@@ -344,7 +375,10 @@ export const biomarkerDefinitions: BiomarkerDefinition[] = [
       fr: 'Mesure la quantité totale de protéines dans le sang.',
       zh: '测定血液中的总蛋白质含量。',
       id: 'Mengukur jumlah total protein dalam darah.'
-    }
+    },
+    riskCategories: ['Liver', 'Kidney'],
+    standardMedicalGrouping: 'Hepatic',
+    aliases: ['serumtotalprotein', 'serum_total_protein_g_l', 'serum_total_protein']
   },
   {
     key: 'audit_total_score',
@@ -358,34 +392,77 @@ export const biomarkerDefinitions: BiomarkerDefinition[] = [
       zh: '酒精使用障碍筛查量表总分。',
       id: 'Skor total Tes Identifikasi Gangguan Penggunaan Alkohol.'
     }
+  },
+  {
+    key: 'wbc',
+    name: 'White Blood Cell (WBC)',
+    category: 'hematology',
+    unit: 'K/uL',
+    normalRange: '4.5 - 11.0',
+    descriptions: { en: 'Total white blood cell count for immune function.' },
+    riskCategories: ['Hematology'],
+    standardMedicalGrouping: 'Hematology',
+    aliases: ['whitebloodcell', 'total_white_cell_count', 'total_white_cell_count_10_9_l', 'white_blood_cell_count']
+  },
+  {
+    key: 'alt',
+    name: 'ALT (SGPT)',
+    category: 'liver',
+    unit: 'U/L',
+    normalRange: '10 - 40',
+    descriptions: { en: 'Alanine Aminotransferase, an enzyme found mostly in the liver.' },
+    riskCategories: ['Liver'],
+    standardMedicalGrouping: 'Hepatic',
+    aliases: ['sgpt', 'alanine_aminotransferase', 'serum_alt_level_u_l', 'serum_alt_level']
+  },
+  {
+    key: 'ast',
+    name: 'AST (SGOT)',
+    category: 'liver',
+    unit: 'U/L',
+    normalRange: '10 - 40',
+    descriptions: { en: 'Aspartate Aminotransferase, an enzyme found in liver and muscle.' },
+    riskCategories: ['Liver'],
+    standardMedicalGrouping: 'Hepatic',
+    aliases: ['sgot', 'aspartate_aminotransferase', 'ast_serum_level_u_l', 'ast_serum_level']
+  },
+  {
+    key: 'steps',
+    name: 'Daily Steps',
+    category: 'other',
+    unit: 'steps',
+    normalRange: 'Aim over 8000',
+    descriptions: { en: 'Total daily step count.' },
+    riskCategories: ['Wellness'],
+    standardMedicalGrouping: 'Biometrics',
+    aliases: ['step_count', 'stepcount']
+  },
+  {
+    key: 'weight',
+    name: 'Body Weight',
+    category: 'other',
+    unit: 'kg',
+    normalRange: 'Varies',
+    descriptions: { en: 'Total body mass.' },
+    riskCategories: ['Wellness'],
+    standardMedicalGrouping: 'Biometrics',
+    aliases: ['body_weight', 'bodyweight']
   }
 ];
 
 export function getMappedBiomarkerKey(rawKey: string): string {
   if (!rawKey) return '';
-  const clean = rawKey.toLowerCase().replace(/[^a-z0-9]/g, '');
-  
-  if (clean === 'egfrmlmin173m2' || clean === 'egfr' || clean === 'egfrmlmin173' || clean.includes('egfr')) return 'egfr';
-  if (clean === 'ldl' || clean === 'ldlcholesterol' || clean === 'calculatedldlcholesterol' || clean === 'calculatedldl' || clean === 'ldlc' || clean.includes('ldl')) return 'ldl';
-  if (clean === 'hba1c' || clean === 'hba1cc' || clean === 'glycatedhaemoglobin' || clean.includes('hba1c')) return 'hba1c';
-  if (clean === 'fastingglucose' || clean === 'fastingbloodglucose' || clean === 'bloodglucose' || clean === 'glucosefasting') return 'fasting_glucose';
-  if (clean === 'fastinginsulin' || clean === 'insulinfasting' || clean === 'insulin') return 'fasting_insulin';
-  if (clean === 'apob' || clean === 'apolipoproteinb') return 'apob';
-  if (clean === 'totalcholesterol' || clean === 'serumtotalcholesterol' || (clean.includes('cholesterol') && clean.includes('total'))) return 'total_cholesterol';
-  if (clean === 'hdl' || clean === 'hdlcholesterol' || clean === 'hdlc' || clean.includes('hdl')) return 'hdl';
-  if (clean === 'triglycerides' || clean === 'trig' || clean.includes('triglycerides')) return 'triglycerides';
-  if (clean === 'bun' || clean === 'bloodureanitrogen' || clean === 'ureanitrogen') return 'bun';
-  if (clean === 'rbc' || clean === 'redbloodcell' || clean === 'redbloodcells' || clean === 'redbloodcellcount' || clean.includes('redbloodcell')) return 'rbc';
-  if (clean === 'platelets' || clean === 'plateletcount' || clean === 'platelet' || clean.includes('platelet')) return 'platelets';
-  if (clean === 'hscrp' || clean === 'crp' || clean === 'creactiveprotein' || clean.includes('hscrp') || clean.includes('creactive')) return 'hscrp';
-  if (clean === 'testosterone' || clean === 'totaltestosterone' || clean.includes('testosterone')) return 'testosterone';
-  if (clean === 'vitamind' || clean === 'vitamind25oh' || clean === '25ohvitamind' || clean.includes('vitamind')) return 'vitamin_d';
-  if (clean === 'vitaminb12' || clean === 'b12' || clean.includes('b12')) return 'vitamin_b12';
-  if (clean === 'bmi' || clean === 'bodymassindex') return 'bmi';
-  if (clean === 'creatinine' || clean === 'serumcreatinine' || clean === 'serumcreatinineumoll' || clean.includes('creatinine')) return 'creatinine';
-  if (clean === 'hematocrit' || clean === 'hematocritll' || clean === 'hct' || clean.includes('hematocrit')) return 'hematocrit';
-  if (clean === 'totalprotein' || clean === 'serumtotalprotein' || clean === 'serumtotalproteingl' || clean.includes('totalprotein')) return 'total_protein';
-  if (clean === 'audittotalscore' || clean === 'auditscore' || clean.includes('audittotal')) return 'audit_total_score';
+  const clean = rawKey.toLowerCase().replace(/[^a-z0-9_]/g, ''); // Keep underscores for exact matching
+  const cleanNoUnderscore = rawKey.toLowerCase().replace(/[^a-z0-9]/g, '');
+
+  for (const def of biomarkerDefinitions) {
+    if (def.key === clean || def.key === cleanNoUnderscore) return def.key;
+    if (def.aliases) {
+      for (const alias of def.aliases) {
+        if (alias === clean || alias === cleanNoUnderscore) return def.key;
+      }
+    }
+  }
 
   return rawKey;
 }
@@ -766,20 +843,30 @@ export function getPhysiologicalBucket(category: string, key?: string): 'metabol
 
 export function getBiomarkerMetadata(key: string, customDef?: any) {
   const k = key.toLowerCase();
+  const centralDef = biomarkerDefinitions.find(d => d.key === k);
   
-  let risks = getFallbackRiskCategories(k);
-  if (customDef && customDef.riskCategories && customDef.riskCategories.length > 0) {
-    risks = customDef.riskCategories;
-  }
-  
-  let group = getFallbackMedicalGrouping(k);
-  if (customDef && customDef.standardMedicalGrouping && customDef.standardMedicalGrouping.trim() !== '') {
-    group = customDef.standardMedicalGrouping;
-  }
-  
-  let conditions = getFallbackMedicalConditions(k);
-  if (customDef && customDef.potentialMedicalConditions && customDef.potentialMedicalConditions.length > 0) {
-    conditions = customDef.potentialMedicalConditions;
+  // 1. Prioritize CENTRAL definition's categories to enforce UI logic
+  let risks = centralDef?.riskCategories ? [...centralDef.riskCategories] : [];
+  let group = centralDef?.standardMedicalGrouping || '';
+  let conditions = centralDef?.potentialMedicalConditions ? [...centralDef.potentialMedicalConditions] : [];
+
+  // 2. Only use customDef fallbacks if the biomarker is completely UNKNOWN
+  if (!centralDef) {
+    if (customDef && customDef.riskCategories && customDef.riskCategories.length > 0) {
+      risks = customDef.riskCategories;
+    } else {
+      risks = ['Uncategorized'];
+    }
+    
+    if (customDef && customDef.standardMedicalGrouping && customDef.standardMedicalGrouping.trim() !== '') {
+      group = customDef.standardMedicalGrouping;
+    } else {
+      group = 'Other';
+    }
+
+    if (customDef && customDef.potentialMedicalConditions && customDef.potentialMedicalConditions.length > 0) {
+      conditions = customDef.potentialMedicalConditions;
+    }
   }
 
   return {
@@ -787,71 +874,6 @@ export function getBiomarkerMetadata(key: string, customDef?: any) {
     standardMedicalGrouping: group,
     potentialMedicalConditions: conditions
   };
-}
-
-function getFallbackRiskCategories(key: string): string[] {
-  const k = key.toLowerCase();
-  if (k === 'bmi' || k === 'weight' || k === 'height' || k.includes('waist') || k.includes('fat')) {
-    return ['Wellness'];
-  }
-  if (k === 'hba1c' || k === 'fasting_glucose' || k === 'fasting_insulin' || k.includes('glucose') || k.includes('sugar') || k.includes('insulin')) {
-    return ['Metabolic'];
-  }
-  if (k === 'ldl' || k === 'apob' || k === 'hdl' || k === 'triglycerides' || k === 'total_cholesterol' || k === 'hscrp' || k.includes('cholesterol') || k.includes('lipid') || k.includes('crp')) {
-    return ['Cardiovascular'];
-  }
-  if (k === 'creatinine' || k === 'egfr' || k === 'urea' || k === 'uric_acid' || k === 'albumin' || k.includes('kidney') || k.includes('renal') || k.includes('urine')) {
-    return ['Kidney'];
-  }
-  if (k === 'alt' || k === 'ast' || k === 'alp' || k === 'bilirubin' || k.includes('liver') || k.includes('hepatic') || k.includes('transaminase')) {
-    return ['Liver'];
-  }
-  if (k === 'wbc' || k === 'rbc' || k === 'hemoglobin' || k === 'haemoglobin' || k === 'platelets' || k === 'hematocrit' || k.includes('cell') || k.includes('blood count') || k.includes('haem')) {
-    return ['Hematology'];
-  }
-  return ['Other'];
-}
-
-function getFallbackMedicalGrouping(key: string): string {
-  const k = key.toLowerCase();
-  if (k === 'bmi' || k === 'weight' || k === 'height' || k.includes('waist')) return 'Wellness';
-  if (k === 'hba1c' || k === 'fasting_glucose' || k === 'fasting_insulin' || k.includes('glucose') || k.includes('sugar') || k.includes('insulin') || k === 'ldl' || k === 'apob' || k === 'hdl' || k === 'triglycerides' || k === 'total_cholesterol' || k === 'hscrp' || k.includes('cholesterol') || k.includes('lipid')) {
-    return 'Metabolic';
-  }
-  if (k === 'creatinine' || k === 'egfr' || k === 'urea' || k === 'uric_acid' || k === 'albumin' || k.includes('kidney') || k.includes('renal')) {
-    return 'Kidney';
-  }
-  if (k === 'alt' || k === 'ast' || k === 'alp' || k === 'bilirubin' || k.includes('liver') || k.includes('hepatic')) {
-    return 'Liver';
-  }
-  if (k === 'wbc' || k === 'rbc' || k === 'hemoglobin' || k === 'haemoglobin' || k === 'platelets' || k === 'hematocrit' || k.includes('cell') || k.includes('blood count') || k.includes('haem')) {
-    return 'Hematology';
-  }
-  return 'Other';
-}
-
-function getFallbackMedicalConditions(key: string): string[] {
-  const k = key.toLowerCase();
-  if (k === 'bmi' || k === 'weight' || k === 'height' || k.includes('waist')) return ['Obesity', 'Metabolic Syndrome'];
-  if (k === 'hba1c' || k === 'fasting_glucose' || k === 'fasting_insulin' || k.includes('glucose') || k.includes('sugar') || k.includes('insulin')) {
-    return ['Diabetes Risk', 'Insulin Resistance'];
-  }
-  if (k === 'ldl' || k === 'apob' || k === 'hdl' || k === 'triglycerides' || k === 'total_cholesterol' || k.includes('cholesterol') || k.includes('lipid')) {
-    return ['Hyperlipidemia', 'Atherosclerosis Risk', 'Cardiovascular Disease'];
-  }
-  if (k === 'hscrp' || k.includes('crp')) return ['Systemic Inflammation', 'Cardiovascular Risk'];
-  if (k === 'creatinine' || k === 'egfr' || k === 'urea' || k === 'uric_acid' || k === 'albumin' || k.includes('kidney') || k.includes('renal')) {
-    return ['Chronic Kidney Disease', 'Dehydration', 'Impaired Renal Function'];
-  }
-  if (k === 'alt' || k === 'ast' || k === 'alp' || k === 'bilirubin' || k.includes('liver') || k.includes('hepatic')) {
-    return ['Fatty Liver', 'Hepatitis Stress', 'Liver Dysfunction'];
-  }
-  if (k === 'wbc' || k === 'rbc' || k === 'hemoglobin' || k === 'haemoglobin' || k === 'platelets' || k === 'hematocrit' || k.includes('cell') || k.includes('blood count') || k.includes('haem')) {
-    if (k.includes('wbc') || k.includes('white')) return ['Immune Response', 'Infection Risk'];
-    if (k.includes('platelet')) return ['Thrombocytopenia', 'Clotting Risk'];
-    return ['Anemia', 'Oxygen Transport Capacity'];
-  }
-  return ['General Health'];
 }
 
 export const BIOMARKER_GROUPING_OPTIONS = [

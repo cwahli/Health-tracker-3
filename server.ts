@@ -13,6 +13,7 @@ import dotenv from "dotenv";
 import YAML from "yaml";
 import { AsyncLocalStorage } from "async_hooks";
 import { biomarkerDefinitions, getBiomarkerStatus, getBiomarkerStatusLabel, getBiomarkerMetadata } from "./src/utils/biomarkers";
+import { NUTRIENT_KEYS } from "./src/utils/nutrients";
 
 // Simple and robust custom JS object-to-YAML stringifier
 function jsToYaml(val: any, indent: number = 0): string {
@@ -3949,11 +3950,6 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
       delete clean.summary;
       delete clean.id;
       return clean;
-    }).filter((log: any) => {
-      if (log.biomarkers && Object.keys(log.biomarkers).length === 1 && log.biomarkers.steps !== undefined) {
-        return false;
-      }
-      return true;
     });
     const riskGroupingsWithSeverity: Record<string, string[]> = {};
     const biomarkerHistories: Record<string, {date: string, val: any}[]> = {};
@@ -3999,6 +3995,7 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
         const medicalInsight = calibrated?.specificRiskContext || calibrated?.description || customDef?.specificRiskContext || customDef?.description || customDef?.benefitRisk || def?.benefitRisk || "No specific medical insight defined.";
         
         const meta = getBiomarkerMetadata(key, customDef);
+        // Use riskCategories instead of standardMedicalGrouping to match UI visually
         let risks = meta.riskCategories && meta.riskCategories.length > 0 ? meta.riskCategories : ['Uncategorized'];
         
         const calibSource = customDef?.calibrationSource ? ` (Calibrated to: ${customDef.calibrationSource})` : "";
@@ -4025,13 +4022,7 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
       `${groupedRisksStr}\n\nNormal/Uncategorized Biomarkers:\n${normalBiomarkers.join('\n')}` : 
       "No medical biomarkers logged.";
     const profileText = `UserProfile: Age ${activeProfile.age}, Ethnicity: ${activeProfile.ethnicity}, Weight: ${activeProfile.weight}kg, Height: ${activeProfile.height}cm, Gender: ${activeProfile.gender}, Blood Type: ${activeProfile.bloodType}.`;
-    const nutrientKeysList = [
-      "calories", "protein", "totalFat", "saturatedFat", "transFat", "unsaturatedFat", "omega3", 
-      "carbohydrates", "addedSugar", "totalFibre", "solubleFibre", "sodium", "potassium", 
-      "magnesium", "calcium", "iron", "zinc", "selenium", "iodine", "phosphorus", 
-      "vitaminD", "vitaminB12", "folate", "vitaminC", "vitaminE", "vitaminK", 
-      "vitaminA", "vitaminB6", "thiamine", "riboflavin", "niacin"
-    ];
+    const nutrientKeysList = NUTRIENT_KEYS;
     
     const biomarkerKeysList = biomarkerDefinitions.map(d => d.key);
 
