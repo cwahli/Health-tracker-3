@@ -1,24 +1,38 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-
 interface ZoomableImageProps {
   src: string;
   boundingBox?: number[];
   onClose: () => void;
+  foodName?: string;
+  onNext?: () => void;
+  onPrev?: () => void;
+  hasNext?: boolean;
+  hasPrev?: boolean;
 }
-
-export const ZoomableImage: React.FC<ZoomableImageProps> = ({ src, boundingBox, onClose }) => {
+export const ZoomableImage: React.FC<ZoomableImageProps> = ({ 
+  src, 
+  boundingBox, 
+  onClose,
+  foodName,
+  onNext,
+  onPrev,
+  hasNext,
+  hasPrev
+}) => {
   const targetRef = useRef<HTMLDivElement>(null);
   const { zoomToElement } = React.useContext(React.createContext({ zoomToElement: (el: any, scale: any, time: any) => {} })); // Just a placeholder, we'll get it from render props
   const [highlight, setHighlight] = useState(true);
-
   useEffect(() => {
     if (highlight) {
       const timer = setTimeout(() => setHighlight(false), 1000);
       return () => clearTimeout(timer);
     }
-  }, [highlight]);
-
+  }, [highlight, src]);
+  // Reset highlight state when image changes
+  useEffect(() => {
+    setHighlight(true);
+  }, [src]);
   return (
     <div 
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 backdrop-blur-md transition-all duration-300"
@@ -28,6 +42,12 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({ src, boundingBox, 
         className="relative max-w-[100vw] max-h-[100vh] w-full h-full flex flex-col items-center justify-center"
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Floating Title Bubble at the top */}
+        {foodName && (
+          <div className="absolute top-6 left-1/2 -translate-x-1/2 px-6 py-2.5 bg-slate-900/90 text-white rounded-full font-semibold text-sm tracking-wide border border-slate-700/80 shadow-2xl z-[10000] text-center max-w-[80vw] truncate">
+            {foodName}
+          </div>
+        )}
         <TransformWrapper
           initialScale={1}
           minScale={0.5}
@@ -41,12 +61,9 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({ src, boundingBox, 
                   <div className="relative inline-block max-w-[95vw] max-h-[85vh]">
                     <img 
                       src={src} 
-                      alt="Full screen preview" 
-                      className="max-w-[95vw] max-h-[85vh] rounded-xl object-contain shadow-2xl"
+                      alt={foodName || "Full screen preview"} 
+                      className="max-w-[95vw] max-h-[85vh] rounded-xl object-contain shadow-2xl animate-fade-in"
                       referrerPolicy="no-referrer"
-                      onLoad={() => {
-                        // handled by useEffect
-                      }}
                     />
                     {boundingBox && boundingBox.length === 4 && (
                       <ZoomTrigger boundingBox={boundingBox} zoomToElement={zoomToElement} />
@@ -65,6 +82,26 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({ src, boundingBox, 
                     )}
                   </div>
                 </TransformComponent>
+                {/* Left Navigation Chevron */}
+                {hasPrev && onPrev && (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onPrev(); }}
+                    className="absolute left-6 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center bg-slate-900/80 hover:bg-slate-800 text-white rounded-full font-bold shadow-2xl border border-slate-700/60 cursor-pointer transition-all active:scale-95 z-[10000] text-xl"
+                    aria-label="Previous item"
+                  >
+                    ‹
+                  </button>
+                )}
+                {/* Right Navigation Chevron */}
+                {hasNext && onNext && (
+                  <button 
+                    onClick={(e) => { e.stopPropagation(); onNext(); }}
+                    className="absolute right-6 top-1/2 -translate-y-1/2 w-12 h-12 flex items-center justify-center bg-slate-900/80 hover:bg-slate-800 text-white rounded-full font-bold shadow-2xl border border-slate-700/60 cursor-pointer transition-all active:scale-95 z-[10000] text-xl"
+                    aria-label="Next item"
+                  >
+                    ›
+                  </button>
+                )}
                 <button 
                   onClick={onClose}
                   className="absolute bottom-8 left-1/2 -translate-x-1/2 px-8 py-3 bg-slate-900/90 hover:bg-slate-800 text-white rounded-full font-bold text-sm border border-slate-700 shadow-xl transition-all cursor-pointer z-[10000]"
@@ -79,8 +116,6 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({ src, boundingBox, 
     </div>
   );
 };
-
-
 const ZoomTrigger = ({ boundingBox, zoomToElement }: { boundingBox: number[], zoomToElement: any }) => {
   React.useEffect(() => {
     if (boundingBox && boundingBox.length === 4) {

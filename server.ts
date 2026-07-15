@@ -321,13 +321,14 @@ Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing two 
 - ITEM REFERENCING (STRICT — PREVENTS DATA LOSS): Every item in the "=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===" list has an explicit Index number. When assigning items to groups, reference them ONLY by that Index inside "scoutItemIndices". Do NOT restate the item's name, bounding box, or database ID — the backend already has this data and will look it up by index. If two scout items share the same name (e.g. two separate bags of the same product on a shelf), they are still DISTINCT items with DIFFERENT indices — you MUST include BOTH indices. Never merge or silently drop an index because its name duplicates another.
 - COVERAGE REQUIREMENT: Every single Index from the Scout list MUST appear in exactly one group. Before finalizing your answer, count the indices you have assigned across all groups and confirm the count equals the total number of scout items.
 - TEXT-ONLY FALLBACK: If no "=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===" section is present (a pure text-based comparison with no image), use "itemNames" instead, listing the plain food names being compared. Leave scoutItemIndices empty in that case.
+- SPECIFICITY FOR PROS/CONS (STRICT): Your 'pros' and 'cons' descriptions for each group must be highly specific, referencing the exact key nutrients (e.g. saturated fat, sodium, calories, sugar). Instead of general phrases like 'high in saturated fat and sodium', you MUST write 'high in saturated fat (average Xg) and sodium (average Ymg)'. If praising an item for being 'lower saturated fat', you MUST specify 'lower saturated fat (average Xg compared to Yg in Group 2)'. Provide clear numerical estimates or ranges based on the average nutrients.
 - GROUPING & DIFFERENTIATION: Group items into relevant buckets based on shared nutrient profile (e.g., "Low Saturated Fat Options", "High Protein", "High Risk Items").
   - If there are 4 or more distinct items, you MUST create AT LEAST 2 groups, unless every item's core nutrients (calories, saturated fat, sodium) are genuinely within roughly 10% of each other — in that rare case, output exactly 1 group and say so explicitly in "message".
   - For each group, set "topConcernNutrient" to the single nutrient (e.g. "saturatedFat", "sodium", "addedSugar") that most defines that group's risk or benefit relative to the OTHER groups.
   - Set "keyDifferentiator" to one short sentence contrasting this group against the other group(s), e.g. "Lower sodium than Group 2, but roughly double the saturated fat."
 - Instead of showing weight, calorie, sat fat for each item individually, show them as an aggregate (average) for the group.
 - Output the specific groups in comparison.groups. Rank the groups best-to-worst for this patient's specific biomarker profile.
-- For each group, provide groupName, suitability, pros, cons, topConcernNutrient, keyDifferentiator, averageNutrients, and scoutItemIndices (or itemNames for text-only comparisons). OMIT the comparisonTable entirely.
+- For each group, provide groupName, suitability, pros (MUST contain numeric macro values/ranges), cons (MUST contain numeric macro values/ranges), topConcernNutrient, keyDifferentiator, averageNutrients, and scoutItemIndices (or itemNames for text-only comparisons). OMIT the comparisonTable entirely.
 
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly.
@@ -1774,7 +1775,9 @@ CRITICAL RULES:
 
     const hasImage = imagePayloads && imagePayloads.length > 0;
     const isMenuScale = scoutContentType === "menu_or_poster";
-    const shouldRunDbSearch = !isWeightModification && !isMenuScale && (visionScoutRanAndReturnedItems || (!hasImage && queriesToSearch.length > 0));
+    // Skip database search if evaluating a large number of items (Mode D / Evaluation Scale) to prevent connection pool exhaustion and timeouts
+    const isEvaluationScale = queriesToSearch.length >= 10;
+    const shouldRunDbSearch = !isWeightModification && !isMenuScale && !isEvaluationScale && (visionScoutRanAndReturnedItems || (!hasImage && queriesToSearch.length > 0));
     if (shouldRunDbSearch && queriesToSearch.length > 0) {
       addDebugLog(`[Database Search] Performing USDA & OFF searches for queries: ${JSON.stringify(queriesToSearch)}`);
       const searchPromises = queriesToSearch.map(async (q) => {

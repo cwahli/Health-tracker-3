@@ -1501,7 +1501,8 @@ export default function App() {
           height: isDemoUser ? 178 : '' as any,
           gender: isDemoUser ? 'Male' : 'Unknown',
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-          language: 'en'
+          language: 'en',
+          topNutrientsToMonitor: ['calories', 'saturatedFat', 'sodium']
         };
         const tNewProfileId = logInteraction('upload', `users/${uid} (Create Profile)`, newProfile);
         setDoc(userDocRef, sanitizeForFirestore(newProfile), { merge: true })
@@ -1645,10 +1646,14 @@ export default function App() {
               height: '' as any,
               gender: 'Unknown',
               timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-              language: 'en'
+              language: 'en',
+              topNutrientsToMonitor: ['calories', 'saturatedFat', 'sodium']
             };
           } else {
             loadedProfile.email = user.email || '';
+            if (!loadedProfile.topNutrientsToMonitor) {
+              loadedProfile.topNutrientsToMonitor = ['calories', 'saturatedFat', 'sodium'];
+            }
           }
 
           // Save the loaded state to local storage immediately
