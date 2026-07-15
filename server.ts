@@ -148,6 +148,73 @@ function extractBalancedJson(text: string): string {
   return cleaned;
 }
 
+// Resolves LLM-provided scoutItemIndices (or itemNames for text-only comparisons) back into
+// full item objects using the authoritative Vision Scout data. This guarantees exact names,
+// bounding boxes, and image indices — the LLM never has to regurgitate this data, which was
+// the root cause of silent item drops and incorrect targetDbId hallucination in MODE D groups.
+function resolveComparisonGroups(rawGroups: any[], scoutItems: any[]): any[] {
+  const usedIndices = new Set<number>();
+
+  const resolvedGroups = (Array.isArray(rawGroups) ? rawGroups : []).map((g: any) => {
+    const items: any[] = [];
+    const indices: number[] = Array.isArray(g.scoutItemIndices) ? g.scoutItemIndices : [];
+
+    indices.forEach((i: number) => {
+      if (typeof i === "number" && scoutItems[i] && !usedIndices.has(i)) {
+        usedIndices.add(i);
+        const s = scoutItems[i];
+        items.push({
+          name: s.originalName || s.keyword,
+          boundingBox2D: s.boundingBox2D || null,
+          sourceImageIndex: typeof s.sourceImageIndex === "number" ? s.sourceImageIndex : 0
+        });
+      }
+    });
+
+    // Text-only comparisons (no image / no scout items): fall back to plain names.
+    if (scoutItems.length === 0 && Array.isArray(g.itemNames)) {
+      g.itemNames.forEach((n: string) => {
+        if (n) items.push({ name: n, boundingBox2D: null, sourceImageIndex: null });
+      });
+    }
+
+    return {
+      groupName: g.groupName,
+      suitability: g.suitability,
+      pros: g.pros,
+      cons: g.cons,
+      topConcernNutrient: g.topConcernNutrient || null,
+      keyDifferentiator: g.keyDifferentiator || null,
+      averageNutrients: g.averageNutrients || null,
+      items
+    };
+  });
+
+  // Coverage repair: any scout item the model never assigned to a group still gets shown,
+  // instead of silently vanishing from the comparison.
+  if (scoutItems.length > 0) {
+    const missing = scoutItems.filter((_: any, i: number) => !usedIndices.has(i));
+    if (missing.length > 0) {
+      resolvedGroups.push({
+        groupName: "Other Identified Items",
+        suitability: "Uncategorized",
+        pros: "",
+        cons: "These items were detected but not placed into a comparison group by the AI.",
+        topConcernNutrient: null,
+        keyDifferentiator: null,
+        averageNutrients: null,
+        items: missing.map((s: any) => ({
+          name: s.originalName || s.keyword,
+          boundingBox2D: s.boundingBox2D || null,
+          sourceImageIndex: typeof s.sourceImageIndex === "number" ? s.sourceImageIndex : 0
+        }))
+      });
+    }
+  }
+
+  return resolvedGroups;
+}
+
 export function buildFoodAnalyzeInstruction(context: {
   biomarkersNeedingImprovement?: any[];
   remainingAllowance?: {
@@ -250,10 +317,16 @@ Triggered ONLY when the user asks to modify, add, or correct a weight for an ite
 MODE D: EVALUATION / COMPARISON
 Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing two snacks), OR whenever the VISUAL FOOD SCOUT Content Type is "menu_or_poster".
 - CRITICAL: Do NOT use this mode for a standard meal photo or when the user says they ate something.
-- EXHAUSTIVE DIRECTIVE: Group all identified food items into relevant buckets (groups) based on similar top nutrients (e.g., "Low Saturated Fat Options", "High Protein", "High Risk Items"). 
-- Instead of showing weight, calorie, sat fat for each item individually, show them as an aggregate (average) for the group. 
-- Output the specific groups in comparison.groups. Rank the groups best-to-worst.
-- For each group, provide groupName, suitability, pros, cons, averageNutrients, and an items array containing just the name, targetDbId, boundingBox2D, and sourceImageIndex of each food in the group. OMIT the comparisonTable entirely.
+- ITEM REFERENCING (STRICT — PREVENTS DATA LOSS): Every item in the "=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===" list has an explicit Index number. When assigning items to groups, reference them ONLY by that Index inside "scoutItemIndices". Do NOT restate the item's name, bounding box, or database ID — the backend already has this data and will look it up by index. If two scout items share the same name (e.g. two separate bags of the same product on a shelf), they are still DISTINCT items with DIFFERENT indices — you MUST include BOTH indices. Never merge or silently drop an index because its name duplicates another.
+- COVERAGE REQUIREMENT: Every single Index from the Scout list MUST appear in exactly one group. Before finalizing your answer, count the indices you have assigned across all groups and confirm the count equals the total number of scout items.
+- TEXT-ONLY FALLBACK: If no "=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===" section is present (a pure text-based comparison with no image), use "itemNames" instead, listing the plain food names being compared. Leave scoutItemIndices empty in that case.
+- GROUPING & DIFFERENTIATION: Group items into relevant buckets based on shared nutrient profile (e.g., "Low Saturated Fat Options", "High Protein", "High Risk Items").
+  - If there are 4 or more distinct items, you MUST create AT LEAST 2 groups, unless every item's core nutrients (calories, saturated fat, sodium) are genuinely within roughly 10% of each other — in that rare case, output exactly 1 group and say so explicitly in "message".
+  - For each group, set "topConcernNutrient" to the single nutrient (e.g. "saturatedFat", "sodium", "addedSugar") that most defines that group's risk or benefit relative to the OTHER groups.
+  - Set "keyDifferentiator" to one short sentence contrasting this group against the other group(s), e.g. "Lower sodium than Group 2, but roughly double the saturated fat."
+- Instead of showing weight, calorie, sat fat for each item individually, show them as an aggregate (average) for the group.
+- Output the specific groups in comparison.groups. Rank the groups best-to-worst for this patient's specific biomarker profile.
+- For each group, provide groupName, suitability, pros, cons, topConcernNutrient, keyDifferentiator, averageNutrients, and scoutItemIndices (or itemNames for text-only comparisons). OMIT the comparisonTable entirely.
 
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly.
@@ -312,6 +385,8 @@ Respond ONLY with a structured JSON format matching this schema exactly.
         "suitability": "Safest option",
         "pros": "Good for heart health.",
         "cons": "May be less flavorful.",
+        "topConcernNutrient": "saturatedFat",
+        "keyDifferentiator": "One short sentence contrasting this group vs the other group(s), e.g. 'Lowest saturated fat of the options, but higher sodium than Group 2.'",
         "averageNutrients": {
           "calories": 0,
           "protein": 0,
@@ -323,14 +398,8 @@ Respond ONLY with a structured JSON format matching this schema exactly.
           "potassium": 0,
           "totalFibre": 0
         },
-        "items": [
-          {
-            "name": "Food option item name",
-            "targetDbId": "Exact dbId from database matches or active state to allow backend calculation",
-            "boundingBox2D": [0,0,0,0],
-            "sourceImageIndex": 0
-          }
-        ]
+        "scoutItemIndices": [0, 3, 7],
+        "itemNames": null
       }
     ]
   }
@@ -1650,8 +1719,8 @@ CRITICAL RULES:
             scoutCookingMethod = parsedScout.cookingMethod || "";
             scoutContentType = parsedScout.contentType === "menu_or_poster" ? "menu_or_poster" : "individual_food_items";
             if (Array.isArray(parsedScout.items)) {
-              visionScoutItems = parsedScout.items;
-              for (const item of parsedScout.items) {
+              visionScoutItems = parsedScout.items.map((item: any, idx: number) => ({ ...item, scoutIndex: idx }));
+              for (const item of visionScoutItems) {
                 if (item.keyword) {
                   queriesToSearch.push(item.keyword);
                   visionScoutRanAndReturnedItems = true;
@@ -1823,7 +1892,7 @@ CRITICAL RULES:
         const imgIdx = item.sourceImageIndex !== undefined && item.sourceImageIndex !== null ? item.sourceImageIndex : "0";
         const nutritionStr = item.nutritionFacts && Object.keys(item.nutritionFacts).length > 0 ? ` | Nutrition (per 100g): ${JSON.stringify(item.nutritionFacts)}` : "";
         const rawLabelStr = item.rawNutritionLabel && Object.keys(item.rawNutritionLabel).length > 0 ? ` | RawNutritionLabel: ${JSON.stringify(item.rawNutritionLabel)}` : "";
-        return `- Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName || ''}" | Source: ${item.source} | BoundingBox: ${bboxStr} | ImageIndex: ${imgIdx}${nutritionStr}${rawLabelStr}`;
+        return `- Index: ${item.scoutIndex} | Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName || ''}" | Source: ${item.source} | BoundingBox: ${bboxStr} | ImageIndex: ${imgIdx}${nutritionStr}${rawLabelStr}`;
       }).join("\n");
       visionScoutCtx = `\n=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===\n${itemsList}\n` +
         `Content Type: ${scoutContentType} (${visionScoutItems.length} items identified)\n` +
@@ -1964,28 +2033,30 @@ CRITICAL RULES:
                     type: Type.OBJECT, nullable: true, required: ["calories"],
                     properties: { calories: { type: Type.NUMBER }, protein: { type: Type.NUMBER, nullable: true }, totalFat: { type: Type.NUMBER, nullable: true }, saturatedFat: { type: Type.NUMBER, nullable: true }, sodium: { type: Type.NUMBER, nullable: true }, carbohydrates: { type: Type.NUMBER, nullable: true }, addedSugar: { type: Type.NUMBER, nullable: true }, potassium: { type: Type.NUMBER, nullable: true }, totalFibre: { type: Type.NUMBER, nullable: true } }
                   },
-                  items: {
+                  scoutItemIndices: {
                     type: Type.ARRAY,
-                    items: {
-                      type: Type.OBJECT,
-                      properties: {
-                        name: { type: Type.STRING },
-                        targetDbId: { type: Type.STRING, nullable: true },
-                        boundingBox2D: {
-                          type: Type.ARRAY,
-                          items: { type: Type.INTEGER },
-                          nullable: true
-                        },
-                        sourceImageIndex: {
-                          type: Type.INTEGER,
-                          nullable: true
-                        }
-                      },
-                      required: ["name", "targetDbId", "boundingBox2D", "sourceImageIndex"]
-                    }
+                    items: { type: Type.INTEGER },
+                    nullable: true,
+                    description: "Indices (from the '=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===' list) of every item belonging to this group. Use this whenever scout items exist. Every index across all groups must be unique and, together, must cover every item in the scout list."
+                  },
+                  itemNames: {
+                    type: Type.ARRAY,
+                    items: { type: Type.STRING },
+                    nullable: true,
+                    description: "ONLY used when there is no Visual Food Scout list (a pure text-based comparison with no image). Plain food names being compared. Leave empty/null whenever scoutItemIndices is used."
+                  },
+                  topConcernNutrient: {
+                    type: Type.STRING,
+                    nullable: true,
+                    description: "The single nutrient (e.g. 'saturatedFat', 'sodium', 'addedSugar') that most defines this group's risk or benefit relative to the other groups."
+                  },
+                  keyDifferentiator: {
+                    type: Type.STRING,
+                    nullable: true,
+                    description: "One short sentence explicitly contrasting this group against the other group(s), e.g. 'Lower sodium than Group 2, but roughly double the saturated fat.'"
                   }
                 },
-                required: ["groupName", "suitability", "pros", "cons", "items"]
+                required: ["groupName", "suitability", "pros", "cons"]
               }
             },
             comparisonTable: {
@@ -2028,7 +2099,7 @@ ${visionScoutCtx}
 ${databaseMatchesCtx}
 Current User Input: "${message}"
 
-You can compare up to 40 individual food items (or more if they come from the visual scout). You MUST evaluate EVERY item provided by the scout and rank them by recommendation.`;
+If MODE D (evaluation/comparison) applies: reference every item ONLY by its Index number from the Scout list above inside "scoutItemIndices". Every Index must be assigned to exactly one group — including duplicate-named items, which are still separate indices. Do not restate names, bounding boxes, or database IDs.`;
 
     const fullPromptSent = `System Instruction:\n${finalSystemInstruction}\n\n${promptText}`;
     addDebugLog(`[RouteAgent Chat] Sending request to Gemini...`);
@@ -2113,6 +2184,9 @@ You can compare up to 40 individual food items (or more if they come from the vi
     if (mode === "evaluation") {
       addDebugLog(`[Mode Routing] EVALUATION mode triggered.`);
       const comparisonData = rawParsed.comparison || { keyNutrientConcern: "Nutrients", groups: [] };
+      const resolvedGroups = resolveComparisonGroups(comparisonData.groups, visionScoutItems);
+      addDebugLog(`[Comparison Resolve] ${visionScoutItems.length} scout item(s) -> ${resolvedGroups.length} group(s), covering ${resolvedGroups.reduce((sum: number, g: any) => sum + (g.items?.length || 0), 0)} item(s).`);
+      comparisonData.groups = resolvedGroups;
       comparisonData.isMenuScale = isMenuScale;
       
       return res.json({

@@ -390,11 +390,18 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                   <h4 className="font-bold text-slate-800 dark:text-slate-100 text-[15px] leading-snug">
                                     {group.groupName}
                                   </h4>
-                                  {group.suitability && (
-                                    <div className={`${suitabilityBadgeBg} ${suitabilityClass} uppercase tracking-wider text-[10px] font-bold px-2 py-0.5 rounded-md inline-block w-fit`}>
-                                      {group.suitability.toUpperCase()}
-                                    </div>
-                                  )}
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    {group.suitability && (
+                                      <div className={`${suitabilityBadgeBg} ${suitabilityClass} uppercase tracking-wider text-[10px] font-bold px-2 py-0.5 rounded-md inline-block w-fit`}>
+                                        {group.suitability.toUpperCase()}
+                                      </div>
+                                    )}
+                                    {group.topConcernNutrient && (
+                                      <div className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px] font-bold px-2 py-0.5 rounded-md inline-block w-fit">
+                                        Key: {group.topConcernNutrient}
+                                      </div>
+                                    )}
+                                  </div>
                                 </div>
                                 
                                 {/* Aggregated Nutrients */}
@@ -429,6 +436,11 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                   {group.cons && (
                                     <p className="text-xs text-slate-600 dark:text-slate-400 leading-tight">
                                       <span className="font-semibold text-rose-600 dark:text-rose-400">✗ Cons:</span> {group.cons}
+                                    </p>
+                                  )}
+                                  {group.keyDifferentiator && (
+                                    <p className="text-xs text-indigo-600 dark:text-indigo-400 leading-tight italic pt-0.5">
+                                      ↔ {group.keyDifferentiator}
                                     </p>
                                   )}
                                 </div>
