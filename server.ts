@@ -225,6 +225,8 @@ function resolveComparisonGroups(rawGroups: any[], scoutItems: any[]): any[] {
         usedIndices.add(i);
         items.push({
           name: s.originalName || s.keyword,
+          keyword: s.keyword || null,
+          originalName: s.originalName || null,
           boundingBox2D: s.boundingBox2D || null,
           sourceImageIndex: typeof s.sourceImageIndex === "number" ? s.sourceImageIndex : 0
         });
@@ -265,6 +267,8 @@ function resolveComparisonGroups(rawGroups: any[], scoutItems: any[]): any[] {
         averageNutrients: null,
         items: missing.map((s: any) => ({
           name: s.originalName || s.keyword,
+          keyword: s.keyword || null,
+          originalName: s.originalName || null,
           boundingBox2D: s.boundingBox2D || null,
           sourceImageIndex: typeof s.sourceImageIndex === "number" ? s.sourceImageIndex : 0
         }))
@@ -383,14 +387,13 @@ Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing two 
 - COVERAGE REQUIREMENT: Every single Index from the Scout list MUST appear in exactly one group. Before finalizing your answer, count the indices you have assigned across all groups and confirm the count equals the total number of scout items.
 - TEXT-ONLY FALLBACK: If no "=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===" section is present (a pure text-based comparison with no image), use "itemNames" instead, listing the plain food names being compared. Leave scoutItemIndices empty in that case.
 - SPECIFICITY FOR PROS/CONS (STRICT): Your 'pros' and 'cons' descriptions for each group must be highly specific, referencing the exact key nutrients (e.g. saturated fat, sodium, calories, sugar). Instead of general phrases like 'high in saturated fat and sodium', you MUST write 'high in saturated fat (average Xg) and sodium (average Ymg)'. If praising an item for being 'lower saturated fat', you MUST specify 'lower saturated fat (average Xg compared to Yg in Group 2)'. Provide clear numerical estimates or ranges based on the average nutrients.
-- MANDATORY NUTRIENTS: Every group's "averageNutrients" MUST include ${PRIMARY_NUTRIENTS.join(", ")} — these are the patient's primary monitored nutrients and are never optional, in either mode below. Populate additional nutrients (protein, carbohydrates, addedSugar, potassium, totalFibre) whenever relevant to this patient's biomarker profile.
 - GROUPING STRATEGY (STRICT — follow based on item count, do not guess):
   ${compareItemCount > 0 ? `You have exactly ${compareItemCount} item(s) from the Visual Food Scout — use this exact count for the branch below.` : `No image was provided. Count the distinct foods being discussed in the user's text and use that count for the branch below.`}
   - 8 OR FEWER distinct items → INDIVIDUAL MODE. Create exactly ONE group per item — do NOT average or bucket multiple items together. Set "groupName" to that single item's own name (not a category name). "averageNutrients" holds that ONE item's real nutrients (not an average of several items). Each group's "scoutItemIndices" (or "itemNames" for text-only) contains exactly one index/name.
   - 9 OR MORE distinct items → BUCKET MODE. Group items into relevant buckets based on shared nutrient profile or base ingredient. 
     CRITICAL: Do NOT group items merely by package size, weight, or portion (e.g., do not use "Family Packs" vs "Single Serve"). 
     Instead, group them by their primary ingredient base (e.g., "Potato-Based Chips", "Corn/Tortilla Chips", "Cassava/Root Veggie Snacks") OR distinct clinical profiles (e.g., "Highest Sodium Threat", "Trans-Fat Risks"). 
-    Aim for 3 to 5 distinct buckets when analyzing large, diverse sets of items. You MUST create AT LEAST 2 buckets, unless every item's core nutrients (${PRIMARY_NUTRIENTS.join(", ")}) are genuinely within roughly 10% of each other — in that rare case, output exactly 1 bucket and say so explicitly in "message". "averageNutrients" is the true average across every item in that bucket.
+    Aim for 3 to 5 distinct buckets when analyzing large, diverse sets of items. You MUST create AT LEAST 2 buckets, unless every item's core nutrients (calories, saturatedFat, sodium) are genuinely within roughly 10% of each other — in that rare case, output exactly 1 bucket and say so explicitly in "message". "averageNutrients" is the true average across every item in that bucket.
   - Either mode: set "topConcernNutrient" to the single nutrient that most defines this group/item's risk or benefit relative to the OTHER groups/items. Set "keyDifferentiator" to one short sentence contrasting this group/item against the other group(s)/item(s), e.g. "Lower sodium than Group 2, but roughly double the saturated fat."
 - Output the specific groups in comparison.groups. Rank the groups best-to-worst for this patient's specific biomarker profile.
 - For each group, provide groupName, suitability, pros (MUST contain numeric macro values/ranges), cons (MUST contain numeric macro values/ranges), topConcernNutrient, keyDifferentiator, averageNutrients, and scoutItemIndices (or itemNames for text-only comparisons). OMIT the comparisonTable entirely.
@@ -1730,7 +1733,6 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       if (hasImage) {
         addDebugLog(`[Vision Scout] Running Stage 3 lightweight vision scout...`);
         const scoutSystemInstruction = `You are a fast visual food identification and localization agent. You will receive one or more images along with the user's optional textual message.
-
 STEP 1 — IMAGE CLASSIFICATION (do this FIRST for every image):
 For each image, determine if it contains:
   (a) A product label, price tag, or packaging showing a food name and/or weight
@@ -1738,26 +1740,22 @@ For each image, determine if it contains:
   (c) An actual food photo showing prepared or raw ingredients
   (d) A cooking scene (e.g., boiling in a pot, frying on a pan)
   (e) A restaurant menu, promotional poster, billboard, or combo board listing multiple options
-
 STEP 2 — DENSITY APPRAISAL & EXTRACTION MODE:
 Assess the total item density across all provided images before selecting an extraction format:
   * NORMAL DENSITY (< 20 visual items total) OR TEXT DENSITY (Menus/Posters/Lists up to 100 items): Use standard structured JSON parsing. Populate the "items" array with fully broken-down objects including individual "boundingBox2D" arrays. Leave "compactSpreadsheet" completely empty [].
   * EXTREME VISUAL DENSITY (> 20 distinct physical 3D objects like grocery store snack shelves): To protect spatial memory coordinates from drifting and prevent token limits from cutting off mid-JSON, you MUST switch to COMPACT SPREADSHEET MODE. Leave the "items" array completely empty []. Instead, populate the "compactSpreadsheet" array field with highly condensed, pipe-delimited strings containing the coordinates textually.
-
 STEP 3 — CORE EXTRACTION & GROUPING LAWS:
 - EXHAUSTIVENESS DIRECTIVE: Extract EVERY distinct food item, ingredient, or menu option visible up to your active density cap. Do not get lazy or stop early. 
-- CRITICAL TOPPING GROUPING RULE: If a food component is clearly a topping, condiment, sauce, or filling physically served on, fused to, or inside a base vehicle (e.g., cheese melted onto a baked sweet potato, glaze torched onto an item, or a sauce on a meat cut), do NOT log them as separate entities. Group them as a single consolidated item (e.g., keyword: "baked sweet potato with cheese"). Draw a single bounding box tightly around the combined base vehicle and its integrated toppings.
-- Product/Price Labels (type a): Read the EXACT food name and weight. Convert kg to grams.
-- Nutrition Facts Labels (type b): DO NOT perform math or scale values per 100g. Extract the EXACT total package weight, serving size weight, and nutrients per serving exactly as written into the "rawNutritionLabel" object. If an item has NO legible physical nutrition panel visible, leave "rawNutritionLabel" and "nutritionFacts" entirely empty {}. Do not hallucinate.
-- Food Photos (type c): Identify items and estimate weight using visual references (plates, hands, packaging markers).
-- Menus and Posters (type e): Extract every distinct option or variation listed as a prepared choice. Do NOT draw one giant box around the whole menu page. Draw tight, individual bounding boxes around the specific thumbnail image or specific line text block associated with each distinct choice.
-
+- PRODUCT/PRICE LABELS (type a): Read the EXACT food name and weight. Convert kg to grams.
+- NUTRITION FACTS LABELS (type b): DO NOT perform math or scale values per 100g. Extract the EXACT total package weight, serving size weight, and nutrients per serving exactly as written into the "rawNutritionLabel" object. If an item has NO legible physical nutrition panel visible, leave "rawNutritionLabel" and "nutritionFacts" entirely empty {}. Do not hallucinate.
+- FOOD PHOTOS (type c): Identify items and estimate weight using visual references (plates, hands, packaging markers).
+- MENUS AND POSTERS (type e): Extract every distinct option or variation listed as a prepared choice. Do NOT draw one giant box around the whole menu page. Draw tight, individual bounding boxes around the specific thumbnail image or specific line text block associated with each distinct choice.
+- CLASSIFICATION LAW: If the image is a restaurant menu, combo board, or poster listing text options (type e), you MUST set "contentType" to "menu_or_poster". Setting this incorrectly is a critical failure.
 CRITICAL RULES:
-- \`keyword\` MUST be a short, clean, database-friendly English name so the backend search functions successfully (e.g., "beef blade cut", "sweet potato").
-- \`originalName\` PRESERVATION: This field is clinically vital. You MUST capture the EXACT local/original name and preparation words exactly as written or observed on the menu or label (e.g., "Yakiimo", "Daging Empal", "Ayam Goreng"). Do NOT translate, normalize, or summarize this field. 
-
+- 'keyword' MUST be a short, clean, database-friendly English name so the backend search functions successfully (e.g., "beef blade cut", "sweet potato").
+- 'originalName' PRESERVATION: This field is clinically vital. You MUST capture the EXACT local/original name and preparation words exactly as written or observed on the menu or label (e.g., "Yakiimo", "Daging Empal", "Ayam Goreng"). Do NOT translate, normalize, or summarize this field. 
 JSON SCHEMA STRICT REQUIREMENT:
-Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers like \`\`\`json.
+Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers like json.
 
 { 
   "items": [
@@ -1766,7 +1764,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
       "estimatedWeightGrams": "number", 
       "originalName": "string", 
       "source": "label | visual",
-      "boundingBox2D": [ymin, xmin, ymax, xmax],
+      "boundingBox2D": [0, 0, 0, 0],
       "sourceImageIndex": 0,
       "nutritionFacts": {
         "caloriesPer100g": "number (optional)",
@@ -5058,7 +5056,7 @@ app.post("/api/gemini/food-image-search", async (req, res) => {
   try {
     // 1. Try real Custom Search Engine first if Custom_Search_API is defined
     const apiKey = process.env.Custom_Search_API;
-    const cx = "partner-pub-2698861478625135:4100344441"; // General-purpose CX that we can try
+    const cx = "40e028bbf9ec84932"; // User-configured CSE ID
     
     if (apiKey) {
       try {

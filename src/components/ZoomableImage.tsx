@@ -21,44 +21,23 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
   hasPrev
 }) => {
   const targetRef = useRef<HTMLDivElement>(null);
-  const [highlightKey, setHighlightKey] = useState(0);
-  const [showHighlight, setShowHighlight] = useState(true);
-
+  const { zoomToElement } = React.useContext(React.createContext({ zoomToElement: (el: any, scale: any, time: any) => {} })); // Just a placeholder, we'll get it from render props
+  const [highlight, setHighlight] = useState(true);
   useEffect(() => {
-    setShowHighlight(true);
-    const timer = setTimeout(() => {
-      setShowHighlight(false);
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [src, boundingBox ? boundingBox.join(",") : "", highlightKey]);
-
+    if (highlight) {
+      const timer = setTimeout(() => setHighlight(false), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [highlight, src]);
+  // Reset highlight state when image changes
+  useEffect(() => {
+    setHighlight(true);
+  }, [src]);
   return (
     <div 
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 backdrop-blur-md transition-all duration-300"
       onClick={onClose}
     >
-      <style>{`
-        @keyframes highlightPulse {
-          0% {
-            transform: scale(0.96);
-            background-color: rgba(52, 211, 153, 0.1);
-          }
-          15% {
-            transform: scale(1.04);
-            background-color: rgba(52, 211, 153, 0.4);
-          }
-          35% {
-            transform: scale(1);
-            background-color: rgba(52, 211, 153, 0.3);
-          }
-          100% {
-            background-color: rgba(52, 211, 153, 0.2);
-          }
-        }
-        .animate-highlight-flash {
-          animation: highlightPulse 1.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
-        }
-      `}</style>
       <div 
         className="relative max-w-[100vw] max-h-[100vh] w-full h-full flex flex-col items-center justify-center"
         onClick={(e) => e.stopPropagation()}
@@ -70,7 +49,6 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
           </div>
         )}
         <TransformWrapper
-          key="constant-zoom-key"
           initialScale={1}
           minScale={0.5}
           maxScale={40}
@@ -80,17 +58,11 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
             return (
               <>
                 <TransformComponent wrapperClass="!w-full !h-full" contentClass="!w-full !h-full flex items-center justify-center">
-                  <div 
-                    className="relative inline-block max-w-[95vw] max-h-[85vh] cursor-pointer"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setHighlightKey(prev => prev + 1);
-                    }}
-                  >
+                  <div className="relative inline-block max-w-[95vw] max-h-[85vh]">
                     <img 
                       src={src} 
                       alt={foodName || "Full screen preview"} 
-                      className="max-w-[95vw] max-h-[85vh] rounded-xl object-contain shadow-2xl"
+                      className="max-w-[95vw] max-h-[85vh] rounded-xl object-contain shadow-2xl animate-fade-in"
                       referrerPolicy="no-referrer"
                     />
                     {boundingBox && boundingBox.length === 4 && (
@@ -98,9 +70,8 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
                     )}
                     {boundingBox && boundingBox.length === 4 && (
                       <div 
-                        key={(foodName || "") + "_" + (boundingBox ? boundingBox.join(",") : "") + "_" + highlightKey}
                         id="zoom-target-bbox"
-                        className={`absolute pointer-events-none border-0 border-none outline-none ring-0 rounded-md bg-emerald-400/20 transition-opacity duration-300 ${showHighlight ? 'opacity-100 animate-highlight-flash' : 'opacity-0'}`}
+                        className={`absolute pointer-events-none transition-all duration-700 ${highlight ? 'opacity-100 ring-[6px] ring-emerald-400 bg-emerald-400/20 shadow-[0_0_30px_rgba(52,211,153,0.5)]' : 'opacity-0'} rounded-md`}
                         style={{
                           top: `${boundingBox[0] / 10}%`,
                           left: `${boundingBox[1] / 10}%`,
@@ -146,13 +117,6 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
   );
 };
 const ZoomTrigger = ({ boundingBox, zoomToElement }: { boundingBox: number[], zoomToElement: any }) => {
-  const zoomFnRef = useRef(zoomToElement);
-  useEffect(() => {
-    zoomFnRef.current = zoomToElement;
-  });
-
-  const bbKey = boundingBox ? boundingBox.join(",") : "";
-
   React.useEffect(() => {
     if (boundingBox && boundingBox.length === 4) {
       const bboxWidth = (boundingBox[3] - boundingBox[1]) / 1000;
@@ -162,12 +126,10 @@ const ZoomTrigger = ({ boundingBox, zoomToElement }: { boundingBox: number[], zo
       
       const timer = setTimeout(() => {
         const el = document.getElementById('zoom-target-bbox');
-        if (el && zoomFnRef.current) {
-          zoomFnRef.current(el, targetScale, 450);
-        }
-      }, 100);
+        if (el) zoomToElement(el, targetScale, 500);
+      }, 300);
       return () => clearTimeout(timer);
     }
-  }, [bbKey]);
+  }, [boundingBox, zoomToElement]);
   return null;
 };

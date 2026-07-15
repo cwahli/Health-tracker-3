@@ -1628,6 +1628,10 @@ ${logsText}`);
             }
             return m;
           }).reverse();
+          // Clear the pending food log from the new assistant message so it doesn't render a duplicate card
+          if (migratedAssistantMsg.data) {
+            migratedAssistantMsg.data.pendingFoodLog = null;
+          }
           return [...newPrev, migratedAssistantMsg];
         }
         return [...prev, migratedAssistantMsg];
