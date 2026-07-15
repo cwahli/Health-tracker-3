@@ -2673,97 +2673,96 @@ ${JSON.stringify(profile, null, 2)}`);
               </button>
             </div>
           )}
-
-          {isSelectingMode ? (
+          {isSelectingMode && (
             <div className="flex items-center gap-2.5 w-full bg-indigo-50/15 dark:bg-indigo-950/5 p-2 rounded-2xl border border-indigo-100/30 dark:border-indigo-950/30">
-              {/* Reload / Reset Selection Icon */}
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedItemKeys([]);
-                }}
-                className="p-3 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20 flex-shrink-0 cursor-pointer"
-                title="Reset Selection"
-              >
-                <RotateCcw className="w-5 h-5" />
-              </button>
-
-              {/* Action Buttons: Image Search, Origin Search, Compare Food */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedItemKeys.length === 0) return;
-                  if (foodCardActionRef.current?.triggerImageSearch) {
-                    foodCardActionRef.current.triggerImageSearch(selectedItemKeys);
-                  }
-                  setIsSelectingMode(false);
-                  setSelectedItemKeys([]);
-                }}
-                disabled={selectedItemKeys.length === 0}
-                className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
-                  selectedItemKeys.length === 0
-                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none border border-slate-200 dark:border-slate-700/40'
-                    : 'bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95'
-                }`}
-              >
-                <span>🔍 Image Search</span>
-                {selectedItemKeys.length > 0 && (
-                  <span className="px-1.5 py-0.5 bg-white/20 text-[9.5px] rounded-full">
-                    {selectedItemKeys.length}
-                  </span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedItemKeys.length === 0) return;
-                  if (foodCardActionRef.current?.triggerOriginSearch) {
-                    foodCardActionRef.current.triggerOriginSearch(selectedItemKeys);
-                  }
-                  setIsSelectingMode(false);
-                  setSelectedItemKeys([]);
-                }}
-                disabled={selectedItemKeys.length === 0}
-                className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
-                  selectedItemKeys.length === 0
-                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none border border-slate-200 dark:border-slate-700/40'
-                    : 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95'
-                }`}
-              >
-                <span>🗺️ Origin Search</span>
-                {selectedItemKeys.length > 0 && (
-                  <span className="px-1.5 py-0.5 bg-white/20 text-[9.5px] rounded-full">
-                    {selectedItemKeys.length}
-                  </span>
-                )}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  if (selectedItemKeys.length === 0) return;
-                  if (foodCardActionRef.current?.triggerCompareFood) {
-                    foodCardActionRef.current.triggerCompareFood(selectedItemKeys);
-                  }
-                  setIsSelectingMode(false);
-                  setSelectedItemKeys([]);
-                }}
-                disabled={selectedItemKeys.length === 0}
-                className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
-                  selectedItemKeys.length === 0
-                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none border border-slate-200 dark:border-slate-700/40'
-                    : 'bg-amber-600 hover:bg-amber-700 text-white active:scale-95'
-                }`}
-              >
-                <span>⚖️ Compare Food</span>
-                {selectedItemKeys.length > 0 && (
-                  <span className="px-1.5 py-0.5 bg-white/20 text-[9.5px] rounded-full">
-                    {selectedItemKeys.length}
-                  </span>
-                )}
-              </button>
-
+              {selectedItemKeys.length > 0 && (
+                <>
+                  {/* Reload / Reset Selection Icon */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedItemKeys([]);
+                    }}
+                    className="p-3 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20 flex-shrink-0 cursor-pointer"
+                    title="Reset Selection"
+                  >
+                    <RotateCcw className="w-5 h-5" />
+                  </button>
+                  {/* Action Buttons: Image Search, Origin Search, Compare Food */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedItemKeys.length === 0) return;
+                      if (foodCardActionRef.current?.triggerImageSearch) {
+                        foodCardActionRef.current.triggerImageSearch(selectedItemKeys);
+                      }
+                      setIsSelectingMode(false);
+                      setSelectedItemKeys([]);
+                    }}
+                    disabled={selectedItemKeys.length === 0}
+                    className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
+                      selectedItemKeys.length === 0
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none border border-slate-200 dark:border-slate-700/40'
+                        : 'bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95'
+                    }`}
+                  >
+                    <span>🔍 Image Search</span>
+                    {selectedItemKeys.length > 0 && (
+                      <span className="px-1.5 py-0.5 bg-white/20 text-[9.5px] rounded-full">
+                        {selectedItemKeys.length}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedItemKeys.length === 0) return;
+                      if (foodCardActionRef.current?.triggerOriginSearch) {
+                        foodCardActionRef.current.triggerOriginSearch(selectedItemKeys);
+                      }
+                      setIsSelectingMode(false);
+                      setSelectedItemKeys([]);
+                    }}
+                    disabled={selectedItemKeys.length === 0}
+                    className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
+                      selectedItemKeys.length === 0
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none border border-slate-200 dark:border-slate-700/40'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95'
+                    }`}
+                  >
+                    <span>🗺️ Origin Search</span>
+                    {selectedItemKeys.length > 0 && (
+                      <span className="px-1.5 py-0.5 bg-white/20 text-[9.5px] rounded-full">
+                        {selectedItemKeys.length}
+                      </span>
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedItemKeys.length === 0) return;
+                      if (foodCardActionRef.current?.triggerCompareFood) {
+                        foodCardActionRef.current.triggerCompareFood(selectedItemKeys);
+                      }
+                      setIsSelectingMode(false);
+                      setSelectedItemKeys([]);
+                    }}
+                    disabled={selectedItemKeys.length === 0}
+                    className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
+                      selectedItemKeys.length === 0
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none border border-slate-200 dark:border-slate-700/40'
+                        : 'bg-amber-600 hover:bg-amber-700 text-white active:scale-95'
+                    }`}
+                  >
+                    <span>⚖️ Compare Food</span>
+                    {selectedItemKeys.length > 0 && (
+                      <span className="px-1.5 py-0.5 bg-white/20 text-[9.5px] rounded-full">
+                        {selectedItemKeys.length}
+                      </span>
+                    )}
+                  </button>
+                </>
+              )}
               {/* Close / Cancel Search Mode Button */}
               <button
                 type="button"
@@ -2777,7 +2776,8 @@ ${JSON.stringify(profile, null, 2)}`);
                 <X className="w-5 h-5" />
               </button>
             </div>
-          ) : (
+          )}
+          {!isSelectingMode && (
             <div className="flex items-center gap-2">
               <button
                 id="food-chat-photo-btn"

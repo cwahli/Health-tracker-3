@@ -707,8 +707,16 @@ export default function App() {
     }
   }, [activeTab, isFoodChatOpen, isMedicalChatOpen]);
   // Initialize from Firebase Auth and Firestore on mount
+  // Declare global variable for window
+  declare global {
+    interface Window {
+      sessionSyncTriggered?: boolean;
+    }
+  }
+
   // Check of changes in profile and other info on the database (and pull latest changes)
   const checkForDbChanges = async (forceUserId?: string, forcePull?: boolean, forceReplaceLocal?: boolean) => {
+    window.sessionSyncTriggered = true;
     const uid = forceUserId || auth.currentUser?.uid;
     console.log("Checking DB changes for UID:", uid);
     if (!uid) {
@@ -1734,10 +1742,14 @@ export default function App() {
           }
           
           // B. Real-Time V2 Syncing via onSnapshot on consolidated_logs
-          try {
-            console.log("[Realtime Sync] Setting up real-time listener for consolidated_logs");
-            const q = collection(db, 'users', uid, 'consolidated_logs');
-            const unsubSnapshot = onSnapshot(q, (snapshot) => {
+          // @ts-ignore
+          if (window.sessionSyncTriggered && !window.isSnapshotAttached) {
+            try {
+              console.log("[Realtime Sync] Setting up real-time listener for consolidated_logs");
+              // @ts-ignore
+              window.isSnapshotAttached = true;
+              const q = collection(db, 'users', uid, 'consolidated_logs');
+              const unsubSnapshot = onSnapshot(q, (snapshot) => {
               // Read all buckets from snapshot
               const allDocs = snapshot.docs.map(d => d.data());
               if (allDocs.length > 0) {
@@ -1823,9 +1835,16 @@ export default function App() {
             }, (snapshotErr) => {
               console.warn("[Realtime Sync] onSnapshot error:", snapshotErr);
             });
-            unsubs.push(unsubSnapshot);
+            unsubs.push(() => {
+              // @ts-ignore
+              window.isSnapshotAttached = false;
+              unsubSnapshot();
+            });
           } catch (snapshotSetupErr) {
+            // @ts-ignore
+            window.isSnapshotAttached = false;
             console.warn("[Realtime Sync] Failed to set up onSnapshot:", snapshotSetupErr);
+          }
           }
         } else {
           // Not signed in, fall back to guest storage if available
