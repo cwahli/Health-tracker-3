@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { AgentCardProps } from './types';
-import { Plus, Check, ChevronDown, ChevronUp, Sparkles } from 'lucide-react';
+import { Plus, Check, ChevronDown, ChevronUp, Sparkles, Search, X } from 'lucide-react';
 import ImageSlider from '../ImageSlider';
 import { NutrientPieChart } from '../NutrientPieChart';
 
@@ -10,6 +10,7 @@ import { FoodLog } from '../../types';
 import { resolveFoodImage } from '../../utils/imageResolver';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { ZoomableImage } from '../ZoomableImage';
+import { FoodScoutItemPreview } from './FoodScoutItemPreview';
 
 interface CroppedFoodImageProps {
   src: string;
@@ -204,6 +205,67 @@ const getFoodImageUrl = (foodName: string, suppliedUrl?: string) => {
   return "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=400&auto=format&fit=crop&q=60";
 };
 
+interface GroupItemsContainerProps {
+  children: React.ReactNode;
+  groupKey: string;
+  isExpanded: boolean;
+  onToggle: () => void;
+}
+
+const GroupItemsContainer: React.FC<GroupItemsContainerProps> = ({ children, groupKey, isExpanded, onToggle }) => {
+  const contentRef = React.useRef<HTMLDivElement>(null);
+  const [shouldShowButton, setShouldShowButton] = React.useState(false);
+
+  React.useEffect(() => {
+    const el = contentRef.current;
+    if (!el) return;
+
+    const checkHeight = () => {
+      setShouldShowButton(el.scrollHeight > 800);
+    };
+
+    checkHeight();
+    
+    const observer = new ResizeObserver(checkHeight);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [children]);
+
+  return (
+    <div className="relative w-full">
+      <div 
+        ref={contentRef}
+        className="w-full overflow-hidden transition-all duration-300"
+        style={{ maxHeight: isExpanded ? 'none' : '800px' }}
+      >
+        {children}
+      </div>
+      
+      {shouldShowButton && (
+        <div className={`w-full flex justify-center pt-4 ${!isExpanded ? 'absolute bottom-0 left-0 right-0 bg-gradient-to-t from-white dark:from-slate-900 via-white/95 dark:via-slate-900/95 to-transparent pt-16 pb-2 z-10' : 'pb-2'}`}>
+          <button
+            type="button"
+            onClick={onToggle}
+            className="px-4 py-1.5 rounded-full bg-slate-100 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-200 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 transition-all flex items-center gap-1.5 shadow-sm hover:shadow cursor-pointer border border-slate-200/60 dark:border-slate-700/50"
+          >
+            {isExpanded ? (
+              <>
+                <span>View Less</span>
+                <ChevronUp className="w-3.5 h-3.5" />
+              </>
+            ) : (
+              <>
+                <span>View More</span>
+                <ChevronDown className="w-3.5 h-3.5" />
+              </>
+            )}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export const FoodCard: React.FC<AgentCardProps> = ({
   msg, messages, report, foodLogs, t, formatNutrientValue,
   onLogFood, setLoggedMessageIds, loggedMessageIds, profile
@@ -211,6 +273,32 @@ export const FoodCard: React.FC<AgentCardProps> = ({
   const [expandedTables, setExpandedTables] = React.useState<Record<string, boolean>>({});
   const [expandedScouts, setExpandedScouts] = React.useState<Record<string, boolean>>({});
   const [fullScreenImg, setFullScreenImg] = React.useState<{ src: string, boundingBox?: number[], foodName?: string, navItems?: { src: string, boundingBox?: number[], foodName?: string }[], navIndex?: number } | null>(null);
+
+  const [searchModes, setSearchModes] = React.useState<Record<string, boolean>>({});
+  const [searchResults, setSearchResults] = React.useState<Record<string, Array<{title: string, imageUrl: string, pageUrl: string}>>>({});
+  const [searchLoading, setSearchLoading] = React.useState<Record<string, boolean>>({});
+  const [groupExpanded, setGroupExpanded] = React.useState<Record<string, boolean>>({});
+
+  const handleFoodSearch = async (groupIdx: number, query: string) => {
+    const groupKey = `${msg.id}-${groupIdx}`;
+    setSearchLoading(prev => ({ ...prev, [groupKey]: true }));
+    setSearchModes(prev => ({ ...prev, [groupKey]: true }));
+    try {
+      const response = await fetch("/api/gemini/food-image-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+      const data = await response.json();
+      if (data.images && data.images.length > 0) {
+        setSearchResults(prev => ({ ...prev, [groupKey]: data.images }));
+      }
+    } catch (e) {
+      console.error("Search error:", e);
+    } finally {
+      setSearchLoading(prev => ({ ...prev, [groupKey]: false }));
+    }
+  };
 
   if (msg.agentType !== 'food') return null;
 
@@ -379,87 +467,171 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                 
                                 {/* Items in this bucket */}
                                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800/50">
-                                  <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                                    Foods in this group ({group.items?.length || 0})
-                                  </div>
-                                  <div className={!!msg.data?.agentResult?.comparison?.isMenuScale ? "grid grid-cols-2 sm:grid-cols-3 gap-2 w-full" : "grid grid-cols-3 sm:grid-cols-4 gap-3 w-full"}>
-                                    {(() => {
-                                      // Precompute src/boundingBox/name for every item ONCE so both the
-                                      // thumbnail grid and the preview's next/prev navigation use identical data.
-                                      const groupPreviewItems = (group.items || []).map((item: any) => {
-                                        const matchingScout = (msg.data?.scoutItems || []).find((s: any) => 
-                                          item.name.toLowerCase().includes(s.keyword.toLowerCase()) || 
-                                          s.keyword.toLowerCase().includes(item.name.toLowerCase()) ||
-                                          item.name.toLowerCase().split(' ')[0] === s.keyword.toLowerCase().split(' ')[0]
-                                        );
-                                        const imgIdx = typeof item.sourceImageIndex === 'number' 
-                                          ? item.sourceImageIndex 
-                                          : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0);
-                                        const resolvedImgSrc = (messageImages.length > 0)
-                                          ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
-                                          : getFoodImageUrl(item.name, '');
-                                        const bb = item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
-                                        return { src: resolvedImgSrc, boundingBox: bb, foodName: item.name, imgIdx };
-                                      });
+                                  {(() => {
+                                    // 1. Precompute groupPreviewItems
+                                    const groupPreviewItems = (group.items || []).map((item: any) => {
+                                      const matchingScout = (msg.data?.scoutItems || []).find((s: any) => 
+                                        item.name.toLowerCase().includes(s.keyword.toLowerCase()) || 
+                                        s.keyword.toLowerCase().includes(item.name.toLowerCase()) ||
+                                        item.name.toLowerCase().split(' ')[0] === s.keyword.toLowerCase().split(' ')[0]
+                                      );
+                                      const imgIdx = typeof item.sourceImageIndex === 'number' 
+                                        ? item.sourceImageIndex 
+                                        : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0);
+                                      const resolvedImgSrc = (messageImages.length > 0)
+                                        ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
+                                        : getFoodImageUrl(item.name, '');
+                                      const bb = item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
+                                      return { src: resolvedImgSrc, boundingBox: bb, foodName: item.name, imgIdx };
+                                    });
 
-                                      const isMenuScale = !!msg.data?.agentResult?.comparison?.isMenuScale;
+                                    // 2. Compute indices of text-only items to check if any exist
+                                    const textOnlyIndices = (group.items || []).map((item: any, itemIdx: number) => {
+                                      const bb = groupPreviewItems[itemIdx]?.boundingBox;
+                                      const height = bb ? Math.abs(bb[2] - bb[0]) : 0;
+                                      const width = bb ? Math.abs(bb[3] - bb[1]) : 0;
+                                      const aspect = height > 0 ? width / height : 0;
+                                      return !bb || bb.length < 4 || (height < 25 && aspect > 2.5) ? itemIdx : -1;
+                                    }).filter(index => index !== -1);
 
-                                      return (group.items || []).map((item: any, itemIdx: number) => {
-                                        const { src: resolvedImgSrc, boundingBox: bb, imgIdx } = groupPreviewItems[itemIdx];
+                                    const hasTextOnlyItems = textOnlyIndices.length > 0;
+                                    const searchedItemIdx = textOnlyIndices[0]; // defaults to the first text-only item
 
-                                        const height = bb ? Math.abs(bb[2] - bb[0]) : 0;
-                                        const width = bb ? Math.abs(bb[3] - bb[1]) : 0;
-                                        const aspect = height > 0 ? width / height : 0;
-                                        const isTextOnly = !bb || bb.length < 4 || (height < 25 && aspect > 2.5);
+                                    const groupKey = `${msg.id}-${idx}`;
+                                    const isSearchActive = !!searchModes[groupKey];
+                                    const resultsForGroup = searchResults[groupKey] || [];
+                                    const isLoadingForGroup = !!searchLoading[groupKey];
 
-                                        if (isTextOnly) {
-                                          return (
-                                            <div 
-                                              key={itemIdx} 
-                                              className="flex items-center justify-center p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 cursor-pointer shadow-sm hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 hover:shadow transition-all text-center min-h-[52px]"
-                                              onClick={() => setFullScreenImg({ ...groupPreviewItems[itemIdx], navItems: groupPreviewItems, navIndex: itemIdx })}
+                                    return (
+                                      <>
+                                        {/* Label area with Search trigger next to it */}
+                                        <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center justify-between w-full font-sans">
+                                          <span>Foods in this group ({group.items?.length || 0})</span>
+                                          {hasTextOnlyItems && (
+                                            <button
+                                              type="button"
+                                              onClick={() => {
+                                                if (isSearchActive) {
+                                                  setSearchModes(prev => ({ ...prev, [groupKey]: false }));
+                                                } else {
+                                                  const searchName = group.items[searchedItemIdx]?.name || "";
+                                                  handleFoodSearch(idx, searchName);
+                                                }
+                                              }}
+                                              className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-all text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer"
+                                              title={isSearchActive ? "Close image search" : "Search image for menu items"}
                                             >
-                                              <span className="text-[11px] font-semibold leading-tight text-slate-700 dark:text-slate-300 break-words text-center lowercase">
-                                                {item.name}
-                                              </span>
-                                            </div>
-                                          );
-                                        }
-
-                                        return (
-                                          <div key={itemIdx} className="flex flex-col items-center gap-1 w-full">
-                                            <div 
-                                              className="w-full aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-850 cursor-pointer shadow-sm hover:ring-2 ring-indigo-500/50 transition-all shrink-0"
-                                              onClick={() => setFullScreenImg({ ...groupPreviewItems[itemIdx], navItems: groupPreviewItems, navIndex: itemIdx })}
-                                            >
-                                              {bb ? (
-                                                <CroppedFoodImage 
-                                                  src={resolvedImgSrc} 
-                                                  boundingBox={bb} 
-                                                  alt={item.name} 
-                                                  className="w-full h-full object-cover"
-                                                  imageUrls={messageImages}
-                                                  sourceImageIndex={imgIdx}
-                                                />
+                                              {isSearchActive ? (
+                                                <X className="w-3.5 h-3.5 stroke-[2.5px]" />
                                               ) : (
-                                                <img 
-                                                  src={resolvedImgSrc} 
-                                                  alt={item.name}
-                                                  className="w-full h-full object-cover"
-                                                  onError={(e) => {
-                                                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format';
-                                                  }}
-                                                />
+                                                <Search className="w-3.5 h-3.5 stroke-[2.5px]" />
                                               )}
-                                            </div>
-                                            <span className="text-[10px] text-center font-medium leading-tight text-slate-700 dark:text-slate-300 break-words w-full">
-                                              {item.name}
-                                            </span>
+                                            </button>
+                                          )}
+                                        </div>
+
+                                        {/* Collapsible container using the GroupItemsContainer */}
+                                        <GroupItemsContainer
+                                          groupKey={groupKey}
+                                          isExpanded={!!groupExpanded[groupKey]}
+                                          onToggle={() => setGroupExpanded(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))}
+                                        >
+                                          <div className={isSearchActive || !!msg.data?.agentResult?.comparison?.isMenuScale ? "grid grid-cols-2 sm:grid-cols-3 gap-2 w-full pb-8" : "grid grid-cols-3 sm:grid-cols-4 gap-3 w-full pb-8"}>
+                                            {/* A. If search is active, render search results / loading placeholder FIRST as full width */}
+                                            {isSearchActive && (
+                                              <div className="col-span-full flex flex-col gap-2.5 w-full mb-3 pb-3 border-b border-slate-100 dark:border-slate-800/60">
+                                                {isLoadingForGroup ? (
+                                                  <div className="grid grid-cols-2 gap-2 w-full">
+                                                    <div className="w-full aspect-[4/3] rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse flex items-center justify-center text-[10px] text-slate-400">
+                                                      Searching images...
+                                                    </div>
+                                                    <div className="w-full aspect-[4/3] rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse flex items-center justify-center text-[10px] text-slate-400">
+                                                      Searching images...
+                                                    </div>
+                                                  </div>
+                                                ) : resultsForGroup.length > 0 ? (
+                                                  <div className="grid grid-cols-2 gap-2 w-full">
+                                                    {resultsForGroup.map((img, rIdx) => (
+                                                      <a 
+                                                        key={rIdx}
+                                                        href={img.pageUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="flex flex-col gap-1 w-full group/img cursor-pointer text-left"
+                                                      >
+                                                        <div className="w-full aspect-[4/3] rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 relative shadow-sm border border-slate-100 dark:border-slate-800">
+                                                          <img 
+                                                            src={img.imageUrl} 
+                                                            alt={img.title}
+                                                            className="w-full h-full object-cover group-hover/img:scale-105 transition-transform duration-300"
+                                                            referrerPolicy="no-referrer"
+                                                          />
+                                                        </div>
+                                                        <span className="text-[10px] leading-tight text-slate-500 dark:text-slate-400 group-hover/img:text-indigo-600 dark:group-hover/img:text-indigo-400 font-medium line-clamp-2">
+                                                          {img.title}
+                                                        </span>
+                                                      </a>
+                                                    ))}
+                                                  </div>
+                                                ) : (
+                                                  <div className="text-[10.5px] text-slate-500 dark:text-slate-400 italic text-center py-2">
+                                                    No images found.
+                                                  </div>
+                                                )}
+
+                                                {/* Searched item name wraps, clicking triggers standard zoom */}
+                                                <div 
+                                                  className="w-full flex items-center justify-center p-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/30 dark:bg-indigo-950/20 cursor-pointer shadow-sm hover:border-indigo-500 hover:shadow transition-all text-center min-h-[52px]"
+                                                  onClick={() => setFullScreenImg({ ...groupPreviewItems[searchedItemIdx], navItems: groupPreviewItems, navIndex: searchedItemIdx })}
+                                                >
+                                                  <span className="text-[11px] font-semibold leading-tight text-indigo-700 dark:text-indigo-300 break-words text-center lowercase">
+                                                    {group.items[searchedItemIdx]?.name}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                            )}
+
+                                            {/* B. Render all items normally, but skip searchedItemIdx if search is active */}
+                                            {(group.items || []).map((item: any, itemIdx: number) => {
+                                              if (isSearchActive && itemIdx === searchedItemIdx) return null;
+
+                                              const { src: resolvedImgSrc, boundingBox: bb, imgIdx } = groupPreviewItems[itemIdx];
+                                              const height = bb ? Math.abs(bb[2] - bb[0]) : 0;
+                                              const width = bb ? Math.abs(bb[3] - bb[1]) : 0;
+                                              const aspect = height > 0 ? width / height : 0;
+                                              const isTextOnly = !bb || bb.length < 4 || (height < 25 && aspect > 2.5);
+
+                                              if (isTextOnly) {
+                                                return (
+                                                  <div 
+                                                    key={itemIdx} 
+                                                    className="flex items-center justify-center p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 cursor-pointer shadow-sm hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 hover:shadow transition-all text-center min-h-[52px]"
+                                                    onClick={() => setFullScreenImg({ ...groupPreviewItems[itemIdx], navItems: groupPreviewItems, navIndex: itemIdx })}
+                                                  >
+                                                    <span className="text-[11px] font-semibold leading-tight text-slate-700 dark:text-slate-300 break-words text-center lowercase">
+                                                      {item.name}
+                                                    </span>
+                                                  </div>
+                                                );
+                                              }
+
+                                              return (
+                                                <FoodScoutItemPreview
+                                                  key={itemIdx}
+                                                  name={item.name}
+                                                  src={resolvedImgSrc}
+                                                  boundingBox={bb}
+                                                  imgIdx={imgIdx}
+                                                  messageImages={messageImages}
+                                                  onClick={() => setFullScreenImg({ ...groupPreviewItems[itemIdx], navItems: groupPreviewItems, navIndex: itemIdx })}
+                                                />
+                                              );
+                                            })}
                                           </div>
-                                        );
-                                      });
-                                    })()}
-                                  </div>
+                                        </GroupItemsContainer>
+                                      </>
+                                    );
+                                  })()}
                                 </div>
 
                               </div>
@@ -609,38 +781,14 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                       key={i} 
                                       className="w-[185px] shrink-0 snap-align-start flex flex-col relative p-1 space-y-2 text-left"
                                     >
-                                      {/* Photo Box */}
-                                      <div className="w-full h-24 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-850 relative shrink-0">
-                                        {bb ? (
-                                          <CroppedFoodImage 
-                                            src={resolvedImgSrc} 
-                                            boundingBox={bb} 
-                                            alt={item.originalName || item.keyword} 
-                                            className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
-                                            onTap={() => setFullScreenImg({ ...scoutPreviewItems[i], navItems: scoutPreviewItems, navIndex: i })}
-                                            imageUrls={messageImages}
-                                            sourceImageIndex={imgIdx}
-                                          />
-                                        ) : (
-                                          <img 
-                                            src={resolvedImgSrc} 
-                                            alt={item.originalName || item.keyword} 
-                                            className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
-                                            referrerPolicy="no-referrer"
-                                            onClick={() => setFullScreenImg({ ...scoutPreviewItems[i], navItems: scoutPreviewItems, navIndex: i })}
-                                          />
-                                        )}
-                                      </div>
-
-                                      {/* Info Area */}
-                                      <div className="flex-1 min-w-0 flex flex-col justify-between">
-                                        <div className="flex flex-col gap-1">
-                                          <div className="flex items-center gap-1.5 flex-wrap">
-                                            <span className="text-[11px] font-bold text-slate-800 dark:text-white whitespace-normal break-words leading-tight" title={item.originalName || item.keyword}>
-                                          {item.originalName || item.keyword}
-                                        </span>
-                                      </div>
-                                    </div>
+                                      <FoodScoutItemPreview
+                                        name={item.originalName || item.keyword}
+                                        src={resolvedImgSrc}
+                                        boundingBox={bb}
+                                        imgIdx={imgIdx}
+                                        messageImages={messageImages}
+                                        onClick={() => setFullScreenImg({ ...scoutPreviewItems[i], navItems: scoutPreviewItems, navIndex: i })}
+                                      />
 
                                     {/* Toggle expanded details button */}
                                     {nutrientsToDisplay.length > 0 && (
@@ -697,8 +845,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                       </div>
                                     )}
                                   </div>
-                                </div>
-                              );
+                                );
                             })}
                           </div>
                         );
