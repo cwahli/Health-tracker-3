@@ -1683,40 +1683,82 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       const hasImage = imagePayloads && imagePayloads.length > 0;
       if (hasImage) {
         addDebugLog(`[Vision Scout] Running Stage 3 lightweight vision scout...`);
-        const scoutSystemInstruction = `You are a fast visual food identification and localization agent. You will receive one or more images.
+        const scoutSystemInstruction = `You are a fast visual food identification and localization agent. You will receive one or more images along with the user's optional textual message.
 
 STEP 1 — IMAGE CLASSIFICATION (do this FIRST for every image):
-For each image, determine if it is:
-  (a) A product label, price tag, or packaging showing food name and/or weight in grams/kg
-  (b) A Nutrition Facts label
+For each image, determine if it contains:
+  (a) A product label, price tag, or packaging showing a food name and/or weight
+  (b) A close-up Nutrition Facts panel/label
   (c) An actual food photo showing prepared or raw ingredients
-  (d) A cooking scene (e.g. boiling in a pot, frying on a pan)
-  (e) A restaurant menu, promotional poster, or combo board listing multiple food/dish options
+  (d) A cooking scene (e.g., boiling in a pot, frying on a pan)
+  (e) A restaurant menu, promotional poster, billboard, or combo board listing multiple options
 
-STEP 2 — DATA EXTRACTION & LOCALIZATION:
-- EXHAUSTIVENESS DIRECTIVE: Extract EVERY distinct food item, ingredient, or menu option visible. Do not stop after 3-5 items. If a menu has up to 100 legible items across all provided images, extract up to 100. If it genuinely has more than that, extract the 100 most legible/prominent ones and note in "confidenceComment" that the menu was only partially screened.
-- GROUPING RULE: If an item is clearly a topping, condiment, sauce, or filling served on or inside a base item, do NOT log them separately. Group into a single item.
-- For product/price labels (type a): Read EXACT food name and weight.
-- For Nutrition Facts labels (type b): Save EXACT raw figures inside "rawNutritionLabel".
-- For food photos (type c): Identify food items, output English keyword and estimated weight.
-- LOCALIZATION: For EVERY item identified, provide a 2D bounding box [ymin, xmin, ymax, xmax] (0-1000 scale).
-- For menus/posters (type e): Extract EVERY distinct menu item or combo listed. Estimate weights based on standard restaurant portion sizing. Draw a tight individual bounding box around each item's specific thumbnail image or text block.
-- CONTENT TYPE: Set "contentType" to "menu_or_poster" if the majority of images are type (e), otherwise "individual_food_items".
+STEP 2 — DENSITY APPRAISAL & EXTRACTION MODE:
+Assess the total item density across all provided images before selecting an extraction format:
+  * NORMAL DENSITY (< 20 visual items total) OR TEXT DENSITY (Menus/Posters/Lists up to 100 items): Use standard structured JSON parsing. Populate the "items" array with fully broken-down objects including individual "boundingBox2D" arrays. Leave "compactSpreadsheet" completely empty [].
+  * EXTREME VISUAL DENSITY (> 20 distinct physical 3D objects like grocery store snack shelves): To protect spatial memory coordinates from drifting and prevent token limits from cutting off mid-JSON, you MUST switch to COMPACT SPREADSHEET MODE. Leave the "items" array completely empty []. Instead, populate the "compactSpreadsheet" array field with highly condensed, pipe-delimited strings containing the coordinates textually.
 
-STEP 3 — MERGE & DEDUPLICATE:
-If an item appears in multiple images, merge them using LABEL WEIGHT as authoritative.
+STEP 3 — CORE EXTRACTION & GROUPING LAWS:
+- EXHAUSTIVENESS DIRECTIVE: Extract EVERY distinct food item, ingredient, or menu option visible up to your active density cap. Do not get lazy or stop early. 
+- CRITICAL TOPPING GROUPING RULE: If a food component is clearly a topping, condiment, sauce, or filling physically served on, fused to, or inside a base vehicle (e.g., cheese melted onto a baked sweet potato, glaze torched onto an item, or a sauce on a meat cut), do NOT log them as separate entities. Group them as a single consolidated item (e.g., keyword: "baked sweet potato with cheese"). Draw a single bounding box tightly around the combined base vehicle and its integrated toppings.
+- Product/Price Labels (type a): Read the EXACT food name and weight. Convert kg to grams.
+- Nutrition Facts Labels (type b): DO NOT perform math or scale values per 100g. Extract the EXACT total package weight, serving size weight, and nutrients per serving exactly as written into the "rawNutritionLabel" object. If an item has NO legible physical nutrition panel visible, leave "rawNutritionLabel" and "nutritionFacts" entirely empty {}. Do not hallucinate.
+- Food Photos (type c): Identify items and estimate weight using visual references (plates, hands, packaging markers).
+- Menus and Posters (type e): Extract every distinct option or variation listed as a prepared choice. Do NOT draw one giant box around the whole menu page. Draw tight, individual bounding boxes around the specific thumbnail image or specific line text block associated with each distinct choice.
 
 CRITICAL RULES:
-- Output ONLY valid JSON matching this schema: 
+- \`keyword\` MUST be a short, clean, database-friendly English name so the backend search functions successfully (e.g., "beef blade cut", "sweet potato").
+- \`originalName\` PRESERVATION: This field is clinically vital. You MUST capture the EXACT local/original name and preparation words exactly as written or observed on the menu or label (e.g., "Yakiimo", "Daging Empal", "Ayam Goreng"). Do NOT translate, normalize, or summarize this field. 
+
+JSON SCHEMA STRICT REQUIREMENT:
+Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers like \`\`\`json.
+
 { 
   "items": [
     { 
-      "keyword": "string", "estimatedWeightGrams": "number", "originalName": "string", "source": "label | visual", "boundingBox2D": [0, 0, 1000, 1000], "sourceImageIndex": "integer"
+      "keyword": "string", 
+      "estimatedWeightGrams": "number", 
+      "originalName": "string", 
+      "source": "label | visual",
+      "boundingBox2D": [ymin, xmin, ymax, xmax],
+      "sourceImageIndex": 0,
+      "nutritionFacts": {
+        "caloriesPer100g": "number (optional)",
+        "proteinPer100g": "number (optional)",
+        "fatPer100g": "number (optional)",
+        "carbsPer100g": "number (optional)",
+        "saturatedFatPer100g": "number (optional)",
+        "transFatPer100g": "number (optional)",
+        "addedSugarPer100g": "number (optional)",
+        "sodiumPer100g": "number (optional)",
+        "potassiumPer100g": "number (optional)",
+        "totalFibrePer100g": "number (optional)",
+        "solubleFibrePer100g": "number (optional)"
+      },
+      "rawNutritionLabel": {
+        "totalWeightGrams": "number (optional)",
+        "servingSizeGrams": "number (optional)",
+        "calories": "number (optional)",
+        "totalFat": "number (optional)",
+        "saturatedFat": "number (optional)",
+        "transFat": "number (optional)",
+        "cholesterol": "number (optional)",
+        "sodium": "number (optional)",
+        "carbohydrates": "number (optional)",
+        "dietaryFiber": "number (optional)",
+        "addedSugars": "number (optional)",
+        "protein": "number (optional)",
+        "potassium": "number (optional)"
+      }
     }
   ], 
+  "compactSpreadsheet": [
+    "string (ONLY populated during EXTREME VISUAL DENSITY mode. String format MUST be pipe-delimited text exactly as: English Keyword|Original Local Name|Weight Integer|ymin,xmin,ymax,xmax. Example: Happy Tos Tortilla Chips|Happy Tos|160|107,33,400,269)"
+  ],
   "cookingMethod": "string",
   "confidenceRating": "Low (<50%) | Medium (50-90%) | High (>90%)",
-  "confidenceComment": "string",
+  "confidenceComment": "string | null",
+  "scanCompleteness": "full (all items extracted via items array) | full_dense (extracted via compactSpreadsheet due to high physical density) | partial_text_cap (capped at 100 items due to extreme menu length)",
   "contentType": "individual_food_items | menu_or_poster"
 }`;
         try {
@@ -1739,6 +1781,43 @@ CRITICAL RULES:
             scoutConfidenceComment = parsedScout.confidenceComment || "";
             scoutCookingMethod = parsedScout.cookingMethod || "";
             scoutContentType = parsedScout.contentType === "menu_or_poster" ? "menu_or_poster" : "individual_food_items";
+
+            // Parse compactSpreadsheet if present (for high visual densities)
+            if (Array.isArray(parsedScout.compactSpreadsheet) && parsedScout.compactSpreadsheet.length > 0) {
+              const spreadsheetItems: any[] = [];
+              parsedScout.compactSpreadsheet.forEach((row: string) => {
+                if (!row || typeof row !== 'string') return;
+                const parts = row.split('|');
+                if (parts.length >= 4) {
+                  const keyword = parts[0]?.trim();
+                  const originalName = parts[1]?.trim();
+                  const weightGrams = parseFloat(parts[2]?.trim()) || 100;
+                  const bboxStr = parts[3]?.trim();
+                  let boundingBox2D = [0, 0, 1000, 1000];
+                  if (bboxStr) {
+                    const coords = bboxStr.split(',').map(c => parseFloat(c.trim()));
+                    if (coords.length === 4 && coords.every(num => !isNaN(num))) {
+                      boundingBox2D = coords;
+                    }
+                  }
+                  spreadsheetItems.push({
+                    keyword,
+                    originalName,
+                    estimatedWeightGrams: weightGrams,
+                    source: "visual",
+                    boundingBox2D,
+                    sourceImageIndex: 0
+                  });
+                }
+              });
+              if (spreadsheetItems.length > 0) {
+                if (!Array.isArray(parsedScout.items)) {
+                  parsedScout.items = [];
+                }
+                parsedScout.items = [...parsedScout.items, ...spreadsheetItems];
+              }
+            }
+
             if (Array.isArray(parsedScout.items)) {
               visionScoutItems = parsedScout.items.map((item: any, idx: number) => ({ ...item, scoutIndex: idx }));
               for (const item of visionScoutItems) {

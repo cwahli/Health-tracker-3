@@ -414,7 +414,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
                                     Foods in this group ({group.items?.length || 0})
                                   </div>
-                                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 w-full">
+                                  <div className={!!msg.data?.agentResult?.comparison?.isMenuScale ? "grid grid-cols-2 sm:grid-cols-3 gap-2 w-full" : "grid grid-cols-3 sm:grid-cols-4 gap-3 w-full"}>
                                     {(() => {
                                       // Precompute src/boundingBox/name for every item ONCE so both the
                                       // thumbnail grid and the preview's next/prev navigation use identical data.
@@ -434,8 +434,24 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                         return { src: resolvedImgSrc, boundingBox: bb, foodName: item.name, imgIdx };
                                       });
 
+                                      const isMenuScale = !!msg.data?.agentResult?.comparison?.isMenuScale;
+
                                       return (group.items || []).map((item: any, itemIdx: number) => {
                                       const { src: resolvedImgSrc, boundingBox: bb, imgIdx } = groupPreviewItems[itemIdx];
+
+                                      if (isMenuScale) {
+                                        return (
+                                          <div 
+                                            key={itemIdx} 
+                                            className="flex items-center justify-center p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 cursor-pointer shadow-sm hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 hover:shadow transition-all text-center min-h-[52px]"
+                                            onClick={() => setFullScreenImg({ ...groupPreviewItems[itemIdx], navItems: groupPreviewItems, navIndex: itemIdx })}
+                                          >
+                                            <span className="text-[11px] font-semibold leading-tight text-slate-700 dark:text-slate-300 break-words line-clamp-2 text-center lowercase">
+                                              {item.name}
+                                            </span>
+                                          </div>
+                                        );
+                                      }
 
                                       return (
                                         <div key={itemIdx} className="flex flex-col items-center gap-1 w-full">

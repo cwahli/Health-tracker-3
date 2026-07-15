@@ -21,6 +21,16 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
   hasPrev
 }) => {
   const targetRef = useRef<HTMLDivElement>(null);
+  const [highlightKey, setHighlightKey] = useState(0);
+  const [showHighlight, setShowHighlight] = useState(true);
+
+  useEffect(() => {
+    setShowHighlight(true);
+    const timer = setTimeout(() => {
+      setShowHighlight(false);
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [src, boundingBox ? boundingBox.join(",") : "", highlightKey]);
 
   return (
     <div 
@@ -30,12 +40,10 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
       <style>{`
         @keyframes highlightPulse {
           0% {
-            opacity: 0.3;
-            box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.9), inset 0 0 0 0 rgba(52, 211, 153, 0.4);
             transform: scale(0.96);
+            box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.9), inset 0 0 0 0 rgba(52, 211, 153, 0.4);
           }
           15% {
-            opacity: 1;
             transform: scale(1.04);
             box-shadow: 0 0 0 15px rgba(52, 211, 153, 0), inset 0 0 15px 8px rgba(52, 211, 153, 0.3);
           }
@@ -43,7 +51,6 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
             transform: scale(1);
           }
           100% {
-            opacity: 1;
             box-shadow: 0 0 20px rgba(52, 211, 153, 0.5), inset 0 0 8px 4px rgba(52, 211, 153, 0.1);
           }
         }
@@ -72,7 +79,13 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
             return (
               <>
                 <TransformComponent wrapperClass="!w-full !h-full" contentClass="!w-full !h-full flex items-center justify-center">
-                  <div className="relative inline-block max-w-[95vw] max-h-[85vh]">
+                  <div 
+                    className="relative inline-block max-w-[95vw] max-h-[85vh] cursor-pointer"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setHighlightKey(prev => prev + 1);
+                    }}
+                  >
                     <img 
                       src={src} 
                       alt={foodName || "Full screen preview"} 
@@ -84,9 +97,9 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
                     )}
                     {boundingBox && boundingBox.length === 4 && (
                       <div 
-                        key={foodName + "_" + (boundingBox ? boundingBox.join(",") : "")}
+                        key={(foodName || "") + "_" + (boundingBox ? boundingBox.join(",") : "") + "_" + highlightKey}
                         id="zoom-target-bbox"
-                        className="absolute pointer-events-none rounded-md ring-[4px] ring-emerald-400 bg-emerald-400/20 animate-highlight-flash"
+                        className={`absolute pointer-events-none rounded-md ring-[4px] ring-emerald-400 bg-emerald-400/20 transition-opacity duration-300 ${showHighlight ? 'opacity-100 animate-highlight-flash' : 'opacity-0'}`}
                         style={{
                           top: `${boundingBox[0] / 10}%`,
                           left: `${boundingBox[1] / 10}%`,
@@ -132,6 +145,13 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
   );
 };
 const ZoomTrigger = ({ boundingBox, zoomToElement }: { boundingBox: number[], zoomToElement: any }) => {
+  const zoomFnRef = useRef(zoomToElement);
+  useEffect(() => {
+    zoomFnRef.current = zoomToElement;
+  });
+
+  const bbKey = boundingBox ? boundingBox.join(",") : "";
+
   React.useEffect(() => {
     if (boundingBox && boundingBox.length === 4) {
       const bboxWidth = (boundingBox[3] - boundingBox[1]) / 1000;
@@ -141,10 +161,12 @@ const ZoomTrigger = ({ boundingBox, zoomToElement }: { boundingBox: number[], zo
       
       const timer = setTimeout(() => {
         const el = document.getElementById('zoom-target-bbox');
-        if (el) zoomToElement(el, targetScale, 450);
+        if (el && zoomFnRef.current) {
+          zoomFnRef.current(el, targetScale, 450);
+        }
       }, 100);
       return () => clearTimeout(timer);
     }
-  }, [boundingBox, zoomToElement]);
+  }, [bbKey]);
   return null;
 };
