@@ -226,6 +226,7 @@ export function buildFoodAnalyzeInstruction(context: {
   compareItemCount?: number;
 }): string {
   const { biomarkersNeedingImprovement, remainingAllowance, activeMeal, compareItemCount = 0 } = context;
+  const PRIMARY_NUTRIENTS = ["calories", "saturatedFat", "sodium"];
 
   const formattedBiomarkers = Array.isArray(biomarkersNeedingImprovement) && biomarkersNeedingImprovement.length > 0
     ? biomarkersNeedingImprovement.map((b: any) => {
@@ -322,11 +323,12 @@ Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing two 
 - COVERAGE REQUIREMENT: Every single Index from the Scout list MUST appear in exactly one group. Before finalizing your answer, count the indices you have assigned across all groups and confirm the count equals the total number of scout items.
 - TEXT-ONLY FALLBACK: If no "=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===" section is present (a pure text-based comparison with no image), use "itemNames" instead, listing the plain food names being compared. Leave scoutItemIndices empty in that case.
 - SPECIFICITY FOR PROS/CONS (STRICT): Your 'pros' and 'cons' descriptions for each group must be highly specific, referencing the exact key nutrients (e.g. saturated fat, sodium, calories, sugar). Instead of general phrases like 'high in saturated fat and sodium', you MUST write 'high in saturated fat (average Xg) and sodium (average Ymg)'. If praising an item for being 'lower saturated fat', you MUST specify 'lower saturated fat (average Xg compared to Yg in Group 2)'. Provide clear numerical estimates or ranges based on the average nutrients.
-- GROUPING & DIFFERENTIATION: Group items into relevant buckets based on shared nutrient profile (e.g., "Low Saturated Fat Options", "High Protein", "High Risk Items").
-  - If there are 4 or more distinct items, you MUST create AT LEAST 2 groups, unless every item's core nutrients (calories, saturated fat, sodium) are genuinely within roughly 10% of each other — in that rare case, output exactly 1 group and say so explicitly in "message".
-  - For each group, set "topConcernNutrient" to the single nutrient (e.g. "saturatedFat", "sodium", "addedSugar") that most defines that group's risk or benefit relative to the OTHER groups.
-  - Set "keyDifferentiator" to one short sentence contrasting this group against the other group(s), e.g. "Lower sodium than Group 2, but roughly double the saturated fat."
-- Instead of showing weight, calorie, sat fat for each item individually, show them as an aggregate (average) for the group.
+- MANDATORY NUTRIENTS: Every group's "averageNutrients" MUST include ${PRIMARY_NUTRIENTS.join(", ")} — these are the patient's primary monitored nutrients and are never optional, in either mode below. Populate additional nutrients (protein, carbohydrates, addedSugar, potassium, totalFibre) whenever relevant to this patient's biomarker profile.
+- GROUPING STRATEGY (STRICT — follow based on item count, do not guess):
+  ${compareItemCount > 0 ? `You have exactly ${compareItemCount} item(s) from the Visual Food Scout — use this exact count for the branch below.` : `No image was provided. Count the distinct foods being discussed in the user's text and use that count for the branch below.`}
+  - 8 OR FEWER distinct items → INDIVIDUAL MODE. Create exactly ONE group per item — do NOT average or bucket multiple items together. Set "groupName" to that single item's own name (not a category name). "averageNutrients" holds that ONE item's real nutrients (not an average of several items). Each group's "scoutItemIndices" (or "itemNames" for text-only) contains exactly one index/name.
+  - 9 OR MORE distinct items → BUCKET MODE. Group items into relevant buckets based on shared nutrient profile (e.g., "Low Saturated Fat Options", "High Protein", "High Risk Items"). You MUST create AT LEAST 2 buckets, unless every item's core nutrients (${PRIMARY_NUTRIENTS.join(", ")}) are genuinely within roughly 10% of each other — in that rare case, output exactly 1 bucket and say so explicitly in "message". "averageNutrients" is the true average across every item in that bucket.
+  - Either mode: set "topConcernNutrient" to the single nutrient that most defines this group/item's risk or benefit relative to the OTHER groups/items. Set "keyDifferentiator" to one short sentence contrasting this group/item against the other group(s)/item(s), e.g. "Lower sodium than Group 2, but roughly double the saturated fat."
 - Output the specific groups in comparison.groups. Rank the groups best-to-worst for this patient's specific biomarker profile.
 - For each group, provide groupName, suitability, pros (MUST contain numeric macro values/ranges), cons (MUST contain numeric macro values/ranges), topConcernNutrient, keyDifferentiator, averageNutrients, and scoutItemIndices (or itemNames for text-only comparisons). OMIT the comparisonTable entirely.
 

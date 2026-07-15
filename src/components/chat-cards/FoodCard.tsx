@@ -5,6 +5,7 @@ import ImageSlider from '../ImageSlider';
 import { NutrientPieChart } from '../NutrientPieChart';
 
 import { nutrientDefinitions } from '../../utils/nutrition';
+import { PRIMARY_NUTRIENTS } from '../../utils/nutrients';
 import { FoodLog } from '../../types';
 import { resolveFoodImage } from '../../utils/imageResolver';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
@@ -209,7 +210,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
 }) => {
   const [expandedTables, setExpandedTables] = React.useState<Record<string, boolean>>({});
   const [expandedScouts, setExpandedScouts] = React.useState<Record<string, boolean>>({});
-  const [fullScreenImg, setFullScreenImg] = React.useState<{ src: string, boundingBox?: number[] } | null>(null);
+  const [fullScreenImg, setFullScreenImg] = React.useState<{ src: string, boundingBox?: number[], foodName?: string, navItems?: { src: string, boundingBox?: number[], foodName?: string }[], navIndex?: number } | null>(null);
 
   if (msg.agentType !== 'food') return null;
 
@@ -344,7 +345,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                           }
 
                           const concern = (msg.data?.agentResult.comparison.keyNutrientConcern || '').toLowerCase();
-                          const PROFILE_TOP_NUTRIENTS = ['saturatedfat', 'sodium'];
+                          const PROFILE_TOP_NUTRIENTS = PRIMARY_NUTRIENTS.map(n => n.toLowerCase());
                           
                           const nutrientRows = group.averageNutrients 
                             ? Object.entries(group.averageNutrients)
@@ -451,30 +452,33 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                     Foods in this group
                                   </div>
                                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 w-full">
-                                    {(group.items || []).map((item: any, itemIdx: number) => {
-                                      // Find a matching visual scout item for cropping as a fallback
-                                      const matchingScout = (msg.data?.scoutItems || []).find((s: any) => 
-                                        item.name.toLowerCase().includes(s.keyword.toLowerCase()) || 
-                                        s.keyword.toLowerCase().includes(item.name.toLowerCase()) ||
-                                        item.name.toLowerCase().split(' ')[0] === s.keyword.toLowerCase().split(' ')[0]
-                                      );
+                                    {(() => {
+                                      // Precompute src/boundingBox/name for every item ONCE so both the
+                                      // thumbnail grid and the preview's next/prev navigation use identical data.
+                                      const groupPreviewItems = (group.items || []).map((item: any) => {
+                                        const matchingScout = (msg.data?.scoutItems || []).find((s: any) => 
+                                          item.name.toLowerCase().includes(s.keyword.toLowerCase()) || 
+                                          s.keyword.toLowerCase().includes(item.name.toLowerCase()) ||
+                                          item.name.toLowerCase().split(' ')[0] === s.keyword.toLowerCase().split(' ')[0]
+                                        );
+                                        const imgIdx = typeof item.sourceImageIndex === 'number' 
+                                          ? item.sourceImageIndex 
+                                          : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0);
+                                        const resolvedImgSrc = (messageImages.length > 0)
+                                          ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
+                                          : getFoodImageUrl(item.name, '');
+                                        const bb = item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
+                                        return { src: resolvedImgSrc, boundingBox: bb, foodName: item.name, imgIdx };
+                                      });
 
-                                      // Food picture priority: user uploaded first based on sourceImageIndex, fallback to external
-                                      const imgIdx = typeof item.sourceImageIndex === 'number' 
-                                        ? item.sourceImageIndex 
-                                        : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0);
-                                      
-                                      const resolvedImgSrc = (messageImages.length > 0)
-                                        ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
-                                        : getFoodImageUrl(item.name, '');
-
-                                      const bb = item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
+                                      return (group.items || []).map((item: any, itemIdx: number) => {
+                                      const { src: resolvedImgSrc, boundingBox: bb, imgIdx } = groupPreviewItems[itemIdx];
 
                                       return (
                                         <div key={itemIdx} className="flex flex-col items-center gap-1 w-full">
                                           <div 
                                             className="w-full aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-850 cursor-pointer shadow-sm hover:ring-2 ring-indigo-500/50 transition-all shrink-0"
-                                            onClick={() => setFullScreenImg({ src: resolvedImgSrc, boundingBox: bb })}
+                                            onClick={() => setFullScreenImg({ ...groupPreviewItems[itemIdx], navItems: groupPreviewItems, navIndex: itemIdx })}
                                           >
                                             {bb ? (
                                               <CroppedFoodImage 
@@ -501,7 +505,8 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                           </span>
                                         </div>
                                       );
-                                    })}
+                                    });
+                                    })()}
                                   </div>
                                 </div>
 
@@ -520,7 +525,20 @@ export const FoodCard: React.FC<AgentCardProps> = ({
         <ZoomableImage 
           src={fullScreenImg.src} 
           boundingBox={fullScreenImg.boundingBox}
+          foodName={fullScreenImg.foodName}
           onClose={() => setFullScreenImg(null)}
+          hasPrev={!!fullScreenImg.navItems && (fullScreenImg.navIndex || 0) > 0}
+          hasNext={!!fullScreenImg.navItems && (fullScreenImg.navIndex || 0) < (fullScreenImg.navItems.length - 1)}
+          onPrev={() => {
+            if (!fullScreenImg.navItems) return;
+            const newIndex = (fullScreenImg.navIndex || 0) - 1;
+            setFullScreenImg({ ...fullScreenImg.navItems[newIndex], navItems: fullScreenImg.navItems, navIndex: newIndex });
+          }}
+          onNext={() => {
+            if (!fullScreenImg.navItems) return;
+            const newIndex = (fullScreenImg.navIndex || 0) + 1;
+            setFullScreenImg({ ...fullScreenImg.navItems[newIndex], navItems: fullScreenImg.navItems, navIndex: newIndex });
+          }}
         />
       )}
 

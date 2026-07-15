@@ -5,3 +5,5 @@ export const NUTRIENT_KEYS = [
   "vitaminD", "vitaminB12", "folate", "vitaminC", "vitaminE", "vitaminK", 
   "vitaminA", "vitaminB6", "thiamine", "riboflavin", "niacin"
 ];
+
+export const PRIMARY_NUTRIENTS = ["calories", "saturatedFat", "sodium"];

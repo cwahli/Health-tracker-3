@@ -13,6 +13,7 @@ import ConflictResolutionModal from './components/ConflictResolutionModal';
 import LogChat from './components/LogChat';
 import { translations } from './utils/translations';
 import { AVAILABLE_LLMS } from './utils/llm';
+import { PRIMARY_NUTRIENTS } from './utils/nutrients';
 import { getLocalFallbackReport } from './utils/fallbackReport';
 import { Plus, HeartHandshake, RefreshCw, Sparkles, Stethoscope, Utensils, Loader, CloudLightning, AlertTriangle } from 'lucide-react';
 import { auth, db } from './firebase';
@@ -1502,7 +1503,7 @@ export default function App() {
           gender: isDemoUser ? 'Male' : 'Unknown',
           timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
           language: 'en',
-          topNutrientsToMonitor: ['calories', 'saturatedFat', 'sodium']
+          topNutrientsToMonitor: PRIMARY_NUTRIENTS
         };
         const tNewProfileId = logInteraction('upload', `users/${uid} (Create Profile)`, newProfile);
         setDoc(userDocRef, sanitizeForFirestore(newProfile), { merge: true })
@@ -1647,12 +1648,12 @@ export default function App() {
               gender: 'Unknown',
               timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
               language: 'en',
-              topNutrientsToMonitor: ['calories', 'saturatedFat', 'sodium']
+              topNutrientsToMonitor: PRIMARY_NUTRIENTS
             };
           } else {
             loadedProfile.email = user.email || '';
             if (!loadedProfile.topNutrientsToMonitor) {
-              loadedProfile.topNutrientsToMonitor = ['calories', 'saturatedFat', 'sodium'];
+              loadedProfile.topNutrientsToMonitor = PRIMARY_NUTRIENTS;
             }
           }
 
