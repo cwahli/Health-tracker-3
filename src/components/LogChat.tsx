@@ -1546,6 +1546,11 @@ ${logsText}`);
             scoutItems: resData.scoutItems || []
           };
           assistantMsg.pendingFoodLog = newFoodLog;
+        } else if (resData.mode === 'evaluation') {
+          assistantMsg.data = {
+            agentResult: resData,
+            scoutItems: resData.scoutItems || []
+          };
         }
       } else if (isAgent('food_idea')) {
         assistantMsg.agentType = 'food_idea';

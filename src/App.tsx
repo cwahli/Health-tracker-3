@@ -1766,6 +1766,11 @@ export default function App() {
                   combinedFoods.forEach(f => {
                     const existing = map.get(f.id);
                     if (!existing || (f.updated_at || 0) > (existing.updated_at || 0)) {
+                      // Preserve images from local state because server strips them for storage
+                      if (existing && !f.imageUrl && (!f.imageUrls || f.imageUrls.length === 0)) {
+                        f.imageUrl = existing.imageUrl;
+                        f.imageUrls = existing.imageUrls;
+                      }
                       map.set(f.id, f);
                     }
                   });

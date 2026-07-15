@@ -273,6 +273,47 @@ export const FoodCard: React.FC<AgentCardProps> = ({
     return row.values[foodIdx];
   };
 
+  const displayGroups = React.useMemo(() => {
+    if (!msg.data?.agentResult?.comparison?.groups) return [];
+    const groups = [...msg.data.agentResult.comparison.groups];
+    
+    // Find missing scout items
+    const scoutItems = msg.data?.scoutItems || [];
+    if (scoutItems.length > 0) {
+      const evaluatedNames = new Set<string>();
+      groups.forEach((g: any) => {
+        (g.items || []).forEach((item: any) => {
+          evaluatedNames.add(item.name.toLowerCase());
+        });
+      });
+      
+      const missingItems = scoutItems.filter((s: any) => {
+         const kw = s.keyword.toLowerCase();
+         for (const name of evaluatedNames) {
+           if (name.includes(kw) || kw.includes(name) || name.split(' ')[0] === kw.split(' ')[0]) {
+             return false;
+           }
+         }
+         return true;
+      });
+      
+      if (missingItems.length > 0) {
+        groups.push({
+          groupName: "Other Identified Items",
+          suitability: "Uncategorized",
+          pros: "",
+          cons: "These items were detected but skipped in the detailed comparison due to AI output limits.",
+          items: missingItems.map((s: any) => ({
+            name: s.originalName || s.keyword,
+            boundingBox2D: s.boundingBox2D,
+            sourceImageIndex: s.sourceImageIndex
+          }))
+        });
+      }
+    }
+    return groups;
+  }, [msg.data]);
+
   return (
     <>
       {msg.data?.agentResult && msg.data?.agentResult.mode === 'evaluation' && msg.data?.agentResult.comparison && (
@@ -285,7 +326,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
 
                       {/* Foods Comparison Cards - Horizontally Scrollable (200px wide, borderless, separated by vertical dividers with 10px spacing) */}
                       <div className="flex gap-0 mt-2 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full overscroll-x-contain">
-                        {(msg.data?.agentResult.comparison.groups || []).map((group: any, idx: number) => {
+                        {displayGroups.map((group: any, idx: number) => {
                           const lowerSuit = String(group.suitability || '').toLowerCase();
                           const isBest = lowerSuit.includes('safe') || lowerSuit.includes('best') || lowerSuit.includes('recommended') || lowerSuit.includes('good') || lowerSuit.includes('perfect');
                           
@@ -343,7 +384,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                               {idx > 0 && (
                                 <div className="w-[1px] bg-slate-200 dark:bg-slate-800 self-stretch my-2 shrink-0 mx-[10px]" />
                               )}
-                              <div className="w-[300px] shrink-0 snap-align-start flex flex-col relative space-y-3">
+                              <div className="w-[85vw] sm:w-[400px] shrink-0 snap-align-start flex flex-col relative space-y-3">
                                 
                                 <div className="flex flex-col gap-1.5">
                                   <h4 className="font-bold text-slate-800 dark:text-slate-100 text-[15px] leading-snug">
@@ -397,7 +438,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
                                     Foods in this group
                                   </div>
-                                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 w-full">
+                                  <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 w-full">
                                     {(group.items || []).map((item: any, itemIdx: number) => {
                                       // Find a matching visual scout item for cropping as a fallback
                                       const matchingScout = (msg.data?.scoutItems || []).find((s: any) => 
