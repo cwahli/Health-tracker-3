@@ -2279,26 +2279,36 @@ export default function App() {
           setFoodLogs(sf); setBiomarkerHistory(sb);
         });
 
-        const foodImagePromises = currFoods.map(f => {
-          if ((f.imageUrl || (f.imageUrls && f.imageUrls.length > 0)) && (f.sync_state === 'new' || f.sync_state === 'update')) {
-            // Optimized image write: only write if newly added or updated
-            return setDoc(doc(db, 'users', uid, 'foodImages', f.id), {
+        // Run promises in small sequential batches of 5 to avoid exhausting the Firestore write stream
+        const chunkPromises = async (tasks: (() => Promise<any>)[], chunkSize: number) => {
+          for (let i = 0; i < tasks.length; i += chunkSize) {
+            const chunk = tasks.slice(i, i + chunkSize);
+            await Promise.all(chunk.map(t => t()));
+          }
+        };
+
+        const foodImageTasks = currFoods
+          .filter(f => (f.imageUrl || (f.imageUrls && f.imageUrls.length > 0)) && (f.sync_state === 'new' || f.sync_state === 'update'))
+          .map(f => {
+            return () => setDoc(doc(db, 'users', uid, 'foodImages', f.id), {
               imageUrl: f.imageUrl || null,
               imageUrls: f.imageUrls || []
             }).catch(err => console.error(err));
-          }
-          return Promise.resolve();
-        });
+          });
+
         await withTimeout(
           Promise.all([
             profilePromise,
             dashboardPromise,
-            reportPromise,
-            ...foodImagePromises
+            reportPromise
           ]),
           3000,
-          'Multi sync'
+          'Multi sync profiles'
         ).catch(err => console.warn('Background sync warning:', err));
+
+        if (foodImageTasks.length > 0) {
+          await withTimeout(chunkPromises(foodImageTasks, 5), 10000, 'Multi sync images').catch(err => console.warn('Image sync warning:', err));
+        }
       }
       // Artificially enforce a minimum rotation time of 800ms so the user gets clear visual confirmation
       await new Promise(resolve => setTimeout(resolve, 800));

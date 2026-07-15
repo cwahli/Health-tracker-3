@@ -397,7 +397,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
                                     Foods in this group
                                   </div>
-                                  <div className="flex flex-wrap gap-2">
+                                  <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 w-full">
                                     {(group.items || []).map((item: any, itemIdx: number) => {
                                       // Find a matching visual scout item for cropping as a fallback
                                       const matchingScout = (msg.data?.scoutItems || []).find((s: any) => 
@@ -418,9 +418,9 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                       const bb = item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
 
                                       return (
-                                        <div key={itemIdx} className="flex flex-col items-center gap-1 w-[72px]">
+                                        <div key={itemIdx} className="flex flex-col items-center gap-1 w-full">
                                           <div 
-                                            className="w-16 h-16 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-850 cursor-pointer shadow-sm hover:ring-2 ring-indigo-500/50 transition-all shrink-0"
+                                            className="w-full aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-850 cursor-pointer shadow-sm hover:ring-2 ring-indigo-500/50 transition-all shrink-0"
                                             onClick={() => setFullScreenImg({ src: resolvedImgSrc, boundingBox: bb })}
                                           >
                                             {bb ? (
@@ -430,6 +430,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                                 alt={item.name} 
                                                 className="w-full h-full object-cover"
                                                 imageUrls={messageImages}
+                                                sourceImageIndex={imgIdx}
                                               />
                                             ) : (
                                               <img 

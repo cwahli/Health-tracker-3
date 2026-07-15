@@ -1,0 +1,427 @@
+682-      });
+683-
+684-      setBiomarkerHistory(updatedHistory);
+685-      setBiomarkers(recomputedBiomarkers);
+686-      if (profile) {
+687:        await saveAndSync(profile, foodLogs, recomputedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'googleSteps', isAutoLog: true });
+688-      }
+689-    };
+690-
+691-    window.addEventListener('googleStepsUpdated', handleGoogleStepsUpdated);
+692-    return () => window.removeEventListener('googleStepsUpdated', handleGoogleStepsUpdated);
+--
+1414-          [...mergedBioHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+1415-            Object.entries(log.biomarkers).forEach(([k, v]) => {
+1416-              tempBiomarkers[k] = v as string | number;
+1417-            });
+1418-          });
+1419:          await saveAndSync(mergedProfile, mergedFoods, tempBiomarkers, mergedBioHistory, mergedActions, mergedBenefits, cloudReport || localReport, { type: 'profile' });
+1420-        }
+1421-
+1422-        setProfile(mergedProfile);
+1423-        setFoodLogs(mergedFoods);
+1424-        setBiomarkerHistory(mergedBioHistory);
+--
+1916-              },
+1917-              note: `Auto-logged default BMI: ${profile.weight} kg, ${profile.height} cm.`
+1918-            });
+1919-          }
+1920-          updatedHistory.sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
+1921:          // Trigger saveAndSync in background (safely flagged as an auto log)
+1922-          setTimeout(() => {
+1923-            const updatedBiomarkers = { ...biomarkers, bmi: roundedBmi };
+1924:            saveAndSync(updatedProfile, foodLogs, updatedBiomarkers, updatedHistory, actions, dailyBenefits, report, { 
+1925-              type: 'biomarkerLog', 
+1926-              targetId: targetIdToSave,
+1927-              isAutoLog: true 
+1928-            });
+1929-          }, 0);
+--
+1967-    } catch (e) {
+1968-      console.warn("Failed to auto-restore images:", e);
+1969-    }
+1970-  }, [foodLogs.length]);
+1971-  // Save changes to local storage and sync to Server cloud database
+1972:  const saveAndSync = async (
+1973-    currProfile: UserProfile | null,
+1974-    currFoods: FoodLog[],
+1975-    currBiomarkers: { [key: string]: number | string },
+1976-    currBioHistory: BiomarkerLog[],
+1977-    currActions: HealthAction[],
+--
+2390-    };
+2391-    safeSaveToLocalStorage(getStorageKey(resolvedProfile?.email || profile?.email || auth.currentUser?.email), bundle);
+2392-
+2393-    // 6. Push fully resolved bundle to Cloud Firestore (full push)
+2394-    try {
+2395:      await saveAndSync(resolvedProfile, resolvedFoods, computedBiomarkers, resolvedBioHistory, resolvedActions, resolvedBenefits, resolvedReport, { 
+2396-        type: 'fullPush',
+2397-        cloudFoods: conflictData.cloudFoods,
+2398-        cloudBioHistory: conflictData.cloudBioHistory
+2399-      } as any);
+2400-      setConflictData(null);
+--
+2449-    } else {
+2450-      const newFood = { ...food, sync_state: 'new' as const, updated_at: Date.now() };
+2451-      updatedFoods = [...foodLogs, newFood];
+2452-    }
+2453-    setFoodLogs(updatedFoods);
+2454:    await saveAndSync(profile, updatedFoods, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'foodLog', targetId: food.id });
+2455-  };
+2456-  const handleUpdateFoodLog = async (updatedLog: FoodLog) => {
+2457-    const logWithSync = { ...updatedLog, sync_state: 'update' as const, updated_at: Date.now() };
+2458-    const updatedFoods = foodLogs.map(f => f.id === updatedLog.id ? logWithSync : f);
+2459-    setFoodLogs(updatedFoods);
+2460:    await saveAndSync(profile, updatedFoods, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'foodLog', targetId: updatedLog.id });
+2461-  };
+2462-  const handleDeleteFoodLog = async (id: string) => {
+2463-    // Keep it in array but mark as delete so syncUtils can process it
+2464-    const updatedFoods = foodLogs.map(f => f.id === id ? { ...f, sync_state: 'delete' as const, updated_at: Date.now() } : f);
+2465-    setFoodLogs(updatedFoods);
+--
+2469-      deletedFoodLogIds: [...(profile.deletedFoodLogIds || []), id]
+2470-    } : null;
+2471-    if (updatedProfile) {
+2472-      setProfile(updatedProfile);
+2473-    }
+2474:    await saveAndSync(updatedProfile, updatedFoods, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'deleteFood', targetId: id });
+2475-  };
+2476-  const logBmiIfProfileWeightHeightChanged = (
+2477-    prev: UserProfile | null,
+2478-    next: UserProfile,
+2479-    history: BiomarkerLog[],
+--
+2527-    const updatedProfile = { 
+2528-      ...profile,
+2529-      agentAnalyses: updatedAnalyses
+2530-    };
+2531-    setProfile(updatedProfile);
+2532:    await saveAndSync(updatedProfile, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'analysis', targetId: newId });
+2533-  };
+2534-
+2535-  const handleDeleteAnalysis = async (id: string) => {
+2536-    if (!profile) return;
+2537-    if (profile.agentAnalyses) {
+2538-      const updatedProfile = {
+2539-        ...profile,
+2540-        agentAnalyses: profile.agentAnalyses.filter(a => a.id !== id)
+2541-      };
+2542-      setProfile(updatedProfile);
+2543:      await saveAndSync(updatedProfile, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'deleteAnalysis', targetId: id });
+2544-    }
+2545-  };
+2546-
+2547-  const handleLogMedical = async (
+2548-    extractedBiomarkers: { [key: string]: number | string }, 
+--
+2858-        setActiveTab('home');
+2859-      }
+2860-
+2861-// Sync deferred to manual button click
+2862-      
+2863:      await saveAndSync(currentProfile, foodLogs, recomputedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarkerLogsBatch', targetIds: modifiedLogIds, deletedIds: [] });
+2864-    } else {
+2865-      if (!skipClose) {
+2866-        setIsMedicalChatOpen(false);
+2867-        setActiveTab('home');
+2868-      }
+2869:      await saveAndSync(currentProfile, foodLogs, updatedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarkerLogsBatch', targetIds: modifiedLogIds, deletedIds: [] });
+2870-    }
+2871-  };
+2872-  const handleDeleteMultipleBiomarkers = async (keys: string[]) => {
+2873-    const updatedBiomarkers = { ...biomarkers };
+2874-    keys.forEach(key => delete updatedBiomarkers[key]);
+--
+2914-      ...(updatedProfile.deletedCustomBiomarkerKeys || []),
+2915-      ...keys
+2916-    ];
+2917-    setProfile(updatedProfile);
+2918-    if (logsToUpdate.length > 0) {
+2919:      await saveAndSync(updatedProfile, foodLogs, updatedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarkerLogsBatch', targetIds: logsToUpdate, deletedIds: logsToDelete });
+2920-    } else if (logsToDelete.length > 0) {
+2921:      await saveAndSync(updatedProfile, foodLogs, updatedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarkerLogsBatch', targetIds: [], deletedIds: logsToDelete });
+2922-    } else {
+2923:      await saveAndSync(updatedProfile, foodLogs, updatedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'profile' });
+2924-    }
+2925-  };
+2926-
+2927-  const handleDeleteBiomarker = async (key: string) => {
+2928-    const updatedBiomarkers = { ...biomarkers };
+--
+2963-      key
+2964-    ];
+2965-    setProfile(updatedProfile);
+2966-// Sync deferred to manual button click
+2967-    if (logsToUpdate.length > 0) {
+2968:      await saveAndSync(updatedProfile, foodLogs, updatedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarkerLogsBatch', targetIds: logsToUpdate, deletedIds: logsToDelete });
+2969-    } else if (logsToDelete.length > 0) {
+2970:      await saveAndSync(updatedProfile, foodLogs, updatedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarkerLogsBatch', targetIds: [], deletedIds: logsToDelete });
+2971-    } else {
+2972:      await saveAndSync(updatedProfile, foodLogs, updatedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'profile' });
+2973-    }
+2974-  };
+2975-  const handleDeleteEmptyBiomarkers = async () => {
+2976-    let updatedProfile = { ...profile } as UserProfile;
+2977-    let modifiedProfile = false;
+--
+3067-    if (modifiedBiomarkers) setBiomarkers(recomputedBiomarkers);
+3068-    setBiomarkerHistory(updatedHistory);
+3069-
+3070-// Sync deferred to manual button click
+3071-    if (logsToUpdate.length > 0) {
+3072:      await saveAndSync(updatedProfile, foodLogs, recomputedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarkerLogsBatch', targetIds: logsToUpdate.map(l => l.id), deletedIds: logsToDelete });
+3073-    } else if (logsToDelete.length > 0) {
+3074:      await saveAndSync(updatedProfile, foodLogs, recomputedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarkerLogsBatch', targetIds: [], deletedIds: logsToDelete });
+3075-    } else {
+3076:      await saveAndSync(updatedProfile, foodLogs, recomputedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'profile' });
+3077-    }
+3078-  };
+3079-  const handleDeleteBiomarkerLog = async (id: string) => {
+3080-    const targetLog = biomarkerHistory.find(b => b.id === id);
+3081-    if (targetLog) {
+--
+3103-      deletedBiomarkerLogIds: [...(profile.deletedBiomarkerLogIds || []), id]
+3104-    } : null;
+3105-    if (updatedProfile) {
+3106-      setProfile(updatedProfile);
+3107-    }
+3108:    await saveAndSync(updatedProfile, foodLogs, recomputedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'deleteBiomarker', targetId: id });
+3109-  };
+3110-  const handleDeleteBiomarkerFromLog = async (id: string, key: string) => {
+3111-    const targetLog = biomarkerHistory.find(b => b.id === id);
+3112-    if (!targetLog) return;
+3113-
+--
+3135-          recomputedBiomarkers[k] = v as string | number;
+3136-        });
+3137-      });
+3138-      setBiomarkers(recomputedBiomarkers);
+3139-      
+3140:      await saveAndSync(profile, foodLogs, recomputedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarkerLog', targetId: id });
+3141-    } else {
+3142-      await handleDeleteBiomarkerLog(id);
+3143-    }
+3144-  };
+3145-  const handleEditBiomarkerLog = async (id: string, key: string, value: string | number, newDate?: string) => {
+--
+3166-      Object.entries(log.biomarkers).forEach(([k, v]) => {
+3167-        recomputedBiomarkers[k] = v as string | number;
+3168-      });
+3169-    });
+3170-    setBiomarkers(recomputedBiomarkers);
+3171:    await saveAndSync(profile, foodLogs, recomputedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarkerLog', targetId: id });
+3172-  };
+3173-  const handleStandardizeBiomarkerUnits = async (updates: { [key: string]: any }) => {
+3174-    let hasChanges = false;
+3175-    const updatedProfile = { ...profile };
+3176-    if (!updatedProfile.customBiomarkers) updatedProfile.customBiomarkers = {};
+--
+3188-      hasChanges = true;
+3189-    }
+3190-
+3191-    if (hasChanges) {
+3192-      setProfile(updatedProfile);
+3193:      await saveAndSync(updatedProfile, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'profile' });
+3194-    }
+3195-  };
+3196-
+3197-  
+3198-  const handleBatchCombineBiomarkers = async (
+--
+3287-    setBiomarkerHistory(updatedHistory);
+3288-    setBiomarkers(recomputedBiomarkers);
+3289-
+3290-// Deferred to manual sync
+3291-    const changedLogIds = updatedHistory.map(l => l.id);
+3292:    await saveAndSync(updatedProfile, foodLogs, recomputedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarkerLogsBatch', targetIds: changedLogIds });
+3293-  };
+3294-
+3295-
+3296-  const handleCombineBiomarkers = async (
+3297-    targetKey: string,
+--
+3376-    setBiomarkerHistory(updatedHistory);
+3377-    setBiomarkers(recomputedBiomarkers);
+3378-
+3379-// Sync deferred to manual button click
+3380-    const changedLogIds = updatedHistory.map(l => l.id);
+3381:    await saveAndSync(updatedProfile, foodLogs, recomputedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarkerLogsBatch', targetIds: changedLogIds });
+3382-  };
+3383-  const handleBatchConsolidate = async (mapping: { [key: string]: string }) => {
+3384-    const targetGroups: { [targetKey: string]: string[] } = {};
+3385-    const updatedCustomBiomarkers = { ...(profile?.customBiomarkers || {}) };
+3386-
+--
+3513-    setBiomarkerHistory(updatedHistory);
+3514-    setBiomarkers(recomputedBiomarkers);
+3515-
+3516-// Sync deferred to manual button click
+3517-    const changedLogIds = updatedHistory.map(l => l.id);
+3518:    await saveAndSync(updatedProfile, foodLogs, recomputedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarkerLogsBatch', targetIds: changedLogIds });
+3519-  };
+3520-  const handleApplyCalculation = async (updates: {
+3521-    targetCalories?: number;
+3522-    targetWeight?: number;
+3523-    addedBenefit?: string;
+--
+3557-        ...updatedHistory[latestBmiLogIndex],
+3558-        note: updates.descriptionExplain
+3559-      };
+3560-      setBiomarkerHistory(updatedHistory);
+3561-      // Quickly save this log since multi-sync skips collections
+3562:      saveAndSync(profile, foodLogs, biomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarkerLog', targetId: updatedHistory[latestBmiLogIndex].id }).catch(console.error);
+3563-    }
+3564-    let updatedProfile = { ...profile };
+3565-    const isAsian = isAsianEthnicity(updatedProfile.ethnicity);
+3566-    const gender = (updatedProfile.gender || 'male').toLowerCase();
+3567-    const isMale = gender.startsWith('m');
+--
+3587-          description: 'A measure of body fat based on height and weight.'
+3588-        };
+3589-      }
+3590-      setProfile(updatedProfile);
+3591-    }
+3592:    await saveAndSync(updatedProfile, foodLogs, biomarkers, updatedHistory, actions, updatedBenefits, updatedReport);
+3593-  };
+3594-  // Accept and apply recommendations to active dashboard targets
+3595-  const handleAcceptReport = async (acceptedReport: RecommendationReport) => {
+3596-    setReport(acceptedReport);
+3597-    setActions(acceptedReport.actions);
+3598-    setDailyBenefits(acceptedReport.dailyBenefits);
+3599-    setDraftReport(null);
+3600-    
+3601-    // Quick, clean targeted sync to database
+3602:    await saveAndSync(
+3603-      profile,
+3604-      foodLogs,
+3605-      biomarkers,
+3606-      biomarkerHistory,
+3607-      acceptedReport.actions,
+--
+3712-          const { updatedHistory, updatedBiomarkers, changed } = logBmiIfProfileWeightHeightChanged(profile, updatedProfile, biomarkerHistory, biomarkers);
+3713-          setProfile(updatedProfile);
+3714-          if (changed) {
+3715-            setBiomarkerHistory(updatedHistory);
+3716-            setBiomarkers(updatedBiomarkers);
+3717:            await saveAndSync(updatedProfile, foodLogs, updatedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'profile' });
+3718-          } else {
+3719:            await saveAndSync(updatedProfile, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'profile' });
+3720-          }
+3721-        }}
+3722-        hideSensitive={hideSensitive}
+3723-        setHideSensitive={setHideSensitive}
+3724-        syncState={syncState}
+3725-        onSignOut={handleSignOut}
+3726-        onCloudSync={() => checkForDbChanges(undefined, true)}
+3727:        onForcePush={() => saveAndSync(profile, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'fullPush', cloudFoods: [], cloudBioHistory: [] } as any)}
+3728-        onForcePull={() => checkForDbChanges(undefined, true, true)}
+3729-        dbInteractions={dbInteractions}
+3730-        quota={quota}
+3731-        foodLogs={foodLogs}
+3732-        activeTab={activeTab}
+--
+3807-            biomarkers={biomarkers}
+3808-            biomarkerHistory={biomarkerHistory}
+3809-            actions={actions}
+3810-            setActions={async (act) => {
+3811-              setActions(act);
+3812:              await saveAndSync(profile, foodLogs, biomarkers, biomarkerHistory, act, dailyBenefits, report, { type: 'actions' });
+3813-            }}
+3814-            dailyBenefits={dailyBenefits}
+3815-            setDailyBenefits={async (ben) => {
+3816-              setDailyBenefits(ben);
+3817:              await saveAndSync(profile, foodLogs, biomarkers, biomarkerHistory, actions, ben, report, { type: 'dailyBenefits' });
+3818-            }}
+3819-            foodIdeas={foodIdeas}
+3820-            setFoodIdeas={async (ideas) => {
+3821-              setFoodIdeas(ideas);
+3822:              await saveAndSync(profile, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'foodIdeas' }, ideas);
+3823-            }}
+3824-            report={report}
+3825-            onNavigateToTab={setActiveTab}
+3826-            onEditBiomarkerLog={handleEditBiomarkerLog}
+3827-            onDeleteBiomarkerLog={handleDeleteBiomarkerLog}
+--
+3838-            hasBmiAlert={profile ? hasBmiPendingAlert(profile, dismissedBmiAlerts, report) : false}
+3839-            onDismissBmiAlert={handleDismissBmiAlert}
+3840-            onApplyCalculation={handleApplyCalculation}
+3841-            onUpdateReport={async (updatedReport) => {
+3842-              setReport(updatedReport);
+3843:              await saveAndSync(profile, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, updatedReport, { type: 'report' });
+3844-            }}
+3845-          />
+3846-        )}
+3847-        {activeTab === 'insights' && (
+3848-          <InsightsTab
+--
+3864-            isGenerating={isGenerating}
+3865-            onNavigateToTab={setActiveTab as any}
+3866-                        onOpenMedicalChat={() => setIsMedicalChatOpen(true)}
+3867-            onUpdateProfile={async (updatedProfile) => {
+3868-              setProfile(updatedProfile);
+3869:              await saveAndSync(updatedProfile, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, report);
+3870-            }}
+3871-            onUpdateHistory={async (updatedHistory, newBiomarkers, updatedProfileArg) => {
+3872-              setBiomarkerHistory(updatedHistory);
+3873-              setBiomarkers(newBiomarkers);
+3874-              if (updatedProfileArg) setProfile(updatedProfileArg);
+--
+3880-                return JSON.stringify(oldLog) !== JSON.stringify(newLog); // changed log
+3881-              });
+3882-              
+3883-// Sync deferred to manual button click
+3884-              
+3885:              await saveAndSync(updatedProfileArg || profile, foodLogs, newBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'profile' });
+3886-            }}
+3887-            batchSize={batchSize}
+3888-            onChangeBatchSize={(size) => {
+3889-              setBatchSize(size);
+3890-              try {
+--
+3904-                const updatedProfile = {
+3905-                  ...profile,
+3906-                  agentAnalyses: profile.agentAnalyses.map(a => a.id === id ? { ...a, archived: true } : a)
+3907-                };
+3908-                setProfile(updatedProfile);
+3909:                await saveAndSync(updatedProfile, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'analysis', targetId: id });
+3910-              }
+3911-            }}
+3912-            onAgentAnalysisSaved={handleAgentAnalysisSaved}
+3913-          />
+3914-        )}
+--
+3937-            hideSensitive={hideSensitive}
+3938-            onDeleteEmptyBiomarkers={handleDeleteEmptyBiomarkers}
+3939-            onUpdateProfile={async (updates) => {
+3940-              const updatedProfile = { ...profile, ...updates };
+3941-              setProfile(updatedProfile);
+3942:              await saveAndSync(updatedProfile, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'profile' });
+3943-            }}
+3944-            onEditBiomarkerLog={handleEditBiomarkerLog}
+3945-            onLogMedical={handleLogMedical}
+3946-            onDeleteBiomarker={handleDeleteBiomarker}
+3947-            onDeleteMultipleBiomarkers={handleDeleteMultipleBiomarkers}
+--
+4061-          const updatedProfile = { 
+4062-            ...profile,
+4063-            agentAnalyses: updatedAnalyses
+4064-          };
+4065-          setProfile(updatedProfile);
+4066:          await saveAndSync(updatedProfile, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'analysis', targetId: newId });
+4067-        }}
+4068-        onAgentFinish={async (agentType, agentResult) => {
+4069-          // ─── SNAPSHOT BEFORE ANY CHANGE (FIX-8) ──────────────────────────
+4070-          const snapLabel = `Before ${agentType} approval (${new Date().toLocaleTimeString()})`;
+4071-          saveLocalSnapshot(snapLabel, profile?.email, {
+--
+4639-              } catch (e) {
+4640-                console.warn("Failed to auto-approve analysis in localStorage", e);
+4641-              }
+4642-            }
+4643-
+4644:            await saveAndSync(updatedProfile, foodLogs, biomarkers, currentHistory, actions, currentDailyBenefits, currentReport || report);
+4645-          } finally {
+4646-            setCalibratingBatchIdx(null);
+4647-            setCalibratingAgentType(null);
+4648-            
+4649-            const isBatch = agentType === 'data_review';

@@ -306,23 +306,31 @@ Respond ONLY with a structured JSON format matching this schema exactly.
   "comparison": {
     "keyNutrientConcern": "Comma-separated list of 2-3 most critical nutrients to monitor for this patient (e.g., 'Sodium, Saturated Fat, Calories')",
     "comparisonTitle": "A short 2-4 word title for this comparison (e.g., 'Nutrients of Concern')", 
-    "foods": [
+    "groups": [
       {
-        "name": "Food option item name",
-        "targetDbId": "Exact dbId from database matches or active state to allow backend calculation",
-        "weightGrams": 120,
-        "suitability": "Short tag (e.g., 'Safest option', 'Moderate risk')",
-        "profileRecommendation": "A personalized clinical recommendation.",
-        "keyNutrients": {
+        "groupName": "Low Saturated Fat Options",
+        "suitability": "Safest option",
+        "pros": "Good for heart health.",
+        "cons": "May be less flavorful.",
+        "averageNutrients": {
           "calories": 0,
           "protein": 0,
           "totalFat": 0,
           "saturatedFat": 0,
+          "sodium": 0,
           "carbohydrates": 0,
-          "sodium": 0
+          "addedSugar": 0,
+          "potassium": 0,
+          "totalFibre": 0
         },
-        "boundingBox2D": [0,0,0,0],
-        "sourceImageIndex": 0
+        "items": [
+          {
+            "name": "Food option item name",
+            "targetDbId": "Exact dbId from database matches or active state to allow backend calculation",
+            "boundingBox2D": [0,0,0,0],
+            "sourceImageIndex": 0
+          }
+        ]
       }
     ]
   }
@@ -1450,7 +1458,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
 
     const extractUSDANutrientsPer100g = (food: any): Record<string, number> => {
       const profile: Record<string, number> = {};
-      for (const k of nutrientKeys) { profile[k] = 0; }
+      for (const k of NUTRIENT_KEYS) { profile[k] = 0; }
       if (!food.foodNutrients) return profile;
       
       const findNut = (namePatterns: string[]) => {
@@ -1522,7 +1530,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
 
     const extractOFFNutrientsPer100g = (product: any): Record<string, number> => {
       const profile: Record<string, number> = {};
-      for (const k of nutrientKeys) { profile[k] = 0; }
+      for (const k of NUTRIENT_KEYS) { profile[k] = 0; }
       const n = product.nutriments;
       if (!n) return profile;
       profile["calories"] = n["energy-kcal_100g"] !== undefined ? Number(n["energy-kcal_100g"]) || 0 : (n["energy_100g"] !== undefined ? Math.round(Number(n["energy_100g"]) / 4.184) || 0 : 0);
@@ -1973,7 +1981,7 @@ CRITICAL RULES:
                           nullable: true
                         }
                       },
-                      required: ["name"]
+                      required: ["name", "targetDbId", "boundingBox2D", "sourceImageIndex"]
                     }
                   }
                 },
@@ -2002,7 +2010,7 @@ CRITICAL RULES:
               required: ["columns", "rows"]
             }
           },
-          required: ["keyNutrientConcern", "foods"],
+          required: ["keyNutrientConcern"],
           nullable: true
         }
       },
@@ -2020,7 +2028,7 @@ ${visionScoutCtx}
 ${databaseMatchesCtx}
 Current User Input: "${message}"
 
-You can compare up to 20 individual food items (or more if they come from the visual scout). You MUST evaluate EVERY item provided by the scout and rank them by recommendation.`;
+You can compare up to 40 individual food items (or more if they come from the visual scout). You MUST evaluate EVERY item provided by the scout and rank them by recommendation.`;
 
     const fullPromptSent = `System Instruction:\n${finalSystemInstruction}\n\n${promptText}`;
     addDebugLog(`[RouteAgent Chat] Sending request to Gemini...`);
@@ -2071,9 +2079,9 @@ You can compare up to 20 individual food items (or more if they come from the vi
       systemInstruction: finalSystemInstruction,
       promptText,
       imagePayloads,
-      responseMimeType: "application/json",
+      responseMimeType: "application/json" as const,
       responseSchema: foodAnalyzeSchema,
-      maxOutputTokens: isMenuScale ? 8000 : 3072 // Boosted for menu mode
+      maxOutputTokens: 8192 // Boosted to ensure all items fit
     };
 
     let textOutput: string;
@@ -2116,7 +2124,9 @@ You can compare up to 20 individual food items (or more if they come from the vi
       });
     }
 
-      
+    // CASE A: NEW FOOD LOGGING
+    if (mode === "new_log") {
+      const rawFoodData = rawParsed.foodData || {};
 
       if (!rawFoodData.itemsBreakdown || rawFoodData.itemsBreakdown.length === 0) {
         // Build itemsBreakdown from Vision Scout output + best DB match per item
@@ -2205,7 +2215,7 @@ You can compare up to 20 individual food items (or more if they come from the vi
           
           let itemNutrients: any = {};
           // Zero-initialize all 31 nutrient keys
-          for (const key of nutrientKeys) { itemNutrients[key] = 0; }
+          for (const key of NUTRIENT_KEYS) { itemNutrients[key] = 0; }
           const labelData = item.labelNutrientsPerServing;
           let servingSizeGrams = labelData && labelData.servingSizeGrams !== undefined && labelData.servingSizeGrams !== null
             ? Number(labelData.servingSizeGrams)
@@ -2242,12 +2252,13 @@ You can compare up to 20 individual food items (or more if they come from the vi
               }
               addDebugLog(`[Nutrient] "${canonicalName}" core-11 reinforced by USDA/OFF dbMatchMap.`);
             } else if (match) {
-              const computed = nutrientsFromDbMatch(match, itemWeight);
-              itemNutrients.calories = computed.calories;
-              itemNutrients.protein = computed.protein;
-              itemNutrients.totalFat = computed.totalFat;
-              itemNutrients.saturatedFat = computed.saturatedFat;
-              itemNutrients.sodium = computed.sodium;
+              const baseNutrientsPer100g = dbSource === "usda" ? extractUSDANutrientsPer100g(match) : extractOFFNutrientsPer100g(match);
+              const factor = itemWeight / 100;
+              for (const key of coreLabelKeys) {
+                if (baseNutrientsPer100g[key] !== undefined) {
+                  itemNutrients[key] = parseFloat((baseNutrientsPer100g[key] * factor).toFixed(2));
+                }
+              }
               addDebugLog(`[Nutrient] "${canonicalName}" core-11 reinforced by USDA/OFF match object.`);
             }
           }
@@ -2272,7 +2283,7 @@ You can compare up to 20 individual food items (or more if they come from the vi
           itemNutrients.unsaturatedFat = parseFloat(Math.max(0, itemNutrients.totalFat - itemNutrients.saturatedFat - itemNutrients.transFat).toFixed(2));
 
           // Add to aggregated nutrients
-          for (const key of nutrientKeys) {
+          for (const key of NUTRIENT_KEYS) {
             parsedData.nutrients[key] = parseFloat((parsedData.nutrients[key] + (itemNutrients[key] || 0)).toFixed(2));
           }
 
