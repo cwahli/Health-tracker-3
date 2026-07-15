@@ -157,7 +157,24 @@ function resolveComparisonGroups(rawGroups: any[], scoutItems: any[]): any[] {
 
   const resolvedGroups = (Array.isArray(rawGroups) ? rawGroups : []).map((g: any) => {
     const items: any[] = [];
-    const indices: number[] = Array.isArray(g.scoutItemIndices) ? g.scoutItemIndices : [];
+    let indices: number[] = Array.isArray(g.scoutItemIndices) ? g.scoutItemIndices : [];
+
+    // Defensive repair for LLM format leak where scoutItemIndices was appended to topConcernNutrient
+    if (typeof g.topConcernNutrient === "string" && g.topConcernNutrient.includes("scoutItemIndices")) {
+      const match = g.topConcernNutrient.match(/scoutItemIndices:\s*\[([\d\s,]+)\]/i);
+      if (match) {
+        const parsedIdxs = match[1].split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+        if (parsedIdxs.length > 0 && indices.length === 0) {
+          indices = parsedIdxs;
+        }
+      }
+      // Clean up topConcernNutrient to be a single clean word representing primary risk
+      let cleanedTop = g.topConcernNutrient.split(',')[0].trim();
+      if (cleanedTop.includes("scoutItemIndices") || cleanedTop.includes(" ") || cleanedTop.length > 15) {
+         cleanedTop = "saturatedFat"; // fallback
+      }
+      g.topConcernNutrient = cleanedTop;
+    }
 
     indices.forEach((i: number) => {
       if (typeof i === "number" && scoutItems[i] && !usedIndices.has(i)) {
@@ -2037,7 +2054,7 @@ CRITICAL RULES:
                   pros: { type: Type.STRING },
                   cons: { type: Type.STRING },
                   averageNutrients: {
-                    type: Type.OBJECT, required: ["calories"],
+                    type: Type.OBJECT, required: ["calories", "saturatedFat", "sodium"],
                     properties: { 
                       calories: { type: Type.NUMBER }, 
                       protein: { type: Type.NUMBER, nullable: true }, 
@@ -2190,7 +2207,8 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         comparison: comparisonData,
         scoutItems: visionScoutItems, // ensure the client has the bounding boxes
         agentPrompt: fullPromptSent,
-        message: rawParsed.message
+        message: rawParsed.message,
+        text: rawParsed.message
       });
     }
 

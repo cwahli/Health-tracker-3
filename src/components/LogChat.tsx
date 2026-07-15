@@ -1519,7 +1519,7 @@ ${logsText}`);
       const assistantMsg: ChatMessage = {
         id: `msg_${Date.now() + 1}`,
         role: 'assistant',
-        content: resData.text || 'Information extracted.',
+        content: resData.message || resData.text || '',
         timestamp: new Date().toISOString(),
         agentResult: resData,
       };

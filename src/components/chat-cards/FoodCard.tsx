@@ -344,42 +344,6 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                             suitabilityBadgeBg = "bg-rose-50 dark:bg-rose-950/30 border border-rose-200/50";
                           }
 
-                          const concern = (msg.data?.agentResult.comparison.keyNutrientConcern || '').toLowerCase();
-                          const PROFILE_TOP_NUTRIENTS = PRIMARY_NUTRIENTS.map(n => n.toLowerCase());
-                          
-                          const nutrientRows = group.averageNutrients 
-                            ? Object.entries(group.averageNutrients)
-                                .filter(([k,v]) => k !== 'calories' && v !== null && v !== undefined)
-                                .filter(([k,v]) => {
-                                  const kLower = k.toLowerCase().replace(/\s+/g, '');
-                                  const inConcern = concern.includes(kLower.replace('total', '')) || (kLower === 'sodium' && concern.includes('sod')) || (kLower === 'saturatedfat' && concern.includes('sat'));
-                                  const isTop = PROFILE_TOP_NUTRIENTS.some(n => kLower.includes(n));
-                                  return inConcern || isTop || kLower === 'protein';
-                                })
-                                .sort((a, b) => {
-                                  const aLower = a[0].toLowerCase().replace(/\s+/g, '');
-                                  const bLower = b[0].toLowerCase().replace(/\s+/g, '');
-                                  
-                                  const aConcern = concern.includes(aLower.replace('total', '')) || (aLower === 'sodium' && concern.includes('sod')) || (aLower === 'saturatedfat' && concern.includes('sat'));
-                                  const bConcern = concern.includes(bLower.replace('total', '')) || (bLower === 'sodium' && concern.includes('sod')) || (bLower === 'saturatedfat' && concern.includes('sat'));
-                                  
-                                  if (aConcern && !bConcern) return -1;
-                                  if (!aConcern && bConcern) return 1;
-                                  
-                                  const aTop = PROFILE_TOP_NUTRIENTS.some(n => aLower.includes(n));
-                                  const bTop = PROFILE_TOP_NUTRIENTS.some(n => bLower.includes(n));
-                                  if (aTop && !bTop) return -1;
-                                  if (!aTop && bTop) return 1;
-                                  
-                                  return 0;
-                                })
-                                .map(([k,v]) => {
-                                  const vals: any[] = [];
-                                  vals[idx] = v;
-                                  return { nutrient: k, values: vals };
-                                }).slice(0, 3)
-                            : [];
-
                           return (
                             <React.Fragment key={idx}>
                               {idx > 0 && (
@@ -397,34 +361,33 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                         {group.suitability.toUpperCase()}
                                       </div>
                                     )}
-                                    {group.topConcernNutrient && (
-                                      <div className="bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 uppercase tracking-wider text-[10px] font-bold px-2 py-0.5 rounded-md inline-block w-fit">
-                                        Key: {group.topConcernNutrient}
-                                      </div>
-                                    )}
                                   </div>
                                 </div>
                                 
                                 {/* Aggregated Nutrients */}
                                 <div className="space-y-1">
-                                  {group.averageNutrients?.calories !== undefined && (
-                                    <div className="flex justify-between items-center text-xs pb-1 border-b border-slate-100 dark:border-slate-800/50">
-                                      <span className="text-slate-500">Average Calories</span>
-                                      <span className="font-bold text-slate-800 dark:text-slate-200">{group.averageNutrients.calories} kcal</span>
-                                    </div>
-                                  )}
-                                  {nutrientRows.map((row: any, rIdx: number) => {
-                                    const val = row.values[idx] !== undefined && row.values[idx] !== null ? row.values[idx] : '--';
-                                    const nutDef = nutrientDefinitions.find(n => n.key.toLowerCase() === row.nutrient.toLowerCase());
-                                    const unit = nutDef ? nutDef.unit : 'g';
-                                    const label = nutDef ? (nutDef.labels[profile?.language || 'en'] || nutDef.labels.en) : row.nutrient;
-                                    return (
-                                      <div key={rIdx} className="flex justify-between items-center text-xs pb-1 border-b border-slate-100 dark:border-slate-800/50">
-                                        <span className="text-slate-500">{label}</span>
-                                        <span className="font-bold text-slate-800 dark:text-slate-200">{val} {unit}</span>
-                                      </div>
-                                    );
-                                  })}
+                                  {(() => {
+                                    // List of nutrients to render in consistent, prioritized order
+                                    const keysToRender = ["calories", "saturatedFat", "sodium", "protein", "totalFat", "carbohydrates", "addedSugar", "potassium", "totalFibre"];
+                                    
+                                    return keysToRender.map((k) => {
+                                      const v = group.averageNutrients?.[k];
+                                      if (v === undefined || v === null) return null;
+                                      
+                                      const nutDef = nutrientDefinitions.find(n => n.key.toLowerCase() === k.toLowerCase());
+                                      const unit = k === 'calories' ? 'kcal' : (nutDef ? nutDef.unit : 'g');
+                                      const label = k === 'calories' 
+                                        ? 'Average Calories' 
+                                        : (nutDef ? (nutDef.labels[profile?.language || 'en'] || nutDef.labels.en) : k);
+                                        
+                                      return (
+                                        <div key={k} className="flex justify-between items-center text-xs pb-1 border-b border-slate-100 dark:border-slate-800/50">
+                                          <span className="text-slate-500">{label}</span>
+                                          <span className="font-bold text-slate-800 dark:text-slate-200">{v} {unit}</span>
+                                        </div>
+                                      );
+                                    });
+                                  })()}
                                 </div>
                                 
                                 {/* Pros and Cons */}
@@ -449,7 +412,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                 {/* Items in this bucket */}
                                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800/50">
                                   <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">
-                                    Foods in this group
+                                    Foods in this group ({group.items?.length || 0})
                                   </div>
                                   <div className="grid grid-cols-3 sm:grid-cols-4 gap-3 w-full">
                                     {(() => {
