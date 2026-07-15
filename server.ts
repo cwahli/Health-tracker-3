@@ -159,25 +159,40 @@ function resolveComparisonGroups(rawGroups: any[], scoutItems: any[]): any[] {
     const items: any[] = [];
     let indices: number[] = Array.isArray(g.scoutItemIndices) ? g.scoutItemIndices : [];
 
-    // Defensive repair for LLM format leak where scoutItemIndices was appended to topConcernNutrient
-    if (typeof g.topConcernNutrient === "string" && g.topConcernNutrient.includes("scoutItemIndices")) {
-      const match = g.topConcernNutrient.match(/scoutItemIndices:\s*\[([\d\s,]+)\]/i);
-      if (match) {
-        const parsedIdxs = match[1].split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-        if (parsedIdxs.length > 0 && indices.length === 0) {
-          indices = parsedIdxs;
+    // Clean up topConcernNutrient to be a single clean word representing primary risk
+    if (typeof g.topConcernNutrient === "string") {
+      // Defensive repair for LLM format leak where scoutItemIndices was appended to topConcernNutrient
+      if (g.topConcernNutrient.includes("scoutItemIndices")) {
+        const match = g.topConcernNutrient.match(/scoutItemIndices:\s*\[([\d\s,]+)\]/i);
+        if (match) {
+          const parsedIdxs = match[1].split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
+          if (parsedIdxs.length > 0 && indices.length === 0) {
+            indices = parsedIdxs;
+          }
         }
       }
-      // Clean up topConcernNutrient to be a single clean word representing primary risk
-      let cleanedTop = g.topConcernNutrient.split(',')[0].trim();
-      if (cleanedTop.includes("scoutItemIndices") || cleanedTop.includes(" ") || cleanedTop.length > 15) {
-         cleanedTop = "saturatedFat"; // fallback
+
+      let cleanedTop = g.topConcernNutrient.trim();
+      if (cleanedTop.includes("(")) {
+        cleanedTop = cleanedTop.split("(")[0].trim();
+      }
+      if (cleanedTop.includes(",")) {
+        cleanedTop = cleanedTop.split(",")[0].trim();
+      }
+      if (cleanedTop.includes(" ")) {
+        cleanedTop = cleanedTop.split(" ")[0].trim();
+      }
+      // Strip any non-alphanumeric trailing characters
+      cleanedTop = cleanedTop.replace(/[^a-zA-Z0-9]/g, "");
+      if (cleanedTop.length === 0 || cleanedTop.length > 20) {
+        cleanedTop = "saturatedFat"; // default fallback
       }
       g.topConcernNutrient = cleanedTop;
     }
 
-    indices.forEach((i: number) => {
-      if (typeof i === "number" && scoutItems[i] && !usedIndices.has(i)) {
+    indices.forEach((rawIdx: any) => {
+      const i = typeof rawIdx === "number" ? rawIdx : parseInt(String(rawIdx).trim(), 10);
+      if (!isNaN(i) && scoutItems[i]) {
         usedIndices.add(i);
         const s = scoutItems[i];
         items.push({
@@ -344,7 +359,10 @@ Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing two 
 - GROUPING STRATEGY (STRICT — follow based on item count, do not guess):
   ${compareItemCount > 0 ? `You have exactly ${compareItemCount} item(s) from the Visual Food Scout — use this exact count for the branch below.` : `No image was provided. Count the distinct foods being discussed in the user's text and use that count for the branch below.`}
   - 8 OR FEWER distinct items → INDIVIDUAL MODE. Create exactly ONE group per item — do NOT average or bucket multiple items together. Set "groupName" to that single item's own name (not a category name). "averageNutrients" holds that ONE item's real nutrients (not an average of several items). Each group's "scoutItemIndices" (or "itemNames" for text-only) contains exactly one index/name.
-  - 9 OR MORE distinct items → BUCKET MODE. Group items into relevant buckets based on shared nutrient profile (e.g., "Low Saturated Fat Options", "High Protein", "High Risk Items"). You MUST create AT LEAST 2 buckets, unless every item's core nutrients (${PRIMARY_NUTRIENTS.join(", ")}) are genuinely within roughly 10% of each other — in that rare case, output exactly 1 bucket and say so explicitly in "message". "averageNutrients" is the true average across every item in that bucket.
+  - 9 OR MORE distinct items → BUCKET MODE. Group items into relevant buckets based on shared nutrient profile or base ingredient. 
+    CRITICAL: Do NOT group items merely by package size, weight, or portion (e.g., do not use "Family Packs" vs "Single Serve"). 
+    Instead, group them by their primary ingredient base (e.g., "Potato-Based Chips", "Corn/Tortilla Chips", "Cassava/Root Veggie Snacks") OR distinct clinical profiles (e.g., "Highest Sodium Threat", "Trans-Fat Risks"). 
+    Aim for 3 to 5 distinct buckets when analyzing large, diverse sets of items. You MUST create AT LEAST 2 buckets, unless every item's core nutrients (${PRIMARY_NUTRIENTS.join(", ")}) are genuinely within roughly 10% of each other — in that rare case, output exactly 1 bucket and say so explicitly in "message". "averageNutrients" is the true average across every item in that bucket.
   - Either mode: set "topConcernNutrient" to the single nutrient that most defines this group/item's risk or benefit relative to the OTHER groups/items. Set "keyDifferentiator" to one short sentence contrasting this group/item against the other group(s)/item(s), e.g. "Lower sodium than Group 2, but roughly double the saturated fat."
 - Output the specific groups in comparison.groups. Rank the groups best-to-worst for this patient's specific biomarker profile.
 - For each group, provide groupName, suitability, pros (MUST contain numeric macro values/ranges), cons (MUST contain numeric macro values/ranges), topConcernNutrient, keyDifferentiator, averageNutrients, and scoutItemIndices (or itemNames for text-only comparisons). OMIT the comparisonTable entirely.
@@ -403,11 +421,13 @@ Respond ONLY with a structured JSON format matching this schema exactly.
     "groups": [
       {
         "groupName": "Low Saturated Fat Options",
+        "scoutItemIndices": [0, 3, 7],
+        "itemNames": null,
         "suitability": "Safest option",
-        "pros": "Good for heart health.",
-        "cons": "May be less flavorful.",
-        "topConcernNutrient": "saturatedFat",
-        "keyDifferentiator": "One short sentence contrasting this group vs the other group(s), e.g. 'Lowest saturated fat of the options, but higher sodium than Group 2.'",
+        "topConcernNutrient": "saturatedFat (CRITICAL: MUST BE EXACTLY ONE WORD. NO EXCEPTIONS.)",
+        "keyDifferentiator": "One short sentence contrasting this group vs the others. (CRITICAL: DO NOT OMIT THIS FIELD).",
+        "pros": "Good for heart health (include numeric averages).",
+        "cons": "May be less flavorful (include numeric averages).",
         "averageNutrients": {
           "calories": 0,
           "protein": 0,
@@ -418,9 +438,7 @@ Respond ONLY with a structured JSON format matching this schema exactly.
           "addedSugar": 0,
           "potassium": 0,
           "totalFibre": 0
-        },
-        "scoutItemIndices": [0, 3, 7],
-        "itemNames": null
+        }
       }
     ]
   }
@@ -2169,7 +2187,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
                     description: "One short sentence contrasting this group against the other group(s)."
                   }
                 },
-                required: ["groupName", "suitability", "pros", "cons", "averageNutrients"]
+                required: ["groupName", "scoutItemIndices", "suitability", "topConcernNutrient", "keyDifferentiator", "pros", "cons", "averageNutrients"]
               }
             }
           },

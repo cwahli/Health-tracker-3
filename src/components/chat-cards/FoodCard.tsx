@@ -275,45 +275,8 @@ export const FoodCard: React.FC<AgentCardProps> = ({
   };
 
   const displayGroups = React.useMemo(() => {
-    if (!msg.data?.agentResult?.comparison?.groups) return [];
-    const groups = [...msg.data.agentResult.comparison.groups];
-    
-    // Find missing scout items
-    const scoutItems = msg.data?.scoutItems || [];
-    if (scoutItems.length > 0) {
-      const evaluatedNames = new Set<string>();
-      groups.forEach((g: any) => {
-        (g.items || []).forEach((item: any) => {
-          evaluatedNames.add(item.name.toLowerCase());
-        });
-      });
-      
-      const missingItems = scoutItems.filter((s: any) => {
-         const kw = s.keyword.toLowerCase();
-         for (const name of evaluatedNames) {
-           if (name.includes(kw) || kw.includes(name) || name.split(' ')[0] === kw.split(' ')[0]) {
-             return false;
-           }
-         }
-         return true;
-      });
-      
-      if (missingItems.length > 0) {
-        groups.push({
-          groupName: "Other Identified Items",
-          suitability: "Uncategorized",
-          pros: "",
-          cons: "These items were detected but skipped in the detailed comparison due to AI output limits.",
-          items: missingItems.map((s: any) => ({
-            name: s.originalName || s.keyword,
-            boundingBox2D: s.boundingBox2D,
-            sourceImageIndex: s.sourceImageIndex
-          }))
-        });
-      }
-    }
-    return groups;
-  }, [msg.data]);
+    return msg.data?.agentResult?.comparison?.groups || [];
+  }, [msg.data?.agentResult?.comparison?.groups]);
 
   return (
     <>
@@ -321,7 +284,12 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                     <div className="space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden bg-transparent">
                       <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2 gap-2">
                         <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm break-words flex flex-wrap items-center gap-1.5 w-full">
-                          <span className="shrink-0">⚖️ Comparison:</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold break-words">{msg.data?.agentResult.comparison.comparisonTitle || msg.data?.agentResult.comparison.keyNutrientConcern || 'Nutrients of Concern'}</span>
+                          <span className="shrink-0">⚖️ Comparison:</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold break-words">
+                            {(() => {
+                              const val = msg.data?.agentResult?.comparison?.comparisonTitle || msg.data?.agentResult?.comparison?.keyNutrientConcern || 'Nutrients of Concern';
+                              return typeof val === 'string' ? val.replace(/^key\s*:\s*/i, '') : val;
+                            })()}
+                          </span>
                         </h4>
                       </div>
 
@@ -349,7 +317,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                               {idx > 0 && (
                                 <div className="w-[1px] bg-slate-200 dark:bg-slate-800 self-stretch my-2 shrink-0 mx-[10px]" />
                               )}
-                              <div className="w-[85vw] sm:w-[400px] shrink-0 snap-align-start flex flex-col relative space-y-3">
+                              <div className="w-[70%] max-w-[420px] shrink-0 snap-align-start flex flex-col relative space-y-3">
                                 
                                 <div className="flex flex-col gap-1.5">
                                   <h4 className="font-bold text-slate-800 dark:text-slate-100 text-[15px] leading-snug">
@@ -437,54 +405,59 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                       const isMenuScale = !!msg.data?.agentResult?.comparison?.isMenuScale;
 
                                       return (group.items || []).map((item: any, itemIdx: number) => {
-                                      const { src: resolvedImgSrc, boundingBox: bb, imgIdx } = groupPreviewItems[itemIdx];
+                                        const { src: resolvedImgSrc, boundingBox: bb, imgIdx } = groupPreviewItems[itemIdx];
 
-                                      if (isMenuScale) {
+                                        const height = bb ? Math.abs(bb[2] - bb[0]) : 0;
+                                        const width = bb ? Math.abs(bb[3] - bb[1]) : 0;
+                                        const aspect = height > 0 ? width / height : 0;
+                                        const isTextOnly = !bb || bb.length < 4 || (height < 25 && aspect > 2.5);
+
+                                        if (isTextOnly) {
+                                          return (
+                                            <div 
+                                              key={itemIdx} 
+                                              className="flex items-center justify-center p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 cursor-pointer shadow-sm hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 hover:shadow transition-all text-center min-h-[52px]"
+                                              onClick={() => setFullScreenImg({ ...groupPreviewItems[itemIdx], navItems: groupPreviewItems, navIndex: itemIdx })}
+                                            >
+                                              <span className="text-[11px] font-semibold leading-tight text-slate-700 dark:text-slate-300 break-words text-center lowercase">
+                                                {item.name}
+                                              </span>
+                                            </div>
+                                          );
+                                        }
+
                                         return (
-                                          <div 
-                                            key={itemIdx} 
-                                            className="flex items-center justify-center p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 cursor-pointer shadow-sm hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 hover:shadow transition-all text-center min-h-[52px]"
-                                            onClick={() => setFullScreenImg({ ...groupPreviewItems[itemIdx], navItems: groupPreviewItems, navIndex: itemIdx })}
-                                          >
-                                            <span className="text-[11px] font-semibold leading-tight text-slate-700 dark:text-slate-300 break-words line-clamp-2 text-center lowercase">
+                                          <div key={itemIdx} className="flex flex-col items-center gap-1 w-full">
+                                            <div 
+                                              className="w-full aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-850 cursor-pointer shadow-sm hover:ring-2 ring-indigo-500/50 transition-all shrink-0"
+                                              onClick={() => setFullScreenImg({ ...groupPreviewItems[itemIdx], navItems: groupPreviewItems, navIndex: itemIdx })}
+                                            >
+                                              {bb ? (
+                                                <CroppedFoodImage 
+                                                  src={resolvedImgSrc} 
+                                                  boundingBox={bb} 
+                                                  alt={item.name} 
+                                                  className="w-full h-full object-cover"
+                                                  imageUrls={messageImages}
+                                                  sourceImageIndex={imgIdx}
+                                                />
+                                              ) : (
+                                                <img 
+                                                  src={resolvedImgSrc} 
+                                                  alt={item.name}
+                                                  className="w-full h-full object-cover"
+                                                  onError={(e) => {
+                                                    (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format';
+                                                  }}
+                                                />
+                                              )}
+                                            </div>
+                                            <span className="text-[10px] text-center font-medium leading-tight text-slate-700 dark:text-slate-300 break-words w-full">
                                               {item.name}
                                             </span>
                                           </div>
                                         );
-                                      }
-
-                                      return (
-                                        <div key={itemIdx} className="flex flex-col items-center gap-1 w-full">
-                                          <div 
-                                            className="w-full aspect-square rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-850 cursor-pointer shadow-sm hover:ring-2 ring-indigo-500/50 transition-all shrink-0"
-                                            onClick={() => setFullScreenImg({ ...groupPreviewItems[itemIdx], navItems: groupPreviewItems, navIndex: itemIdx })}
-                                          >
-                                            {bb ? (
-                                              <CroppedFoodImage 
-                                                src={resolvedImgSrc} 
-                                                boundingBox={bb} 
-                                                alt={item.name} 
-                                                className="w-full h-full object-cover"
-                                                imageUrls={messageImages}
-                                                sourceImageIndex={imgIdx}
-                                              />
-                                            ) : (
-                                              <img 
-                                                src={resolvedImgSrc} 
-                                                alt={item.name}
-                                                className="w-full h-full object-cover"
-                                                onError={(e) => {
-                                                  (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format';
-                                                }}
-                                              />
-                                            )}
-                                          </div>
-                                          <span className="text-[10px] text-center font-medium leading-tight text-slate-700 dark:text-slate-300 break-words w-full line-clamp-2">
-                                            {item.name}
-                                          </span>
-                                        </div>
-                                      );
-                                    });
+                                      });
                                     })()}
                                   </div>
                                 </div>
@@ -532,7 +505,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                       {/* Unified display of agent detailed clinical prose inside the card */}
                       {msg.content && (
                         <div className="text-[11.5px] text-slate-800 dark:text-slate-100 bg-slate-50/50 dark:bg-slate-900/30 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800/40 leading-relaxed whitespace-pre-line mb-3 font-sans text-left">
-                          {msg.content}
+                          {typeof msg.content === 'string' ? msg.content.replace(/^Information extracted\.?\s*/i, '') : msg.content}
                         </div>
                       )}
 
@@ -567,92 +540,103 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                           )}
 
                           {/* Slider of Identified Items */}
-                          <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full">
-                            {msg.data.scoutItems.map((item: any, i: number) => {
-                              // Food picture priority: user uploaded first based on sourceImageIndex, fallback to external
-                              const imgIdx = typeof item.sourceImageIndex === 'number' ? item.sourceImageIndex : 0;
+                          {(() => {
+                            const scoutPreviewItems = msg.data.scoutItems.map((sItem: any, sIdx: number) => {
+                              const imgIdx = typeof sItem.sourceImageIndex === 'number' ? sItem.sourceImageIndex : 0;
                               const resolvedImgSrc = (messageImages.length > 0)
                                 ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
-                                : getFoodImageUrl(item.keyword);
+                                : getFoodImageUrl(sItem.keyword);
+                              return {
+                                src: resolvedImgSrc,
+                                boundingBox: sItem.boundingBox2D || null,
+                                foodName: sItem.originalName || sItem.keyword,
+                                imgIdx
+                              };
+                            });
 
-                              const totalWeight = item.rawNutritionLabel?.totalWeightGrams || item.estimatedWeightGrams || 0;
-                              const portionWeight = item.rawNutritionLabel?.servingSizeGrams;
-                              const multiplier = portionWeight && portionWeight > 0 ? (totalWeight / portionWeight) : 1;
-                              const multiplierStr = multiplier % 1 === 0 ? multiplier.toString() : multiplier.toFixed(1);
+                            return (
+                              <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full">
+                                {msg.data.scoutItems.map((item: any, i: number) => {
+                                  const { src: resolvedImgSrc, boundingBox: bb, imgIdx } = scoutPreviewItems[i];
 
-                              const rawLabel = item.rawNutritionLabel;
-                              const nutrientsToDisplay = [];
-                              if (rawLabel) {
-                                if (rawLabel.calories !== undefined) {
-                                  nutrientsToDisplay.push({ label: 'Calorie', value: rawLabel.calories, unit: 'kcal', calc: Math.round(rawLabel.calories * multiplier), showMath: !!portionWeight });
-                                }
-                                if (rawLabel.totalFat !== undefined) {
-                                  nutrientsToDisplay.push({ label: 'Total fat', value: rawLabel.totalFat, unit: 'g', calc: Number((rawLabel.totalFat * multiplier).toFixed(1)), showMath: !!portionWeight });
-                                }
-                                if (rawLabel.saturatedFat !== undefined) {
-                                  nutrientsToDisplay.push({ label: 'Saturated fat', value: rawLabel.saturatedFat, unit: 'g', calc: Number((rawLabel.saturatedFat * multiplier).toFixed(1)), showMath: !!portionWeight });
-                                }
-                                if (rawLabel.transFat !== undefined) {
-                                  nutrientsToDisplay.push({ label: 'Trans fat', value: rawLabel.transFat, unit: 'g', calc: Number((rawLabel.transFat * multiplier).toFixed(1)), showMath: !!portionWeight });
-                                }
-                                if (rawLabel.cholesterol !== undefined) {
-                                  nutrientsToDisplay.push({ label: 'Cholesterol', value: rawLabel.cholesterol, unit: 'mg', calc: Math.round(rawLabel.cholesterol * multiplier), showMath: !!portionWeight });
-                                }
-                                if (rawLabel.sodium !== undefined) {
-                                  nutrientsToDisplay.push({ label: 'Sodium', value: rawLabel.sodium, unit: 'mg', calc: Math.round(rawLabel.sodium * multiplier), showMath: !!portionWeight });
-                                }
-                                if (rawLabel.carbohydrates !== undefined) {
-                                  nutrientsToDisplay.push({ label: 'Carbs', value: rawLabel.carbohydrates, unit: 'g', calc: Number((rawLabel.carbohydrates * multiplier).toFixed(1)), showMath: !!portionWeight });
-                                }
-                                if (rawLabel.dietaryFiber !== undefined) {
-                                  nutrientsToDisplay.push({ label: 'Dietary fiber', value: rawLabel.dietaryFiber, unit: 'g', calc: Number((rawLabel.dietaryFiber * multiplier).toFixed(1)), showMath: !!portionWeight });
-                                }
-                                if (rawLabel.addedSugars !== undefined) {
-                                  nutrientsToDisplay.push({ label: 'Added sugars', value: rawLabel.addedSugars, unit: 'g', calc: Number((rawLabel.addedSugars * multiplier).toFixed(1)), showMath: !!portionWeight });
-                                }
-                                if (rawLabel.protein !== undefined) {
-                                  nutrientsToDisplay.push({ label: 'Protein', value: rawLabel.protein, unit: 'g', calc: Number((rawLabel.protein * multiplier).toFixed(1)), showMath: !!portionWeight });
-                                }
-                                if (rawLabel.potassium !== undefined) {
-                                  nutrientsToDisplay.push({ label: 'Potassium', value: rawLabel.potassium, unit: 'mg', calc: Math.round(rawLabel.potassium * multiplier), showMath: !!portionWeight });
-                                }
-                              }
+                                  const totalWeight = item.rawNutritionLabel?.totalWeightGrams || item.estimatedWeightGrams || 0;
+                                  const portionWeight = item.rawNutritionLabel?.servingSizeGrams;
+                                  const multiplier = portionWeight && portionWeight > 0 ? (totalWeight / portionWeight) : 1;
+                                  const multiplierStr = multiplier % 1 === 0 ? multiplier.toString() : multiplier.toFixed(1);
 
-                              const isExpanded = !!expandedScouts[`${msg.id}-${i}`];
+                                  const rawLabel = item.rawNutritionLabel;
+                                  const nutrientsToDisplay = [];
+                                  if (rawLabel) {
+                                    if (rawLabel.calories !== undefined) {
+                                      nutrientsToDisplay.push({ label: 'Calorie', value: rawLabel.calories, unit: 'kcal', calc: Math.round(rawLabel.calories * multiplier), showMath: !!portionWeight });
+                                    }
+                                    if (rawLabel.totalFat !== undefined) {
+                                      nutrientsToDisplay.push({ label: 'Total fat', value: rawLabel.totalFat, unit: 'g', calc: Number((rawLabel.totalFat * multiplier).toFixed(1)), showMath: !!portionWeight });
+                                    }
+                                    if (rawLabel.saturatedFat !== undefined) {
+                                      nutrientsToDisplay.push({ label: 'Saturated fat', value: rawLabel.saturatedFat, unit: 'g', calc: Number((rawLabel.saturatedFat * multiplier).toFixed(1)), showMath: !!portionWeight });
+                                    }
+                                    if (rawLabel.transFat !== undefined) {
+                                      nutrientsToDisplay.push({ label: 'Trans fat', value: rawLabel.transFat, unit: 'g', calc: Number((rawLabel.transFat * multiplier).toFixed(1)), showMath: !!portionWeight });
+                                    }
+                                    if (rawLabel.cholesterol !== undefined) {
+                                      nutrientsToDisplay.push({ label: 'Cholesterol', value: rawLabel.cholesterol, unit: 'mg', calc: Math.round(rawLabel.cholesterol * multiplier), showMath: !!portionWeight });
+                                    }
+                                    if (rawLabel.sodium !== undefined) {
+                                      nutrientsToDisplay.push({ label: 'Sodium', value: rawLabel.sodium, unit: 'mg', calc: Math.round(rawLabel.sodium * multiplier), showMath: !!portionWeight });
+                                    }
+                                    if (rawLabel.carbohydrates !== undefined) {
+                                      nutrientsToDisplay.push({ label: 'Carbs', value: rawLabel.carbohydrates, unit: 'g', calc: Number((rawLabel.carbohydrates * multiplier).toFixed(1)), showMath: !!portionWeight });
+                                    }
+                                    if (rawLabel.dietaryFiber !== undefined) {
+                                      nutrientsToDisplay.push({ label: 'Dietary fiber', value: rawLabel.dietaryFiber, unit: 'g', calc: Number((rawLabel.dietaryFiber * multiplier).toFixed(1)), showMath: !!portionWeight });
+                                    }
+                                    if (rawLabel.addedSugars !== undefined) {
+                                      nutrientsToDisplay.push({ label: 'Added sugars', value: rawLabel.addedSugars, unit: 'g', calc: Number((rawLabel.addedSugars * multiplier).toFixed(1)), showMath: !!portionWeight });
+                                    }
+                                    if (rawLabel.protein !== undefined) {
+                                      nutrientsToDisplay.push({ label: 'Protein', value: rawLabel.protein, unit: 'g', calc: Number((rawLabel.protein * multiplier).toFixed(1)), showMath: !!portionWeight });
+                                    }
+                                    if (rawLabel.potassium !== undefined) {
+                                      nutrientsToDisplay.push({ label: 'Potassium', value: rawLabel.potassium, unit: 'mg', calc: Math.round(rawLabel.potassium * multiplier), showMath: !!portionWeight });
+                                    }
+                                  }
 
-                              return (
-                                <div 
-                                  key={i} 
-                                  className="w-[185px] shrink-0 snap-align-start flex flex-col relative p-1 space-y-2 text-left"
-                                >
-                                  {/* Photo Box */}
-                                  <div className="w-full h-24 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-850 relative shrink-0">
-                                    {item.boundingBox2D ? (
-                                      <CroppedFoodImage 
-                                        src={resolvedImgSrc} 
-                                        boundingBox={item.boundingBox2D} 
-                                        alt={item.originalName || item.keyword} 
-                                        className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
-                                        onTap={() => setFullScreenImg({ src: resolvedImgSrc, boundingBox: item.boundingBox2D })}
-                                        imageUrls={messageImages}
-                                        sourceImageIndex={item.sourceImageIndex}
-                                      />
-                                    ) : (
-                                      <img 
-                                        src={resolvedImgSrc} 
-                                        alt={item.originalName || item.keyword} 
-                                        className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
-                                        referrerPolicy="no-referrer"
-                                        onClick={() => setFullScreenImg({ src: resolvedImgSrc })}
-                                      />
-                                    )}
-                                  </div>
+                                  const isExpanded = !!expandedScouts[`${msg.id}-${i}`];
 
-                                  {/* Info Area */}
-                                  <div className="flex-1 min-w-0 flex flex-col justify-between">
-                                    <div className="flex flex-col gap-1">
-                                      <div className="flex items-center gap-1.5 flex-wrap">
-                                        <span className="text-[11px] font-bold text-slate-800 dark:text-white whitespace-normal break-words leading-tight" title={item.originalName || item.keyword}>
+                                  return (
+                                    <div 
+                                      key={i} 
+                                      className="w-[185px] shrink-0 snap-align-start flex flex-col relative p-1 space-y-2 text-left"
+                                    >
+                                      {/* Photo Box */}
+                                      <div className="w-full h-24 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-850 relative shrink-0">
+                                        {bb ? (
+                                          <CroppedFoodImage 
+                                            src={resolvedImgSrc} 
+                                            boundingBox={bb} 
+                                            alt={item.originalName || item.keyword} 
+                                            className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                                            onTap={() => setFullScreenImg({ ...scoutPreviewItems[i], navItems: scoutPreviewItems, navIndex: i })}
+                                            imageUrls={messageImages}
+                                            sourceImageIndex={imgIdx}
+                                          />
+                                        ) : (
+                                          <img 
+                                            src={resolvedImgSrc} 
+                                            alt={item.originalName || item.keyword} 
+                                            className="w-full h-full object-cover cursor-pointer hover:opacity-95 transition-opacity"
+                                            referrerPolicy="no-referrer"
+                                            onClick={() => setFullScreenImg({ ...scoutPreviewItems[i], navItems: scoutPreviewItems, navIndex: i })}
+                                          />
+                                        )}
+                                      </div>
+
+                                      {/* Info Area */}
+                                      <div className="flex-1 min-w-0 flex flex-col justify-between">
+                                        <div className="flex flex-col gap-1">
+                                          <div className="flex items-center gap-1.5 flex-wrap">
+                                            <span className="text-[11px] font-bold text-slate-800 dark:text-white whitespace-normal break-words leading-tight" title={item.originalName || item.keyword}>
                                           {item.originalName || item.keyword}
                                         </span>
                                       </div>
@@ -717,8 +701,10 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                               );
                             })}
                           </div>
-                        </div>
-                      )}
+                        );
+                      })()}
+                    </div>
+                  )}
 
                       <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2 gap-2 text-left">
                         <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate min-w-0 font-display">

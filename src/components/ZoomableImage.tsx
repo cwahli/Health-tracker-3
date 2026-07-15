@@ -41,17 +41,18 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
         @keyframes highlightPulse {
           0% {
             transform: scale(0.96);
-            box-shadow: 0 0 0 0 rgba(52, 211, 153, 0.9), inset 0 0 0 0 rgba(52, 211, 153, 0.4);
+            background-color: rgba(52, 211, 153, 0.1);
           }
           15% {
             transform: scale(1.04);
-            box-shadow: 0 0 0 15px rgba(52, 211, 153, 0), inset 0 0 15px 8px rgba(52, 211, 153, 0.3);
+            background-color: rgba(52, 211, 153, 0.4);
           }
           35% {
             transform: scale(1);
+            background-color: rgba(52, 211, 153, 0.3);
           }
           100% {
-            box-shadow: 0 0 20px rgba(52, 211, 153, 0.5), inset 0 0 8px 4px rgba(52, 211, 153, 0.1);
+            background-color: rgba(52, 211, 153, 0.2);
           }
         }
         .animate-highlight-flash {
@@ -69,7 +70,7 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
           </div>
         )}
         <TransformWrapper
-          key={src}
+          key="constant-zoom-key"
           initialScale={1}
           minScale={0.5}
           maxScale={40}
@@ -99,7 +100,7 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
                       <div 
                         key={(foodName || "") + "_" + (boundingBox ? boundingBox.join(",") : "") + "_" + highlightKey}
                         id="zoom-target-bbox"
-                        className={`absolute pointer-events-none rounded-md ring-[4px] ring-emerald-400 bg-emerald-400/20 transition-opacity duration-300 ${showHighlight ? 'opacity-100 animate-highlight-flash' : 'opacity-0'}`}
+                        className={`absolute pointer-events-none border-0 border-none outline-none ring-0 rounded-md bg-emerald-400/20 transition-opacity duration-300 ${showHighlight ? 'opacity-100 animate-highlight-flash' : 'opacity-0'}`}
                         style={{
                           top: `${boundingBox[0] / 10}%`,
                           left: `${boundingBox[1] / 10}%`,
