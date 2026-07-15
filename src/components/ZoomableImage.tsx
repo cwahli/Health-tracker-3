@@ -1,7 +1,7 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
-const OnlineFoodImage: React.FC<{ foodName: string; fallbackSrc: string; className?: string }> = ({ foodName, fallbackSrc, className }) => {
+const OnlineFoodImage: React.FC<{ foodName: string; fallbackSrc: string; className?: string; onClick?: (e: React.MouseEvent) => void }> = ({ foodName, fallbackSrc, className, onClick }) => {
   const [src, setSrc] = React.useState<string>("");
   const [loading, setLoading] = React.useState(true);
   React.useEffect(() => {
@@ -32,6 +32,7 @@ const OnlineFoodImage: React.FC<{ foodName: string; fallbackSrc: string; classNa
       alt={foodName} 
       className={`${className} ${loading ? 'animate-pulse bg-slate-100 dark:bg-slate-800' : ''}`}
       referrerPolicy="no-referrer"
+      onClick={onClick}
       onError={(e) => {
         (e.target as HTMLImageElement).src = fallbackSrc;
       }}
@@ -41,13 +42,14 @@ const OnlineFoodImage: React.FC<{ foodName: string; fallbackSrc: string; classNa
 
 interface ZoomableImageProps {
   src: string;
-  boundingBox?: number[];
+  boundingBox?: number[] | null;
   onClose: () => void;
   foodName?: string;
   onNext?: () => void;
   onPrev?: () => void;
   hasNext?: boolean;
   hasPrev?: boolean;
+  sourceUrl?: string;
 }
 export const ZoomableImage: React.FC<ZoomableImageProps> = ({ 
   src, 
@@ -57,7 +59,8 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
   onNext,
   onPrev,
   hasNext,
-  hasPrev
+  hasPrev,
+  sourceUrl
 }) => {
   const targetRef = useRef<HTMLDivElement>(null);
   const isFirstRef = useRef(true);
@@ -102,14 +105,16 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
                       <OnlineFoodImage 
                         foodName={foodName || "food"} 
                         fallbackSrc={src} 
-                        className="max-w-[95vw] max-h-[85vh] rounded-xl object-contain shadow-2xl animate-fade-in"
+                        className={`max-w-[95vw] max-h-[85vh] rounded-xl object-contain shadow-2xl animate-fade-in ${sourceUrl ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
+                        onClick={sourceUrl ? (e) => { e.stopPropagation(); window.open(sourceUrl, '_blank', 'noopener,noreferrer'); } : undefined}
                       />
                     ) : (
                       <img 
                         src={src} 
                         alt={foodName || "Full screen preview"} 
-                        className="max-w-[95vw] max-h-[85vh] rounded-xl object-contain shadow-2xl animate-fade-in"
+                        className={`max-w-[95vw] max-h-[85vh] rounded-xl object-contain shadow-2xl animate-fade-in ${sourceUrl ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
                         referrerPolicy="no-referrer"
+                        onClick={sourceUrl ? (e) => { e.stopPropagation(); window.open(sourceUrl, '_blank', 'noopener,noreferrer'); } : undefined}
                       />
                     )}
                     {boundingBox && boundingBox.length === 4 && (

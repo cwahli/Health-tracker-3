@@ -1725,6 +1725,8 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       message &&
       /\d+\s*g(ram)?s?/i.test(message)
     );
+    const compareOnly = req.body.compareOnly === true;
+    const compareItems = Array.isArray(req.body.compareItems) ? req.body.compareItems : [];
 
     let databaseMatches = "";
     const databaseMatchesArray: any[] = [];
@@ -1738,7 +1740,18 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
 
     let visionScoutRanAndReturnedItems = false;
 
-    if (isWeightModification) {
+    if (compareOnly) {
+      addDebugLog(`[Shortcut] Compare mode detected. Skipping Vision Scout and DB Search.`);
+      if (compareItems && compareItems.length > 0) {
+        visionScoutItems = compareItems.map((name: string, index: number) => ({
+          scoutIndex: index,
+          keyword: name,
+          originalName: name,
+          estimatedWeightGrams: 100,
+          source: "compare_request"
+        }));
+      }
+    } else if (isWeightModification) {
       addDebugLog(`[Shortcut] Weight modification detected on active meal. Skipping Vision Scout and DB Search.`);
     } else {
       const hasImage = imagePayloads && imagePayloads.length > 0;
@@ -1932,7 +1945,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
     const isMenuScale = scoutContentType === "menu_or_poster";
     // Skip database search if evaluating a large number of items (Mode D / Evaluation Scale) to prevent connection pool exhaustion and timeouts
     const isEvaluationScale = queriesToSearch.length >= 10;
-    const shouldRunDbSearch = !isWeightModification && !isMenuScale && !isEvaluationScale && (visionScoutRanAndReturnedItems || (!hasImage && queriesToSearch.length > 0));
+    const shouldRunDbSearch = !compareOnly && !isWeightModification && !isMenuScale && !isEvaluationScale && (visionScoutRanAndReturnedItems || (!hasImage && queriesToSearch.length > 0));
     if (shouldRunDbSearch && queriesToSearch.length > 0) {
       addDebugLog(`[Database Search] Performing USDA & OFF searches for queries: ${JSON.stringify(queriesToSearch)}`);
       const searchPromises = queriesToSearch.map(async (q) => {

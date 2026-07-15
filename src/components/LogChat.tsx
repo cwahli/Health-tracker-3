@@ -604,6 +604,7 @@ ${logsText}`);
   
   // Synchronized Multi-select Search Mode States for Bottom Action Bar
   const [isSelectingMode, setIsSelectingMode] = useState<boolean>(false);
+  const [selectingMsgId, setSelectingMsgId] = useState<string | null>(null);
   const [selectedItemKeys, setSelectedItemKeys] = useState<string[]>([]);
   const foodCardActionRef = useRef<any>(null);
   const [activeConversationId, setActiveConversationId] = useState<string>(() => {
@@ -1173,7 +1174,11 @@ ${logsText}`);
   };
 
   const handleSend = async (overrideText?: string | any) => {
-    const textToSend = typeof overrideText === 'string' ? overrideText : inputText;
+    let textToSend = typeof overrideText === 'string' ? overrideText : (overrideText?.text || inputText);
+    const compareOnly = typeof overrideText === 'object' && overrideText?.compareOnly;
+    const compareItems = typeof overrideText === 'object' && overrideText?.compareItems;
+    const sourceMsgId = typeof overrideText === 'object' && overrideText?.sourceMsgId;
+
     if (!textToSend && selectedImages.length === 0) return;
 
     // Eagerly wait for geolocation if doing food ideas and it's not resolved yet
@@ -1288,6 +1293,11 @@ ${logsText}`);
       Object.keys(bodyData).forEach(key => {
         if (bodyData[key] === undefined) delete bodyData[key];
       });
+
+      if (compareOnly) {
+         bodyData.compareOnly = true;
+         bodyData.compareItems = compareItems;
+      }
 
       if (isAgent('food')) {
         const lastFoodLog = [...messages].reverse().find(m => m.data?.pendingFoodLog)?.pendingFoodLog;
@@ -1552,9 +1562,21 @@ ${logsText}`);
           };
           assistantMsg.pendingFoodLog = newFoodLog;
         } else if (resData.mode === 'evaluation') {
+          let carryOverScoutItems = resData.scoutItems || [];
+          if (compareOnly && sourceMsgId) {
+             const sourceMsg = messages.find(m => m.id === sourceMsgId);
+             if (sourceMsg?.data?.scoutItems) {
+                carryOverScoutItems = sourceMsg.data.scoutItems;
+             }
+          }
           assistantMsg.data = {
             agentResult: resData,
-            scoutItems: resData.scoutItems || []
+            scoutItems: carryOverScoutItems
+          };
+        } else if (resData.mode === 'origin') {
+          assistantMsg.data = {
+            mode: 'origin',
+            origins: resData.origins || []
           };
         }
       } else if (isAgent('food_idea')) {
@@ -2473,8 +2495,9 @@ ${JSON.stringify(profile, null, 2)}`);
                         loggedMessageIds={loggedMessageIds}
                         profile={profile}
                         biomarkerHistory={activeHistory}
-                        isSelectingMode={isSelectingMode}
+                        isSelectingMode={isSelectingMode && selectingMsgId === msg.id}
                         setIsSelectingMode={setIsSelectingMode}
+                        onEnterSelectingMode={() => setSelectingMsgId(msg.id)}
                         selectedItemKeys={selectedItemKeys}
                         setSelectedItemKeys={setSelectedItemKeys}
                         actionRef={foodCardActionRef}

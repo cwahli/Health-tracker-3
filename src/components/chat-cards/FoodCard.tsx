@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { AgentCardProps } from './types';
-import { Plus, Check, ChevronDown, ChevronUp, Sparkles, Search, X } from 'lucide-react';
+import { Plus, Check, ChevronDown, ChevronUp, Sparkles, Search, X, Trash2 } from 'lucide-react';
 import ImageSlider from '../ImageSlider';
 import { NutrientPieChart } from '../NutrientPieChart';
 
@@ -11,43 +11,6 @@ import { resolveFoodImage } from '../../utils/imageResolver';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { ZoomableImage } from '../ZoomableImage';
 import { FoodScoutItemPreview } from './FoodScoutItemPreview';
-
-const OnlineFoodImage: React.FC<{ foodName: string; fallbackSrc: string; className?: string }> = ({ foodName, fallbackSrc, className }) => {
-  const [src, setSrc] = React.useState<string>("");
-  const [loading, setLoading] = React.useState(true);
-  React.useEffect(() => {
-    let active = true;
-    const fetchImage = async () => {
-      try {
-        const res = await fetch("/api/gemini/food-image-search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: foodName }),
-        });
-        const data = await res.json();
-        if (active && data.images && data.images.length > 0) {
-          setSrc(data.images[0].imageUrl);
-        }
-      } catch (err) {
-        console.warn("Online search failed for", foodName, err);
-      } finally {
-        if (active) setLoading(false);
-      }
-    };
-    fetchImage();
-    return () => { active = false; };
-  }, [foodName]);
-  return (
-    <img 
-      src={src || fallbackSrc} 
-      alt={foodName} 
-      className={`${className} ${loading ? 'animate-pulse bg-slate-100 dark:bg-slate-800' : ''}`}
-      onError={(e) => {
-        (e.target as HTMLImageElement).src = fallbackSrc;
-      }}
-    />
-  );
-};
 
 interface CroppedFoodImageProps {
   src: string;
@@ -303,9 +266,53 @@ const GroupItemsContainer: React.FC<GroupItemsContainerProps> = ({ children, gro
   );
 };
 
+const OriginImageTile = ({ queryStr, fallbackSrc, onResolved, onClick, onError }: any) => {
+  const [src, setSrc] = React.useState<string>("");
+  const [loading, setLoading] = React.useState(true);
+  
+  React.useEffect(() => {
+    let active = true;
+    const fetchImage = async () => {
+      try {
+        const res = await fetch("/api/gemini/food-image-search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: queryStr }),
+        });
+        const data = await res.json();
+        if (active && data.images && data.images.length > 0) {
+          const img = data.images[0];
+          setSrc(img.imageUrl);
+          if (onResolved) onResolved(img.imageUrl, img.pageUrl);
+        }
+      } catch (err) {
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    fetchImage();
+    return () => { active = false; };
+  }, [queryStr]);
+
+  return (
+    <img
+      src={src || fallbackSrc}
+      alt={queryStr}
+      className={`w-full h-full object-cover animate-fade-in ${loading ? 'animate-pulse bg-slate-100 dark:bg-slate-800' : ''}`}
+      referrerPolicy="no-referrer"
+      onClick={onClick}
+      onError={(e) => {
+        (e.target as HTMLImageElement).src = fallbackSrc;
+        if (onError) onError();
+      }}
+    />
+  );
+};
+
 export const FoodCard: React.FC<AgentCardProps & {
   isSelectingMode?: boolean;
   setIsSelectingMode?: (val: boolean) => void;
+  onEnterSelectingMode?: () => void;
   selectedItemKeys?: string[];
   setSelectedItemKeys?: (val: string[] | ((prev: string[]) => string[])) => void;
   actionRef?: React.MutableRefObject<any>;
@@ -323,6 +330,11 @@ export const FoodCard: React.FC<AgentCardProps & {
   const [searchedItemIndices, setSearchedItemIndices] = React.useState<Record<string, number>>({});
   const [searchResults, setSearchResults] = React.useState<Record<string, Array<{title: string, imageUrl: string, pageUrl: string}>>>({});
   const [searchLoading, setSearchLoading] = React.useState<Record<string, boolean>>({});
+  const [brokenSearchImages, setBrokenSearchImages] = React.useState<Record<string, true>>({});
+  const [searchPreview, setSearchPreview] = React.useState<{ groupKey: string, index: number } | null>(null);
+  const [originPreview, setOriginPreview] = React.useState<{ itemIdx: number, imgIdx: number } | null>(null);
+  const originImagesRef = React.useRef<Record<string, { imageUrl: string, pageUrl: string }>>({});
+  const [brokenOriginImages, setBrokenOriginImages] = React.useState<Record<string, true>>({});
   const [groupExpanded, setGroupExpanded] = React.useState<Record<string, boolean>>({});
 
   // Selection hooks for Card-Wide Multi-Select
@@ -346,8 +358,13 @@ export const FoodCard: React.FC<AgentCardProps & {
   const handleFoodSearch = async (groupIdx: number, itemIdx: number, query: string) => {
     const groupKey = `${msg.id}-${groupIdx}`;
     setSearchedItemIndices(prev => ({ ...prev, [groupKey]: itemIdx }));
-    setSearchLoading(prev => ({ ...prev, [groupKey]: true }));
     setSearchModes(prev => ({ ...prev, [groupKey]: true }));
+    
+    if (searchResults[groupKey] && searchResults[groupKey].length > 0) {
+      return;
+    }
+
+    setSearchLoading(prev => ({ ...prev, [groupKey]: true }));
     setSearchErrors(prev => ({ ...prev, [groupKey]: "" }));
     try {
       const response = await fetch("/api/gemini/food-image-search", {
@@ -581,7 +598,7 @@ export const FoodCard: React.FC<AgentCardProps & {
 
   // Register parent Action handlers
   React.useEffect(() => {
-    if (props.actionRef) {
+    if (props.actionRef && props.isSelectingMode) {
       props.actionRef.current = {
         triggerImageSearch: (keys: string[]) => {
           if (keys.length !== 1) {
@@ -610,12 +627,17 @@ export const FoodCard: React.FC<AgentCardProps & {
             return displayGroups[gIdx]?.items?.[iIdx]?.name;
           });
           if (handleSend) {
-            handleSend(`Compare these specific menu items: ${selectedNames.join(', ')}. Rank them best-to-worst based on my health targets.`);
+            handleSend({
+              text: `Compare these specific menu items: ${selectedNames.join(', ')}. Rank them best-to-worst based on my health targets.`,
+              compareOnly: true,
+              compareItems: selectedNames,
+              sourceMsgId: msg.id
+            });
           }
         }
       };
     }
-  }, [props.actionRef, displayGroups, handleSend]);
+  }, [props.actionRef, props.isSelectingMode, displayGroups, handleSend, msg.id]);
 
   return (
     <>
@@ -686,16 +708,21 @@ export const FoodCard: React.FC<AgentCardProps & {
                                   });
                                   const bb = itemObj?.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
                                   const imgIdx = itemObj ? (typeof itemObj.sourceImageIndex === 'number' ? itemObj.sourceImageIndex : 0) : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0);
+                                  const heroHeight = bb ? Math.abs(bb[2] - bb[0]) : 0;
+                                  const heroWidth = bb ? Math.abs(bb[3] - bb[1]) : 0;
+                                  const heroAspect = heroHeight > 0 ? heroWidth / heroHeight : 0;
+                                  const isMenuOrPoster = msg.data?.scoutContentType === 'menu_or_poster';
+                                  const heroIsTextOnly = isMenuOrPoster || !bb || bb.length < 4 || heroAspect > 2.2 || heroHeight < 20;
                                   const resolvedImgSrc = (resolvedMessageImages.length > 0)
                                     ? resolvedMessageImages[imgIdx >= 0 && imgIdx < resolvedMessageImages.length ? imgIdx : 0]
                                     : getFoodImageUrl(group.groupName, '');
-                                  
+
                                   return (
                                     <div className="w-full h-32 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 relative shadow-sm cursor-pointer hover:opacity-90 transition-opacity">
                                       <FoodScoutItemPreview
                                         name={group.groupName}
                                         src={resolvedImgSrc}
-                                        boundingBox={bb}
+                                        boundingBox={heroIsTextOnly ? null : bb}
                                         imgIdx={imgIdx}
                                         messageImages={resolvedMessageImages}
                                         isActive={false}
@@ -817,18 +844,19 @@ export const FoodCard: React.FC<AgentCardProps & {
                                          <div className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between w-full font-sans">
                                            <span>Foods in this group ({group.items?.length || 0})</span>
                                            <div className="flex items-center gap-1.5">
-                                             {hasTranslations && (
+                                             {hasTranslations && !isSelectingMode && (
                                                <button 
                                                  onClick={() => setShowTranslated(!showTranslated)}
-                                                 className="px-2 py-0.5 text-[9px] font-bold border border-slate-200 dark:border-slate-800 rounded-md bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 text-slate-500 dark:text-slate-400 transition-all flex items-center gap-0.5 cursor-pointer"
+                                                 className="lowercase px-2 py-0.5 text-[9px] font-bold border border-slate-200 dark:border-slate-800 rounded-md bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 text-slate-500 dark:text-slate-400 transition-all flex items-center gap-0.5 cursor-pointer"
                                                  title="Toggle translation"
                                                >
-                                                 🌐 {showTranslated ? 'Local' : 'English'}
+                                                 {showTranslated ? 'local' : 'english'}
                                                </button>
                                              )}
                                              <button
                                                type="button"
                                                onClick={() => {
+                                                 if (!isSelectingMode && props.onEnterSelectingMode) props.onEnterSelectingMode();
                                                  setIsSelectingMode(!isSelectingMode);
                                                  setSelectedItemKeys([]);
                                                  setSelectorError("");
@@ -838,9 +866,9 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                className={`p-1 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-md transition-all cursor-pointer ${
                                                  isSelectingMode ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40' : 'text-slate-400'
                                                }`}
-                                               title="Multi-select items for search or comparison"
+                                               title={isSelectingMode ? "Exit selection mode" : "Multi-select items for search or comparison"}
                                              >
-                                               <Search className="w-3.5 h-3.5 stroke-[2.5px]" />
+                                               {isSelectingMode ? <X className="w-3.5 h-3.5 stroke-[2.5px]" /> : <Search className="w-3.5 h-3.5 stroke-[2.5px]" />}
                                              </button>
                                            </div>
                                          </div>
@@ -856,17 +884,43 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                {isLoadingForGroup ? (
                                                  <div className="text-[10px] text-indigo-500 animate-pulse text-center">Searching images...</div>
                                                ) : resultsForGroup.length > 0 ? (
-                                                 <div className="grid grid-cols-2 gap-2">
-                                                   {resultsForGroup.map((res, sIdx) => (
-                                                     <div key={sIdx} className="rounded-lg overflow-hidden border border-slate-100 dark:border-slate-800">
-                                                       <img src={res.imageUrl} alt={res.title} className="w-full aspect-[4/3] object-cover" />
-                                                       <div className="p-1 bg-slate-50 dark:bg-slate-900 text-[8px] truncate text-slate-500 text-center">{res.title}</div>
-                                                     </div>
-                                                   ))}
+                                                 <div className="space-y-2">
+                                                   <div className="flex justify-end">
+                                                     <button
+                                                       onClick={() => {
+                                                         setSearchResults(prev => ({ ...prev, [groupKey]: [] }));
+                                                         setSearchModes(prev => ({ ...prev, [groupKey]: false }));
+                                                       }}
+                                                       className="text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                                                       title="Clear results"
+                                                     >
+                                                       <Trash2 className="w-3.5 h-3.5" />
+                                                     </button>
+                                                   </div>
+                                                   <div className="grid grid-cols-2 gap-2">
+                                                     {resultsForGroup.map((res, sIdx) => {
+                                                       if (brokenSearchImages[`${groupKey}-${sIdx}`]) return null;
+                                                       return (
+                                                         <div 
+                                                           key={sIdx} 
+                                                           className="rounded-lg overflow-hidden border border-slate-100 dark:border-slate-800 cursor-pointer hover:opacity-90 transition-opacity"
+                                                           onClick={() => setSearchPreview({ groupKey, index: sIdx })}
+                                                         >
+                                                           <img 
+                                                             src={res.imageUrl} 
+                                                             alt={res.title} 
+                                                             className="w-full aspect-[4/3] object-cover" 
+                                                             onError={() => setBrokenSearchImages(prev => ({ ...prev, [`${groupKey}-${sIdx}`]: true }))}
+                                                           />
+                                                           <div className="p-1 bg-slate-50 dark:bg-slate-900 text-[8px] truncate text-slate-500 text-center">{res.title}</div>
+                                                         </div>
+                                                       );
+                                                     })}
+                                                   </div>
                                                  </div>
                                                ) : (
                                                  <div className="text-[9.5px] text-rose-500 dark:text-rose-400 bg-rose-50/50 dark:bg-rose-950/20 p-2 rounded-lg border border-rose-200/40 text-center leading-normal font-bold">
-                                                   ⚠️ Search Error: ${searchErrors[groupKey] || "Google Custom Search API did not return valid items."}
+                                                   ⚠️ Search Error: {searchErrors[groupKey] || "Search API did not return valid items."}
                                                  </div>
                                                )}
                                              </div>
@@ -901,7 +955,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                        }
                                                      }}
                                                    >
-                                                     <span className={`text-[10.5px] font-semibold leading-tight break-words text-center ${isSelected ? 'text-indigo-700 dark:text-indigo-300 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                     <span className={`text-[10.5px] lowercase font-semibold leading-tight break-words text-center ${isSelected ? 'text-indigo-700 dark:text-indigo-300 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
                                                        {itemDisplayName}
                                                      </span>
                                                    </div>
@@ -968,7 +1022,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                               const [gIdx, iIdx] = key.split('-').map(Number);
                               const name = displayGroups[gIdx]?.items?.[iIdx]?.name || "Item";
                               return (
-                                <span key={key} className="px-2 py-0.5 bg-indigo-100/70 dark:bg-indigo-900/40 text-[9.5px] font-semibold rounded text-indigo-700 dark:text-indigo-300">
+                                <span key={key} className="px-2 py-0.5 lowercase bg-indigo-100/70 dark:bg-indigo-900/40 text-[9.5px] font-semibold rounded text-indigo-700 dark:text-indigo-300">
                                   {name}
                                 </span>
                               );
@@ -1025,7 +1079,12 @@ export const FoodCard: React.FC<AgentCardProps & {
                                   return displayGroups[gIdx]?.items?.[iIdx]?.name;
                                 });
                                 if (handleSend) {
-                                  handleSend(`Compare these specific menu items: ${selectedNames.join(', ')}. Rank them best-to-worst based on my health targets.`);
+                                  handleSend({
+                                    text: `Compare these specific menu items: ${selectedNames.join(', ')}. Rank them best-to-worst based on my health targets.`,
+                                    compareOnly: true,
+                                    compareItems: selectedNames,
+                                    sourceMsgId: msg.id
+                                  });
                                 }
                                 setIsSelectingMode(false);
                                 setSelectedItemKeys([]);
@@ -1134,6 +1193,52 @@ export const FoodCard: React.FC<AgentCardProps & {
           foodName={externalPreviewImg.title}
         />
       )}
+      {searchPreview && (() => {
+        const results = searchResults[searchPreview.groupKey] || [];
+        const validResults = results.map((res, i) => ({ ...res, index: i })).filter((_, i) => !brokenSearchImages[`${searchPreview.groupKey}-${i}`]);
+        if (validResults.length === 0) return null;
+        const currentValidIdx = validResults.findIndex(r => r.index === searchPreview.index);
+        if (currentValidIdx === -1) return null;
+        
+        return (
+          <ZoomableImage
+            src={validResults[currentValidIdx].imageUrl}
+            onClose={() => setSearchPreview(null)}
+            foodName={validResults[currentValidIdx].title}
+            sourceUrl={validResults[currentValidIdx].pageUrl}
+            hasNext={currentValidIdx < validResults.length - 1}
+            hasPrev={currentValidIdx > 0}
+            onNext={() => setSearchPreview({ groupKey: searchPreview.groupKey, index: validResults[currentValidIdx + 1].index })}
+            onPrev={() => setSearchPreview({ groupKey: searchPreview.groupKey, index: validResults[currentValidIdx - 1].index })}
+          />
+        );
+      })()}
+      {originPreview && (() => {
+        const item = msg.data?.origins?.[originPreview.itemIdx];
+        if (!item) return null;
+        const queries = (item.imageQueries || [item.foodName]).slice(0, 3);
+        const validIndices = queries.map((_, i) => i).filter(i => !brokenOriginImages[`${originPreview.itemIdx}-${i}`]);
+        if (validIndices.length === 0) return null;
+        const currentValidPos = validIndices.indexOf(originPreview.imgIdx);
+        if (currentValidPos === -1) return null;
+
+        const resolvedData = originImagesRef.current[`${originPreview.itemIdx}-${originPreview.imgIdx}`];
+        const src = resolvedData?.imageUrl || getFoodImageUrl(item.foodName, '');
+        const pageUrl = resolvedData?.pageUrl;
+
+        return (
+          <ZoomableImage
+            src={src}
+            onClose={() => setOriginPreview(null)}
+            foodName={item.foodName}
+            sourceUrl={pageUrl}
+            hasNext={currentValidPos < validIndices.length - 1}
+            hasPrev={currentValidPos > 0}
+            onNext={() => setOriginPreview({ itemIdx: originPreview.itemIdx, imgIdx: validIndices[currentValidPos + 1] })}
+            onPrev={() => setOriginPreview({ itemIdx: originPreview.itemIdx, imgIdx: validIndices[currentValidPos - 1] })}
+          />
+        );
+      })()}
       {/* Case F: Food Origin & Details experiential encyclopedia card renderer */}
       {msg.data?.mode === 'origin' && msg.data?.origins && msg.data.origins.length > 0 && (
         <div className="space-y-3.5 animation-fade-in w-full max-w-full min-w-0 overflow-hidden bg-transparent font-sans text-left mb-4">
@@ -1150,7 +1255,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                 {oIdx > 0 && (
                   <div className="w-[1px] bg-slate-200 dark:bg-slate-800 self-stretch my-2 shrink-0 mx-[10px]" />
                 )}
-                <div className="w-[85%] sm:w-[350px] shrink-0 snap-align-start flex flex-col relative space-y-3.5">
+                <div className="w-[90%] sm:w-[420px] shrink-0 snap-align-start flex flex-col relative space-y-3.5">
                   <div className="flex flex-col gap-1.5">
                     <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-[15px] leading-snug">
                       {item.foodName}
@@ -1160,17 +1265,21 @@ export const FoodCard: React.FC<AgentCardProps & {
                   {/* Horizontal Scrollable Carousel of 1-3 food pictures with interactive click-to-zoom */}
                   <div className="flex gap-2 overflow-x-auto pb-1.5 scrollbar-thin scrollbar-thumb-slate-200/50 w-full snap-x snap-mandatory">
                     {(item.imageQueries || [item.foodName]).slice(0, 3).map((queryStr: string, imgIdx: number) => {
+                      if (brokenOriginImages[`${oIdx}-${imgIdx}`]) return null;
                       const backupUrl = getFoodImageUrl(item.foodName, '');
                       return (
                         <div 
                           key={imgIdx} 
-                          onClick={() => setExternalPreviewImg({ url: backupUrl, title: item.foodName })}
-                          className="w-[85%] sm:w-64 h-36 flex-shrink-0 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-900/40 border border-slate-150 dark:border-slate-800 relative shadow-inner snap-start cursor-zoom-in hover:opacity-90 transition-opacity"
+                          onClick={() => setOriginPreview({ itemIdx: oIdx, imgIdx })}
+                          className="w-[90%] sm:w-80 h-48 flex-shrink-0 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-900/40 border border-slate-150 dark:border-slate-800 relative shadow-inner snap-start cursor-zoom-in hover:opacity-90 transition-opacity"
                         >
-                          <OnlineFoodImage 
-                            foodName={queryStr} 
-                            fallbackSrc={backupUrl} 
-                            className="w-full h-full object-cover animate-fade-in"
+                          <OriginImageTile 
+                            queryStr={queryStr} 
+                            fallbackSrc={backupUrl}
+                            onResolved={(url: string, pageUrl: string) => {
+                              originImagesRef.current[`${oIdx}-${imgIdx}`] = { imageUrl: url, pageUrl };
+                            }}
+                            onError={() => setBrokenOriginImages(prev => ({ ...prev, [`${oIdx}-${imgIdx}`]: true }))}
                           />
                           <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-slate-900/65 text-[8.5px] font-bold text-white tracking-wide uppercase">
                             View 🔍
@@ -1181,22 +1290,22 @@ export const FoodCard: React.FC<AgentCardProps & {
                   </div>
 
                   {/* Descriptive fields */}
-                  <div className="text-[11.5px] space-y-2.5 text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                    <div className="p-2.5 rounded-lg bg-slate-50/55 dark:bg-slate-900/30 border border-slate-100/50 dark:border-slate-800/30">
+                  <div className="text-[12px] space-y-2.5 text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                    <div className="p-3 rounded-lg bg-slate-50/55 dark:bg-slate-900/30 border border-slate-100/50 dark:border-slate-800/30">
                       <strong className="text-slate-900 dark:text-white flex items-center gap-1 mb-0.5 text-[11px] uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
                         🌍 Origin & Heritage
                       </strong>
                       <span className="text-slate-600 dark:text-slate-350">{item.origin}</span>
                     </div>
 
-                    <div className="p-2.5 rounded-lg bg-slate-50/55 dark:bg-slate-900/30 border border-slate-100/50 dark:border-slate-800/30">
+                    <div className="p-3 rounded-lg bg-slate-50/55 dark:bg-slate-900/30 border border-slate-100/50 dark:border-slate-800/30">
                       <strong className="text-slate-900 dark:text-white flex items-center gap-1 mb-0.5 text-[11px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
                         🍳 Traditional Cooking
                       </strong>
                       <span className="text-slate-600 dark:text-slate-350">{item.howItIsCooked}</span>
                     </div>
 
-                    <div className="p-2.5 rounded-lg bg-slate-50/55 dark:bg-slate-900/30 border border-slate-100/50 dark:border-slate-800/30">
+                    <div className="p-3 rounded-lg bg-slate-50/55 dark:bg-slate-900/30 border border-slate-100/50 dark:border-slate-800/30">
                       <strong className="text-slate-900 dark:text-white flex items-center gap-1 mb-0.5 text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">
                         🍽️ Typical Occasions
                       </strong>

@@ -18,7 +18,7 @@ export interface AgentCardProps {
   handleContinueExtractionChunk?: (msg: ChatMessage) => Promise<void>;
   setLoggedMessageIds?: (fn: (prev: string[]) => string[]) => void;
   loggedMessageIds?: string[];
-  handleSend?: (msg: string) => void;
+  handleSend?: (msg: string | any) => void;
   setActiveInstructionAgentType?: (type: string) => void;
   setActiveInstructionPrompt?: (prompt: string | null) => void;
   onDeleteMessage?: (id: string) => void;
