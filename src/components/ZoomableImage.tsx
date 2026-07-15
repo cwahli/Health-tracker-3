@@ -1,5 +1,44 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
+
+const OnlineFoodImage: React.FC<{ foodName: string; fallbackSrc: string; className?: string }> = ({ foodName, fallbackSrc, className }) => {
+  const [src, setSrc] = React.useState<string>("");
+  const [loading, setLoading] = React.useState(true);
+  React.useEffect(() => {
+    let active = true;
+    const fetchImage = async () => {
+      try {
+        const res = await fetch("/api/gemini/food-image-search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: foodName }),
+        });
+        const data = await res.json();
+        if (active && data.images && data.images.length > 0) {
+          setSrc(data.images[0].imageUrl);
+        }
+      } catch (err) {
+        console.warn("Online search failed for", foodName, err);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    fetchImage();
+    return () => { active = false; };
+  }, [foodName]);
+  return (
+    <img 
+      src={src || fallbackSrc} 
+      alt={foodName} 
+      className={`${className} ${loading ? 'animate-pulse bg-slate-100 dark:bg-slate-800' : ''}`}
+      referrerPolicy="no-referrer"
+      onError={(e) => {
+        (e.target as HTMLImageElement).src = fallbackSrc;
+      }}
+    />
+  );
+};
+
 interface ZoomableImageProps {
   src: string;
   boundingBox?: number[];
@@ -59,19 +98,27 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
               <>
                 <TransformComponent wrapperClass="!w-full !h-full" contentClass="!w-full !h-full flex items-center justify-center">
                   <div className="relative inline-block max-w-[95vw] max-h-[85vh]">
-                    <img 
-                      src={src} 
-                      alt={foodName || "Full screen preview"} 
-                      className="max-w-[95vw] max-h-[85vh] rounded-xl object-contain shadow-2xl animate-fade-in"
-                      referrerPolicy="no-referrer"
-                    />
+                    {!boundingBox || boundingBox.length < 4 ? (
+                      <OnlineFoodImage 
+                        foodName={foodName || "food"} 
+                        fallbackSrc={src} 
+                        className="max-w-[95vw] max-h-[85vh] rounded-xl object-contain shadow-2xl animate-fade-in"
+                      />
+                    ) : (
+                      <img 
+                        src={src} 
+                        alt={foodName || "Full screen preview"} 
+                        className="max-w-[95vw] max-h-[85vh] rounded-xl object-contain shadow-2xl animate-fade-in"
+                        referrerPolicy="no-referrer"
+                      />
+                    )}
                     {boundingBox && boundingBox.length === 4 && (
                       <ZoomTrigger boundingBox={boundingBox} zoomToElement={zoomToElement} isFirst={isFirstRef.current} />
                     )}
                     {boundingBox && boundingBox.length === 4 && (
                       <div 
                         id="zoom-target-bbox"
-                        className={`absolute pointer-events-none transition-all duration-500 bg-emerald-400/25 border border-emerald-400/40 shadow-[0_0_20px_rgba(52,211,153,0.35)] rounded-md ${
+                        className={`absolute pointer-events-none transition-opacity duration-500 bg-emerald-400/25 border border-emerald-400/40 shadow-[0_0_20px_rgba(52,211,153,0.35)] rounded-md ${
                           highlight ? 'opacity-100' : 'opacity-0'
                         }`}
                         style={{
@@ -127,7 +174,7 @@ const ZoomTrigger = ({ boundingBox, zoomToElement, isFirst }: { boundingBox: num
       const targetScale = Math.min(0.95 / (maxBboxSize || 1), 40);
       
       const duration = isFirst ? 0 : 500;
-      const delay = isFirst ? 0 : 150;
+      const delay = isFirst ? 0 : 50;
       
       const timer = setTimeout(() => {
         const el = document.getElementById('zoom-target-bbox');

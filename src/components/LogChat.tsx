@@ -601,6 +601,11 @@ ${logsText}`);
 
   const [lastSentPayload, setLastSentPayload] = useState<any>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  
+  // Synchronized Multi-select Search Mode States for Bottom Action Bar
+  const [isSelectingMode, setIsSelectingMode] = useState<boolean>(false);
+  const [selectedItemKeys, setSelectedItemKeys] = useState<string[]>([]);
+  const foodCardActionRef = useRef<any>(null);
   const [activeConversationId, setActiveConversationId] = useState<string>(() => {
     return `session_${Date.now()}`;
   });
@@ -2468,6 +2473,11 @@ ${JSON.stringify(profile, null, 2)}`);
                         loggedMessageIds={loggedMessageIds}
                         profile={profile}
                         biomarkerHistory={activeHistory}
+                        isSelectingMode={isSelectingMode}
+                        setIsSelectingMode={setIsSelectingMode}
+                        selectedItemKeys={selectedItemKeys}
+                        setSelectedItemKeys={setSelectedItemKeys}
+                        actionRef={foodCardActionRef}
                         handleAgent1Step={handleAgent1Step}
                         handleContinueExtractionChunk={handleContinueExtractionChunk}
                         onAgentFinish={onAgentFinish}
@@ -2641,60 +2651,165 @@ ${JSON.stringify(profile, null, 2)}`);
             </div>
           )}
 
-          <div className="flex items-center gap-2">
-            <button
-              id="food-chat-photo-btn"
-              onClick={() => fileInputRef.current?.click()}
-              className="p-3 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 flex-shrink-0"
-              title={t.uploadPhoto}
-            >
-              <Image className="w-5 h-5" />
-            </button>
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleImageSelect}
-              accept="image/*"
-              multiple
-              className="hidden"
-            />
+          {isSelectingMode ? (
+            <div className="flex items-center gap-2.5 w-full bg-indigo-50/15 dark:bg-indigo-950/5 p-2 rounded-2xl border border-indigo-100/30 dark:border-indigo-950/30">
+              {/* Reload / Reset Selection Icon */}
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedItemKeys([]);
+                }}
+                className="p-3 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl transition-all focus:outline-none focus:ring-2 focus:ring-indigo-500/20 flex-shrink-0 cursor-pointer"
+                title="Reset Selection"
+              >
+                <RotateCcw className="w-5 h-5" />
+              </button>
 
-            <button
-              id="food-chat-camera-btn"
-              type="button"
-              onClick={() => cameraInputRef.current?.click()}
-              className="p-3 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 flex-shrink-0"
-              title="Take photo from phone camera"
-            >
-              <Camera className="w-5 h-5" />
-            </button>
-            <input
-              type="file"
-              ref={cameraInputRef}
-              onChange={handleImageSelect}
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-            />
+              {/* Action Buttons: Image Search, Origin Search, Compare Food */}
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedItemKeys.length === 0) return;
+                  if (foodCardActionRef.current?.triggerImageSearch) {
+                    foodCardActionRef.current.triggerImageSearch(selectedItemKeys);
+                  }
+                  setIsSelectingMode(false);
+                  setSelectedItemKeys([]);
+                }}
+                disabled={selectedItemKeys.length === 0}
+                className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
+                  selectedItemKeys.length === 0
+                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none border border-slate-200 dark:border-slate-700/40'
+                    : 'bg-indigo-600 hover:bg-indigo-700 text-white active:scale-95'
+                }`}
+              >
+                <span>🔍 Image Search</span>
+                {selectedItemKeys.length > 0 && (
+                  <span className="px-1.5 py-0.5 bg-white/20 text-[9.5px] rounded-full">
+                    {selectedItemKeys.length}
+                  </span>
+                )}
+              </button>
 
-            <input
-              id="food-chat-input"
-              type="text"
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSend()}
-              placeholder={t.chatPlaceholder}
-              className="flex-1 min-w-0 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-xl px-3.5 py-3 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
-            />
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedItemKeys.length === 0) return;
+                  if (foodCardActionRef.current?.triggerOriginSearch) {
+                    foodCardActionRef.current.triggerOriginSearch(selectedItemKeys);
+                  }
+                  setIsSelectingMode(false);
+                  setSelectedItemKeys([]);
+                }}
+                disabled={selectedItemKeys.length === 0}
+                className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
+                  selectedItemKeys.length === 0
+                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none border border-slate-200 dark:border-slate-700/40'
+                    : 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95'
+                }`}
+              >
+                <span>🗺️ Origin Search</span>
+                {selectedItemKeys.length > 0 && (
+                  <span className="px-1.5 py-0.5 bg-white/20 text-[9.5px] rounded-full">
+                    {selectedItemKeys.length}
+                  </span>
+                )}
+              </button>
 
-            <button
-              id="food-chat-send-btn"
-              onClick={handleSend}
-              className="p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
-            >
-              <Send className="w-5 h-5" />
-            </button>
-          </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (selectedItemKeys.length === 0) return;
+                  if (foodCardActionRef.current?.triggerCompareFood) {
+                    foodCardActionRef.current.triggerCompareFood(selectedItemKeys);
+                  }
+                  setIsSelectingMode(false);
+                  setSelectedItemKeys([]);
+                }}
+                disabled={selectedItemKeys.length === 0}
+                className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
+                  selectedItemKeys.length === 0
+                    ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none border border-slate-200 dark:border-slate-700/40'
+                    : 'bg-amber-600 hover:bg-amber-700 text-white active:scale-95'
+                }`}
+              >
+                <span>⚖️ Compare Food</span>
+                {selectedItemKeys.length > 0 && (
+                  <span className="px-1.5 py-0.5 bg-white/20 text-[9.5px] rounded-full">
+                    {selectedItemKeys.length}
+                  </span>
+                )}
+              </button>
+
+              {/* Close / Cancel Search Mode Button */}
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSelectingMode(false);
+                  setSelectedItemKeys([]);
+                }}
+                className="p-3 bg-rose-50 dark:bg-rose-950/20 hover:bg-rose-100 dark:hover:bg-rose-900/40 text-rose-650 dark:text-rose-450 rounded-xl transition-all cursor-pointer flex-shrink-0"
+                title="Cancel Selection"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2">
+              <button
+                id="food-chat-photo-btn"
+                onClick={() => fileInputRef.current?.click()}
+                className="p-3 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 flex-shrink-0"
+                title={t.uploadPhoto}
+              >
+                <Image className="w-5 h-5" />
+              </button>
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleImageSelect}
+                accept="image/*"
+                multiple
+                className="hidden"
+              />
+
+              <button
+                id="food-chat-camera-btn"
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                className="p-3 bg-slate-50 dark:bg-slate-800/60 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl transition-colors focus:outline-none focus:ring-2 focus:ring-indigo-500/20 flex-shrink-0"
+                title="Take photo from phone camera"
+              >
+                <Camera className="w-5 h-5" />
+              </button>
+              <input
+                type="file"
+                ref={cameraInputRef}
+                onChange={handleImageSelect}
+                accept="image/*"
+                capture="environment"
+                className="hidden"
+              />
+
+              <input
+                id="food-chat-input"
+                type="text"
+                value={inputText}
+                onChange={(e) => setInputText(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleSend()}
+                placeholder={t.chatPlaceholder}
+                className="flex-1 min-w-0 bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-xl px-3.5 py-3 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all font-medium"
+              />
+
+              <button
+                id="food-chat-send-btn"
+                onClick={handleSend}
+                className="p-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl shadow-md transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+              >
+                <Send className="w-5 h-5" />
+              </button>
+            </div>
+          )}
         </div>
 
       </div>

@@ -303,10 +303,18 @@ const GroupItemsContainer: React.FC<GroupItemsContainerProps> = ({ children, gro
   );
 };
 
-export const FoodCard: React.FC<AgentCardProps> = ({
-  msg, messages, report, foodLogs, t, formatNutrientValue,
-  onLogFood, setLoggedMessageIds, loggedMessageIds, profile, handleSend
-}) => {
+export const FoodCard: React.FC<AgentCardProps & {
+  isSelectingMode?: boolean;
+  setIsSelectingMode?: (val: boolean) => void;
+  selectedItemKeys?: string[];
+  setSelectedItemKeys?: (val: string[] | ((prev: string[]) => string[])) => void;
+  actionRef?: React.MutableRefObject<any>;
+}> = (props) => {
+  const {
+    msg, messages, report, foodLogs, t, formatNutrientValue,
+    onLogFood, setLoggedMessageIds, loggedMessageIds, profile, handleSend
+  } = props;
+
   const [expandedTables, setExpandedTables] = React.useState<Record<string, boolean>>({});
   const [expandedScouts, setExpandedScouts] = React.useState<Record<string, boolean>>({});
   const [fullScreenImg, setFullScreenImg] = React.useState<{ src: string, boundingBox?: number[], foodName?: string, navItems?: { src: string, boundingBox?: number[], foodName?: string }[], navIndex?: number } | null>(null);
@@ -318,14 +326,22 @@ export const FoodCard: React.FC<AgentCardProps> = ({
   const [groupExpanded, setGroupExpanded] = React.useState<Record<string, boolean>>({});
 
   // Selection hooks for Card-Wide Multi-Select
-  const [isSelectingMode, setIsSelectingMode] = React.useState<boolean>(false);
-  const [selectedItemKeys, setSelectedItemKeys] = React.useState<string[]>([]); // stores "groupIdx-itemIdx"
+  const [_isSelectingMode, _setIsSelectingMode] = React.useState<boolean>(false);
+  const [_selectedItemKeys, _setSelectedItemKeys] = React.useState<string[]>([]); // stores "groupIdx-itemIdx"
+  
+  // Wrapper variables prioritizing synchronized props from LogChat, falling back to local state
+  const isSelectingMode = props.isSelectingMode !== undefined ? props.isSelectingMode : _isSelectingMode;
+  const setIsSelectingMode = props.setIsSelectingMode !== undefined ? props.setIsSelectingMode : _setIsSelectingMode;
+  const selectedItemKeys = props.selectedItemKeys !== undefined ? props.selectedItemKeys : _selectedItemKeys;
+  const setSelectedItemKeys = props.setSelectedItemKeys !== undefined ? props.setSelectedItemKeys : _setSelectedItemKeys;
+
   const [selectorError, setSelectorError] = React.useState<string>("");
   const [searchErrors, setSearchErrors] = React.useState<Record<string, string>>({});
   
-  const [showTranslated, setShowTranslated] = React.useState<boolean>(false);
+  const [showTranslated, setShowTranslated] = React.useState<boolean>(true);
   const [previewState, setPreviewState] = React.useState<{ groupIdx: number, itemIdx: number } | null>(null);
   const [scoutPreviewIdx, setScoutPreviewIdx] = React.useState<number | null>(null);
+  const [externalPreviewImg, setExternalPreviewImg] = React.useState<{ url: string; title: string } | null>(null);
 
   const handleFoodSearch = async (groupIdx: number, itemIdx: number, query: string) => {
     const groupKey = `${msg.id}-${groupIdx}`;
@@ -408,6 +424,30 @@ export const FoodCard: React.FC<AgentCardProps> = ({
     return userUploadedImages;
   }, [msg, messages, userUploadedImages, foodLogs]);
 
+  const historicalMsgWithImages = React.useMemo(() => {
+    if (messages) {
+      for (let mIdx = messages.length - 1; mIdx >= 0; mIdx--) {
+        const m = messages[mIdx];
+        if ((m.imageUrls && m.imageUrls.length > 0) || m.imageUrl || m.data?.pendingFoodLog?.imageUrls) {
+          return m;
+        }
+      }
+    }
+    return null;
+  }, [messages]);
+
+  const resolvedMessageImages = React.useMemo(() => {
+    return messageImages.length > 0 
+      ? messageImages 
+      : (historicalMsgWithImages?.data?.pendingFoodLog?.imageUrls || historicalMsgWithImages?.data?.imageUrls || []);
+  }, [messageImages, historicalMsgWithImages]);
+
+  const resolvedScoutItems = React.useMemo(() => {
+    return msg.data?.scoutItems && msg.data.scoutItems.length > 0
+      ? msg.data.scoutItems
+      : (historicalMsgWithImages?.data?.scoutItems || []);
+  }, [msg.data?.scoutItems, historicalMsgWithImages]);
+
   const getNutrientFromTable = (comparisonTable: any, nutrientNameQuery: string, foodIdx: number): string | null => {
     if (!comparisonTable || !comparisonTable.rows) return null;
     const row = comparisonTable.rows.find((r: any) => 
@@ -424,7 +464,8 @@ export const FoodCard: React.FC<AgentCardProps> = ({
 
   const displayGroups = React.useMemo(() => {
     if (!msg.data?.agentResult?.comparison?.groups) return [];
-    const groups = [...msg.data.agentResult.comparison.groups];
+    
+    const rawGroups = [...msg.data.agentResult.comparison.groups];
     
     // Sort logic helper
     const getSuitabilityScore = (suitability: string): number => {
@@ -434,8 +475,71 @@ export const FoodCard: React.FC<AgentCardProps> = ({
       if (s.includes('moderate') || s.includes('medium') || s.includes('caution') || s.includes('amber')) return 1;
       return 0;
     };
+    
     // Sort evaluation groups: most recommended/safest first
-    groups.sort((a, b) => getSuitabilityScore(b.suitability || '') - getSuitabilityScore(a.suitability || ''));
+    rawGroups.sort((a, b) => getSuitabilityScore(b.suitability || '') - getSuitabilityScore(a.suitability || ''));
+    
+    // Enrich each group's items with boundingBox2D and sourceImageIndex from scoutItems
+    const groups = rawGroups.map((g: any) => {
+      const items = (g.items || []).map((item: any) => {
+        const matchingScout = (msg.data?.scoutItems || []).find((s: any) => {
+          const itemName = (item.name || "").toLowerCase();
+          const sKw = (s.keyword || "").toLowerCase();
+          const sOrig = (s.originalName || "").toLowerCase();
+          return (
+            (itemName && sKw && (itemName.includes(sKw) || sKw.includes(itemName))) ||
+            (itemName && sOrig && (itemName.includes(sOrig) || sOrig.includes(itemName))) ||
+            (itemName.split(' ')[0] === sKw.split(' ')[0])
+          );
+        }) || (msg.data?.scoutItems || []).find((s: any) => {
+          const gName = (g.groupName || "").toLowerCase();
+          const sKw = (s.keyword || "").toLowerCase();
+          const sOrig = (s.originalName || "").toLowerCase();
+          return (
+            (gName && sKw && (gName.includes(sKw) || sKw.includes(gName))) ||
+            (gName && sOrig && (gName.includes(sOrig) || sOrig.includes(gName))) ||
+            (gName.split(' ')[0] === sKw.split(' ')[0])
+          );
+        });
+
+        return {
+          ...item,
+          boundingBox2D: item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null),
+          sourceImageIndex: typeof item.sourceImageIndex === 'number' ? item.sourceImageIndex : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0)
+        };
+      });
+
+      // If group has no items, create a default item so it can be previewed
+      const finalItems = items.length > 0 ? items : [
+        {
+          name: g.groupName,
+          boundingBox2D: null,
+          sourceImageIndex: 0
+        }
+      ].map(item => {
+        const matchingScout = (msg.data?.scoutItems || []).find((s: any) => {
+          const gName = (g.groupName || "").toLowerCase();
+          const sKw = (s.keyword || "").toLowerCase();
+          const sOrig = (s.originalName || "").toLowerCase();
+          return (
+            (gName && sKw && (gName.includes(sKw) || sKw.includes(gName))) ||
+            (gName && sOrig && (gName.includes(sOrig) || sOrig.includes(gName))) ||
+            (gName.split(' ')[0] === sKw.split(' ')[0])
+          );
+        });
+        return {
+          ...item,
+          boundingBox2D: matchingScout ? matchingScout.boundingBox2D : null,
+          sourceImageIndex: matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0
+        };
+      });
+
+      return {
+        ...g,
+        items: finalItems
+      };
+    });
+
     // Find missing scout items
     const scoutItems = msg.data?.scoutItems || [];
     if (scoutItems.length > 0) {
@@ -474,6 +578,44 @@ export const FoodCard: React.FC<AgentCardProps> = ({
     }
     return groups;
   }, [msg.data, profile?.topNutrientsToMonitor]);
+
+  // Register parent Action handlers
+  React.useEffect(() => {
+    if (props.actionRef) {
+      props.actionRef.current = {
+        triggerImageSearch: (keys: string[]) => {
+          if (keys.length !== 1) {
+            setSelectorError("Image Search only supports searching one item at a time. Please select exactly 1 item.");
+            return;
+          }
+          setSelectorError("");
+          const [gIdx, iIdx] = keys[0].split('-').map(Number);
+          const name = displayGroups[gIdx]?.items?.[iIdx]?.name;
+          handleFoodSearch(gIdx, iIdx, name);
+        },
+        triggerOriginSearch: (keys: string[]) => {
+          setSelectorError("");
+          const selectedNames = keys.map(key => {
+            const [gIdx, iIdx] = key.split('-').map(Number);
+            return displayGroups[gIdx]?.items?.[iIdx]?.name;
+          });
+          if (handleSend) {
+            handleSend(`Origin search: Provide the historical origin, cooking methods, typical eating occasions, top nutrient impact, and recommendations for: ${selectedNames.join(', ')}. Please include 1-3 Google image search queries for each.`);
+          }
+        },
+        triggerCompareFood: (keys: string[]) => {
+          setSelectorError("");
+          const selectedNames = keys.map(key => {
+            const [gIdx, iIdx] = key.split('-').map(Number);
+            return displayGroups[gIdx]?.items?.[iIdx]?.name;
+          });
+          if (handleSend) {
+            handleSend(`Compare these specific menu items: ${selectedNames.join(', ')}. Rank them best-to-worst based on my health targets.`);
+          }
+        }
+      };
+    }
+  }, [props.actionRef, displayGroups, handleSend]);
 
   return (
     <>
@@ -514,7 +656,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                               {idx > 0 && (
                                 <div className="w-[1px] bg-slate-200 dark:bg-slate-800 self-stretch my-2 shrink-0 mx-[10px]" />
                               )}
-                              <div className="w-[70%] max-w-[420px] shrink-0 snap-align-start flex flex-col relative space-y-3">
+                              <div className="w-[80%] sm:w-[320px] shrink-0 snap-align-start flex flex-col relative space-y-3">
                                 
                                 <div className="flex flex-col gap-1.5">
                                   <h4 className="font-bold text-slate-800 dark:text-slate-100 text-[15px] leading-snug">
@@ -528,6 +670,43 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                     )}
                                   </div>
                                 </div>
+
+                                {/* Re-use exactly same preview picture with zoom action */}
+                                {(() => {
+                                  const itemObj = group.items?.[0];
+                                  const matchingScout = (resolvedScoutItems || []).find((s: any) => {
+                                    const gName = (group.groupName || "").toLowerCase();
+                                    const sKw = (s.keyword || "").toLowerCase();
+                                    const sOrig = (s.originalName || "").toLowerCase();
+                                    return (
+                                      (gName && sKw && (gName.includes(sKw) || sKw.includes(gName))) ||
+                                      (gName && sOrig && (gName.includes(sOrig) || sOrig.includes(gName))) ||
+                                      (gName.split(' ')[0] === sKw.split(' ')[0])
+                                    );
+                                  });
+                                  const bb = itemObj?.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
+                                  const imgIdx = itemObj ? (typeof itemObj.sourceImageIndex === 'number' ? itemObj.sourceImageIndex : 0) : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0);
+                                  const resolvedImgSrc = (resolvedMessageImages.length > 0)
+                                    ? resolvedMessageImages[imgIdx >= 0 && imgIdx < resolvedMessageImages.length ? imgIdx : 0]
+                                    : getFoodImageUrl(group.groupName, '');
+                                  
+                                  return (
+                                    <div className="w-full h-32 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 relative shadow-sm cursor-pointer hover:opacity-90 transition-opacity">
+                                      <FoodScoutItemPreview
+                                        name={group.groupName}
+                                        src={resolvedImgSrc}
+                                        boundingBox={bb}
+                                        imgIdx={imgIdx}
+                                        messageImages={resolvedMessageImages}
+                                        isActive={false}
+                                        isSearchMode={false}
+                                        onClick={() => {
+                                          setPreviewState({ groupIdx: idx, itemIdx: 0 });
+                                        }}
+                                      />
+                                    </div>
+                                  );
+                                })()}
                                 
                                 {/* Aggregated Nutrients - Filters and shows only profile top nutrients */}
                                 <div className="space-y-1">
@@ -630,7 +809,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                      const isLoadingForGroup = !!searchLoading[groupKey];
                                      const searchedItemIdx = searchedItemIndices[groupKey];
                                      const hasTranslations = (group.items || []).some(
-                                       (item: any) => item.originalName && item.keyword && item.originalName.toLowerCase() !== item.keyword.toLowerCase()
+                                       (item: any) => item.originalName && item.originalName.trim().length > 0 && item.originalName.toLowerCase() !== (item.keyword || item.name || "").toLowerCase()
                                      );
                                      return (
                                        <>
@@ -766,7 +945,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                         })}
                       </div>
                       {/* Card-Wide Selection Toolbar */}
-                      {isSelectingMode && selectedItemKeys.length > 0 && (
+                      {isSelectingMode && selectedItemKeys.length > 0 && props.isSelectingMode === undefined && (
                         <div className="mx-4 mb-4 p-3.5 rounded-2xl border border-indigo-150 dark:border-indigo-900 bg-indigo-50/20 dark:bg-indigo-950/10 space-y-3 animate-fade-in font-sans text-left">
                           <div className="flex items-center justify-between border-b border-indigo-100/40 dark:border-indigo-950/30 pb-1.5">
                             <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
@@ -947,50 +1126,92 @@ export const FoodCard: React.FC<AgentCardProps> = ({
           />
         );
       })()}
+      {externalPreviewImg && (
+        <ZoomableImage 
+          src={externalPreviewImg.url} 
+          boundingBox={undefined}
+          onClose={() => setExternalPreviewImg(null)}
+          foodName={externalPreviewImg.title}
+        />
+      )}
       {/* Case F: Food Origin & Details experiential encyclopedia card renderer */}
       {msg.data?.mode === 'origin' && msg.data?.origins && msg.data.origins.length > 0 && (
-        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-4 animation-fade-in w-full max-w-full min-w-0 overflow-hidden font-sans text-left mb-4">
-          <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/50 pb-2">
-            <span className="text-lg">🗺️</span>
-            <span className="text-[12px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-              Food Origin, Preparation & History
-            </span>
+        <div className="space-y-3.5 animation-fade-in w-full max-w-full min-w-0 overflow-hidden bg-transparent font-sans text-left mb-4">
+          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2">
+            <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-1.5 w-full">
+              <span>🗺️ Discovery:</span> <span className="text-emerald-600 dark:text-emerald-400 font-bold">Culinary Origins & History</span>
+            </h4>
           </div>
-          <div className="space-y-6 divide-y divide-slate-100 dark:divide-slate-850">
+
+          {/* Horizontally scrollable culinary cards with vertical dividers */}
+          <div className="flex gap-0 mt-2 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full overscroll-x-contain">
             {msg.data.origins.map((item: any, oIdx: number) => (
-              <div key={oIdx} className={`space-y-3.5 ${oIdx > 0 ? 'pt-5' : ''}`}>
-                <h4 className="text-sm font-extrabold text-slate-900 dark:text-white pb-1 border-b border-slate-100 dark:border-slate-800/60">
-                  {item.foodName}
-                </h4>
-                
-                {/* Horizontal Scrollable Carousel of 1-3 real food pictures */}
-                <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200/50 w-full snap-x snap-mandatory">
-                  {(item.imageQueries || []).slice(0, 3).map((queryStr: string, imgIdx: number) => (
-                    <div key={imgIdx} className="w-[85%] sm:w-64 h-36 flex-shrink-0 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900/50 border border-slate-150 dark:border-slate-800 shadow-inner snap-start">
-                      <OnlineFoodImage 
-                        foodName={queryStr} 
-                        fallbackSrc={getFoodImageUrl(item.foodName)} 
-                        className="w-full h-full object-cover animate-fade-in"
-                      />
+              <React.Fragment key={oIdx}>
+                {oIdx > 0 && (
+                  <div className="w-[1px] bg-slate-200 dark:bg-slate-800 self-stretch my-2 shrink-0 mx-[10px]" />
+                )}
+                <div className="w-[85%] sm:w-[350px] shrink-0 snap-align-start flex flex-col relative space-y-3.5">
+                  <div className="flex flex-col gap-1.5">
+                    <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-[15px] leading-snug">
+                      {item.foodName}
+                    </h4>
+                  </div>
+
+                  {/* Horizontal Scrollable Carousel of 1-3 food pictures with interactive click-to-zoom */}
+                  <div className="flex gap-2 overflow-x-auto pb-1.5 scrollbar-thin scrollbar-thumb-slate-200/50 w-full snap-x snap-mandatory">
+                    {(item.imageQueries || [item.foodName]).slice(0, 3).map((queryStr: string, imgIdx: number) => {
+                      const backupUrl = getFoodImageUrl(item.foodName, '');
+                      return (
+                        <div 
+                          key={imgIdx} 
+                          onClick={() => setExternalPreviewImg({ url: backupUrl, title: item.foodName })}
+                          className="w-[85%] sm:w-64 h-36 flex-shrink-0 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-900/40 border border-slate-150 dark:border-slate-800 relative shadow-inner snap-start cursor-zoom-in hover:opacity-90 transition-opacity"
+                        >
+                          <OnlineFoodImage 
+                            foodName={queryStr} 
+                            fallbackSrc={backupUrl} 
+                            className="w-full h-full object-cover animate-fade-in"
+                          />
+                          <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-slate-900/65 text-[8.5px] font-bold text-white tracking-wide uppercase">
+                            View 🔍
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* Descriptive fields */}
+                  <div className="text-[11.5px] space-y-2.5 text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                    <div className="p-2.5 rounded-lg bg-slate-50/55 dark:bg-slate-900/30 border border-slate-100/50 dark:border-slate-800/30">
+                      <strong className="text-slate-900 dark:text-white flex items-center gap-1 mb-0.5 text-[11px] uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
+                        🌍 Origin & Heritage
+                      </strong>
+                      <span className="text-slate-600 dark:text-slate-350">{item.origin}</span>
                     </div>
-                  ))}
-                </div>
-                <div className="text-[11.5px] space-y-2 text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                  <p>
-                    <strong className="text-slate-900 dark:text-white">🌍 Origin:</strong> {item.origin}
-                  </p>
-                  <p>
-                    <strong className="text-slate-900 dark:text-white">🍳 Traditional Preparation:</strong> {item.howItIsCooked}
-                  </p>
-                  <p>
-                    <strong className="text-slate-900 dark:text-white">🍽️ Typical Occasion:</strong> {item.whenItIsEaten}
-                  </p>
-                  <div className="mt-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/35 border border-slate-100 dark:border-slate-800/40 text-[11px] leading-normal italic text-slate-600 dark:text-slate-400">
-                    <strong className="text-indigo-600 dark:text-indigo-400 font-bold block mb-0.5 not-italic uppercase tracking-wide text-[9.5px]">Nutritional Impact & clinical Recommendation:</strong>
-                    {item.healthImpact}
+
+                    <div className="p-2.5 rounded-lg bg-slate-50/55 dark:bg-slate-900/30 border border-slate-100/50 dark:border-slate-800/30">
+                      <strong className="text-slate-900 dark:text-white flex items-center gap-1 mb-0.5 text-[11px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+                        🍳 Traditional Cooking
+                      </strong>
+                      <span className="text-slate-600 dark:text-slate-350">{item.howItIsCooked}</span>
+                    </div>
+
+                    <div className="p-2.5 rounded-lg bg-slate-50/55 dark:bg-slate-900/30 border border-slate-100/50 dark:border-slate-800/30">
+                      <strong className="text-slate-900 dark:text-white flex items-center gap-1 mb-0.5 text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                        🍽️ Typical Occasions
+                      </strong>
+                      <span className="text-slate-600 dark:text-slate-350">{item.whenItIsEaten}</span>
+                    </div>
+
+                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-indigo-100/50 dark:border-indigo-950/40 text-[11px] leading-normal italic text-slate-600 dark:text-slate-400 shadow-sm">
+                      <strong className="text-indigo-600 dark:text-indigo-400 font-bold block mb-0.5 not-italic uppercase tracking-wide text-[9.5px]">
+                        Clinical Impact & Recommendation:
+                      </strong>
+                      {item.healthImpact}
+                    </div>
                   </div>
                 </div>
-              </div>
+              </React.Fragment>
             ))}
           </div>
         </div>

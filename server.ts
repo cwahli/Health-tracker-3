@@ -5094,41 +5094,47 @@ Respond with a structured JSON format matching this schema exactly:
   }
 });
 
-// Endpoint for custom food image search using either Google Custom Search or Gemini fallback
+// Endpoint for custom food image search using Brave Search API
 app.post("/api/gemini/food-image-search", async (req, res) => {
   const { query } = req.body;
-  addDebugLog(`[FoodImageSearch] Searching for images of "${query}"`);
+  addDebugLog(`[FoodImageSearch] Searching for images of "${query}" using Brave Search API`);
   
   try {
-    const apiKey = process.env.Custom_Search_API || "AIzaSyDGpOvUtgu7fEbpgms1ICuvFvJxi8DMGvA";
-    const cx = process.env.Custom_Search_CX || "40e028bbf9ec84932";
+    const apiKey = process.env.BRAVE_API_KEY || "BSAOKS3uObe_D64mK-K6K6NfOsnv_e5I";
     
-    if (!apiKey || apiKey === "AIzaSyDGpOvUtgu7fEbpgms1ICuvFvJxi8DMGvA") {
+    if (!apiKey) {
       return res.json({
         images: [],
         isAvailable: false,
-        error: "Google Custom Search API Key is not configured on Cloud Run. Please select the correct GCP project (Food search) and create a credentials key."
+        error: "Brave Search API Key (BRAVE_API_KEY) is not configured in environment variables."
       });
     }
-    const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&searchType=image&num=2`;
-    const cseRes = await fetch(url);
-    const data = await cseRes.json();
     
-    if (cseRes.ok && data.items && data.items.length >= 2) {
-      addDebugLog(`[FoodImageSearch] Successfully found images via Google CSE!`);
-      const results = data.items.slice(0, 2).map((item: any) => ({
+    const url = `https://api.search.brave.com/res/v1/images/search?q=${encodeURIComponent(query)}&count=5`;
+    const response = await fetch(url, {
+      headers: {
+        "Accept": "application/json",
+        "X-Subscription-Token": apiKey
+      }
+    });
+    
+    const data = await response.json();
+    
+    if (response.ok && data.results && data.results.length > 0) {
+      addDebugLog(`[FoodImageSearch] Successfully found images via Brave Search API!`);
+      const results = data.results.map((item: any) => ({
         title: item.title,
-        imageUrl: item.link,
-        pageUrl: item.image?.contextLink || `https://www.google.com/search?q=${encodeURIComponent(query)}`
+        imageUrl: item.properties?.url || item.properties?.placeholder || item.url,
+        pageUrl: item.url
       }));
       return res.json({ images: results, isAvailable: true });
     } else {
-      const errMsg = data.error?.message || "No items returned from search.";
-      addDebugLog(`[FoodImageSearch] Google CSE failed. Status: ${cseRes.status}. Message: ${errMsg}`);
+      const errMsg = data.message || "No items returned from search.";
+      addDebugLog(`[FoodImageSearch] Brave Search API failed. Status: ${response.status}. Message: ${errMsg}`);
       return res.json({
         images: [],
         isAvailable: false,
-        error: `Google CSE Error (${cseRes.status}): ${errMsg}`
+        error: `Brave Search Error (${response.status}): ${errMsg}`
       });
     }
   } catch (error: any) {
@@ -5136,7 +5142,7 @@ app.post("/api/gemini/food-image-search", async (req, res) => {
     return res.json({
       images: [],
       isAvailable: false,
-      error: `Network Error: ${error.message || "Failed to contact Google Search API."}`
+      error: `Network Error: ${error.message || "Failed to contact Brave Search API."}`
     });
   }
 });
