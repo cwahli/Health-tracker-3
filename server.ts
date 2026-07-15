@@ -223,8 +223,9 @@ export function buildFoodAnalyzeInstruction(context: {
     sodium?: number | string;
   } | null;
   activeMeal?: any;
+  compareItemCount?: number;
 }): string {
-  const { biomarkersNeedingImprovement, remainingAllowance, activeMeal } = context;
+  const { biomarkersNeedingImprovement, remainingAllowance, activeMeal, compareItemCount = 0 } = context;
 
   const formattedBiomarkers = Array.isArray(biomarkersNeedingImprovement) && biomarkersNeedingImprovement.length > 0
     ? biomarkersNeedingImprovement.map((b: any) => {
@@ -1882,7 +1883,8 @@ CRITICAL RULES:
     const systemInstruction = buildFoodAnalyzeInstruction({
       biomarkersNeedingImprovement,
       remainingAllowance,
-      activeMeal
+      activeMeal,
+      compareItemCount: visionScoutItems ? visionScoutItems.length : 0
     });
 
     let visionScoutCtx = "";
@@ -2019,69 +2021,58 @@ CRITICAL RULES:
           type: Type.OBJECT,
           properties: {
             keyNutrientConcern: { type: Type.STRING, description: "Comma-separated list of 2-3 most critical nutrients to monitor for this patient (e.g., 'Sodium, Saturated Fat, Calories')" },
-            comparisonTitle: { type: Type.STRING, nullable: true },
+            comparisonTitle: { type: Type.STRING },
             groups: {
               type: Type.ARRAY,
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  groupName: { type: Type.STRING },
+                  groupName: { type: Type.STRING, description: "Name of the group or individual food option" },
                   suitability: { type: Type.STRING },
                   pros: { type: Type.STRING },
                   cons: { type: Type.STRING },
                   averageNutrients: {
-                    type: Type.OBJECT, nullable: true, required: ["calories"],
-                    properties: { calories: { type: Type.NUMBER }, protein: { type: Type.NUMBER, nullable: true }, totalFat: { type: Type.NUMBER, nullable: true }, saturatedFat: { type: Type.NUMBER, nullable: true }, sodium: { type: Type.NUMBER, nullable: true }, carbohydrates: { type: Type.NUMBER, nullable: true }, addedSugar: { type: Type.NUMBER, nullable: true }, potassium: { type: Type.NUMBER, nullable: true }, totalFibre: { type: Type.NUMBER, nullable: true } }
+                    type: Type.OBJECT, required: ["calories"],
+                    properties: { 
+                      calories: { type: Type.NUMBER }, 
+                      protein: { type: Type.NUMBER, nullable: true }, 
+                      totalFat: { type: Type.NUMBER, nullable: true }, 
+                      saturatedFat: { type: Type.NUMBER, nullable: true }, 
+                      sodium: { type: Type.NUMBER, nullable: true }, 
+                      carbohydrates: { type: Type.NUMBER, nullable: true }, 
+                      addedSugar: { type: Type.NUMBER, nullable: true }, 
+                      potassium: { type: Type.NUMBER, nullable: true }, 
+                      totalFibre: { type: Type.NUMBER, nullable: true } 
+                    }
                   },
                   scoutItemIndices: {
                     type: Type.ARRAY,
                     items: { type: Type.INTEGER },
                     nullable: true,
-                    description: "Indices (from the '=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===' list) of every item belonging to this group. Use this whenever scout items exist. Every index across all groups must be unique and, together, must cover every item in the scout list."
+                    description: "Indices of scout items in this group. For individual scale mode, this must contain exactly one index."
                   },
                   itemNames: {
                     type: Type.ARRAY,
                     items: { type: Type.STRING },
                     nullable: true,
-                    description: "ONLY used when there is no Visual Food Scout list (a pure text-based comparison with no image). Plain food names being compared. Leave empty/null whenever scoutItemIndices is used."
+                    description: "Plain food names being compared (text-only fallbacks)."
                   },
                   topConcernNutrient: {
                     type: Type.STRING,
                     nullable: true,
-                    description: "The single nutrient (e.g. 'saturatedFat', 'sodium', 'addedSugar') that most defines this group's risk or benefit relative to the other groups."
+                    description: "CRITICAL: Single word representing the nutrient driving risk (e.g., 'saturatedFat', 'sodium'). MAX 15 characters."
                   },
                   keyDifferentiator: {
                     type: Type.STRING,
                     nullable: true,
-                    description: "One short sentence explicitly contrasting this group against the other group(s), e.g. 'Lower sodium than Group 2, but roughly double the saturated fat.'"
+                    description: "One short sentence contrasting this group against the other group(s)."
                   }
                 },
-                required: ["groupName", "suitability", "pros", "cons"]
+                required: ["groupName", "suitability", "pros", "cons", "averageNutrients"]
               }
-            },
-            comparisonTable: {
-              type: Type.OBJECT,
-              nullable: true,
-              description: "Set to null. Backend auto-generates this.",
-              properties: {
-                columns: { type: Type.ARRAY, items: { type: Type.STRING } },
-                rows: {
-                  type: Type.ARRAY,
-                  items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      nutrient: { type: Type.STRING },
-                      values: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      target: { type: Type.STRING }
-                    },
-                    required: ["nutrient", "values", "target"]
-                  }
-                }
-              },
-              required: ["columns", "rows"]
             }
           },
-          required: ["keyNutrientConcern"],
+          required: ["keyNutrientConcern", "comparisonTitle", "groups"],
           nullable: true
         }
       },
