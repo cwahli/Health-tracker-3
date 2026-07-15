@@ -357,10 +357,10 @@ TRANS FAT AVOIDANCE: Trans fat (partially hydrogenated oils) is universally harm
 
 === DATA EXTRACTION DEPTH RULES ===
 1. CORE NUTRIENTS: For EVERY new item, you MUST populate labelNutrientsPerServing with your best clinical estimate per 100g (set servingSizeGrams=100). When a physical label is visible, use the exact label values. When databaseMatches contains a relevant entry, use it to improve your estimate and set dbSource accordingly.
-2. TRACE NUTRIENTS: Do NOT estimate these individually. Instead, output the single most appropriate foodType string for each item (e.g., 'red_meat', 'leafy_veg', 'root_veg', etc.). 
+2. TRACE NUTRIENTS: Do NOT estimate these individually. Instead, output the single most appropriate foodType string for each item (e.g., 'red_meat', 'leafy_veg', 'root_veg', etc.).
 
 === MODE ROUTING DIRECTIVE (STRICTLY ENFORCED) ===
-Operate in one of four distinct modes based on current user intent:
+Operate in one of five distinct modes based on current user intent:
 
 MODE A: NEW FOOD LOGGING 
 - Triggered by a completely new food item description or image of a meal they ate/want to eat. Ignore CURRENT_ACTIVE_MEAL_STATE.
@@ -388,7 +388,7 @@ Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing two 
 - TEXT-ONLY FALLBACK: If no "=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===" section is present (a pure text-based comparison with no image), use "itemNames" instead, listing the plain food names being compared. Leave scoutItemIndices empty in that case.
 - SPECIFICITY FOR PROS/CONS (STRICT): Your 'pros' and 'cons' descriptions for each group must be highly specific, referencing the exact key nutrients (e.g. saturated fat, sodium, calories, sugar). Instead of general phrases like 'high in saturated fat and sodium', you MUST write 'high in saturated fat (average Xg) and sodium (average Ymg)'. If praising an item for being 'lower saturated fat', you MUST specify 'lower saturated fat (average Xg compared to Yg in Group 2)'. Provide clear numerical estimates or ranges based on the average nutrients.
 - GROUPING STRATEGY (STRICT — follow based on item count, do not guess):
-  ${compareItemCount > 0 ? `You have exactly ${compareItemCount} item(s) from the Visual Food Scout — use this exact count for the branch below.` : `No image was provided. Count the distinct foods being discussed in the user's text and use that count for the branch below.`}
+  \${compareItemCount > 0 ? \`You have exactly \${compareItemCount} item(s) from the Visual Food Scout — use this exact count for the branch below.\` : \`No image was provided. Count the distinct foods being discussed in the user's text and use that count for the branch below.\`}
   - 8 OR FEWER distinct items → INDIVIDUAL MODE. Create exactly ONE group per item — do NOT average or bucket multiple items together. Set "groupName" to that single item's own name (not a category name). "averageNutrients" holds that ONE item's real nutrients (not an average of several items). Each group's "scoutItemIndices" (or "itemNames" for text-only) contains exactly one index/name.
   - 9 OR MORE distinct items → BUCKET MODE. Group items into relevant buckets based on shared nutrient profile or base ingredient. 
     CRITICAL: Do NOT group items merely by package size, weight, or portion (e.g., do not use "Family Packs" vs "Single Serve"). 
@@ -397,6 +397,12 @@ Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing two 
   - Either mode: set "topConcernNutrient" to the single nutrient that most defines this group/item's risk or benefit relative to the OTHER groups/items. Set "keyDifferentiator" to one short sentence contrasting this group/item against the other group(s)/item(s), e.g. "Lower sodium than Group 2, but roughly double the saturated fat."
 - Output the specific groups in comparison.groups. Rank the groups best-to-worst for this patient's specific biomarker profile.
 - For each group, provide groupName, suitability, pros (MUST contain numeric macro values/ranges), cons (MUST contain numeric macro values/ranges), topConcernNutrient, keyDifferentiator, averageNutrients, and scoutItemIndices (or itemNames for text-only comparisons). OMIT the comparisonTable entirely.
+
+MODE F: FOOD ORIGIN LOOKUP
+  Triggered ONLY when the user's query asks for details, origin, history, description, or ingredients of specific food items (e.g., "Look up details and food origin for: ...", "Origin search and ingredients for: ...").
+  - Do NOT expect an active meal image or try to log a meal.
+  - Instead, act as an educational encyclopedia agent. Describe the historical origins, traditional preparation, key ingredients, and clinical health profile of the food items.
+  - Set "mode": "origin". Populate the "origins" array. Set foodData and comparison to null.
 
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly.
@@ -1755,7 +1761,7 @@ CRITICAL RULES:
 - 'keyword' MUST be a short, clean, database-friendly English name so the backend search functions successfully (e.g., "beef blade cut", "sweet potato").
 - 'originalName' PRESERVATION: This field is clinically vital. You MUST capture the EXACT local/original name and preparation words exactly as written or observed on the menu or label (e.g., "Yakiimo", "Daging Empal", "Ayam Goreng"). Do NOT translate, normalize, or summarize this field. 
 JSON SCHEMA STRICT REQUIREMENT:
-Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers like json.
+Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers like \`\`\`json.
 
 { 
   "items": [
@@ -1805,6 +1811,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
   "scanCompleteness": "full (all items extracted via items array) | full_dense (extracted via compactSpreadsheet due to high physical density) | partial_text_cap (capped at 100 items due to extreme menu length)",
   "contentType": "individual_food_items | menu_or_poster"
 }`;
+
         try {
           const scoutOutput = await callUnifiedLLM({
             modelId: "gemini-3.1-flash-lite",
@@ -2058,7 +2065,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
     const foodAnalyzeSchema = {
       type: Type.OBJECT,
       properties: {
-        mode: { type: Type.STRING, description: "String indicating active mode: new_log, discussion, modify, or evaluation" },
+        mode: { type: Type.STRING, description: "String indicating active mode: new_log, discussion, modify, evaluation, or origin" },
         message: { type: Type.STRING, description: "A highly personalized conversational response detailing the clinical rationale, biomarker alignment, or modification confirmation." },
         modificationCommand: {
           type: Type.ARRAY,
@@ -2219,6 +2226,23 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
           },
           required: ["keyNutrientConcern", "comparisonTitle", "groups"],
           nullable: true
+        },
+        origins: {
+          type: Type.ARRAY,
+          nullable: true,
+          description: "For origin mode only: list of detailed historical food origin lookup results.",
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              foodName: { type: Type.STRING },
+              origin: { type: Type.STRING, description: "Historical origin country/region and traditional context" },
+              description: { type: Type.STRING, description: "Traditional preparation methods and description" },
+              keyIngredients: { type: Type.ARRAY, items: { type: Type.STRING } },
+              healthProfile: { type: Type.STRING, description: "Clinical analysis and nutritional profile relative to user's biomarkers" },
+              imageSearchQuery: { type: Type.STRING, description: "A Google search query to fetch a real photo of the food" }
+            },
+            required: ["foodName", "origin", "description", "keyIngredients", "healthProfile", "imageSearchQuery"]
+          }
         }
       },
       required: ["mode", "message", "modificationCommand", "foodData", "comparison"]
@@ -2304,6 +2328,18 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
     addDebugLog(`[RouteAgent Chat] Received response from Gemini. Length: ${textOutput.length} chars.`);
 
     const mode = rawParsed.mode || "new_log";
+
+    // CASE F: food origin lookup mode
+    if (mode === "origin") {
+      addDebugLog(`[Mode Routing] ORIGIN mode triggered.`);
+      return res.json({
+        mode: "origin",
+        origins: rawParsed.origins || [],
+        text: rawParsed.message || "Here are the historical details and origins for your selection.",
+        message: rawParsed.message,
+        agentPrompt: fullPromptSent
+      });
+    }
 
     // CASE B: discussion mode
     if (mode === "discussion") {
@@ -5055,10 +5091,10 @@ app.post("/api/gemini/food-image-search", async (req, res) => {
   
   try {
     // 1. Try real Custom Search Engine first if Custom_Search_API is defined
-    const apiKey = process.env.Custom_Search_API;
-    const cx = "40e028bbf9ec84932"; // User-configured CSE ID
+    const apiKey = process.env.Custom_Search_API || "AIzaSyDGpOvUtgu7fEbpgms1ICuvFvJxi8DMGvA";
+    const cx = process.env.Custom_Search_CX || "40e028bbf9ec84932";
     
-    if (apiKey) {
+    if (apiKey && apiKey !== "AIzaSyDGpOvUtgu7fEbpgms1ICuvFvJxi8DMGvA") {
       try {
         const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}&searchType=image&num=2`;
         const cseRes = await fetch(url);
@@ -5078,16 +5114,13 @@ app.post("/api/gemini/food-image-search", async (req, res) => {
       } catch (cseErr: any) {
         addDebugLog(`[FoodImageSearch] Google CSE call threw exception: ${cseErr.message}`);
       }
-    } else {
-      addDebugLog(`[FoodImageSearch] No Custom_Search_API key found. Using Gemini Search Grounding fallback...`);
     }
-
-    // 2. Fallback to Gemini 3.5 Flash to generate highly relevant food image info and Unsplash / web links
+    addDebugLog(`[FoodImageSearch] Using Chained Gemini Search Grounding fallback...`);
+    // 2. Fallback to Chained Gemini Google Search Grounding to find real, active food image URLs
     const geminiKey = process.env.GEMINI_API_KEY;
     if (!geminiKey) {
       throw new Error("GEMINI_API_KEY is not defined");
     }
-
     const aiClient = new GoogleGenAI({
       apiKey: geminiKey,
       httpOptions: {
@@ -5096,17 +5129,26 @@ app.post("/api/gemini/food-image-search", async (req, res) => {
         }
       }
     });
-
+    // Step 2.1: Perform web search using googleSearch grounding tool. Plain text response.
+    const searchResponse = await aiClient.models.generateContent({
+      model: "gemini-2.5-flash", // gemini-2.5-flash is widely supported for grounding tools
+      contents: `Perform a google search to find 2 real, high-quality, valid image URLs of the dish: "${query}" as well as Google Search links or GoFood links. Describe the images and output their direct links.`,
+      config: {
+        tools: [{ googleSearch: {} }] // Enforces real-time search grounding
+      }
+    });
+    // Step 2.2: Use another call with responseMimeType: "application/json" to structure the links found into the schema.
     const response = await aiClient.models.generateContent({
-      model: "gemini-3.5-flash",
-      contents: `You are a food image search engine proxy. Based on the food query: "${query}", generate details for the top 2 matching images.
-      
-For each image, provide:
-- A beautiful, descriptive title (e.g. "Nasi Burung Puyuh Goreng, Kaliabang - GoFood" or "Delicious Fried Quail with Rice and Sayur Asem").
-- A beautiful, valid, and working Unsplash food image URL (e.g. "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80" or other real food images on Unsplash. Try to match the query, or use general high-quality Indonesian food images. E.g., for birds/quails use poultry/chicken style foods, for rice use rice photos, etc.).
-- A Google Search result or GoFood result page URL (e.g. "https://www.google.com/search?q=Nasi+Burung+Puyuh+Goreng+Kaliabang+GoFood" or "https://www.google.com/search?q=${encodeURIComponent(query)}").
-
-Return exactly 2 items in the requested JSON structure.`,
+      model: "gemini-3.1-flash-lite", // Fast structured parser
+      contents: `We performed a web search for "${query}" and found the following search details:
+---
+${searchResponse.text}
+---
+Extract the top 2 matching images. For each image, extract:
+1. Title
+2. Direct Image URL (must be a valid, working image URL from the search grounding results or high-quality Unsplash food image)
+3. Source Page URL
+Format the output strictly to match the requested JSON schema.`,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
@@ -5129,20 +5171,16 @@ Return exactly 2 items in the requested JSON structure.`,
         }
       }
     });
-
-    // If Gemini succeeds, return isAvailable: true
     const parsed = JSON.parse(response.text || "{}");
     if (parsed.images && parsed.images.length > 0) {
-      addDebugLog(`[FoodImageSearch] Successfully found images via Gemini Grounding fallback! Count: ${parsed.images.length}`);
+      addDebugLog(`[FoodImageSearch] Successfully found images via Chained Gemini Grounding! Count: ${parsed.images.length}`);
       return res.json({ images: parsed.images.slice(0, 2), isAvailable: true });
     }
-
     res.json({
       images: [],
       isAvailable: false,
-      error: "Image search is currently unavailable (Google Custom Search API not configured or unauthorized, and Gemini fallback returned no images)."
+      error: "Image search is currently unavailable."
     });
-
   } catch (error: any) {
     console.error("[FoodImageSearch Error]:", error);
     addDebugLog(`[FoodImageSearch] Error: ${error.message}`);

@@ -23,16 +23,12 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
   const targetRef = useRef<HTMLDivElement>(null);
   const { zoomToElement } = React.useContext(React.createContext({ zoomToElement: (el: any, scale: any, time: any) => {} })); // Just a placeholder, we'll get it from render props
   const [highlight, setHighlight] = useState(true);
-  useEffect(() => {
-    if (highlight) {
-      const timer = setTimeout(() => setHighlight(false), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [highlight, src]);
-  // Reset highlight state when image changes
+  // Reset highlight state and trigger smooth transitions when the bounding box coordinates change
   useEffect(() => {
     setHighlight(true);
-  }, [src]);
+    const timer = setTimeout(() => setHighlight(false), 1000);
+    return () => clearTimeout(timer);
+  }, [boundingBox]);
   return (
     <div 
       className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/95 backdrop-blur-md transition-all duration-300"
@@ -71,7 +67,9 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
                     {boundingBox && boundingBox.length === 4 && (
                       <div 
                         id="zoom-target-bbox"
-                        className={`absolute pointer-events-none transition-all duration-700 ${highlight ? 'opacity-100 ring-[6px] ring-emerald-400 bg-emerald-400/20 shadow-[0_0_30px_rgba(52,211,153,0.5)]' : 'opacity-0'} rounded-md`}
+                        className={`absolute pointer-events-none transition-all duration-500 bg-emerald-400/25 border border-emerald-400/40 shadow-[0_0_20px_rgba(52,211,153,0.35)] rounded-md ${
+                          highlight ? 'opacity-100' : 'opacity-0'
+                        }`}
                         style={{
                           top: `${boundingBox[0] / 10}%`,
                           left: `${boundingBox[1] / 10}%`,

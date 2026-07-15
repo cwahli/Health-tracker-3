@@ -1,6 +1,43 @@
 import * as React from 'react';
 import { CroppedFoodImage } from './FoodCard';
 
+const OnlineFoodImage: React.FC<{ foodName: string; fallbackSrc: string; className?: string }> = ({ foodName, fallbackSrc, className }) => {
+  const [src, setSrc] = React.useState<string>("");
+  const [loading, setLoading] = React.useState(true);
+  React.useEffect(() => {
+    let active = true;
+    const fetchImage = async () => {
+      try {
+        const res = await fetch("/api/gemini/food-image-search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: foodName }),
+        });
+        const data = await res.json();
+        if (active && data.images && data.images.length > 0) {
+          setSrc(data.images[0].imageUrl);
+        }
+      } catch (err) {
+        console.warn("Online search failed for", foodName, err);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    fetchImage();
+    return () => { active = false; };
+  }, [foodName]);
+  return (
+    <img 
+      src={src || fallbackSrc} 
+      alt={foodName} 
+      className={`${className} ${loading ? 'animate-pulse bg-slate-100 dark:bg-slate-800' : ''}`}
+      onError={(e) => {
+        (e.target as HTMLImageElement).src = fallbackSrc;
+      }}
+    />
+  );
+};
+
 interface FoodScoutItemPreviewProps {
   name: string;
   src: string;
@@ -46,13 +83,10 @@ export const FoodScoutItemPreview: React.FC<FoodScoutItemPreviewProps> = ({
             sourceImageIndex={imgIdx}
           />
         ) : (
-          <img 
-            src={src} 
-            alt={name}
+          <OnlineFoodImage 
+            foodName={name} 
+            fallbackSrc={src} 
             className="w-full h-full object-cover"
-            onError={(e) => {
-              (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format';
-            }}
           />
         )}
       </div>

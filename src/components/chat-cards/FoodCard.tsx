@@ -12,6 +12,43 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { ZoomableImage } from '../ZoomableImage';
 import { FoodScoutItemPreview } from './FoodScoutItemPreview';
 
+const OnlineFoodImage: React.FC<{ foodName: string; fallbackSrc: string; className?: string }> = ({ foodName, fallbackSrc, className }) => {
+  const [src, setSrc] = React.useState<string>("");
+  const [loading, setLoading] = React.useState(true);
+  React.useEffect(() => {
+    let active = true;
+    const fetchImage = async () => {
+      try {
+        const res = await fetch("/api/gemini/food-image-search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: foodName }),
+        });
+        const data = await res.json();
+        if (active && data.images && data.images.length > 0) {
+          setSrc(data.images[0].imageUrl);
+        }
+      } catch (err) {
+        console.warn("Online search failed for", foodName, err);
+      } finally {
+        if (active) setLoading(false);
+      }
+    };
+    fetchImage();
+    return () => { active = false; };
+  }, [foodName]);
+  return (
+    <img 
+      src={src || fallbackSrc} 
+      alt={foodName} 
+      className={`${className} ${loading ? 'animate-pulse bg-slate-100 dark:bg-slate-800' : ''}`}
+      onError={(e) => {
+        (e.target as HTMLImageElement).src = fallbackSrc;
+      }}
+    />
+  );
+};
+
 interface CroppedFoodImageProps {
   src: string;
   boundingBox: [number, number, number, number]; // [ymin, xmin, ymax, xmax] from 0 to 1000
@@ -487,11 +524,11 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                   </div>
                                 </div>
                                 
-                                {/* Aggregated Nutrients */}
+                                {/* Aggregated Nutrients - Filters and shows only profile top nutrients */}
                                 <div className="space-y-1">
                                   {(() => {
-                                    // List of nutrients to render in consistent, prioritized order
-                                    const keysToRender = ["calories", "saturatedFat", "sodium", "protein", "totalFat", "carbohydrates", "addedSugar", "potassium", "totalFibre"];
+                                    // Filter comparison nutrients to match the profile top nutrients configuration
+                                    const keysToRender = profile?.topNutrientsToMonitor || ["calories", "saturatedFat", "sodium"];
                                     
                                     return keysToRender.map((k) => {
                                       const v = group.averageNutrients?.[k];
@@ -775,7 +812,6 @@ export const FoodCard: React.FC<AgentCardProps> = ({
         if (!group) return null;
         const item = group.items?.[previewState.itemIdx];
         if (!item) return null;
-
         // Resolve its image source and bounding box:
         const matchingScout = (msg.data?.scoutItems || []).find((s: any) => 
           (item.name || "").toLowerCase().includes((s.keyword || "").toLowerCase()) || 
@@ -789,9 +825,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
           ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
           : getFoodImageUrl(item.name, '');
         const bb = item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
-
         const itemDisplayName = showTranslated ? (item.keyword || item.name) : (item.originalName || item.name);
-
         return (
           <ZoomableImage 
             src={resolvedImgSrc} 
@@ -805,7 +839,6 @@ export const FoodCard: React.FC<AgentCardProps> = ({
           />
         );
       })()}
-
       {(() => {
         if (scoutPreviewIdx === null) return null;
         const activeScoutItems = (() => {
@@ -821,13 +854,11 @@ export const FoodCard: React.FC<AgentCardProps> = ({
         })();
         const item = activeScoutItems[scoutPreviewIdx];
         if (!item) return null;
-
         const imgIdx = typeof item.sourceImageIndex === 'number' ? item.sourceImageIndex : 0;
         const resolvedImgSrc = (messageImages.length > 0)
           ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
           : getFoodImageUrl(item.keyword);
         const bb = item.boundingBox2D || null;
-
         return (
           <ZoomableImage 
             src={resolvedImgSrc} 
@@ -841,6 +872,49 @@ export const FoodCard: React.FC<AgentCardProps> = ({
           />
         );
       })()}
+      {/* Case F: Food Origin & Details encyclopedia card renderer */}
+      {msg.data?.mode === 'origin' && msg.data?.origins && msg.data.origins.length > 0 && (
+        <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-4 animation-fade-in w-full max-w-full min-w-0 overflow-hidden font-sans text-left mb-4">
+          <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/50 pb-2">
+            <span className="text-lg">🗺️</span>
+            <span className="text-[12px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+              Food Origin & History
+            </span>
+          </div>
+          <div className="space-y-6 divide-y divide-slate-100 dark:divide-slate-800">
+            {msg.data.origins.map((item, oIdx) => (
+              <div key={oIdx} className={`space-y-3 ${oIdx > 0 ? 'pt-4' : ''}`}>
+                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+                  {item.foodName}
+                </h4>
+                {/* Dynamic Online Image Search with fallback to unsplash plate */}
+                <div className="w-full h-44 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900/50 border border-slate-150 dark:border-slate-800 shadow-inner">
+                  <OnlineFoodImage 
+                    foodName={item.imageSearchQuery} 
+                    fallbackSrc={getFoodImageUrl(item.foodName)} 
+                    className="w-full h-full object-cover animate-fade-in"
+                  />
+                </div>
+                <div className="text-[11.5px] space-y-2 text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+                  <p>
+                    <strong className="text-slate-900 dark:text-white">🌍 Origin:</strong> {item.origin}
+                  </p>
+                  <p>
+                    <strong className="text-slate-900 dark:text-white">📝 Description:</strong> {item.description}
+                  </p>
+                  <p>
+                    <strong className="text-slate-900 dark:text-white">🧂 Key Ingredients:</strong> {item.keyIngredients.join(', ')}
+                  </p>
+                  <div className="mt-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/35 border border-slate-100 dark:border-slate-800/40 text-[11px] leading-normal italic text-slate-600 dark:text-slate-400">
+                    <strong className="text-indigo-600 dark:text-indigo-400 font-bold block mb-0.5 not-italic uppercase tracking-wide text-[9.5px]">Nutritional & Clinical Profile:</strong>
+                    {item.healthProfile}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
                   {msg.data?.pendingFoodLog && (
                     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden font-sans">
@@ -850,12 +924,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                         </div>
                       )}
                       
-                      {/* Unified display of agent detailed clinical prose inside the card */}
-                      {msg.content && (
-                        <div className="text-[11.5px] text-slate-800 dark:text-slate-100 bg-slate-50/50 dark:bg-slate-900/30 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800/40 leading-relaxed whitespace-pre-line mb-3 font-sans text-left">
-                          {typeof msg.content === 'string' ? msg.content.replace(/^Information extracted\.?\s*/i, '') : msg.content}
-                        </div>
-                      )}
+
 
                       {(() => {
                         const activeScoutItems = (() => {
