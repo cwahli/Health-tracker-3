@@ -275,12 +275,14 @@ export const FoodCard: React.FC<AgentCardProps> = ({
   const [fullScreenImg, setFullScreenImg] = React.useState<{ src: string, boundingBox?: number[], foodName?: string, navItems?: { src: string, boundingBox?: number[], foodName?: string }[], navIndex?: number } | null>(null);
 
   const [searchModes, setSearchModes] = React.useState<Record<string, boolean>>({});
+  const [searchedItemIndices, setSearchedItemIndices] = React.useState<Record<string, number>>({});
   const [searchResults, setSearchResults] = React.useState<Record<string, Array<{title: string, imageUrl: string, pageUrl: string}>>>({});
   const [searchLoading, setSearchLoading] = React.useState<Record<string, boolean>>({});
   const [groupExpanded, setGroupExpanded] = React.useState<Record<string, boolean>>({});
 
-  const handleFoodSearch = async (groupIdx: number, query: string) => {
+  const handleFoodSearch = async (groupIdx: number, itemIdx: number, query: string) => {
     const groupKey = `${msg.id}-${groupIdx}`;
+    setSearchedItemIndices(prev => ({ ...prev, [groupKey]: itemIdx }));
     setSearchLoading(prev => ({ ...prev, [groupKey]: true }));
     setSearchModes(prev => ({ ...prev, [groupKey]: true }));
     try {
@@ -292,9 +294,13 @@ export const FoodCard: React.FC<AgentCardProps> = ({
       const data = await response.json();
       if (data.images && data.images.length > 0) {
         setSearchResults(prev => ({ ...prev, [groupKey]: data.images }));
+      } else {
+        // Clear previous and set empty array (could indicate isAvailable: false)
+        setSearchResults(prev => ({ ...prev, [groupKey]: [] }));
       }
     } catch (e) {
       console.error("Search error:", e);
+      setSearchResults(prev => ({ ...prev, [groupKey]: [] }));
     } finally {
       setSearchLoading(prev => ({ ...prev, [groupKey]: false }));
     }
@@ -495,39 +501,48 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                     }).filter(index => index !== -1);
 
                                     const hasTextOnlyItems = textOnlyIndices.length > 0;
-                                    const searchedItemIdx = textOnlyIndices[0]; // defaults to the first text-only item
 
                                     const groupKey = `${msg.id}-${idx}`;
                                     const isSearchActive = !!searchModes[groupKey];
                                     const resultsForGroup = searchResults[groupKey] || [];
                                     const isLoadingForGroup = !!searchLoading[groupKey];
+                                    const searchedItemIdx = searchedItemIndices[groupKey]; // state-managed, may be undefined
 
                                     return (
                                       <>
                                         {/* Label area with Search trigger next to it */}
                                         <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2.5 flex items-center justify-between w-full font-sans">
                                           <span>Foods in this group ({group.items?.length || 0})</span>
-                                          {hasTextOnlyItems && (
-                                            <button
-                                              type="button"
-                                              onClick={() => {
-                                                if (isSearchActive) {
-                                                  setSearchModes(prev => ({ ...prev, [groupKey]: false }));
-                                                } else {
-                                                  const searchName = group.items[searchedItemIdx]?.name || "";
-                                                  handleFoodSearch(idx, searchName);
-                                                }
-                                              }}
-                                              className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-all text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer"
-                                              title={isSearchActive ? "Close image search" : "Search image for menu items"}
-                                            >
-                                              {isSearchActive ? (
-                                                <X className="w-3.5 h-3.5 stroke-[2.5px]" />
-                                              ) : (
-                                                <Search className="w-3.5 h-3.5 stroke-[2.5px]" />
-                                              )}
-                                            </button>
-                                          )}
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              if (isSearchActive) {
+                                                // Close and reset search state for this group
+                                                setSearchModes(prev => ({ ...prev, [groupKey]: false }));
+                                                setSearchedItemIndices(prev => {
+                                                  const copy = { ...prev };
+                                                  delete copy[groupKey];
+                                                  return copy;
+                                                });
+                                                setSearchResults(prev => {
+                                                  const copy = { ...prev };
+                                                  delete copy[groupKey];
+                                                  return copy;
+                                                });
+                                              } else {
+                                                // Open search mode - DO NOT run search automatically
+                                                setSearchModes(prev => ({ ...prev, [groupKey]: true }));
+                                              }
+                                            }}
+                                            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-md transition-all text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer"
+                                            title={isSearchActive ? "Close image search" : "Search image for menu items"}
+                                          >
+                                            {isSearchActive ? (
+                                              <X className="w-3.5 h-3.5 stroke-[2.5px]" />
+                                            ) : (
+                                              <Search className="w-3.5 h-3.5 stroke-[2.5px]" />
+                                            )}
+                                          </button>
                                         </div>
 
                                         {/* Collapsible container using the GroupItemsContainer */}
@@ -536,21 +551,27 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                           isExpanded={!!groupExpanded[groupKey]}
                                           onToggle={() => setGroupExpanded(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))}
                                         >
-                                          <div className={isSearchActive || !!msg.data?.agentResult?.comparison?.isMenuScale ? "grid grid-cols-2 sm:grid-cols-3 gap-2 w-full pb-8" : "grid grid-cols-3 sm:grid-cols-4 gap-3 w-full pb-8"}>
+                                          <div className={isSearchActive || !!msg.data?.agentResult?.comparison?.isMenuScale ? "grid grid-cols-2 sm:grid-cols-3 gap-2 w-full pb-8 animate-fade-in" : "grid grid-cols-3 sm:grid-cols-4 gap-3 w-full pb-8"}>
                                             {/* A. If search is active, render search results / loading placeholder FIRST as full width */}
                                             {isSearchActive && (
-                                              <div className="col-span-full flex flex-col gap-2.5 w-full mb-3 pb-3 border-b border-slate-100 dark:border-slate-800/60">
-                                                {isLoadingForGroup ? (
-                                                  <div className="grid grid-cols-2 gap-2 w-full">
-                                                    <div className="w-full aspect-[4/3] rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse flex items-center justify-center text-[10px] text-slate-400">
-                                                      Searching images...
+                                              <div className="col-span-full flex flex-col gap-2.5 w-full mb-3 pb-3 border-b border-slate-100 dark:border-slate-800/60 font-sans">
+                                                {searchedItemIdx === undefined ? (
+                                                  <div className="text-[10.5px] text-indigo-600 dark:text-indigo-400 font-semibold text-center py-4 bg-indigo-50/20 dark:bg-indigo-950/10 rounded-xl border border-dashed border-indigo-200 dark:border-indigo-900/50 animate-pulse">
+                                                    🔍 Click on any food option below to search for its image!
+                                                  </div>
+                                                ) : isLoadingForGroup ? (
+                                                  <div className="grid grid-cols-2 gap-2 w-full animate-pulse">
+                                                    <div className="w-full aspect-[4/3] rounded-lg bg-slate-100 dark:bg-slate-850 flex flex-col items-center justify-center text-[10px] text-slate-400 dark:text-slate-500 gap-1 p-2">
+                                                      <span className="font-semibold text-center line-clamp-1">Searching image for:</span>
+                                                      <span className="italic text-center text-[9px] line-clamp-1 font-mono">"{group.items[searchedItemIdx]?.name}"</span>
                                                     </div>
-                                                    <div className="w-full aspect-[4/3] rounded-lg bg-slate-100 dark:bg-slate-800 animate-pulse flex items-center justify-center text-[10px] text-slate-400">
-                                                      Searching images...
+                                                    <div className="w-full aspect-[4/3] rounded-lg bg-slate-100 dark:bg-slate-850 flex flex-col items-center justify-center text-[10px] text-slate-400 dark:text-slate-500 gap-1 p-2">
+                                                      <span className="font-semibold text-center line-clamp-1">Searching image for:</span>
+                                                      <span className="italic text-center text-[9px] line-clamp-1 font-mono">"{group.items[searchedItemIdx]?.name}"</span>
                                                     </div>
                                                   </div>
                                                 ) : resultsForGroup.length > 0 ? (
-                                                  <div className="grid grid-cols-2 gap-2 w-full">
+                                                  <div className="grid grid-cols-2 gap-2 w-full animate-fade-in">
                                                     {resultsForGroup.map((img, rIdx) => (
                                                       <a 
                                                         key={rIdx}
@@ -574,41 +595,53 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                                     ))}
                                                   </div>
                                                 ) : (
-                                                  <div className="text-[10.5px] text-slate-500 dark:text-slate-400 italic text-center py-2">
-                                                    No images found.
+                                                  <div className="text-[10.5px] text-slate-500 dark:text-slate-400 italic text-center py-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800/80">
+                                                    ⚠️ Image search is currently unavailable for "{group.items[searchedItemIdx]?.name}"
+                                                    <div className="text-[9px] text-slate-400 mt-1">Google Custom Search API not authorized or Gemini experiencing high demand.</div>
                                                   </div>
                                                 )}
-
-                                                {/* Searched item name wraps, clicking triggers standard zoom */}
-                                                <div 
-                                                  className="w-full flex items-center justify-center p-2.5 rounded-xl border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/30 dark:bg-indigo-950/20 cursor-pointer shadow-sm hover:border-indigo-500 hover:shadow transition-all text-center min-h-[52px]"
-                                                  onClick={() => setFullScreenImg({ ...groupPreviewItems[searchedItemIdx], navItems: groupPreviewItems, navIndex: searchedItemIdx })}
-                                                >
-                                                  <span className="text-[11px] font-semibold leading-tight text-indigo-700 dark:text-indigo-300 break-words text-center lowercase">
-                                                    {group.items[searchedItemIdx]?.name}
-                                                  </span>
-                                                </div>
+                                                
+                                                {searchedItemIdx !== undefined && (
+                                                  <div 
+                                                    className="w-full flex items-center justify-center p-2 rounded-xl border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/30 dark:bg-indigo-950/20 shadow-sm transition-all text-center"
+                                                  >
+                                                    <span className="text-[10px] font-semibold leading-tight text-indigo-700 dark:text-indigo-300 break-words text-center lowercase">
+                                                      searched: <span className="font-bold underline">{group.items[searchedItemIdx]?.name}</span>
+                                                    </span>
+                                                  </div>
+                                                )}
                                               </div>
                                             )}
 
-                                            {/* B. Render all items normally, but skip searchedItemIdx if search is active */}
+                                            {/* B. Render all items normally */}
                                             {(group.items || []).map((item: any, itemIdx: number) => {
-                                              if (isSearchActive && itemIdx === searchedItemIdx) return null;
-
                                               const { src: resolvedImgSrc, boundingBox: bb, imgIdx } = groupPreviewItems[itemIdx];
                                               const height = bb ? Math.abs(bb[2] - bb[0]) : 0;
                                               const width = bb ? Math.abs(bb[3] - bb[1]) : 0;
                                               const aspect = height > 0 ? width / height : 0;
                                               const isTextOnly = !bb || bb.length < 4 || (height < 25 && aspect > 2.5);
+                                              const isActiveSearchItem = isSearchActive && searchedItemIdx === itemIdx;
 
                                               if (isTextOnly) {
                                                 return (
                                                   <div 
                                                     key={itemIdx} 
-                                                    className="flex items-center justify-center p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 cursor-pointer shadow-sm hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 hover:shadow transition-all text-center min-h-[52px]"
-                                                    onClick={() => setFullScreenImg({ ...groupPreviewItems[itemIdx], navItems: groupPreviewItems, navIndex: itemIdx })}
+                                                    className={`flex items-center justify-center p-2.5 rounded-xl border cursor-pointer shadow-sm transition-all duration-200 text-center min-h-[52px] ${
+                                                      isActiveSearchItem 
+                                                        ? "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 ring-4 ring-indigo-500/50 shadow-md font-bold scale-[1.03]" 
+                                                        : isSearchActive 
+                                                          ? "border-slate-200 dark:border-slate-800 bg-slate-50/20 dark:bg-slate-900/10 hover:border-indigo-400 hover:bg-indigo-50/20 hover:scale-[1.01]" 
+                                                          : "border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 hover:shadow"
+                                                    }`}
+                                                    onClick={() => {
+                                                      if (isSearchActive) {
+                                                        handleFoodSearch(idx, itemIdx, item.name);
+                                                      } else {
+                                                        setFullScreenImg({ ...groupPreviewItems[itemIdx], navItems: groupPreviewItems, navIndex: itemIdx });
+                                                      }
+                                                    }}
                                                   >
-                                                    <span className="text-[11px] font-semibold leading-tight text-slate-700 dark:text-slate-300 break-words text-center lowercase">
+                                                    <span className={`text-[11px] font-semibold leading-tight break-words text-center lowercase ${isActiveSearchItem ? "text-indigo-700 dark:text-indigo-300 font-bold" : "text-slate-700 dark:text-slate-300"}`}>
                                                       {item.name}
                                                     </span>
                                                   </div>
@@ -623,7 +656,15 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                                   boundingBox={bb}
                                                   imgIdx={imgIdx}
                                                   messageImages={messageImages}
-                                                  onClick={() => setFullScreenImg({ ...groupPreviewItems[itemIdx], navItems: groupPreviewItems, navIndex: itemIdx })}
+                                                  isActive={isActiveSearchItem}
+                                                  isSearchMode={isSearchActive}
+                                                  onClick={() => {
+                                                    if (isSearchActive) {
+                                                      handleFoodSearch(idx, itemIdx, item.name);
+                                                    } else {
+                                                      setFullScreenImg({ ...groupPreviewItems[itemIdx], navItems: groupPreviewItems, navIndex: itemIdx });
+                                                    }
+                                                  }}
                                                 />
                                               );
                                             })}

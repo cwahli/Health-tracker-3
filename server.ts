@@ -5073,7 +5073,7 @@ app.post("/api/gemini/food-image-search", async (req, res) => {
             imageUrl: item.link,
             pageUrl: item.image?.contextLink || `https://www.google.com/search?q=${encodeURIComponent(query)}`
           }));
-          return res.json({ images: results });
+          return res.json({ images: results, isAvailable: true });
         } else {
           addDebugLog(`[FoodImageSearch] Google CSE did not return valid items or failed. Status: ${cseRes.status}. Message: ${data.error?.message || "No items found"}`);
         }
@@ -5132,46 +5132,26 @@ Return exactly 2 items in the requested JSON structure.`,
       }
     });
 
+    // If Gemini succeeds, return isAvailable: true
     const parsed = JSON.parse(response.text || "{}");
     if (parsed.images && parsed.images.length > 0) {
       addDebugLog(`[FoodImageSearch] Successfully found images via Gemini Grounding fallback! Count: ${parsed.images.length}`);
-      return res.json({ images: parsed.images.slice(0, 2) });
+      return res.json({ images: parsed.images.slice(0, 2), isAvailable: true });
     }
 
-    // Ultimate fallback if parsing/Gemini fails
-    const defaultSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
     res.json({
-      images: [
-        {
-          title: `${query} - Unsplash Food`,
-          imageUrl: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80",
-          pageUrl: defaultSearchUrl
-        },
-        {
-          title: `${query} - Google Search`,
-          imageUrl: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80",
-          pageUrl: defaultSearchUrl
-        }
-      ]
+      images: [],
+      isAvailable: false,
+      error: "Image search is currently unavailable (Google Custom Search API not configured or unauthorized, and Gemini fallback returned no images)."
     });
 
   } catch (error: any) {
     console.error("[FoodImageSearch Error]:", error);
     addDebugLog(`[FoodImageSearch] Error: ${error.message}`);
-    const defaultSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
     res.json({
-      images: [
-        {
-          title: `${query} - Google Search`,
-          imageUrl: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?auto=format&fit=crop&w=600&q=80",
-          pageUrl: defaultSearchUrl
-        },
-        {
-          title: `${query} - Google Images`,
-          imageUrl: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?auto=format&fit=crop&w=600&q=80",
-          pageUrl: defaultSearchUrl
-        }
-      ]
+      images: [],
+      isAvailable: false,
+      error: `Image search is currently unavailable (${error.message || "service temporary unavailable"}).`
     });
   }
 });
