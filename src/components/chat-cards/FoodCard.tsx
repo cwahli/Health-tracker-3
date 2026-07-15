@@ -317,9 +317,12 @@ export const FoodCard: React.FC<AgentCardProps> = ({
   const [searchLoading, setSearchLoading] = React.useState<Record<string, boolean>>({});
   const [groupExpanded, setGroupExpanded] = React.useState<Record<string, boolean>>({});
 
-  // Selection hooks for Multi-Select Image CSE / Origin Agent Search / Subset Comparison
-  const [selectingGroupIdx, setSelectingGroupIdx] = React.useState<number | null>(null);
-  const [selectedItemIdxs, setSelectedItemIdxs] = React.useState<number[]>([]);
+  // Selection hooks for Card-Wide Multi-Select
+  const [isSelectingMode, setIsSelectingMode] = React.useState<boolean>(false);
+  const [selectedItemKeys, setSelectedItemKeys] = React.useState<string[]>([]); // stores "groupIdx-itemIdx"
+  const [selectorError, setSelectorError] = React.useState<string>("");
+  const [searchErrors, setSearchErrors] = React.useState<Record<string, string>>({});
+  
   const [showTranslated, setShowTranslated] = React.useState<boolean>(false);
   const [previewState, setPreviewState] = React.useState<{ groupIdx: number, itemIdx: number } | null>(null);
   const [scoutPreviewIdx, setScoutPreviewIdx] = React.useState<number | null>(null);
@@ -329,6 +332,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
     setSearchedItemIndices(prev => ({ ...prev, [groupKey]: itemIdx }));
     setSearchLoading(prev => ({ ...prev, [groupKey]: true }));
     setSearchModes(prev => ({ ...prev, [groupKey]: true }));
+    setSearchErrors(prev => ({ ...prev, [groupKey]: "" }));
     try {
       const response = await fetch("/api/gemini/food-image-search", {
         method: "POST",
@@ -339,12 +343,13 @@ export const FoodCard: React.FC<AgentCardProps> = ({
       if (data.images && data.images.length > 0) {
         setSearchResults(prev => ({ ...prev, [groupKey]: data.images }));
       } else {
-        // Clear previous and set empty array (could indicate isAvailable: false)
         setSearchResults(prev => ({ ...prev, [groupKey]: [] }));
+        setSearchErrors(prev => ({ ...prev, [groupKey]: data.error || "No images returned." }));
       }
-    } catch (e) {
+    } catch (e: any) {
       console.error("Search error:", e);
       setSearchResults(prev => ({ ...prev, [groupKey]: [] }));
+      setSearchErrors(prev => ({ ...prev, [groupKey]: e.message || "Failed to load Google Search API." }));
     } finally {
       setSearchLoading(prev => ({ ...prev, [groupKey]: false }));
     }
@@ -568,15 +573,33 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                     </p>
                                   )}
                                 </div>
-                                
-                                {/* Items in this bucket */}
+                                                         {/* Items in this bucket */}
                                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800/50">
                                    {(() => {
-                                     const isSelectingThisGroup = selectingGroupIdx === idx;
                                      const isMenuOrPoster = msg.data?.scoutContentType === 'menu_or_poster';
+                                     
+                                     // Look back in messages history to find original uploads containing images
+                                     const historicalMsgWithImages = (() => {
+                                       const currentImgs = msg.data?.pendingFoodLog?.imageUrls || msg.data?.imageUrls || [];
+                                       if (currentImgs.length > 0) return msg;
+                                       if (messages) {
+                                         for (let mIdx = messages.length - 1; mIdx >= 0; mIdx--) {
+                                           const m = messages[mIdx];
+                                           const mImages = m.data?.pendingFoodLog?.imageUrls || m.data?.imageUrls || [];
+                                           if (mImages.length > 0) return m;
+                                         }
+                                       }
+                                       return null;
+                                     })();
+                                     const resolvedMessageImages = messageImages.length > 0 
+                                       ? messageImages 
+                                       : (historicalMsgWithImages?.data?.pendingFoodLog?.imageUrls || historicalMsgWithImages?.data?.imageUrls || []);
+                                     const resolvedScoutItems = msg.data?.scoutItems && msg.data.scoutItems.length > 0
+                                       ? msg.data.scoutItems
+                                       : (historicalMsgWithImages?.data?.scoutItems || []);
                                      // 1. Precompute groupPreviewItems
                                      const groupPreviewItems = (group.items || []).map((item: any) => {
-                                       const matchingScout = (msg.data?.scoutItems || []).find((s: any) => 
+                                       const matchingScout = (resolvedScoutItems || []).find((s: any) => 
                                          (item.name || "").toLowerCase().includes((s.keyword || "").toLowerCase()) || 
                                          (s.keyword || "").toLowerCase().includes((item.name || "").toLowerCase()) ||
                                          (item.name || "").toLowerCase().split(' ')[0] === (s.keyword || "").toLowerCase().split(' ')[0]
@@ -584,8 +607,8 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                        const imgIdx = typeof item.sourceImageIndex === 'number' 
                                          ? item.sourceImageIndex 
                                          : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0);
-                                       const resolvedImgSrc = (messageImages.length > 0)
-                                         ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
+                                       const resolvedImgSrc = (resolvedMessageImages.length > 0)
+                                         ? resolvedMessageImages[imgIdx >= 0 && imgIdx < resolvedMessageImages.length ? imgIdx : 0]
                                          : getFoodImageUrl(item.name, '');
                                        const bb = item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
                                        return { src: resolvedImgSrc, boundingBox: bb, foodName: item.name, imgIdx };
@@ -627,18 +650,14 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                              <button
                                                type="button"
                                                onClick={() => {
-                                                 if (isSelectingThisGroup) {
-                                                   setSelectingGroupIdx(null);
-                                                   setSelectedItemIdxs([]);
-                                                 } else {
-                                                   setSelectingGroupIdx(idx);
-                                                   setSelectedItemIdxs([]);
-                                                   // Deactivate standard single-search CSE if running
-                                                   setSearchModes(prev => ({ ...prev, [groupKey]: false }));
-                                                 }
+                                                 setIsSelectingMode(!isSelectingMode);
+                                                 setSelectedItemKeys([]);
+                                                 setSelectorError("");
+                                                 // Deactivate standard single-search CSE if running
+                                                 setSearchModes(prev => ({ ...prev, [groupKey]: false }));
                                                }}
                                                className={`p-1 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-md transition-all cursor-pointer ${
-                                                 isSelectingThisGroup ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40' : 'text-slate-400'
+                                                 isSelectingMode ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40' : 'text-slate-400'
                                                }`}
                                                title="Multi-select items for search or comparison"
                                              >
@@ -654,7 +673,7 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                          >
                                            {/* Search results display if CSE search was triggered */}
                                            {isSearchActive && (
-                                             <div className="w-full space-y-2 mb-3 pb-3 border-b border-slate-100 dark:border-slate-850">
+                                             <div className="w-full space-y-2 mb-3 pb-3 border-b border-slate-100 dark:border-slate-850 font-sans">
                                                {isLoadingForGroup ? (
                                                  <div className="text-[10px] text-indigo-500 animate-pulse text-center">Searching images...</div>
                                                ) : resultsForGroup.length > 0 ? (
@@ -667,15 +686,18 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                                    ))}
                                                  </div>
                                                ) : (
-                                                 <div className="text-[9px] text-slate-400 mt-1 text-center">Google Custom Search API not authorized or no images found.</div>
+                                                 <div className="text-[9.5px] text-rose-500 dark:text-rose-400 bg-rose-50/50 dark:bg-rose-950/20 p-2 rounded-lg border border-rose-200/40 text-center leading-normal font-bold">
+                                                   ⚠️ Search Error: ${searchErrors[groupKey] || "Google Custom Search API did not return valid items."}
+                                                 </div>
                                                )}
                                              </div>
                                            )}
-                                           <div className={hasDishesImages ? "grid grid-cols-3 sm:grid-cols-4 gap-3 w-full pb-8" : "flex flex-wrap gap-2 w-full pb-8"}>
+                                            <div className={hasDishesImages ? "grid grid-cols-3 sm:grid-cols-4 gap-3 w-full pb-8" : "flex flex-wrap gap-2 w-full pb-8"}>
                                              {(group.items || []).map((item: any, itemIdx: number) => {
                                                const { src: resolvedImgSrc, boundingBox: bb, imgIdx } = groupPreviewItems[itemIdx];
                                                const isTextOnly = textOnlyIndices.includes(itemIdx);
-                                               const isSelected = selectedItemIdxs.includes(itemIdx);
+                                               const itemKey = `${idx}-${itemIdx}`;
+                                               const isSelected = selectedItemKeys.includes(itemKey);
                                                const itemDisplayName = showTranslated ? (item.keyword || item.name) : (item.originalName || item.name);
                                                if (isTextOnly) {
                                                  return (
@@ -684,16 +706,16 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                                      className={`flex items-center justify-center p-2 rounded-xl border cursor-pointer shadow-sm transition-all duration-200 text-center min-h-[48px] ${
                                                        isSelected 
                                                          ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 ring-2 ring-indigo-500/50 shadow-md font-bold scale-[1.02]' 
-                                                         : isSelectingThisGroup 
+                                                         : isSelectingMode 
                                                            ? 'border-slate-200 dark:border-slate-800 bg-slate-50/20 dark:bg-slate-900/10 hover:border-indigo-400 hover:bg-indigo-50/20 hover:scale-[1.01]' 
                                                            : 'border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 hover:shadow'
                                                      }`}
                                                      onClick={() => {
-                                                       if (isSelectingThisGroup) {
-                                                         setSelectedItemIdxs(prev => 
-                                                           prev.includes(itemIdx) 
-                                                             ? prev.filter(i => i !== itemIdx) 
-                                                             : [...prev, itemIdx]
+                                                       if (isSelectingMode) {
+                                                         setSelectedItemKeys(prev => 
+                                                           prev.includes(itemKey) 
+                                                             ? prev.filter(k => k !== itemKey) 
+                                                             : [...prev, itemKey]
                                                          );
                                                        } else {
                                                          setPreviewState({ groupIdx: idx, itemIdx: itemIdx });
@@ -713,15 +735,15 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                                    src={resolvedImgSrc}
                                                    boundingBox={bb}
                                                    imgIdx={imgIdx}
-                                                   messageImages={messageImages}
+                                                   messageImages={resolvedMessageImages}
                                                    isActive={isSelected}
-                                                   isSearchMode={isSelectingThisGroup}
+                                                   isSearchMode={isSelectingMode}
                                                    onClick={() => {
-                                                     if (isSelectingThisGroup) {
-                                                       setSelectedItemIdxs(prev => 
-                                                         prev.includes(itemIdx) 
-                                                           ? prev.filter(i => i !== itemIdx) 
-                                                           : [...prev, itemIdx]
+                                                     if (isSelectingMode) {
+                                                       setSelectedItemKeys(prev => 
+                                                         prev.includes(itemKey) 
+                                                           ? prev.filter(k => k !== itemKey) 
+                                                           : [...prev, itemKey]
                                                        );
                                                      } else {
                                                        setPreviewState({ groupIdx: idx, itemIdx: itemIdx });
@@ -732,64 +754,6 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                                              })}
                                            </div>
                                          </GroupItemsContainer>
-                                         {/* Floating Actions Selector Panel */}
-                                         {isSelectingThisGroup && selectedItemIdxs.length > 0 && (
-                                           <div className="mt-3 p-3 rounded-xl border border-indigo-100 dark:border-indigo-900 bg-indigo-50/20 dark:bg-indigo-950/10 space-y-2 animate-fade-in font-sans">
-                                             <div className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-                                               Selected ({selectedItemIdxs.length}) item(s):
-                                             </div>
-                                             <div className="flex flex-wrap gap-1.5">
-                                               {selectedItemIdxs.map(i => (
-                                                 <span key={i} className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-900/40 text-[10px] font-semibold rounded text-indigo-700 dark:text-indigo-300">
-                                                   {group.items[i]?.name}
-                                                 </span>
-                                               ))}
-                                             </div>
-                                             <div className="flex gap-2 pt-1">
-                                               <button
-                                                 onClick={() => {
-                                                   const selectedNames = selectedItemIdxs.map(i => group.items[i]?.name);
-                                                   if (selectedNames.length === 1) {
-                                                     handleFoodSearch(idx, selectedItemIdxs[0], selectedNames[0]);
-                                                   } else if (handleSend) {
-                                                     handleSend(`Find food images online for: ${selectedNames.join(', ')}`);
-                                                   }
-                                                   setSelectingGroupIdx(null);
-                                                   setSelectedItemIdxs([]);
-                                                 }}
-                                                 className="flex-1 py-1.5 px-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold shadow-sm transition-all cursor-pointer"
-                                               >
-                                                 Image Search
-                                               </button>
-                                               <button
-                                                 onClick={() => {
-                                                   const selectedNames = selectedItemIdxs.map(i => group.items[i]?.name);
-                                                   if (handleSend) {
-                                                     handleSend(`Look up details and food origin for: ${selectedNames.join(', ')}`);
-                                                   }
-                                                   setSelectingGroupIdx(null);
-                                                   setSelectedItemIdxs([]);
-                                                 }}
-                                                 className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold shadow-sm transition-all cursor-pointer"
-                                               >
-                                                 Origin Search
-                                               </button>
-                                               <button
-                                                 onClick={() => {
-                                                   const selectedNames = selectedItemIdxs.map(i => group.items[i]?.name);
-                                                   if (handleSend) {
-                                                     handleSend(`Compare these specific menu items: ${selectedNames.join(', ')}. Rank them best-to-worst based on my health targets.`);
-                                                   }
-                                                   setSelectingGroupIdx(null);
-                                                   setSelectedItemIdxs([]);
-                                                 }}
-                                                 className="flex-1 py-1.5 px-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold shadow-sm transition-all cursor-pointer"
-                                               >
-                                                 Compare Food
-                                               </button>
-                                             </div>
-                                           </div>
-                                         )}
                                        </>
                                      );
                                    })()}
@@ -801,7 +765,99 @@ export const FoodCard: React.FC<AgentCardProps> = ({
                           );
                         })}
                       </div>
-
+                      {/* Card-Wide Selection Toolbar */}
+                      {isSelectingMode && selectedItemKeys.length > 0 && (
+                        <div className="mx-4 mb-4 p-3.5 rounded-2xl border border-indigo-150 dark:border-indigo-900 bg-indigo-50/20 dark:bg-indigo-950/10 space-y-3 animate-fade-in font-sans text-left">
+                          <div className="flex items-center justify-between border-b border-indigo-100/40 dark:border-indigo-950/30 pb-1.5">
+                            <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                              Selected (${selectedItemKeys.length}) item(s) for actions:
+                            </span>
+                            <button 
+                              type="button"
+                              onClick={() => {
+                                setSelectedItemKeys([]);
+                                setSelectorError("");
+                              }}
+                              className="text-[9.5px] font-bold text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all cursor-pointer"
+                            >
+                              Clear Selection
+                            </button>
+                          </div>
+                          
+                          <div className="flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+                            {selectedItemKeys.map(key => {
+                              const [gIdx, iIdx] = key.split('-').map(Number);
+                              const name = displayGroups[gIdx]?.items?.[iIdx]?.name || "Item";
+                              return (
+                                <span key={key} className="px-2 py-0.5 bg-indigo-100/70 dark:bg-indigo-900/40 text-[9.5px] font-semibold rounded text-indigo-700 dark:text-indigo-300">
+                                  {name}
+                                </span>
+                              );
+                            })}
+                          </div>
+                          {selectorError && (
+                            <div className="text-[9.5px] font-bold text-rose-650 dark:text-rose-450 bg-rose-50/50 dark:bg-rose-950/20 p-2 rounded-lg border border-rose-200/40 leading-tight">
+                              ⚠️ {selectorError}
+                            </div>
+                          )}
+                          <div className="flex gap-2 pt-1.5">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (selectedItemKeys.length !== 1) {
+                                  setSelectorError("Image Search only supports searching one item at a time. Please select exactly 1 item.");
+                                  return;
+                                }
+                                setSelectorError("");
+                                const [gIdx, iIdx] = selectedItemKeys[0].split('-').map(Number);
+                                const name = displayGroups[gIdx]?.items?.[iIdx]?.name;
+                                handleFoodSearch(gIdx, iIdx, name);
+                                setIsSelectingMode(false);
+                                setSelectedItemKeys([]);
+                              }}
+                              className="flex-1 py-1.5 px-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[10px] font-bold shadow-sm transition-all cursor-pointer text-center"
+                            >
+                              Image Search
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectorError("");
+                                const selectedNames = selectedItemKeys.map(key => {
+                                  const [gIdx, iIdx] = key.split('-').map(Number);
+                                  return displayGroups[gIdx]?.items?.[iIdx]?.name;
+                                });
+                                if (handleSend) {
+                                  handleSend(`Origin search: Provide the historical origin, cooking methods, typical eating occasions, top nutrient impact, and recommendations for: ${selectedNames.join(', ')}. Please include 1-3 Google image search queries for each.`);
+                                }
+                                setIsSelectingMode(false);
+                                setSelectedItemKeys([]);
+                              }}
+                              className="flex-1 py-1.5 px-2 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-bold shadow-sm transition-all cursor-pointer text-center"
+                            >
+                              Origin Search
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectorError("");
+                                const selectedNames = selectedItemKeys.map(key => {
+                                  const [gIdx, iIdx] = key.split('-').map(Number);
+                                  return displayGroups[gIdx]?.items?.[iIdx]?.name;
+                                });
+                                if (handleSend) {
+                                  handleSend(`Compare these specific menu items: ${selectedNames.join(', ')}. Rank them best-to-worst based on my health targets.`);
+                                }
+                                setIsSelectingMode(false);
+                                setSelectedItemKeys([]);
+                              }}
+                              className="flex-1 py-1.5 px-2 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-bold shadow-sm transition-all cursor-pointer text-center"
+                            >
+                              Compare Food
+                            </button>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -812,8 +868,27 @@ export const FoodCard: React.FC<AgentCardProps> = ({
         if (!group) return null;
         const item = group.items?.[previewState.itemIdx];
         if (!item) return null;
+        // Look back in messages history to find original uploads containing images
+        const historicalMsgWithImages = (() => {
+          const currentImgs = msg.data?.pendingFoodLog?.imageUrls || msg.data?.imageUrls || [];
+          if (currentImgs.length > 0) return msg;
+          if (messages) {
+            for (let mIdx = messages.length - 1; mIdx >= 0; mIdx--) {
+              const m = messages[mIdx];
+              const mImages = m.data?.pendingFoodLog?.imageUrls || m.data?.imageUrls || [];
+              if (mImages.length > 0) return m;
+            }
+          }
+          return null;
+        })();
+        const resolvedMessageImages = messageImages.length > 0 
+          ? messageImages 
+          : (historicalMsgWithImages?.data?.pendingFoodLog?.imageUrls || historicalMsgWithImages?.data?.imageUrls || []);
+        const resolvedScoutItems = msg.data?.scoutItems && msg.data.scoutItems.length > 0
+          ? msg.data.scoutItems
+          : (historicalMsgWithImages?.data?.scoutItems || []);
         // Resolve its image source and bounding box:
-        const matchingScout = (msg.data?.scoutItems || []).find((s: any) => 
+        const matchingScout = (resolvedScoutItems || []).find((s: any) => 
           (item.name || "").toLowerCase().includes((s.keyword || "").toLowerCase()) || 
           (s.keyword || "").toLowerCase().includes((item.name || "").toLowerCase()) ||
           (item.name || "").toLowerCase().split(' ')[0] === (s.keyword || "").toLowerCase().split(' ')[0]
@@ -821,8 +896,8 @@ export const FoodCard: React.FC<AgentCardProps> = ({
         const imgIdx = typeof item.sourceImageIndex === 'number' 
           ? item.sourceImageIndex 
           : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0);
-        const resolvedImgSrc = (messageImages.length > 0)
-          ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
+        const resolvedImgSrc = (resolvedMessageImages.length > 0)
+          ? resolvedMessageImages[imgIdx >= 0 && imgIdx < resolvedMessageImages.length ? imgIdx : 0]
           : getFoodImageUrl(item.name, '');
         const bb = item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
         const itemDisplayName = showTranslated ? (item.keyword || item.name) : (item.originalName || item.name);
@@ -872,42 +947,47 @@ export const FoodCard: React.FC<AgentCardProps> = ({
           />
         );
       })()}
-      {/* Case F: Food Origin & Details encyclopedia card renderer */}
+      {/* Case F: Food Origin & Details experiential encyclopedia card renderer */}
       {msg.data?.mode === 'origin' && msg.data?.origins && msg.data.origins.length > 0 && (
         <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-4 animation-fade-in w-full max-w-full min-w-0 overflow-hidden font-sans text-left mb-4">
           <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-700/50 pb-2">
             <span className="text-lg">🗺️</span>
             <span className="text-[12px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
-              Food Origin & History
+              Food Origin, Preparation & History
             </span>
           </div>
-          <div className="space-y-6 divide-y divide-slate-100 dark:divide-slate-800">
-            {msg.data.origins.map((item, oIdx) => (
-              <div key={oIdx} className={`space-y-3 ${oIdx > 0 ? 'pt-4' : ''}`}>
-                <h4 className="text-sm font-bold text-slate-900 dark:text-white">
+          <div className="space-y-6 divide-y divide-slate-100 dark:divide-slate-850">
+            {msg.data.origins.map((item: any, oIdx: number) => (
+              <div key={oIdx} className={`space-y-3.5 ${oIdx > 0 ? 'pt-5' : ''}`}>
+                <h4 className="text-sm font-extrabold text-slate-900 dark:text-white pb-1 border-b border-slate-100 dark:border-slate-800/60">
                   {item.foodName}
                 </h4>
-                {/* Dynamic Online Image Search with fallback to unsplash plate */}
-                <div className="w-full h-44 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900/50 border border-slate-150 dark:border-slate-800 shadow-inner">
-                  <OnlineFoodImage 
-                    foodName={item.imageSearchQuery} 
-                    fallbackSrc={getFoodImageUrl(item.foodName)} 
-                    className="w-full h-full object-cover animate-fade-in"
-                  />
+                
+                {/* Horizontal Scrollable Carousel of 1-3 real food pictures */}
+                <div className="flex gap-2.5 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200/50 w-full snap-x snap-mandatory">
+                  {(item.imageQueries || []).slice(0, 3).map((queryStr: string, imgIdx: number) => (
+                    <div key={imgIdx} className="w-[85%] sm:w-64 h-36 flex-shrink-0 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900/50 border border-slate-150 dark:border-slate-800 shadow-inner snap-start">
+                      <OnlineFoodImage 
+                        foodName={queryStr} 
+                        fallbackSrc={getFoodImageUrl(item.foodName)} 
+                        className="w-full h-full object-cover animate-fade-in"
+                      />
+                    </div>
+                  ))}
                 </div>
                 <div className="text-[11.5px] space-y-2 text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
                   <p>
                     <strong className="text-slate-900 dark:text-white">🌍 Origin:</strong> {item.origin}
                   </p>
                   <p>
-                    <strong className="text-slate-900 dark:text-white">📝 Description:</strong> {item.description}
+                    <strong className="text-slate-900 dark:text-white">🍳 Traditional Preparation:</strong> {item.howItIsCooked}
                   </p>
                   <p>
-                    <strong className="text-slate-900 dark:text-white">🧂 Key Ingredients:</strong> {item.keyIngredients.join(', ')}
+                    <strong className="text-slate-900 dark:text-white">🍽️ Typical Occasion:</strong> {item.whenItIsEaten}
                   </p>
                   <div className="mt-2.5 p-3 rounded-xl bg-slate-50 dark:bg-slate-900/35 border border-slate-100 dark:border-slate-800/40 text-[11px] leading-normal italic text-slate-600 dark:text-slate-400">
-                    <strong className="text-indigo-600 dark:text-indigo-400 font-bold block mb-0.5 not-italic uppercase tracking-wide text-[9.5px]">Nutritional & Clinical Profile:</strong>
-                    {item.healthProfile}
+                    <strong className="text-indigo-600 dark:text-indigo-400 font-bold block mb-0.5 not-italic uppercase tracking-wide text-[9.5px]">Nutritional Impact & clinical Recommendation:</strong>
+                    {item.healthImpact}
                   </div>
                 </div>
               </div>

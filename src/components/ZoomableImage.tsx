@@ -21,13 +21,17 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
   hasPrev
 }) => {
   const targetRef = useRef<HTMLDivElement>(null);
+  const isFirstRef = useRef(true);
   const { zoomToElement } = React.useContext(React.createContext({ zoomToElement: (el: any, scale: any, time: any) => {} })); // Just a placeholder, we'll get it from render props
   const [highlight, setHighlight] = useState(true);
   // Reset highlight state and trigger smooth transitions when the bounding box coordinates change
   useEffect(() => {
     setHighlight(true);
     const timer = setTimeout(() => setHighlight(false), 1000);
-    return () => clearTimeout(timer);
+    return () => {
+      clearTimeout(timer);
+      isFirstRef.current = false; // Mark first mount completed
+    };
   }, [boundingBox]);
   return (
     <div 
@@ -62,7 +66,7 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
                       referrerPolicy="no-referrer"
                     />
                     {boundingBox && boundingBox.length === 4 && (
-                      <ZoomTrigger boundingBox={boundingBox} zoomToElement={zoomToElement} />
+                      <ZoomTrigger boundingBox={boundingBox} zoomToElement={zoomToElement} isFirst={isFirstRef.current} />
                     )}
                     {boundingBox && boundingBox.length === 4 && (
                       <div 
@@ -114,7 +118,7 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
     </div>
   );
 };
-const ZoomTrigger = ({ boundingBox, zoomToElement }: { boundingBox: number[], zoomToElement: any }) => {
+const ZoomTrigger = ({ boundingBox, zoomToElement, isFirst }: { boundingBox: number[], zoomToElement: any, isFirst: boolean }) => {
   React.useEffect(() => {
     if (boundingBox && boundingBox.length === 4) {
       const bboxWidth = (boundingBox[3] - boundingBox[1]) / 1000;
@@ -122,12 +126,15 @@ const ZoomTrigger = ({ boundingBox, zoomToElement }: { boundingBox: number[], zo
       const maxBboxSize = Math.max(bboxWidth, bboxHeight);
       const targetScale = Math.min(0.95 / (maxBboxSize || 1), 40);
       
+      const duration = isFirst ? 0 : 500;
+      const delay = isFirst ? 0 : 150;
+      
       const timer = setTimeout(() => {
         const el = document.getElementById('zoom-target-bbox');
-        if (el) zoomToElement(el, targetScale, 500);
-      }, 300);
+        if (el) zoomToElement(el, targetScale, duration);
+      }, delay);
       return () => clearTimeout(timer);
     }
-  }, [boundingBox, zoomToElement]);
+  }, [boundingBox, zoomToElement, isFirst]);
   return null;
 };
