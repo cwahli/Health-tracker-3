@@ -489,6 +489,7 @@ Respond ONLY with a structured JSON format matching this schema exactly.
 }
 
 const app = express();
+const imageSearchCache = new Map<string, any>();
 const PORT = parseInt(process.env.PORT || '3000', 10);
 const SERVER_START_TIME = Date.now();
 
@@ -549,8 +550,8 @@ function addDebugLog(msg: string, explicitSessionId?: string) {
   
   // Keep the container stdout clean by truncating huge multiline logs in console.log
   const singleLineLog = sanitizedMsg.replace(/\n/g, '\n');
-  if (singleLineLog.length > 300) {
-    console.log(`[LLM DEBUG ${timestamp}]: ${singleLineLog.substring(0, 300)}... [Truncated ${singleLineLog.length - 300} chars. Full detailed payload is saved in session memory and visible via the Full-Screen Diagnostic Log Viewer UI]`);
+  if (singleLineLog.length > 4000) {
+    console.log(`[LLM DEBUG ${timestamp}]: ${singleLineLog.substring(0, 4000)}... [Truncated ${singleLineLog.length - 4000} chars.]`);
   } else {
     console.log(`[LLM DEBUG ${timestamp}]: ${singleLineLog}`);
   }
@@ -1766,19 +1767,21 @@ For each image, determine if it contains:
   (d) A cooking scene (e.g., boiling in a pot, frying on a pan)
   (e) A restaurant menu, promotional poster, billboard, or combo board listing multiple options
 STEP 2 — DENSITY APPRAISAL & EXTRACTION MODE:
-Assess the total item density across all provided images before selecting an extraction format:
-  * NORMAL DENSITY (< 20 visual items total) OR TEXT DENSITY (Menus/Posters/Lists up to 100 items): Use standard structured JSON parsing. Populate the "items" array with fully broken-down objects including individual "boundingBox2D" arrays. Leave "compactSpreadsheet" completely empty [].
-  * EXTREME VISUAL DENSITY (> 20 distinct physical 3D objects like grocery store snack shelves): To protect spatial memory coordinates from drifting and prevent token limits from cutting off mid-JSON, you MUST switch to COMPACT SPREADSHEET MODE. Leave the "items" array completely empty []. Instead, populate the "compactSpreadsheet" array field with highly condensed, pipe-delimited strings containing the coordinates textually.
+Assess the image type and item density to determine your bounding box strategy:
+  * VISUAL FOOD SCENES (Plates, ingredients, < 20 items): Use standard structured JSON. You MUST draw tight, individual bounding boxes for each distinct physical food item.
+  * MENUS, POSTERS, & LISTS (Any density, 2 to 100+ items): Use standard structured JSON, but you MUST use the "Shared Category Bounding Box" strategy (detailed in Step 3) to prevent spatial memory failure.
+  * EXTREME VISUAL DENSITY (> 20 distinct physical 3D objects, e.g., grocery shelves): Leave the "items" array empty []. Populate "compactSpreadsheet" with pipe-delimited strings (Keyword|OriginalName|Weight|ymin,xmin,ymax,xmax).
+
 STEP 3 — CORE EXTRACTION & GROUPING LAWS:
-- EXHAUSTIVENESS DIRECTIVE: Extract EVERY distinct food item, ingredient, or menu option visible up to your active density cap. Do not get lazy or stop early. 
+- EXHAUSTIVENESS DIRECTIVE: Extract EVERY distinct food item, ingredient, or menu option visible. Do not get lazy or stop early. 
 - PRODUCT/PRICE LABELS (type a): Read the EXACT food name and weight. Convert kg to grams.
 - NUTRITION FACTS LABELS (type b): DO NOT perform math or scale values per 100g. Extract the EXACT total package weight, serving size weight, and nutrients per serving exactly as written into the "rawNutritionLabel" object. If an item has NO legible physical nutrition panel visible, leave "rawNutritionLabel" and "nutritionFacts" entirely empty {}. Do not hallucinate.
-- FOOD PHOTOS (type c): Identify items and estimate weight using visual references (plates, hands, packaging markers).
-- MENUS AND POSTERS (type e): Extract every distinct option or variation listed as a prepared choice. Do NOT draw one giant box around the whole menu page. Draw tight, individual bounding boxes around the specific thumbnail image or specific line text block associated with each distinct choice.
-- CLASSIFICATION LAW: If the image is a restaurant menu, combo board, or poster listing text options (type e), you MUST set "contentType" to "menu_or_poster". Setting this incorrectly is a critical failure.
+- VISUAL FOOD (type c): Identify items, estimate weights, and draw unique bounding boxes around each physical item on the plate/scene.
+- MENUS AND POSTERS (type e) - SHARED BOUNDING BOX RULE: Do NOT attempt to draw individual bounding boxes for every single line of text. This causes token fatigue. Instead, identify logical category blocks (e.g., the entire "Aneka Ikan Bakar" section). Draw ONE large bounding box around that entire category block. Extract every individual menu choice within that block into the JSON array, but assign ALL of them the EXACT SAME \`boundingBox2D\` coordinates of their parent category block.
+- CLASSIFICATION LAW: If the image is a restaurant menu, combo board, or poster listing text options (type e), you MUST set "contentType" to "text". If it is a photo of actual food, set it to "visual". Setting this incorrectly is a critical failure.
 CRITICAL RULES:
-- 'keyword' MUST be a short, clean, database-friendly English name so the backend search functions successfully (e.g., "beef blade cut", "sweet potato").
-- 'originalName' PRESERVATION: This field is clinically vital. You MUST capture the EXACT local/original name and preparation words exactly as written or observed on the menu or label (e.g., "Yakiimo", "Daging Empal", "Ayam Goreng"). Do NOT translate, normalize, or summarize this field. 
+- 'originalName' PRESERVATION: Capture the EXACT local/original name and preparation words exactly as written. Do NOT translate or summarize.
+- 'keyword': MUST be a short, clean, database-friendly English name so the backend search functions successfully (e.g., "beef blade cut", "sweet potato"). 
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers like \`\`\`json.
 
@@ -1824,11 +1827,11 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
   "compactSpreadsheet": [
     "string (ONLY populated during EXTREME VISUAL DENSITY mode. String format MUST be pipe-delimited text exactly as: English Keyword|Original Local Name|Weight Integer|ymin,xmin,ymax,xmax. Example: Happy Tos Tortilla Chips|Happy Tos|160|107,33,400,269)"
   ],
-  "cookingMethod": "string",
+  "cookingMethod": "string (Identify the cooking method and list any seasonings/sauces used, providing indication on the type of sauce and what sort of oil is being added or anything that can help the dietetician to make an accurate diagnostic)",
   "confidenceRating": "Low (<50%) | Medium (50-90%) | High (>90%)",
   "confidenceComment": "string | null",
   "scanCompleteness": "full (all items extracted via items array) | full_dense (extracted via compactSpreadsheet due to high physical density) | partial_text_cap (capped at 100 items due to extreme menu length)",
-  "contentType": "individual_food_items | menu_or_poster"
+  "contentType": "visual | text"
 }`;
 
         try {
@@ -1850,7 +1853,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
             scoutConfidenceRating = parsedScout.confidenceRating || "High (>90%)";
             scoutConfidenceComment = parsedScout.confidenceComment || "";
             scoutCookingMethod = parsedScout.cookingMethod || "";
-            scoutContentType = parsedScout.contentType === "menu_or_poster" ? "menu_or_poster" : "individual_food_items";
+            scoutContentType = parsedScout.contentType === "text" ? "text" : "visual";
 
             // Parse compactSpreadsheet if present (for high visual densities)
             if (Array.isArray(parsedScout.compactSpreadsheet) && parsedScout.compactSpreadsheet.length > 0) {
@@ -1942,7 +1945,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
     const cleanQuery = (raw: string) => raw.replace(/\s*\(.*?\)\s*/g, '').replace(/\b(raw|fresh|cooked)\s+/i, '').trim();
 
     const hasImage = imagePayloads && imagePayloads.length > 0;
-    const isMenuScale = scoutContentType === "menu_or_poster";
+    const isMenuScale = scoutContentType === "text";
     // Skip database search if evaluating a large number of items (Mode D / Evaluation Scale) to prevent connection pool exhaustion and timeouts
     const isEvaluationScale = queriesToSearch.length >= 10;
     const shouldRunDbSearch = !compareOnly && !isWeightModification && !isMenuScale && !isEvaluationScale && (visionScoutRanAndReturnedItems || (!hasImage && queriesToSearch.length > 0));
@@ -2388,6 +2391,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         mode: "evaluation",
         comparison: comparisonData,
         scoutItems: visionScoutItems, // ensure the client has the bounding boxes
+        scoutContentType: scoutContentType,
         agentPrompt: fullPromptSent,
         message: rawParsed.message,
         text: rawParsed.message
@@ -5108,59 +5112,78 @@ Respond with a structured JSON format matching this schema exactly:
 });
 
 // Endpoint for custom food image search using Brave Search API
+const imageSearchPromises = new Map<string, Promise<any>>();
 app.post("/api/gemini/food-image-search", async (req, res) => {
   const { query } = req.body;
-  addDebugLog(`[FoodImageSearch] Searching for images of "${query}" using Brave Search API`);
+  if (!query) return res.json({ images: [], isAvailable: false });
   
-  try {
-    const apiKey = process.env.BRAVE_API_KEY || "BSAOKS3uObe_D64mK-K6K6NfOsnv_e5I";
-    
-    if (!apiKey) {
-      return res.json({
-        images: [],
-        isAvailable: false,
-        error: "Brave Search API Key (BRAVE_API_KEY) is not configured in environment variables."
-      });
-    }
-    
-    const url = `https://api.search.brave.com/res/v1/images/search?q=${encodeURIComponent(query)}&count=5`;
-    const response = await fetch(url, {
-      headers: {
-        "Accept": "application/json",
-        "X-Subscription-Token": apiKey
-      }
-    });
-    
-    const data = await response.json();
-    
-    if (response.ok && data.results && data.results.length > 0) {
-      addDebugLog(`[FoodImageSearch] Successfully found images via Brave Search API!`);
-      const results = data.results.map((item: any) => ({
-        title: item.title,
-        imageUrl: item.properties?.url || item.properties?.placeholder || item.url,
-        pageUrl: item.url
-      }));
-      return res.json({ images: results, isAvailable: true });
-    } else {
-      const errMsg = data.message || "No items returned from search.";
-      addDebugLog(`[FoodImageSearch] Brave Search API failed. Status: ${response.status}. Message: ${errMsg}`);
-      return res.json({
-        images: [],
-        isAvailable: false,
-        error: `Brave Search Error (${response.status}): ${errMsg}`
-      });
-    }
-  } catch (error: any) {
-    console.error("[FoodImageSearch Error]:", error);
-    return res.json({
-      images: [],
-      isAvailable: false,
-      error: `Network Error: ${error.message || "Failed to contact Brave Search API."}`
-    });
+  if (imageSearchCache.has(query)) {
+    return res.json(imageSearchCache.get(query));
   }
+  
+  if (imageSearchPromises.has(query)) {
+    const payload = await imageSearchPromises.get(query);
+    return res.json(payload);
+  }
+  
+  const searchPromise = (async () => {
+    try {
+      addDebugLog(`[FoodImageSearch] Searching for images of "${query}" using Brave Search API`);
+      const apiKey = process.env.BRAVE_API_KEY || "BSAOKS3uObe_D64mK-K6K6NfOsnv_e5I";
+      
+      if (!apiKey) {
+        return {
+          images: [],
+          isAvailable: false,
+          error: "Brave Search API Key (BRAVE_API_KEY) is not configured in environment variables."
+        };
+      }
+      
+      const url = `https://api.search.brave.com/res/v1/images/search?q=${encodeURIComponent(query)}&count=5`;
+      const response = await fetch(url, {
+        headers: {
+          "Accept": "application/json",
+          "X-Subscription-Token": apiKey
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (response.ok && data.results && data.results.length > 0) {
+        addDebugLog(`[FoodImageSearch] Successfully found images via Brave Search API!`);
+        const results = data.results.map((item: any) => ({
+          title: item.title,
+          imageUrl: item.properties?.url || item.properties?.placeholder || item.url,
+          pageUrl: item.url
+        }));
+        const payload = { images: results, isAvailable: true };
+        imageSearchCache.set(query, payload);
+        return payload;
+      } else {
+        const errMsg = data.message || "No items returned from search.";
+        addDebugLog(`[FoodImageSearch] Brave Search API failed. Status: ${response.status}. Message: ${errMsg}`);
+        return {
+          images: [],
+          isAvailable: false,
+          error: `Brave Search Error (${response.status}): ${errMsg}`
+        };
+      }
+    } catch (error: any) {
+      console.error("[FoodImageSearch Error]:", error);
+      return {
+        images: [],
+        isAvailable: false,
+        error: `Network Error: ${error.message || "Failed to contact Brave Search API."}`
+      };
+    } finally {
+      imageSearchPromises.delete(query);
+    }
+  })();
+  
+  imageSearchPromises.set(query, searchPromise);
+  const result = await searchPromise;
+  return res.json(result);
 });
-
-
 
 // Endpoint to fetch real-time agent thinking process logs
 app.get("/api/gemini/debug-logs", (req, res) => {

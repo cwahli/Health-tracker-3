@@ -1,15 +1,29 @@
 const fs = require('fs');
 let code = fs.readFileSync('src/components/LogChat.tsx', 'utf8');
 
-code = code.replace(
-  /onClick=\{\(\) => \{ setInputText\("Evaluate new food"\); setTimeout\(\(\) => document\.getElementById\("food-chat-input"\)\?\.focus\(\), 50\); \}\}/,
-  'onClick={() => { setInputText("I ate this meal"); setTimeout(() => document.getElementById("food-chat-input")?.focus(), 50); }}'
-);
+const oldStr1 = `          assistantMsg.data = {
+            agentResult: resData,
+            scoutItems: carryOverScoutItems
+          };`;
 
-code = code.replace(
-  /<span>🔍 Evaluate New Food<\/span>/,
-  '<span>🔍 Review Meal</span>'
-);
+const newStr1 = `          assistantMsg.data = {
+            agentResult: resData,
+            scoutItems: carryOverScoutItems,
+            scoutContentType: resData.scoutContentType
+          };`;
 
+const oldStr2 = `          assistantMsg.data = { 
+            pendingFoodLog: newFoodLog,
+            scoutItems: resData.scoutItems || []
+          };`;
+
+const newStr2 = `          assistantMsg.data = { 
+            pendingFoodLog: newFoodLog,
+            scoutItems: resData.scoutItems || [],
+            scoutContentType: resData.scoutContentType
+          };`;
+
+code = code.replace(oldStr1, newStr1);
+code = code.replace(oldStr2, newStr2);
 fs.writeFileSync('src/components/LogChat.tsx', code);
-console.log('LogChat patched');
+console.log("Patched LogChat.tsx!");

@@ -5,7 +5,7 @@ import { translations } from '../utils/translations';
 import {
   Eye, EyeOff, CloudLightning, CloudCheck, RefreshCw, LogOut, Check, ShieldCheck,
   Archive, FileSpreadsheet, KeyRound, Lock, Unlock, FileDown, FileUp, AlertTriangle,
-  CloudUpload, CloudDownload, HelpCircle, Terminal, User
+  CloudUpload, CloudDownload, HelpCircle, Terminal, User, Cloud
 } from 'lucide-react';
 import { db, auth } from '../firebase';
 import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
@@ -82,6 +82,8 @@ interface HeaderProps {
   quota?: QuotaData;
   foodLogs?: FoodLog[];
   activeTab?: string;
+  autoSyncDisabled?: boolean;
+  onChangeAutoSyncDisabled?: (disabled: boolean) => void;
 }
 
 const getSessionId = (): string => {
@@ -108,7 +110,9 @@ export default function Header({
   dbInteractions = [],
   quota,
   foodLogs = [],
-  activeTab = 'home'
+  activeTab = 'home',
+  autoSyncDisabled = false,
+  onChangeAutoSyncDisabled
 }: HeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [showThemeScreen, setShowThemeScreen] = useState(false);
@@ -133,6 +137,13 @@ export default function Header({
   const [timezone, setTimezone] = useState<string>(profile.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone);
   const [now, setNow] = useState(Date.now());
   const t = translations[profile.language] || translations.en;
+
+  const handleToggleAutoSync = (disabled: boolean) => {
+    if (onChangeAutoSyncDisabled) {
+      onChangeAutoSyncDisabled(disabled);
+    }
+  };
+
   useEffect(() => {
     let interval: any;
     if (showAgentLogs) {
@@ -1137,6 +1148,65 @@ export default function Header({
             {/* Content area */}
             <div className="p-6 overflow-y-auto space-y-6 text-left flex-1">
               
+              {/* Cloud Sync Mode Strategy Select Card */}
+              <div className="p-5 bg-indigo-50/30 dark:bg-slate-800/40 border border-indigo-100/40 dark:border-slate-800 rounded-2xl space-y-3.5">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                      <Cloud className="w-4.5 h-4.5 text-indigo-500" />
+                      <span>Cloud Sync Mode</span>
+                    </h3>
+                    <p className="text-xs text-slate-500 leading-relaxed">
+                      Choose how your health logs are saved to protect your database write quotas. All changes remain saved locally in your browser.
+                    </p>
+                  </div>
+                  <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider h-fit shrink-0 ${
+                    autoSyncDisabled 
+                      ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/30 dark:text-amber-400' 
+                      : 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/30 dark:text-indigo-400'
+                  }`}>
+                    {autoSyncDisabled ? 'Manual (Local-Only)' : 'Automatic'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAutoSync(false)}
+                    className={`p-3.5 rounded-xl border text-xs font-bold text-center transition-all flex flex-col items-center justify-center gap-2 cursor-pointer hover:scale-[1.01] ${
+                      !autoSyncDisabled
+                        ? 'bg-indigo-600 border-indigo-600 text-white shadow-sm font-extrabold'
+                        : 'bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-850 text-slate-750 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <RefreshCw className={`w-4 h-4 ${!autoSyncDisabled ? 'animate-spin' : ''}`} />
+                    <span>Auto Sync (Real-time)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleToggleAutoSync(true)}
+                    className={`p-3.5 rounded-xl border text-xs font-bold text-center transition-all flex flex-col items-center justify-center gap-2 cursor-pointer hover:scale-[1.01] ${
+                      autoSyncDisabled
+                        ? 'bg-amber-500 border-amber-500 text-white shadow-sm font-extrabold'
+                        : 'bg-white hover:bg-slate-50 dark:bg-slate-900 dark:hover:bg-slate-850 text-slate-750 dark:text-slate-300 border-slate-200 dark:border-slate-800'
+                    }`}
+                  >
+                    <CloudLightning className="w-4 h-4" />
+                    <span>Manual Sync Only</span>
+                  </button>
+                </div>
+
+                {autoSyncDisabled && (
+                  <div className="p-3 bg-amber-50/40 dark:bg-amber-950/15 border border-amber-200/20 rounded-xl flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse flex-shrink-0"></span>
+                    <p className="text-[10px] text-amber-800 dark:text-amber-400 leading-normal font-medium">
+                      Saving Firestore writes! Tap <strong>"Sync Now"</strong> or the Cloud icon in the header whenever you want to upload changes.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {dbOverlayViewMode === 'admin' && (
                 <div className="p-4 bg-amber-50/50 dark:bg-amber-950/20 border border-amber-200/20 dark:border-amber-800/20 rounded-2xl flex items-start gap-3">
                   <div className="bg-amber-100 dark:bg-amber-900/40 p-2 rounded-xl text-amber-600 dark:text-amber-400 shrink-0">

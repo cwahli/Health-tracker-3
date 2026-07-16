@@ -268,37 +268,48 @@ const GroupItemsContainer: React.FC<GroupItemsContainerProps> = ({ children, gro
 
 const OriginImageTile = ({ queryStr, fallbackSrc, onResolved, onClick, onError }: any) => {
   const [src, setSrc] = React.useState<string>("");
-  const [loading, setLoading] = React.useState(true);
+  const [loading, setLoading] = React.useState(false);
+  const [searched, setSearched] = React.useState(false);
   
-  React.useEffect(() => {
-    let active = true;
-    const fetchImage = async () => {
-      try {
-        const res = await fetch("/api/gemini/food-image-search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: queryStr }),
-        });
-        const data = await res.json();
-        if (active && data.images && data.images.length > 0) {
-          const img = data.images[0];
-          setSrc(img.imageUrl);
-          if (onResolved) onResolved(img.imageUrl, img.pageUrl);
-        }
-      } catch (err) {
-      } finally {
-        if (active) setLoading(false);
+  const handleLoad = async (e: any) => {
+    e.stopPropagation();
+    if (searched || loading) return;
+    setLoading(true);
+    setSearched(true);
+    try {
+      const res = await fetch("/api/gemini/food-image-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: queryStr }),
+      });
+      const data = await res.json();
+      if (data.images && data.images.length > 0) {
+        const img = data.images[0];
+        setSrc(img.imageUrl);
+        if (onResolved) onResolved(img.imageUrl, img.pageUrl);
       }
-    };
-    fetchImage();
-    return () => { active = false; };
-  }, [queryStr]);
+    } catch (err) {
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!searched) {
+    return (
+      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" onClick={handleLoad}>
+        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-900 rounded-full shadow-sm text-xs font-medium text-slate-600 dark:text-slate-300">
+          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
+          Search Image
+        </div>
+      </div>
+    );
+  }
 
   return (
     <img
       src={src || fallbackSrc}
       alt={queryStr}
-      className={`w-full h-full object-cover animate-fade-in ${loading ? 'animate-pulse bg-slate-100 dark:bg-slate-800' : ''}`}
+      className={`w-full h-full object-cover animate-fade-in ${loading ? 'animate-pulse bg-slate-200 dark:bg-slate-800' : ''}`}
       referrerPolicy="no-referrer"
       onClick={onClick}
       onError={(e) => {
@@ -336,6 +347,7 @@ export const FoodCard: React.FC<AgentCardProps & {
   const originImagesRef = React.useRef<Record<string, { imageUrl: string, pageUrl: string }>>({});
   const [brokenOriginImages, setBrokenOriginImages] = React.useState<Record<string, true>>({});
   const [groupExpanded, setGroupExpanded] = React.useState<Record<string, boolean>>({});
+  const [showTranslations, setShowTranslations] = React.useState<Record<string, boolean>>({});
 
   // Selection hooks for Card-Wide Multi-Select
   const [_isSelectingMode, _setIsSelectingMode] = React.useState<boolean>(false);
@@ -351,7 +363,7 @@ export const FoodCard: React.FC<AgentCardProps & {
   const [searchErrors, setSearchErrors] = React.useState<Record<string, string>>({});
   
 
-  const [previewState, setPreviewState] = React.useState<{ groupIdx: number, itemIdx: number, resolvedImgSrc?: string } | null>(null);
+  const [previewState, setPreviewState] = React.useState<{ groupIdx: number, itemIdx: number, resolvedImgSrc?: string, overrideSrc?: string } | null>(null);
   const [scoutPreviewIdx, setScoutPreviewIdx] = React.useState<number | null>(null);
   const [externalPreviewImg, setExternalPreviewImg] = React.useState<{ url: string; title: string } | null>(null);
 
@@ -686,8 +698,10 @@ export const FoodCard: React.FC<AgentCardProps & {
                                   const heroHeight = bb ? Math.abs(bb[2] - bb[0]) : 0;
                                   const heroWidth = bb ? Math.abs(bb[3] - bb[1]) : 0;
                                   const heroAspect = heroHeight > 0 ? heroWidth / heroHeight : 0;
-                                  const isMenuOrPoster = msg.data?.scoutContentType === 'menu_or_poster';
-                                  const heroIsTextOnly = isMenuOrPoster || !bb || bb.length < 4 || heroAspect > 2.2 || heroHeight < 20;
+                                  const isMenuOrPoster = msg.data?.scoutContentType === 'text' || msg.data?.scoutContentType === 'menu_or_poster';
+                                  if (isMenuOrPoster) return null;
+                                  
+                                  const heroSearchName = matchingScout?.originalName || itemObj?.originalName || matchingScout?.keyword || itemObj?.name || group.groupName;
                                   const resolvedImgSrc = (resolvedMessageImages.length > 0)
                                     ? resolvedMessageImages[imgIdx >= 0 && imgIdx < resolvedMessageImages.length ? imgIdx : 0]
                                     : getFoodImageUrl(group.groupName, '');
@@ -695,15 +709,15 @@ export const FoodCard: React.FC<AgentCardProps & {
                                   return (
                                     <div className="w-full h-32 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 relative shadow-sm cursor-pointer hover:opacity-90 transition-opacity">
                                       <FoodScoutItemPreview
-                                        name={group.groupName}
+                                        name={heroSearchName}
                                         src={resolvedImgSrc}
-                                        boundingBox={heroIsTextOnly ? null : bb}
+                                        boundingBox={null}
                                         imgIdx={imgIdx}
                                         messageImages={resolvedMessageImages}
                                         isActive={false}
                                         isSearchMode={false}
-                                        onClick={() => {
-                                          setPreviewState({ groupIdx: idx, itemIdx: 0, resolvedImgSrc });
+                                        onClick={(fetchedUrl) => {
+                                          setPreviewState({ groupIdx: idx, itemIdx: 0, resolvedImgSrc, overrideSrc: fetchedUrl && typeof fetchedUrl === 'string' ? fetchedUrl : undefined });
                                         }}
                                       />
                                     </div>
@@ -757,7 +771,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                          {/* Items in this bucket */}
                                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800/50">
                                    {(() => {
-                                     const isMenuOrPoster = msg.data?.scoutContentType === 'menu_or_poster';
+                                     const isMenuOrPoster = msg.data?.scoutContentType === 'text' || msg.data?.scoutContentType === 'menu_or_poster';
                                      
                                      // Look back in messages history to find original uploads containing images
                                      const historicalMsgWithImages = (() => {
@@ -791,7 +805,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                        const resolvedImgSrc = (resolvedMessageImages.length > 0)
                                          ? resolvedMessageImages[imgIdx >= 0 && imgIdx < resolvedMessageImages.length ? imgIdx : 0]
                                          : getFoodImageUrl(item.name, '');
-                                       const bb = item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
+                                       const bb = previewState?.overrideSrc ? null : (item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null));
                                        return { src: resolvedImgSrc, boundingBox: bb, foodName: item.name, imgIdx };
                                      });
                                      // 2. Compute indices of text-only items (force for menu contentType or aspect ratio > 2.2 or height < 20)
@@ -819,6 +833,19 @@ export const FoodCard: React.FC<AgentCardProps & {
                                          <div className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between w-full font-sans">
                                            <span>Foods in this group ({group.items?.length || 0})</span>
                                            <div className="flex items-center gap-1.5">
+
+                                             {hasTranslations && (
+                                               <button
+                                                 type="button"
+                                                 onClick={() => setShowTranslations(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))}
+                                                 className={`p-1 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-md transition-all cursor-pointer ${
+                                                   showTranslations[groupKey] ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40' : 'text-slate-400'
+                                                 }`}
+                                                 title="Toggle Language"
+                                               >
+                                                 <span className="text-[10px] font-bold leading-none block px-0.5 py-[1px]">{showTranslations[groupKey] ? "English" : "Local"}</span>
+                                               </button>
+                                             )}
 
                                              <button
                                                type="button"
@@ -851,21 +878,17 @@ export const FoodCard: React.FC<AgentCardProps & {
                                            isExpanded={!!groupExpanded[groupKey]}
                                            onToggle={() => setGroupExpanded(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))}
                                          >
-                                           {/* Search results moved to item level */}
-                                            <div className={hasDishesImages ? "grid grid-cols-3 sm:grid-cols-4 gap-3 w-full pb-8" : "flex flex-wrap gap-2 w-full pb-8"}>
+                                           {/* Search results moved to group level to take full width */}
+                                            <div className={hasDishesImages ? "grid grid-cols-3 sm:grid-cols-4 gap-3 w-full" : "flex flex-wrap gap-2 w-full"}>
                                              {(group.items || []).map((item: any, itemIdx: number) => {
                                                 const { src: resolvedImgSrc, boundingBox: bb, imgIdx } = groupPreviewItems[itemIdx];
                                                 const isTextOnly = textOnlyIndices.includes(itemIdx);
                                                 const itemKey = `${idx}-${itemIdx}`;
                                                 const fullItemKey = `${msg.id}-${idx}-${itemIdx}`;
                                                 const isSelected = selectedItemKeys.includes(itemKey);
-                                                const itemDisplayName = (item.originalName || item.name);
-                                                const itemIsSearchActive = !!searchModes[fullItemKey];
-                                                const itemResults = searchResults[fullItemKey] || [];
-                                                const itemLoading = !!searchLoading[fullItemKey];
-                                                const groupKey = `${msg.id}-${idx}`;
+                                                const itemDisplayName = showTranslations[groupKey] ? (item.keyword || item.name) : (item.originalName || item.name);
 
-                                                const chipOnClick = () => {
+                                                const chipOnClick = (fetchedUrl?: string) => {
                                                   if (isSelectingMode) {
                                                     setSelectedItemKeys(prev => 
                                                       prev.includes(itemKey) 
@@ -873,7 +896,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                         : [...prev, itemKey]
                                                     );
                                                   } else {
-                                                    if (searchResults[fullItemKey]) {
+                                                    if (isTextOnly) {
                                                       setSearchModes(prev => {
                                                         const next = { ...prev };
                                                         Object.keys(next).forEach(k => {
@@ -885,21 +908,21 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                         return next;
                                                       });
                                                     } else {
-                                                      setPreviewState({ groupIdx: idx, itemIdx: itemIdx, resolvedImgSrc });
+                                                      setPreviewState({ groupIdx: idx, itemIdx: itemIdx, resolvedImgSrc, overrideSrc: fetchedUrl && typeof fetchedUrl === 'string' ? fetchedUrl : undefined });
                                                     }
                                                   }
                                                 };
 
                                                 const chipContent = isTextOnly ? (
                                                   <div 
-                                                    className={`flex items-center justify-center p-2 rounded-xl border cursor-pointer shadow-sm transition-all duration-200 text-center min-h-[48px] w-full ${
+                                                    className={`flex items-center justify-center p-2 rounded-xl border cursor-pointer shadow-sm transition-all duration-200 text-center min-h-[48px] px-3 w-full ${
                                                       isSelected 
                                                         ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 ring-2 ring-indigo-500/50 shadow-md font-bold scale-[1.02]' 
                                                         : isSelectingMode 
                                                           ? 'border-slate-200 dark:border-slate-800 bg-slate-50/20 dark:bg-slate-900/10 hover:border-indigo-400 hover:bg-indigo-50/20 hover:scale-[1.01]' 
                                                           : 'border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 hover:shadow'
                                                     }`}
-                                                    onClick={chipOnClick}
+                                                    onClick={() => chipOnClick()}
                                                   >
                                                     <span className={`text-[10.5px] lowercase font-semibold leading-tight break-words text-center ${isSelected ? 'text-indigo-700 dark:text-indigo-300 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
                                                       {itemDisplayName}
@@ -918,58 +941,77 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                   />
                                                 );
 
+                                                const isActiveItem = searchModes[fullItemKey];
+                                                const itemResults = searchResults[fullItemKey] || [];
+                                                const itemLoading = !!searchLoading[fullItemKey];
+
                                                 return (
                                                   <React.Fragment key={itemIdx}>
-                                                    <div className="relative w-full">
-                                                      {chipContent}
-                                                      {!!searchResults[fullItemKey] && (
-                                                        <div className="absolute -top-2 -right-2 flex flex-col gap-1 z-10">
-                                                          <button 
-                                                            onClick={(e) => { e.stopPropagation(); setSearchResults(prev => ({...prev, [fullItemKey]: []})); setSearchModes(prev => ({...prev, [fullItemKey]: false})); }}
-                                                            className="p-1 bg-white dark:bg-slate-800 rounded-full shadow border border-slate-200 dark:border-slate-700 text-rose-400 hover:text-rose-600 dark:hover:text-rose-300 transition-colors"
-                                                            title="Clear results"
-                                                          >
-                                                            <Trash2 className="w-3.5 h-3.5" />
-                                                          </button>
-                                                          <button
-                                                            onClick={(e) => { e.stopPropagation(); setPreviewState({ groupIdx: idx, itemIdx: itemIdx, resolvedImgSrc }); }}
-                                                            className="p-1 bg-white dark:bg-slate-800 rounded-full shadow border border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                                                            title="View original photo"
-                                                          >
-                                                            <Eye className="w-3.5 h-3.5" />
-                                                          </button>
-                                                        </div>
-                                                      )}
+                                                    <div className="relative flex flex-col gap-2 flex-grow-0 max-w-[48%] sm:max-w-[32%] md:max-w-[24%]">
+                                                        {chipContent}
+                                                        {!!searchResults[fullItemKey] && (
+                                                            <button 
+                                                              onClick={(e) => { e.stopPropagation(); setPreviewState({ groupIdx: idx, itemIdx: itemIdx, resolvedImgSrc }); }}
+                                                              className="absolute -top-1.5 -right-1.5 p-1 bg-slate-900/80 text-white rounded-full transition-colors z-10 shadow-sm"
+                                                              title="View original photo"
+                                                            >
+                                                              <Eye className="w-3 h-3" />
+                                                            </button>
+                                                        )}
                                                     </div>
                                                     
-                                                    {itemIsSearchActive && (
-                                                      <div className="col-span-full w-full space-y-2 mb-3 pb-3 border-b border-slate-100 dark:border-slate-850 font-sans">
+                                                    {isActiveItem && (
+                                                      <div className="col-span-full w-full basis-full mt-3 mb-5 border border-indigo-100 dark:border-indigo-900/40 rounded-xl p-3 bg-white/50 dark:bg-slate-900/50 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300 font-sans">
                                                         {itemLoading ? (
-                                                          <div className="text-[10px] text-indigo-500 animate-pulse text-center">Searching images...</div>
+                                                          <div className="text-[10px] text-indigo-500 animate-pulse text-center py-2">Searching images...</div>
                                                         ) : itemResults.length > 0 ? (
-                                                          <div className="grid grid-cols-2 gap-2">
-                                                            {itemResults.map((res, sIdx) => {
-                                                              if (brokenSearchImages[`${fullItemKey}-${sIdx}`]) return null;
-                                                              return (
-                                                                <div 
-                                                                  key={sIdx} 
-                                                                  className="rounded-lg overflow-hidden border border-slate-100 dark:border-slate-800 cursor-pointer hover:opacity-90 transition-opacity"
-                                                                  onClick={() => setSearchPreview({ groupKey: fullItemKey, index: sIdx })}
-                                                                >
-                                                                  <img 
-                                                                    src={res.imageUrl} 
-                                                                    alt={res.title} 
-                                                                    className="w-full aspect-[4/3] object-cover" 
-                                                                    onError={() => setBrokenSearchImages(prev => ({ ...prev, [`${fullItemKey}-${sIdx}`]: true }))}
-                                                                  />
-                                                                  <div className="p-1 bg-slate-50 dark:bg-slate-900 text-[8px] truncate text-slate-500 text-center">{res.title}</div>
-                                                                </div>
-                                                              );
-                                                            })}
+                                                          <div className="flex flex-col">
+                                                            <div className="flex justify-between items-center mb-2 px-1">
+                                                              <div className="text-[10px] font-medium text-slate-500">Image Results</div>
+                                                              <button 
+                                                                onClick={(e) => { e.stopPropagation(); setSearchResults(prev => ({...prev, [fullItemKey]: []})); setSearchModes(prev => ({...prev, [fullItemKey]: false})); }}
+                                                                className="p-1 bg-slate-100 dark:bg-slate-800 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                                                              >
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                              </button>
+                                                            </div>
+                                                            <div className="grid grid-cols-2 gap-2">
+                                                              {itemResults.map((res: any, sIdx: number) => {
+                                                                if (brokenSearchImages[`${fullItemKey}-${sIdx}`]) return null;
+                                                                return (
+                                                                  <div 
+                                                                    key={sIdx} 
+                                                                    className="w-full rounded-md overflow-hidden border border-slate-200 dark:border-slate-800 cursor-pointer hover:opacity-90 hover:ring-1 hover:ring-indigo-400 transition-all bg-black/5 flex flex-col"
+                                                                    onClick={() => setSearchPreview({ groupKey: fullItemKey, index: sIdx })}
+                                                                  >
+                                                                    <div className="h-24 sm:h-32 w-full flex-shrink-0">
+                                                                      <img 
+                                                                        src={res.imageUrl} 
+                                                                        alt={res.title} 
+                                                                        className="w-full h-full object-cover" 
+                                                                        onError={() => setBrokenSearchImages(prev => ({ ...prev, [`${fullItemKey}-${sIdx}`]: true }))}
+                                                                      />
+                                                                    </div>
+                                                                    <div className="p-1 bg-slate-50 dark:bg-slate-900 text-[9px] truncate text-slate-500 text-center flex-grow flex items-center justify-center">{res.title}</div>
+                                                                  </div>
+                                                                );
+                                                              })}
+                                                            </div>
                                                           </div>
                                                         ) : (
-                                                          <div className="text-[9.5px] text-rose-500 dark:text-rose-400 bg-rose-50/50 dark:bg-rose-950/20 p-2 rounded-lg border border-rose-200/40 text-center leading-normal font-bold">
-                                                            ⚠️ Search Error: {searchErrors[fullItemKey] || "Search API did not return valid items."}
+                                                          <div className="flex flex-col items-center justify-center py-3 gap-2 text-center">
+                                                            <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium">Would you like to search web images for "{itemDisplayName}"?</p>
+                                                            <button 
+                                                              onClick={(e) => { e.stopPropagation(); handleFoodSearch(idx, itemIdx, itemDisplayName); }}
+                                                              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10.5px] font-bold rounded-full shadow-sm transition-all cursor-pointer"
+                                                            >
+                                                              <Search className="w-3.5 h-3.5" /> Search Images
+                                                            </button>
+                                                            {searchErrors[fullItemKey] && (
+                                                              <div className="text-[9.5px] text-rose-500 bg-rose-50 dark:bg-rose-950/20 px-2.5 py-1 rounded-lg border border-rose-200/40 mt-1 max-w-full">
+                                                                ⚠️ {searchErrors[fullItemKey]}
+                                                              </div>
+                                                            )}
                                                           </div>
                                                         )}
                                                       </div>
@@ -978,6 +1020,62 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                 );
                                               })}
                                            </div>
+
+                                           {/* Render active search item taking full width below the row */}
+                                           {(() => {
+                                             const activeItemIdx = (group.items || []).findIndex((item: any, itemIdx: number) => {
+                                               return searchModes[`${msg.id}-${idx}-${itemIdx}`];
+                                             });
+                                             
+                                             if (activeItemIdx === -1) return <div className="pb-8" />;
+                                             
+                                             const fullItemKey = `${msg.id}-${idx}-${activeItemIdx}`;
+                                             const itemResults = searchResults[fullItemKey] || [];
+                                             const itemLoading = !!searchLoading[fullItemKey];
+
+                                             return (
+                                              <div className="w-full mt-4 pb-8 space-y-2 border-b border-slate-100 dark:border-slate-850 font-sans">
+                                                {itemLoading ? (
+                                                  <div className="text-[10px] text-indigo-500 animate-pulse text-center">Searching images...</div>
+                                                ) : itemResults.length > 0 ? (
+                                                  <div className="flex flex-col gap-3">
+                                                    {itemResults.map((res: any, sIdx: number) => {
+                                                      if (brokenSearchImages[`${fullItemKey}-${sIdx}`]) return null;
+                                                      return (
+                                                        <div 
+                                                          key={sIdx} 
+                                                          className="w-full rounded-lg overflow-hidden border border-slate-100 dark:border-slate-800 cursor-pointer hover:opacity-90 transition-opacity"
+                                                          onClick={() => setSearchPreview({ groupKey: fullItemKey, index: sIdx })}
+                                                        >
+                                                          <img 
+                                                            src={res.imageUrl} 
+                                                            alt={res.title} 
+                                                            className="w-full h-auto object-contain" 
+                                                            onError={() => setBrokenSearchImages(prev => ({ ...prev, [`${fullItemKey}-${sIdx}`]: true }))}
+                                                          />
+                                                          <div className="p-1.5 bg-slate-50 dark:bg-slate-900 text-[10px] truncate text-slate-500 text-center">{res.title}</div>
+                                                        </div>
+                                                      );
+                                                    })}
+                                                    <div className="flex justify-center mt-2">
+                                                      <button 
+                                                        onClick={(e) => { e.stopPropagation(); setSearchResults(prev => ({...prev, [fullItemKey]: []})); setSearchModes(prev => ({...prev, [fullItemKey]: false})); }}
+                                                        className="flex items-center justify-center p-2.5 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors shadow-sm"
+                                                        title="Clear results"
+                                                      >
+                                                        <Trash2 className="w-4 h-4" />
+                                                      </button>
+                                                    </div>
+                                                  </div>
+                                                ) : (
+                                                  <div className="text-[9.5px] text-rose-500 dark:text-rose-400 bg-rose-50/50 dark:bg-rose-950/20 p-2 rounded-lg border border-rose-200/40 text-center leading-normal font-bold">
+                                                    ⚠️ Search Error: {searchErrors[fullItemKey] || "Search API did not return valid items."}
+                                                  </div>
+                                                )}
+                                              </div>
+                                             );
+                                           })()}
+
                                          </GroupItemsContainer>
                                        </>
                                      );
@@ -1034,6 +1132,9 @@ export const FoodCard: React.FC<AgentCardProps & {
         
         if (previewState.resolvedImgSrc && previewState.itemIdx === 0) {
           resolvedImgSrc = previewState.resolvedImgSrc;
+        }
+        if (previewState.overrideSrc) {
+          resolvedImgSrc = previewState.overrideSrc;
         }
         const bb = item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
         const itemDisplayName = (item.originalName || item.name);
@@ -1235,6 +1336,7 @@ export const FoodCard: React.FC<AgentCardProps & {
 
 
                       {(() => {
+                        const isMenuOrPoster = msg.data?.scoutContentType === 'text' || msg.data?.scoutContentType === 'menu_or_poster';
                         const activeScoutItems = (() => {
                           if (msg.data?.scoutItems && msg.data.scoutItems.length > 0) {
                             return msg.data.scoutItems;
@@ -1251,83 +1353,108 @@ export const FoodCard: React.FC<AgentCardProps & {
                         return (
                           <div className="mb-6 text-left">
                             <div className="flex items-center justify-between mb-3 border-b border-slate-100 dark:border-slate-800/50 pb-2 font-sans">
-                              <span className="text-[10.5px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider">
-                                🔍 Visual Scout Identified
-                              </span>
-                              {msg.data?.pendingFoodLog?.scoutConfidenceRating && (
+                              <div className="flex items-center gap-2">
+                                <span className="text-[10.5px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider">
+                                  🔍 Meal composition
+                                </span>
+                                {activeScoutItems.some((i: any) => i.originalName && i.originalName.toLowerCase() !== (i.keyword || "").toLowerCase()) && (
+                                 <button
+                                   type="button"
+                                   onClick={() => setShowTranslations(prev => ({ ...prev, scout: !prev.scout }))}
+                                   className={`p-0.5 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-md transition-all cursor-pointer ${
+                                     showTranslations.scout ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40' : 'text-slate-400'
+                                   }`}
+                                   title="Toggle Language"
+                                 >
+                                   <span className="text-[9px] font-bold leading-none block px-0.5 py-[1px]">{showTranslations.scout ? "English" : "Local"}</span>
+                                 </button>
+                                )}
+                              </div>
+                              {msg.data?.pendingFoodLog?.scoutConfidenceRating && !msg.data.pendingFoodLog.scoutConfidenceRating.toLowerCase().includes('high') && (
                                 <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                                  (() => {
-                                    const c = msg.data.pendingFoodLog.scoutConfidenceRating.toLowerCase();
-                                    if (c.includes('low')) return 'bg-rose-50 text-rose-600 border border-rose-200/50 dark:bg-rose-950/20 dark:text-rose-400';
-                                    if (c.includes('medium')) return 'bg-amber-50 text-amber-600 border border-amber-200/50 dark:bg-amber-950/20 dark:text-amber-400';
-                                    return 'bg-emerald-50 text-emerald-600 border border-emerald-200/50 dark:bg-emerald-950/20 dark:text-emerald-400';
-                                  })()
+                                  msg.data.pendingFoodLog.scoutConfidenceRating.toLowerCase().includes('low') 
+                                    ? 'bg-rose-50 text-rose-600 border border-rose-200/50 dark:bg-rose-950/20 dark:text-rose-400'
+                                    : 'bg-amber-50 text-amber-600 border border-amber-200/50 dark:bg-amber-950/20 dark:text-amber-400'
                                 }`}>
                                   Confidence: {msg.data.pendingFoodLog.scoutConfidenceRating}
                                 </span>
                               )}
                             </div>
-                            <div className="flex gap-3 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full">
-                              {activeScoutItems.map((item: any, i: number) => {
-                                const imgIdx = typeof item.sourceImageIndex === 'number' ? item.sourceImageIndex : 0;
-                                const resolvedImgSrc = (messageImages.length > 0)
-                                  ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
-                                  : getFoodImageUrl(item.keyword);
-                                return (
-                                  <div key={i} className="flex flex-col items-center gap-1 shrink-0 snap-align-start w-[72px]">
-                                    <div 
-                                      className="w-[72px] h-[72px] rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-pointer border border-slate-200/50 dark:border-slate-700/50 hover:scale-105 active:scale-95 transition-all shadow-sm"
-                                      onClick={() => setScoutPreviewIdx(i)}
-                                    >
-                                      {item.boundingBox2D ? (
-                                        <CroppedFoodImage 
-                                          src={resolvedImgSrc} 
-                                          boundingBox={item.boundingBox2D} 
-                                          alt={item.keyword} 
-                                          className="w-full h-full object-cover"
-                                          imageUrls={messageImages}
-                                          sourceImageIndex={imgIdx}
-                                        />
-                                      ) : (
-                                        <img 
-                                          src={resolvedImgSrc} 
-                                          alt={item.keyword} 
-                                          className="w-full h-full object-cover"
-                                          onError={(e) => {
-                                            (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format';
-                                          }}
-                                        />
-                                      )}
-                                    </div>
-                                    <span className="text-[9px] text-center font-medium leading-tight text-slate-500 truncate w-full">
-                                      {item.originalName || item.keyword}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
+                             <div className={isMenuOrPoster ? "flex flex-wrap gap-2 pt-1 font-sans" : "flex gap-3 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full font-sans"}>
+                               {activeScoutItems.map((item: any, i: number) => {
+                                 if (isMenuOrPoster) {
+                                   return (
+                                     <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 text-slate-700 dark:text-slate-300">
+                                       <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                                       <span className="text-[10px] font-bold">
+                                         {showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
+                                       </span>
+                                     </div>
+                                   );
+                                 }
+                                 const imgIdx = typeof item.sourceImageIndex === 'number' ? item.sourceImageIndex : 0;
+                                 const resolvedImgSrc = (messageImages.length > 0)
+                                   ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
+                                   : getFoodImageUrl(item.keyword);
+                                 return (
+                                   <div key={i} className="flex flex-col items-center gap-1 shrink-0 snap-align-start w-[72px]">
+                                     <div 
+                                       className="w-[72px] h-[72px] rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-pointer border border-slate-200/50 dark:border-slate-700/50 hover:scale-105 active:scale-95 transition-all shadow-sm"
+                                       onClick={() => setScoutPreviewIdx(i)}
+                                     >
+                                       {item.boundingBox2D ? (
+                                         <CroppedFoodImage 
+                                           src={resolvedImgSrc} 
+                                           boundingBox={item.boundingBox2D} 
+                                           alt={item.keyword} 
+                                           className="w-full h-full object-cover"
+                                           imageUrls={messageImages}
+                                           sourceImageIndex={imgIdx}
+                                         />
+                                       ) : (
+                                         <img 
+                                           src={resolvedImgSrc} 
+                                           alt={item.keyword} 
+                                           className="w-full h-full object-cover"
+                                           onError={(e) => {
+                                             (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format';
+                                           }}
+                                         />
+                                       )}
+                                     </div>
+                                     <span className="text-[9px] text-center font-medium leading-tight text-slate-500 truncate w-full font-sans">
+                                       {showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
+                                     </span>
+                                   </div>
+                                 );
+                               })}
+                             </div>
                           </div>
                         );
                       })()}
 
-                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2 gap-2 text-left">
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate min-w-0 font-display">
+                      <div className="flex flex-col items-start border-b border-slate-100 dark:border-slate-800/50 pb-3 gap-2 text-left">
+                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm font-display leading-tight">
                           {msg.data?.pendingFoodLog.name}
                         </h4>
-                        <span className="text-xs bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 px-2.5 py-0.5 rounded-full font-bold flex-shrink-0 font-sans">
-                          {msg.data?.pendingFoodLog.weightGrams}g ({msg.data?.pendingFoodLog.quantity})
-                        </span>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="text-[11px] bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 px-2.5 py-0.5 rounded-full font-bold font-sans">
+                            {msg.data?.pendingFoodLog.weightGrams}g ({msg.data?.pendingFoodLog.quantity})
+                          </span>
+                          <span className="font-mono text-[10px] text-slate-400">{msg.data?.pendingFoodLog.date}</span>
+                        </div>
                       </div>
 
-                      <div className="flex items-center justify-between text-xs font-medium border-b border-slate-100 dark:border-slate-800/50 pb-2 font-sans">
-                        <span className="text-slate-500">Record Date:</span>
-                        <span className="font-mono text-slate-800 dark:text-slate-200">{msg.data?.pendingFoodLog.date}</span>
-                      </div>
+                      {msg.content && (
+                        <div className="text-[11.5px] text-slate-700 dark:text-slate-300 font-sans leading-relaxed text-left py-2 border-b border-slate-100 dark:border-slate-800/50 whitespace-pre-line break-words">
+                          {typeof msg.content === 'object' ? JSON.stringify(msg.content) : msg.content}
+                        </div>
+                      )}
 
                       <div className="text-[11.5px] space-y-2 text-slate-800 dark:text-slate-100 font-medium text-left font-sans leading-relaxed">
                         <p><strong className="text-slate-900 dark:text-white">{t.composition}:</strong> {msg.data?.pendingFoodLog.composition}</p>
                         {msg.data?.pendingFoodLog.cookingMethod && (
-                          <p><strong className="text-slate-900 dark:text-white">🍳 Cooking Method & Seasoning:</strong> {msg.data?.pendingFoodLog.cookingMethod}</p>
+                          <p className="text-slate-700 dark:text-slate-400 italic">{msg.data?.pendingFoodLog.cookingMethod}</p>
                         )}
                         <p><strong className="text-slate-900 dark:text-white">{t.benefits}:</strong> {msg.data?.pendingFoodLog.benefits}</p>
                         {msg.data?.pendingFoodLog.risks && <p><strong className="text-slate-900 dark:text-white">{t.risks}:</strong> {msg.data?.pendingFoodLog.risks}</p>}

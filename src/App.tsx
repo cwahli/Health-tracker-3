@@ -471,6 +471,15 @@ export default function App() {
     safeAlert(`✅ Restored to: "${snapshot.label}"\n\nYour data has been reverted to this point. Click the Sync button to upload if you wish.`);
   };
 
+  // Auto Sync Disabled Status (for quota saving / local-first control)
+  const [autoSyncDisabled, setAutoSyncDisabled] = useState<boolean>(() => {
+    return localStorage.getItem('auto_sync_disabled') === 'true';
+  });
+  const handleToggleAutoSyncDisabled = (disabled: boolean) => {
+    setAutoSyncDisabled(disabled);
+    localStorage.setItem('auto_sync_disabled', disabled ? 'true' : 'false');
+  };
+
   // Daily Quota Tracking (resets at midnight PT)
   const [quota, setQuota] = useState<QuotaData>(() => {
     const saved = localStorage.getItem(QUOTA_STORAGE_KEY);
@@ -707,15 +716,11 @@ export default function App() {
     }
   }, [activeTab, isFoodChatOpen, isMedicalChatOpen]);
   // Initialize from Firebase Auth and Firestore on mount
-  // Declare global variable for window
-  declare global {
-    interface Window {
-      sessionSyncTriggered?: boolean;
-    }
-  }
+
 
   // Check of changes in profile and other info on the database (and pull latest changes)
   const checkForDbChanges = async (forceUserId?: string, forcePull?: boolean, forceReplaceLocal?: boolean) => {
+    (window as any).isManualSyncExecuting = true;
     window.sessionSyncTriggered = true;
     const uid = forceUserId || auth.currentUser?.uid;
     console.log("Checking DB changes for UID:", uid);
@@ -1598,6 +1603,8 @@ export default function App() {
         if (parsedLocal.dailyBenefits) setDailyBenefits(parsedLocal.dailyBenefits);
         if (parsedLocal.report) setReport(parsedLocal.report);
       }
+    } finally {
+      (window as any).isManualSyncExecuting = false;
     }
   };
   // Initialize from Firebase Auth and Firestore on mount
@@ -2076,6 +2083,14 @@ export default function App() {
       return;
     }
     if (isFirestoreQuotaExceeded) {
+      setSyncState('local');
+      return;
+    }
+
+    // Intercept automatic writes if manual sync mode is enabled to save quota
+    const isManualSyncOnly = localStorage.getItem('auto_sync_disabled') === 'true';
+    const isExplicitSync = specificUpdate?.type === 'fullPush' || (window as any).isManualSyncExecuting;
+    if (isManualSyncOnly && !isExplicitSync) {
       setSyncState('local');
       return;
     }
@@ -3770,6 +3785,8 @@ export default function App() {
         quota={quota}
         foodLogs={foodLogs}
         activeTab={activeTab}
+        autoSyncDisabled={autoSyncDisabled}
+        onChangeAutoSyncDisabled={handleToggleAutoSyncDisabled}
       />
       {isFirestoreQuotaExceeded && (
         <div className="bg-amber-500 text-white py-2 px-4 shadow-md transition-all duration-300 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left z-20 border-b border-amber-600/20">

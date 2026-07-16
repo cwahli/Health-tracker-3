@@ -697,6 +697,44 @@ ${logsText}`);
       return;
     }
 
+    const isManualSyncOnly = localStorage.getItem('auto_sync_disabled') === 'true';
+    if (isManualSyncOnly) {
+      try {
+        localStorage.setItem(`${chatStorageKey}_${userId}_${id}`, JSON.stringify(msgs));
+        if (payload) localStorage.setItem(`${payloadStorageKey}_${userId}_${id}`, JSON.stringify(payload));
+        
+        // Also update the local list so the sidebar is completely in sync and beautiful
+        const title = msgs.length > 1 
+          ? (msgs[1].role === 'user' ? msgs[1].content.slice(0, 30) + '...' : `Session - ${new Date(msgs[0].timestamp).toLocaleDateString()}`)
+          : `Session - ${new Date().toLocaleDateString()}`;
+        
+        setConversationsList(prev => {
+          const existingIdx = prev.findIndex(c => c.id === id);
+          const updatedItem = {
+            id,
+            userId,
+            type: type || 'medical',
+            agentType: agentType || null,
+            title,
+            createdAt: msgs[0]?.timestamp || new Date().toISOString(),
+            updatedAt: new Date().toISOString(),
+            messages: msgs,
+            lastSentPayload: payload || null
+          };
+          if (existingIdx >= 0) {
+            const nextList = [...prev];
+            nextList[existingIdx] = updatedItem;
+            return nextList;
+          } else {
+            return [updatedItem, ...prev];
+          }
+        });
+      } catch (e) {
+        console.warn("Quota exceeded in localStorage");
+      }
+      return;
+    }
+
     try {
       const compressedMsgs = await compressLargeImagesInObject(msgs);
       const compressedPayload = await compressLargeImagesInObject(payload);
@@ -773,8 +811,23 @@ ${logsText}`);
       if (list.length > 0) {
         const match = list.find(c => c.id === activeConversationId) || list[0];
         setActiveConversationId(match.id);
-        setMessages(migrateMessages(match.messages || []));
-        setLastSentPayload(match.lastSentPayload || null);
+        
+        // Check if there is a newer local version in manual sync / local-first mode
+        const localSaved = localStorage.getItem(`${chatStorageKey}_${userId}_${match.id}`);
+        if (localSaved) {
+          try {
+            const parsed = JSON.parse(localSaved);
+            setMessages(migrateMessages(parsed));
+            const localPayload = localStorage.getItem(`${payloadStorageKey}_${userId}_${match.id}`);
+            setLastSentPayload(localPayload ? JSON.parse(localPayload) : null);
+          } catch {
+            setMessages(migrateMessages(match.messages || []));
+            setLastSentPayload(match.lastSentPayload || null);
+          }
+        } else {
+          setMessages(migrateMessages(match.messages || []));
+          setLastSentPayload(match.lastSentPayload || null);
+        }
       } else {
         const newId = `session_${Date.now()}`;
         setActiveConversationId(newId);
@@ -1558,7 +1611,8 @@ ${logsText}`);
           };
           assistantMsg.data = { 
             pendingFoodLog: newFoodLog,
-            scoutItems: resData.scoutItems || []
+            scoutItems: resData.scoutItems || [],
+            scoutContentType: resData.scoutContentType
           };
           assistantMsg.pendingFoodLog = newFoodLog;
         } else if (resData.mode === 'evaluation') {
@@ -1571,7 +1625,8 @@ ${logsText}`);
           }
           assistantMsg.data = {
             agentResult: resData,
-            scoutItems: carryOverScoutItems
+            scoutItems: carryOverScoutItems,
+            scoutContentType: resData.scoutContentType
           };
         } else if (resData.mode === 'origin') {
           assistantMsg.data = {
@@ -2424,7 +2479,11 @@ ${JSON.stringify(profile, null, 2)}`);
                           <img src={msg.imageUrl} alt="Attached meal" className="w-full h-full object-cover" />
                         </div>
                       ) : null}
-                      <p className="whitespace-pre-line break-words">{typeof msg.content === 'object' ? JSON.stringify(msg.content) : msg.content}</p>
+                      
+                      {msg.agentType !== 'food' && (
+                        <p className="whitespace-pre-line break-words">{typeof msg.content === 'object' ? JSON.stringify(msg.content) : msg.content}</p>
+                      )}
+
                     </div>
                   </div>
 

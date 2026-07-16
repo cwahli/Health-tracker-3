@@ -3,29 +3,45 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
 const OnlineFoodImage: React.FC<{ foodName: string; fallbackSrc: string; className?: string; onClick?: (e: React.MouseEvent) => void }> = ({ foodName, fallbackSrc, className, onClick }) => {
   const [src, setSrc] = React.useState<string>("");
-  const [loading, setLoading] = React.useState(true);
-  React.useEffect(() => {
-    let active = true;
-    const fetchImage = async () => {
-      try {
-        const res = await fetch("/api/gemini/food-image-search", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query: foodName }),
-        });
-        const data = await res.json();
-        if (active && data.images && data.images.length > 0) {
-          setSrc(data.images[0].imageUrl);
-        }
-      } catch (err) {
-        console.warn("Online search failed for", foodName, err);
-      } finally {
-        if (active) setLoading(false);
+  const [loading, setLoading] = React.useState(false);
+  const [searched, setSearched] = React.useState(false);
+
+  const fetchImage = async (e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (searched || loading) return;
+    setLoading(true);
+    setSearched(true);
+    try {
+      const res = await fetch("/api/gemini/food-image-search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query: foodName }),
+      });
+      const data = await res.json();
+      if (data.images && data.images.length > 0) {
+        setSrc(data.images[0].imageUrl);
       }
-    };
-    fetchImage();
-    return () => { active = false; };
-  }, [foodName]);
+    } catch (err) {
+      console.warn("Online search failed for", foodName, err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (!searched) {
+    return (
+      <div 
+        className="w-full h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/30 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-850 cursor-pointer border border-dashed border-slate-200 dark:border-slate-800 rounded-lg p-2 transition-all"
+        onClick={fetchImage}
+        title="Click to search image online"
+      >
+        <span className="text-[9px] font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded uppercase tracking-wider">
+          Load Image
+        </span>
+      </div>
+    );
+  }
+
   return (
     <img 
       src={src || fallbackSrc} 
@@ -86,8 +102,16 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
       >
         {/* Floating Title Bubble at the top */}
         {foodName && (
-          <div className="absolute top-6 left-1/2 -translate-x-1/2 px-6 py-2.5 bg-slate-900/90 text-white rounded-full font-semibold text-sm tracking-wide border border-slate-700/80 shadow-2xl z-[10000] text-center max-w-[80vw] truncate">
-            {foodName}
+          <div 
+            className="absolute top-6 left-1/2 -translate-x-1/2 px-6 py-2.5 bg-slate-900/90 hover:bg-slate-800 text-white rounded-full font-semibold text-sm tracking-wide border border-slate-700/80 shadow-2xl z-[10000] text-center max-w-[80vw] truncate cursor-pointer transition-colors flex items-center gap-1.5"
+            onClick={(e) => {
+              e.stopPropagation();
+              window.open('https://www.google.com/search?tbm=isch&q=' + encodeURIComponent(foodName), '_blank', 'noopener,noreferrer');
+            }}
+            title="Search Google Images"
+          >
+            <span>{foodName}</span>
+            <span className="opacity-50 text-[10px]">↗</span>
           </div>
         )}
         <TransformWrapper

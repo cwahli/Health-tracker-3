@@ -374,3 +374,9 @@ export interface QuotaData {
   imageCount?: number;
   imageStorageBytes?: number;
 }
+
+declare global {
+  interface Window {
+    sessionSyncTriggered?: boolean;
+  }
+}

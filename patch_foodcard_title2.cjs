@@ -9,6 +9,7 @@ const titleOld = `                      <div className="flex items-center justif
                           {msg.data?.pendingFoodLog.weightGrams}g ({msg.data?.pendingFoodLog.quantity})
                         </span>
                       </div>
+
                       <div className="flex items-center justify-between text-xs font-medium border-b border-slate-100 dark:border-slate-800/50 pb-2 font-sans">
                         <span className="text-slate-500">Record Date:</span>
                         <span className="font-mono text-slate-800 dark:text-slate-200">{msg.data?.pendingFoodLog.date}</span>
@@ -34,24 +35,9 @@ const titleNew = `                      <div className="flex flex-col items-star
 
 if (code.includes(titleOld)) {
   code = code.replace(titleOld, titleNew);
-  console.log("Success patch title");
+  console.log("Success patch title2");
 } else {
-  console.log("Failed patch title");
-}
-
-const cookingOld = `                        {msg.data?.pendingFoodLog.cookingMethod && (
-                          <p><strong className="text-slate-900 dark:text-white">🍳 Cooking Method & Seasoning:</strong> {msg.data?.pendingFoodLog.cookingMethod}</p>
-                        )}`;
-
-const cookingNew = `                        {msg.data?.pendingFoodLog.cookingMethod && (
-                          <p className="text-slate-700 dark:text-slate-400 italic">{msg.data?.pendingFoodLog.cookingMethod}</p>
-                        )}`;
-
-if (code.includes(cookingOld)) {
-  code = code.replace(cookingOld, cookingNew);
-  console.log("Success patch cooking");
-} else {
-  console.log("Failed patch cooking");
+  console.log("Failed patch title2");
 }
 
 fs.writeFileSync('src/components/chat-cards/FoodCard.tsx', code);

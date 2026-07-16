@@ -1,18 +1,18 @@
 const fs = require('fs');
 let code = fs.readFileSync('server.ts', 'utf8');
-
-const targetStr = 'calculatedRows[6].values.push(`${fat} g`);';
-const newCode = `calculatedRows[6].values.push(\`\${fat} g\`);
-
-          // Ensure food.keyNutrients contains all calculated/fallback core nutrients
-          if (!food.keyNutrients) food.keyNutrients = {};
-          food.keyNutrients.calories = cal;
-          food.keyNutrients.saturatedFat = satFat;
-          food.keyNutrients.sodium = sod;
-          food.keyNutrients.protein = prot;
-          food.keyNutrients.carbohydrates = carb;
-          food.keyNutrients.totalFat = fat;`;
-
-code = code.replace(targetStr, newCode);
+code = code.replace(
+  `const singleLineLog = sanitizedMsg.replace(/\\n/g, '\\n');
+  if (singleLineLog.length > 300) {
+    console.log(\`[LLM DEBUG \${timestamp}]: \${singleLineLog.substring(0, 300)}... [Truncated \${singleLineLog.length - 300} chars. Full detailed payload is saved in session memory and visible via the Full-Screen Diagnostic Log Viewer UI]\`);
+  } else {
+    console.log(\`[LLM DEBUG \${timestamp}]: \${singleLineLog}\`);
+  }`,
+  `const singleLineLog = sanitizedMsg.replace(/\\n/g, '\\n');
+  if (singleLineLog.length > 4000) {
+    console.log(\`[LLM DEBUG \${timestamp}]: \${singleLineLog.substring(0, 4000)}... [Truncated \${singleLineLog.length - 4000} chars.]\`);
+  } else {
+    console.log(\`[LLM DEBUG \${timestamp}]: \${singleLineLog}\`);
+  }`
+);
 fs.writeFileSync('server.ts', code);
-console.log('Server patched');
+console.log("Patched server.ts logs");
