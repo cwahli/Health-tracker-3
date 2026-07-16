@@ -817,7 +817,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                            onToggle={() => setGroupExpanded(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))}
                                          >
                                            {/* Search results moved to group level to take full width */}
-                                            <div className={hasDishesImages ? "grid grid-cols-3 sm:grid-cols-4 gap-3 w-full" : "flex flex-wrap gap-2 w-full"}>
+                                            <div className={hasDishesImages ? "grid grid-cols-3 sm:grid-cols-4 gap-3 w-full" : "grid grid-cols-2 gap-2 w-full"}>
                                              {(group.items || []).map((item: any, itemIdx: number) => {
                                                 const { src: resolvedImgSrc, boundingBox: bb, imgIdx } = groupPreviewItems[itemIdx];
                                                 const isTextOnly = textOnlyIndices.includes(itemIdx);
@@ -840,7 +840,7 @@ export const FoodCard: React.FC<AgentCardProps & {
 
                                                 const chipContent = isTextOnly ? (
                                                   <div 
-                                                    className={`flex items-center justify-center p-2 rounded-xl border cursor-pointer shadow-sm transition-all duration-200 text-center min-h-[48px] px-3 w-full ${
+                                                    className={`flex items-center justify-start p-2 rounded-xl border cursor-pointer shadow-sm transition-all duration-200 text-left min-h-[48px] px-3 w-full ${
                                                       isSelected 
                                                         ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 ring-2 ring-indigo-500/50 shadow-md font-bold scale-[1.02]' 
                                                         : isSelectingMode 
@@ -849,7 +849,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                     }`}
                                                     onClick={() => chipOnClick()}
                                                   >
-                                                    <span className={`text-[10.5px] lowercase font-semibold leading-tight break-words text-center ${isSelected ? 'text-indigo-700 dark:text-indigo-300 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                    <span className={`text-[10.5px] lowercase font-semibold leading-tight break-words text-left ${isSelected ? 'text-indigo-700 dark:text-indigo-300 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
                                                       {itemDisplayName}
                                                     </span>
                                                   </div>
@@ -872,7 +872,7 @@ export const FoodCard: React.FC<AgentCardProps & {
 
                                                 return (
                                                   <React.Fragment key={itemIdx}>
-                                                    <div className="relative flex flex-col gap-2 flex-grow-0 max-w-[48%] sm:max-w-[32%] md:max-w-[24%]">
+                                                    <div className="relative flex flex-col gap-2 w-full">
                                                         {chipContent}
                                                         {!!searchResults[fullItemKey] && (
                                                             <button 

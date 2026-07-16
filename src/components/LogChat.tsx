@@ -801,8 +801,8 @@ ${logsText}`);
         where('type', '==', type || 'medical'),
         where('agentType', '==', agentType || null)
       );
-      const snapshot = trackApiCall('firebase_read', 'Firestore getDocs');
-      await getDocs(q);
+      trackApiCall('firebase_read', 'Firestore getDocs');
+      const snapshot = await getDocs(q);
       const list: any[] = [];
       snapshot.forEach(docSnap => {
         list.push(docSnap.data());

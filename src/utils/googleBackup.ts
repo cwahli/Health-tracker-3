@@ -310,8 +310,8 @@ export async function runBackupWorkflow(
   comment: string,
   password?: string
 ): Promise<{ fileId: string; filename: string; stats: any }> {
-  const usersSnap = trackApiCall('firebase_read', 'Firestore getDocs');
-      await getDocs(collection(db, 'users'));
+  trackApiCall('firebase_read', 'Firestore getDocs');
+      const usersSnap = await getDocs(collection(db, 'users'));
   const allAccountsData: any[] = [];
 
   let totalImages = 0;
@@ -327,13 +327,13 @@ export async function runBackupWorkflow(
     if (!profile.email) continue;
 
     // Fetch food logs
-    const foodLogsSnap = trackApiCall('firebase_read', 'Firestore getDocs');
-      await getDocs(collection(db, 'users', uid, 'foodLogs'));
+    trackApiCall('firebase_read', 'Firestore getDocs');
+      const foodLogsSnap = await getDocs(collection(db, 'users', uid, 'foodLogs'));
     const foodLogs = foodLogsSnap.docs.map(d => d.data());
 
     // Fetch biomarker history
-    const biomarkerHistorySnap = trackApiCall('firebase_read', 'Firestore getDocs');
-      await getDocs(collection(db, 'users', uid, 'biomarkerHistory'));
+    trackApiCall('firebase_read', 'Firestore getDocs');
+      const biomarkerHistorySnap = await getDocs(collection(db, 'users', uid, 'biomarkerHistory'));
     const biomarkerHistory = biomarkerHistorySnap.docs.map(d => d.data());
 
     // Fetch actions, dailyBenefits, foodIdeas
@@ -341,8 +341,8 @@ export async function runBackupWorkflow(
     let dailyBenefits: any[] = [];
     let foodIdeas: any[] = [];
     try {
-      const dashboardDoc = trackApiCall('firebase_read', 'Firestore getDoc');
-      await getDoc(doc(db, 'users', uid, 'metadata', 'dashboard'));
+      trackApiCall('firebase_read', 'Firestore getDoc');
+      const dashboardDoc = await getDoc(doc(db, 'users', uid, 'metadata', 'dashboard'));
       if (dashboardDoc.exists()) {
         const dData = dashboardDoc.data();
         actions = dData.actions || [];
@@ -356,8 +356,8 @@ export async function runBackupWorkflow(
     // Fetch latest report
     let report: any = null;
     try {
-      const reportDoc = trackApiCall('firebase_read', 'Firestore getDoc');
-      await getDoc(doc(db, 'users', uid, 'reports', 'latest'));
+      trackApiCall('firebase_read', 'Firestore getDoc');
+      const reportDoc = await getDoc(doc(db, 'users', uid, 'reports', 'latest'));
       if (reportDoc.exists()) {
         report = reportDoc.data();
       }
@@ -368,8 +368,8 @@ export async function runBackupWorkflow(
     // Fetch agent analyses
     let agentAnalyses: any[] = [];
     try {
-      const analysesSnap = trackApiCall('firebase_read', 'Firestore getDocs');
-      await getDocs(collection(db, 'users', uid, 'agentAnalyses'));
+      trackApiCall('firebase_read', 'Firestore getDocs');
+      const analysesSnap = await getDocs(collection(db, 'users', uid, 'agentAnalyses'));
       agentAnalyses = analysesSnap.docs.map(d => d.data());
     } catch (e) {
       console.warn('Analyses fetch error:', e);

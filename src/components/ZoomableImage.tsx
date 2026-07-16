@@ -1,64 +1,8 @@
 import { trackApiCall } from '../utils/apiTracker';
 import React, { useRef, useEffect, useState } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
-
-const OnlineFoodImage: React.FC<{ foodName: string; fallbackSrc: string; className?: string; onClick?: (e: React.MouseEvent) => void }> = ({ foodName, fallbackSrc, className, onClick }) => {
-  const [src, setSrc] = React.useState<string>("");
-  const [loading, setLoading] = React.useState(false);
-  const [searched, setSearched] = React.useState(false);
-
-  const fetchImage = async (e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    if (searched || loading) return;
-    setLoading(true);
-    setSearched(true);
-    try {
-      trackApiCall('brave', `Brave Image Search - ${foodName}`);
-      const res = await fetch("/api/gemini/food-image-search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: foodName }),
-      });
-      const data = await res.json();
-      if (data.images && data.images.length > 0) {
-        setSrc(data.images[0].imageUrl);
-      }
-    } catch (err) {
-      console.warn("Online search failed for", foodName, err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (!searched) {
-    return (
-      <div 
-        className="w-full h-full flex flex-col items-center justify-center bg-slate-50 dark:bg-slate-900/30 text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-850 cursor-pointer border border-dashed border-slate-200 dark:border-slate-800 rounded-lg p-2 transition-all"
-        onClick={fetchImage}
-        title="Click to search image online"
-      >
-        <span className="text-[9px] font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded uppercase tracking-wider">
-          Load Image
-        </span>
-      </div>
-    );
-  }
-
-  return (
-    <img 
-      src={src || fallbackSrc} 
-      alt={foodName} 
-      className={`${className} ${loading ? 'animate-pulse bg-slate-100 dark:bg-slate-800' : ''}`}
-      referrerPolicy="no-referrer"
-      onClick={onClick}
-      onError={(e) => {
-        (e.target as HTMLImageElement).src = fallbackSrc;
-      }}
-    />
-  );
-};
-
 interface ZoomableImageProps {
+
   src: string;
   boundingBox?: number[] | null;
   onClose: () => void;
@@ -127,14 +71,6 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
               <>
                 <TransformComponent wrapperClass="!w-full !h-full" contentClass="!w-full !h-full flex items-center justify-center">
                   <div className="relative inline-block max-w-[95vw] max-h-[85vh]">
-                    {!boundingBox || boundingBox.length < 4 ? (
-                      <OnlineFoodImage 
-                        foodName={foodName || "food"} 
-                        fallbackSrc={src} 
-                        className={`max-w-[95vw] max-h-[85vh] rounded-xl object-contain shadow-2xl animate-fade-in ${sourceUrl ? 'cursor-pointer hover:opacity-90 transition-opacity' : ''}`}
-                        onClick={sourceUrl ? (e) => { e.stopPropagation(); window.open(sourceUrl, '_blank', 'noopener,noreferrer'); } : undefined}
-                      />
-                    ) : (
                       <img 
                         src={src} 
                         alt={foodName || "Full screen preview"} 
@@ -142,7 +78,6 @@ export const ZoomableImage: React.FC<ZoomableImageProps> = ({
                         referrerPolicy="no-referrer"
                         onClick={sourceUrl ? (e) => { e.stopPropagation(); window.open(sourceUrl, '_blank', 'noopener,noreferrer'); } : undefined}
                       />
-                    )}
                     {boundingBox && boundingBox.length === 4 && (
                       <ZoomTrigger boundingBox={boundingBox} zoomToElement={zoomToElement} isFirst={isFirstRef.current} />
                     )}

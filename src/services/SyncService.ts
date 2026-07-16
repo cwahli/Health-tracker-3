@@ -107,8 +107,8 @@ export class SyncService {
   }
 
   static async pullFromServer(db: Firestore, uid: string, localFoods: FoodLog[], localBiomarkers: BiomarkerLog[], onSyncComplete: (syncedFoods: FoodLog[], syncedBiomarkers: BiomarkerLog[]) => void) {
-    const bucketsSnap = trackApiCall('firebase_read', 'Firestore getDocs');
-      await getDocs(collection(db, 'users', uid, 'consolidated_logs'));
+    trackApiCall('firebase_read', 'Firestore getDocs');
+      const bucketsSnap = await getDocs(collection(db, 'users', uid, 'consolidated_logs'));
     
     let serverFoods: FoodLog[] = [];
     let serverBiomarkers: BiomarkerLog[] = [];

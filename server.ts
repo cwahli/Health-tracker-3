@@ -1,3 +1,4 @@
+import * as cheerio from "cheerio";
 import { getApps, initializeApp } from 'firebase-admin/app';
 if (getApps().length === 0) {
   initializeApp();
@@ -1766,7 +1767,7 @@ STEP 3 — CORE EXTRACTION & GROUPING LAWS:
 - NUTRITION FACTS LABELS (type b): DO NOT perform math or scale values per 100g. Extract the EXACT total package weight, serving size weight, and nutrients per serving exactly as written into the "rawNutritionLabel" object. If an item has NO legible physical nutrition panel visible, leave "rawNutritionLabel" and "nutritionFacts" entirely empty {}. Do not hallucinate.
 - VISUAL FOOD (type c): Identify items, estimate weights, and draw unique bounding boxes around each physical item on the plate/scene.
 - MENUS AND POSTERS (type e) - SHARED BOUNDING BOX RULE: Do NOT attempt to draw individual bounding boxes for every single line of text. This causes token fatigue. Instead, identify logical category blocks (e.g., the entire "Aneka Ikan Bakar" section). Draw ONE large bounding box around that entire category block. Extract every individual menu choice within that block into the JSON array, but assign ALL of them the EXACT SAME \`boundingBox2D\` coordinates of their parent category block.
-- CLASSIFICATION LAW: If the image is a restaurant menu, combo board, or poster listing text options (type e), you MUST set "contentType" to "text". If it is a photo of actual food, set it to "visual". Setting this incorrectly is a critical failure.
+- CLASSIFICATION LAW: If the image is PURELY text-only (a restaurant menu or list with absolutely no food pictures), you MUST set "contentType" to "text". If the image contains ANY actual food pictures, meals, or visual food items (even if it is a menu/poster that includes text next to the pictures), you MUST set "contentType" to "visual". Setting this incorrectly is a critical failure.
 CRITICAL RULES:
 - 'originalName' PRESERVATION: Capture the EXACT local/original name and preparation words exactly as written. Do NOT translate or summarize.
 - 'keyword': MUST be a short, clean, database-friendly English name so the backend search functions successfully (e.g., "beef blade cut", "sweet potato"). 
@@ -5173,6 +5174,7 @@ app.post("/api/gemini/food-image-search", async (req, res) => {
   return res.json(result);
 });
 
+
 app.post("/api/gemini/menu-image-search", async (req, res) => {
   const { labels } = req.body;
   if (!labels || !Array.isArray(labels) || labels.length === 0) {
@@ -5186,65 +5188,113 @@ app.post("/api/gemini/menu-image-search", async (req, res) => {
   }
 
   let allResults: { label: string; imageUrl: string | null }[] = [];
+  const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
   
   for (const batch of batches) {
-    const promptText = `You are an image search assistant. For each of the following food menu items, find a high-quality, hotlinkable image URL that best represents it using Google Search.
-Food Items: ${batch.join(", ")}
-
-Respond with a strictly formatted JSON array of objects. Each object must have:
-- "label": The exact food item name as provided.
-- "imageUrl": The direct hotlinkable URL of the image, or null if none could be found.`;
-
+    const promptText = `Briefly describe each of these dishes: ${batch.join(", ")}. Do not include URLs or format as JSON. Provide a short paragraph for each.`;
     try {
-      const responseText = await callUnifiedLLM({
-        modelId: "gemini-pro-latest", // Can use the default or a strong model for tool use
-        systemInstruction: "You return strictly valid JSON matching the schema.",
-        promptText,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "ARRAY",
-          description: "List of image results for the requested food items.",
-          items: {
-            type: "OBJECT",
-            properties: {
-              label: { type: "STRING" },
-              imageUrl: { type: "STRING" } // no nullable in standard gemini schema sometimes, so string is fine
-            },
-            required: ["label", "imageUrl"]
-          }
-        },
-        googleSearch: true
+      const response = await ai.models.generateContent({
+        model: "gemini-2.5-flash",
+        contents: promptText,
+        config: { tools: [{ googleSearch: {} }] }
       });
+      const candidate = response.candidates?.[0];
+      const text = candidate?.content?.parts?.[0]?.text || "";
+      const groundingMetadata = candidate?.groundingMetadata;
+      const groundingSupports = groundingMetadata?.groundingSupports || [];
+      const groundingChunks = groundingMetadata?.groundingChunks || [];
 
-      try {
-        const parsed = typeof responseText === "string" ? JSON.parse(responseText) : responseText;
-        if (Array.isArray(parsed)) {
-          allResults = allResults.concat(parsed);
+      for (const label of batch) {
+        let matchedUri = null;
+        let matchReason = "No grounding match";
+        const lowerLabel = label.toLowerCase();
+        let matchedSegment = null;
+        for (const support of groundingSupports) {
+           const segment = support.segment;
+           if (segment && segment.text && segment.text.toLowerCase().includes(lowerLabel)) {
+             matchedSegment = support;
+             break;
+           }
         }
-      } catch (e) {
-        console.error("Failed to parse menu image search response:", e);
+        if (!matchedSegment) {
+           const parts = lowerLabel.split(" ");
+           for (const support of groundingSupports) {
+              const segment = support.segment;
+              if (segment && segment.text && parts.some(p => p.length > 3 && segment.text.toLowerCase().includes(p))) {
+                 matchedSegment = support;
+                 break;
+              }
+           }
+        }
+        
+        if (matchedSegment && matchedSegment.groundingChunkIndices && matchedSegment.groundingChunkIndices.length > 0) {
+           const chunkIndex = matchedSegment.groundingChunkIndices[0];
+           const chunk = groundingChunks[chunkIndex];
+           if (chunk && chunk.web && chunk.web.uri) {
+             matchedUri = chunk.web.uri;
+           }
+        }
+        
+        let ogImageUrl = null;
+        if (matchedUri) {
+           try {
+             const scrapeRes = await fetch(matchedUri, { 
+               headers: { "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36" },
+               signal: AbortSignal.timeout(5000)
+             });
+             const html = await scrapeRes.text();
+             const $ = cheerio.load(html);
+             ogImageUrl = $('meta[property="og:image"]').attr('content');
+             if (!ogImageUrl) matchReason = "No og:image";
+           } catch (e) {
+             matchReason = "Scrape failure";
+           }
+        }
+        
+        // Fallback
+        if (!ogImageUrl) {
+           try {
+             const fallbackRes = await fetch("http://localhost:3000/api/gemini/food-image-search", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ query: label })
+             });
+             const fallbackData = await fallbackRes.json();
+             if (fallbackData.images && fallbackData.images.length > 0) {
+                ogImageUrl = fallbackData.images[0].imageUrl;
+             }
+           } catch (e) {
+             console.error("Fallback error", e);
+           }
+        }
+        
+        allResults.push({ label, imageUrl: ogImageUrl });
       }
     } catch (e) {
-      console.error("Error calling LLM for menu image search:", e);
+      console.error("Batch error:", e);
+      for (const label of batch) {
+         try {
+             const fallbackRes = await fetch("http://localhost:3000/api/gemini/food-image-search", {
+                method: "POST", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ query: label })
+             });
+             const fallbackData = await fallbackRes.json();
+             if (fallbackData.images && fallbackData.images.length > 0) {
+                allResults.push({ label, imageUrl: fallbackData.images[0].imageUrl });
+             } else {
+                allResults.push({ label, imageUrl: null });
+             }
+         } catch(e) {
+             allResults.push({ label, imageUrl: null });
+         }
+      }
     }
   }
-
   return res.json({ results: allResults });
 });
 
+/* old code replacement */
 app.get("/api/gemini/test-menu-image-search", async (req, res) => {
-  const testLabels = [
-    "Beef Rendang",
-    "Nasi Goreng",
-    "Chicken Satay",
-    "Gado Gado",
-    "Soto Ayam",
-    "Mie Goreng",
-    "Martabak Manis",
-    "Pempek Palembang",
-    "Es Cendol",
-    "Ayam Penyet"
-  ];
+  const testLabels = ["Beef Rendang", "Nasi Goreng", "Chicken Satay", "Gado Gado", "Soto Ayam", "Mie Goreng", "Martabak Manis", "Pempek Palembang", "Es Cendol", "Ayam Penyet", "GURAME ASAM MANIS", "ES TELER ALPUKAT", "SEBLAK CEKER", "MIE TEK-TEK BAKSO", "KWETIAU GORENG SEAFOOD", "JUS ALPUKAT", "ES BANGO AGER ITEM", "TONGKOL SUIR PETE", "AYAM GARANG ASEM", "CUMI GORENG TEPUNG"];
 
   try {
     const protocol = req.protocol || "http";

@@ -16,13 +16,13 @@ export const runCleanupMigration = async (uid: string, email?: string) => {
     // 1. Check LocalStorage (done above)
     // 2. Secondary check in Firestore under UID
     const migrationRef = doc(db, 'users', uid, 'metadata', 'migration');
-    const migrationSnap = trackApiCall('firebase_read', 'Firestore getDoc');
-      await getDoc(migrationRef);
+    trackApiCall('firebase_read', 'Firestore getDoc');
+      const migrationSnap = await getDoc(migrationRef);
     
     // Check old flag in profile as well for backwards compatibility
     const profileRef = doc(db, 'users', uid);
-    const profileSnap = trackApiCall('firebase_read', 'Firestore getDoc');
-      await getDoc(profileRef);
+    trackApiCall('firebase_read', 'Firestore getDoc');
+      const profileSnap = await getDoc(profileRef);
 
     let isAlreadyDone = false;
     if (migrationSnap.exists() && migrationSnap.data().biomarkersV1Completed === true) {
@@ -45,8 +45,8 @@ export const runCleanupMigration = async (uid: string, email?: string) => {
     
     // Clean history logs under UID
     const historyRef = collection(db, 'users', uid, 'biomarkerHistory');
-    const snapshot = trackApiCall('firebase_read', 'Firestore getDocs');
-      await getDocs(historyRef);
+    trackApiCall('firebase_read', 'Firestore getDocs');
+      const snapshot = await getDocs(historyRef);
     
     for (const docSnap of snapshot.docs) {
       const data = docSnap.data() as BiomarkerLog;
