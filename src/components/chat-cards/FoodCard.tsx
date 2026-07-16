@@ -11,7 +11,7 @@ import { FoodLog } from '../../types';
 import { resolveFoodImage } from '../../utils/imageResolver';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { ZoomableImage } from '../ZoomableImage';
-import { FoodScoutItemPreview } from './FoodScoutItemPreview';
+import { FoodScoutItemPreview, OnlineFoodImage } from './FoodScoutItemPreview';
 
 interface CroppedFoodImageProps {
   src: string;
@@ -313,6 +313,11 @@ export const FoodCard: React.FC<AgentCardProps & {
   const [scoutPreviewIdx, setScoutPreviewIdx] = React.useState<number | null>(null);
   const [externalPreviewImg, setExternalPreviewImg] = React.useState<{ url: string; title: string } | null>(null);
 
+  // Card-wide parent image search state hooks
+  const [onlineImageUrls, setOnlineImageUrls] = React.useState<Record<string, string>>({});
+  const [showMenuImages, setShowMenuImages] = React.useState<Record<string, boolean>>({});
+  const [fetchingGroupImages, setFetchingGroupImages] = React.useState<Record<string, boolean>>({});
+
   const handleFoodSearch = async (groupIdx: number, itemIdx: number, query: string) => {
     const groupKey = `${msg.id}-${groupIdx}`;
     const itemKey = `${msg.id}-${groupIdx}-${itemIdx}`;
@@ -530,6 +535,41 @@ export const FoodCard: React.FC<AgentCardProps & {
     return groups;
   }, [msg.data, profile?.topNutrientsToMonitor]);
 
+  // Function to parallel-fetch all text menu images in complete mode
+  const fetchGroupMenuImages = async (groupIdx: number) => {
+    const group = displayGroups[groupIdx];
+    if (!group || !group.items) return;
+    
+    const groupKey = `${msg.id}-${groupIdx}`;
+    setFetchingGroupImages(prev => ({ ...prev, [groupKey]: true }));
+    setShowMenuImages(prev => ({ ...prev, [groupKey]: true }));
+    
+    const promises = group.items.map(async (item: any, itemIdx: number) => {
+      const itemKey = `${msg.id}-${groupIdx}-${itemIdx}`;
+      if (onlineImageUrls[itemKey]) return;
+      
+      try {
+        const res = await fetch("/api/gemini/food-image-search", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query: item.name, mode: "complete" })
+        });
+        const data = await res.json();
+        if (data.images && data.images.length > 0) {
+          setOnlineImageUrls(prev => ({
+            ...prev,
+            [itemKey]: data.images[0].imageUrl
+          }));
+        }
+      } catch (err) {
+        console.warn("Failed to fetch menu image for", item.name, err);
+      }
+    });
+    
+    await Promise.all(promises);
+    setFetchingGroupImages(prev => ({ ...prev, [groupKey]: false }));
+  };
+
   // Register parent Action handlers
   React.useEffect(() => {
     if (props.actionRef && props.isSelectingMode) {
@@ -617,50 +657,15 @@ export const FoodCard: React.FC<AgentCardProps & {
                                     )}
                                   </div>
                                 </div>
-
-                                {/* Re-use exactly same preview picture with zoom action */}
-                                {(() => {
-                                  const itemObj = group.items?.[0];
-                                  const matchingScout = (resolvedScoutItems || []).find((s: any) => {
-                                    const gName = (group.groupName || "").toLowerCase();
-                                    const sKw = (s.keyword || "").toLowerCase();
-                                    const sOrig = (s.originalName || "").toLowerCase();
-                                    return (
-                                      (gName && sKw && (gName.includes(sKw) || sKw.includes(gName))) ||
-                                      (gName && sOrig && (gName.includes(sOrig) || sOrig.includes(gName))) ||
-                                      (gName.split(' ')[0] === sKw.split(' ')[0])
-                                    );
-                                  });
-                                  const bb = itemObj?.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
-                                  const imgIdx = itemObj ? (typeof itemObj.sourceImageIndex === 'number' ? itemObj.sourceImageIndex : 0) : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0);
-                                  const heroHeight = bb ? Math.abs(bb[2] - bb[0]) : 0;
-                                  const heroWidth = bb ? Math.abs(bb[3] - bb[1]) : 0;
-                                  const heroAspect = heroHeight > 0 ? heroWidth / heroHeight : 0;
-                                  const isMenuOrPoster = msg.data?.scoutContentType === 'text' || msg.data?.scoutContentType === 'menu_or_poster';
-                                  if (isMenuOrPoster) return null;
-                                  
-                                  const heroSearchName = matchingScout?.originalName || itemObj?.originalName || matchingScout?.keyword || itemObj?.name || group.groupName;
-                                  const resolvedImgSrc = (resolvedMessageImages.length > 0)
-                                    ? resolvedMessageImages[imgIdx >= 0 && imgIdx < resolvedMessageImages.length ? imgIdx : 0]
-                                    : getFoodImageUrl(group.groupName, '');
-
-                                  return (
-                                    <div className="w-full h-32 rounded-xl overflow-hidden border border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 relative shadow-sm cursor-pointer hover:opacity-90 transition-opacity">
-                                      <FoodScoutItemPreview
-                                        name={heroSearchName}
-                                        src={resolvedImgSrc}
-                                        boundingBox={null}
-                                        imgIdx={imgIdx}
-                                        messageImages={resolvedMessageImages}
-                                        isActive={false}
-                                        isSearchMode={false}
-                                        onClick={(fetchedUrl) => {
-                                          setPreviewState({ groupIdx: idx, itemIdx: 0, resolvedImgSrc, overrideSrc: fetchedUrl && typeof fetchedUrl === 'string' ? fetchedUrl : undefined });
-                                        }}
-                                      />
-                                    </div>
-                                  );
-                                })()}
+                                {/* Group Hero Image (Programmatic online search in light mode, no Brave search) */}
+                                <div className="w-full h-32 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 shadow-sm relative shrink-0">
+                                  <OnlineFoodImage 
+                                    foodName={group.groupName || (group.items?.[0]?.name) || "food"} 
+                                    fallbackSrc={getFoodImageUrl(group.items?.[0]?.name || "food")} 
+                                    className="w-full h-full object-cover"
+                                    searchMode="light"
+                                  />
+                                </div>
                                 
                                 {/* Aggregated Nutrients - Filters and shows only profile top nutrients */}
                                 <div className="space-y-1">
@@ -785,6 +790,33 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                </button>
                                              )}
 
+                                              {hasTextOnlyItems && (
+                                                <button 
+                                                  type="button"
+                                                  onClick={() => {
+                                                    const groupKey = `${msg.id}-${idx}`;
+                                                    if (showMenuImages[groupKey]) {
+                                                      setShowMenuImages(prev => ({ ...prev, [groupKey]: false }));
+                                                    } else {
+                                                      fetchGroupMenuImages(idx);
+                                                    }
+                                                  }}
+                                                  className={`px-2 py-0.5 text-[9px] font-bold border border-slate-200 dark:border-slate-800 rounded-md bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 text-slate-500 dark:text-slate-400 transition-all flex items-center gap-1 cursor-pointer ${
+                                                    showMenuImages[`${msg.id}-${idx}`]
+                                                      ? 'border-indigo-200 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400'
+                                                      : ''
+                                                  }`}
+                                                  disabled={fetchingGroupImages[`${msg.id}-${idx}`]}
+                                                >
+                                                  {fetchingGroupImages[`${msg.id}-${idx}`] ? (
+                                                    <span className="w-2.5 h-2.5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin inline-block"></span>
+                                                  ) : (
+                                                    <span>🖼️</span>
+                                                  )}
+                                                  <span>{showMenuImages[`${msg.id}-${idx}`] ? 'Hide Images' : 'Show Menu Images'}</span>
+                                                </button>
+                                              )}
+
                                              <button
                                                type="button"
                                                onClick={() => {
@@ -817,7 +849,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                            onToggle={() => setGroupExpanded(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))}
                                          >
                                            {/* Search results moved to group level to take full width */}
-                                            <div className={hasDishesImages ? "grid grid-cols-3 sm:grid-cols-4 gap-3 w-full" : "grid grid-cols-2 gap-2 w-full"}>
+                                            <div className={(hasDishesImages || showMenuImages[groupKey]) ? "grid grid-cols-3 sm:grid-cols-4 gap-3 w-full" : "grid grid-cols-2 gap-2 w-full"}>
                                              {(group.items || []).map((item: any, itemIdx: number) => {
                                                 const { src: resolvedImgSrc, boundingBox: bb, imgIdx } = groupPreviewItems[itemIdx];
                                                 const isTextOnly = textOnlyIndices.includes(itemIdx);
@@ -838,7 +870,11 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                   }
                                                 };
 
-                                                const chipContent = isTextOnly ? (
+                                                const shouldShowAsPreview = !isTextOnly || showMenuImages[groupKey];
+                                        const itemKeyForCache = `${msg.id}-${idx}-${itemIdx}`;
+                                        const finalSrc = onlineImageUrls[itemKeyForCache] || resolvedImgSrc;
+
+                                        const chipContent = !shouldShowAsPreview ? (
                                                   <div 
                                                     className={`flex items-center justify-start p-2 rounded-xl border cursor-pointer shadow-sm transition-all duration-200 text-left min-h-[48px] px-3 w-full ${
                                                       isSelected 
@@ -856,12 +892,13 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                 ) : (
                                                   <FoodScoutItemPreview
                                                     name={itemDisplayName}
-                                                    src={resolvedImgSrc}
+                                                    src={finalSrc}
                                                     boundingBox={bb}
                                                     imgIdx={imgIdx}
                                                     messageImages={resolvedMessageImages}
                                                     isActive={isSelected}
                                                     isSearchMode={isSelectingMode}
+                                                    searchMode="complete"
                                                     onClick={chipOnClick}
                                                   />
                                                 );
@@ -998,9 +1035,10 @@ export const FoodCard: React.FC<AgentCardProps & {
         const imgIdx = typeof item.sourceImageIndex === 'number' 
           ? item.sourceImageIndex 
           : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0);
-        let resolvedImgSrc = (resolvedMessageImages.length > 0)
+        const itemKeyForCache = `${msg.id}-${previewState.groupIdx}-${previewState.itemIdx}`;
+        let resolvedImgSrc = onlineImageUrls[itemKeyForCache] || ((resolvedMessageImages.length > 0)
           ? resolvedMessageImages[imgIdx >= 0 && imgIdx < resolvedMessageImages.length ? imgIdx : 0]
-          : getFoodImageUrl(item.name, '');
+          : getFoodImageUrl(item.name, ''));
         
         if (previewState.resolvedImgSrc && previewState.itemIdx === 0) {
           resolvedImgSrc = previewState.resolvedImgSrc;
@@ -1009,7 +1047,8 @@ export const FoodCard: React.FC<AgentCardProps & {
           resolvedImgSrc = previewState.overrideSrc;
         }
         const bb = item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
-        const itemDisplayName = (item.originalName || item.name);
+        const groupKey = `${msg.id}-${previewState.groupIdx}`;
+        const itemDisplayName = showTranslations[groupKey] ? (item.keyword || item.name) : (item.originalName || item.name);
         return (
           <ZoomableImage 
             src={resolvedImgSrc} 

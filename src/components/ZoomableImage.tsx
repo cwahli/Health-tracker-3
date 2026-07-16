@@ -140,7 +140,7 @@ const ZoomTrigger = ({ boundingBox, zoomToElement, isFirst }: { boundingBox: num
       const targetScale = Math.min(0.95 / (maxBboxSize || 1), 40);
       
       const duration = isFirst ? 0 : 500;
-      const delay = isFirst ? 0 : 50;
+      const delay = isFirst ? 0 : 150;
       
       const timer = setTimeout(() => {
         const el = document.getElementById('zoom-target-bbox');
