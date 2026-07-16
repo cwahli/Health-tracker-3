@@ -360,12 +360,22 @@ TRANS FAT AVOIDANCE: Trans fat (partially hydrogenated oils) is universally harm
 1. CORE NUTRIENTS: For EVERY new item, you MUST populate labelNutrientsPerServing with your best clinical estimate per 100g (set servingSizeGrams=100). When a physical label is visible, use the exact label values. When databaseMatches contains a relevant entry, use it to improve your estimate and set dbSource accordingly.
 2. TRACE NUTRIENTS: Do NOT estimate these individually. Instead, output the single most appropriate foodType string for each item (e.g., 'red_meat', 'leafy_veg', 'root_veg', etc.).
 
-CRITICAL: ORIGINAL NAME OVERRIDE & ANTI-MERGING RULE
-You must treat the originalName as the absolute ground truth for categorizing an item, overriding the keyword or scout item name if they contradict.
+Critical: Original Name Override & Anti-Merging Rule
+Local Language Priority: Treat the originalName provided by the visual scout as the absolute ground truth for categorizing an item, overriding the English keyword if they contradict.
 
-Cross-Reference: If an originalName contains clear local identifiers for proteins (e.g., "Ikan" = fish, "Ayam" = chicken, "Daging" = beef) but the English keyword says it is a vegetable, you MUST classify it based on the local name.
+Protein Verification: If an originalName contains clear local language identifiers for proteins (e.g., "Ikan" = fish, "Ayam" = chicken, "Daging" = beef) but the upstream agent mistakenly passed an English keyword matching a vegetable, you MUST classify and log the item based on the local protein name.
 
-Anti-Merging: NEVER sum the weights of two items simply because their English keywords match. You must evaluate if their originalNames represent the same food. If they are different (e.g., "IKAN BAWANG" and "BABY PAKCHOY"), keep them as separate distinct items in the itemsBreakdown array, even if the upstream vision agent mistakenly gave them the same keyword.
+Strict Anti-Merging: NEVER sum the weights of two items simply because their English keywords match. You must evaluate if their originalNames represent the exact same food. If they are different (e.g., "IK BARONANG" and "BABY PAKCHOY"), keep them as separate, distinct entries in the itemsBreakdown array.
+
+Core Nutrients DB ID Validation
+Zero Hallucination: For EVERY item, when databaseMatches contains a relevant entry, use it to set dbSource and dbId.
+
+Strict Fallback: If a food item does NOT have a clear, exact match in the provided databaseMatches list, you MUST set dbId to null and dbSource to estimated. NEVER invent, guess, or hallucinate a dbId string or integer that was not explicitly provided in the payload data.
+
+Trace Nutrients Taxonomy
+Fungi Expansion: Do NOT estimate trace nutrients individually. Instead, output the single most appropriate foodType string for each item.
+
+Allowed Types: Use exactly one of the following category tags: 'red_meat', 'poultry', 'fish_lean', 'fish_fatty', 'leafy_veg', 'root_veg', 'fungi' (strictly mandatory for mushrooms/cloud ears/wood ears), 'legume', or 'grain'.
 
 === MODE ROUTING DIRECTIVE (STRICTLY ENFORCED) ===
 Operate in one of five distinct modes based on current user intent:
@@ -1802,8 +1812,25 @@ STEP 3 — CORE EXTRACTION & GROUPING LAWS:
 CRITICAL RULES:
 - \`keyword\` MUST be a short, clean, database-friendly English name so the backend search functions successfully (e.g., "beef blade cut", "sweet potato").
 - \`originalName\` PRESERVATION: This field is clinically vital. You MUST capture the EXACT local/original name and preparation words exactly as written or observed on the menu or label (e.g., "Yakiimo", "Daging Empal", "Ayam Goreng"). Do NOT translate, normalize, or summarize this field. 
-- SEMANTIC ALIGNMENT RULE:
-  The keyword you generate MUST biologically and semantically match the text you extracted in originalName. Do not hallucinate categories. If the originalName indicates a protein/meat (e.g., "Ikan" means fish), the keyword cannot be a vegetable (e.g., "bok choy"). If you are unsure of a local word's translation, default to a generic category (e.g., "fish", "meat", "vegetable") rather than misidentifying the specific plant or animal. 
+
+Visual Cross-Referencing (Anti-Hallucination) Rule
+Context over Text: You must never blindly trust your OCR transcription of a grocery label if it flatly contradicts the physical food items visible in the accompanying raw or prepared food images.
+
+Visual Verification: Always cross-reference the label text with the actual food photo. If a label is blurry, cut off, or heavily abbreviated (e.g., "IK BAR..."), look at the physical food in the scene to deduce the correct word. For example, if you visually spot two fish in a cooking pot but transcribe a label as "onion" or "bawang", your text reading is incorrect. Correct your transcription and English keyword to match the physical item (e.g., "Ikan Baronang" / "Rabbitfish").
+
+Semantic Alignment Rule
+Keyword Matching: The English keyword you generate MUST biologically and semantically match the text you extracted in originalName. Do not hallucinate categories. If the originalName indicates a protein/meat (e.g., "Ikan" means fish), the keyword cannot be a vegetable (e.g., "bok choy" or "onion"). If you are genuinely unsure of a local word's precise translation, default to a generic, accurate category (e.g., "fish", "meat", "vegetable") rather than misidentifying the specific plant or animal.
+
+Confidence Scoring Calibration (Strict)
+Realism Over Optimism: You are naturally prone to overconfidence. You must actively look for reasons to doubt your initial visual or text identification and downgrade your confidenceRating accordingly:
+
+High (>90%): Use ONLY if the food item is completely unobstructed, brightly lit, entirely distinct, AND (if present) perfectly matches a highly legible, unabbreviated label. Do not base High confidence solely on successfully extracting printed weight numbers.
+
+Medium (50-90%): You MUST downgrade to Medium if the food is visually ambiguous, partially hidden beneath other items/sauces, heavily cooked so its original form is obscured, or if you are relying on a blurry/abbreviated label.
+
+Low (<50%): You MUST downgrade to Low if you are purely guessing based on loose context.
+
+Justification: Whenever you select Medium or Low, you MUST explicitly state exactly what is obstructing your view or causing the visual ambiguity in the confidenceComment. 
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers like \`\`\`json.
 {
