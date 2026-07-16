@@ -1727,19 +1727,35 @@ export default function App() {
                 
                 const legacyFoods: FoodLog[] = legacyFoodsSnap.docs.map(d => ({ id: d.id, ...d.data() } as FoodLog));
                 const legacyHistory: BiomarkerLog[] = legacyHistorySnap.docs.map(d => ({ id: d.id, ...d.data() } as BiomarkerLog));
-                
-                if (legacyFoods.length > 0 || legacyHistory.length > 0) {
-                  console.log(`[Migration] Migrating ${legacyFoods.length} foods and ${legacyHistory.length} biomarker entries`);
+
+                // Never resurrect logs the user has already deleted. These IDs are the
+                // source of truth for deletions and must be respected during migration,
+                // otherwise re-running this migration (e.g. after a failed completion
+                // write) brings deleted entries back from the old subcollections.
+                const migrationDeletedFoodIds = new Set<string>(loadedProfile?.deletedFoodLogIds || []);
+                const migrationDeletedBioIds = new Set<string>(loadedProfile?.deletedBiomarkerLogIds || []);
+
+                const filteredLegacyFoods = legacyFoods.filter(lf => !migrationDeletedFoodIds.has(lf.id));
+                const filteredLegacyHistory = legacyHistory.filter(lh => !migrationDeletedBioIds.has(lh.id));
+
+                const skippedFoods = legacyFoods.length - filteredLegacyFoods.length;
+                const skippedHistory = legacyHistory.length - filteredLegacyHistory.length;
+                if (skippedFoods > 0 || skippedHistory > 0) {
+                  console.log(`[Migration] Skipped ${skippedFoods} previously-deleted food logs and ${skippedHistory} previously-deleted biomarker logs`);
+                }
+
+                if (filteredLegacyFoods.length > 0 || filteredLegacyHistory.length > 0) {
+                  console.log(`[Migration] Migrating ${filteredLegacyFoods.length} foods and ${filteredLegacyHistory.length} biomarker entries`);
                   // Merge legacy into loaded states
                   const mergedFoods = [...loadedFoods];
-                  legacyFoods.forEach(lf => {
+                  filteredLegacyFoods.forEach(lf => {
                     if (!mergedFoods.some(f => f.id === lf.id)) {
                       mergedFoods.push(lf);
                     }
                   });
                   
                   const mergedHistory = [...loadedHistory];
-                  legacyHistory.forEach(lh => {
+                  filteredLegacyHistory.forEach(lh => {
                     if (!mergedHistory.some(h => h.id === lh.id)) {
                       mergedHistory.push(lh);
                     }

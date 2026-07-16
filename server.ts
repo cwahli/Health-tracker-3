@@ -1813,24 +1813,25 @@ CRITICAL RULES:
 - \`keyword\` MUST be a short, clean, database-friendly English name so the backend search functions successfully (e.g., "beef blade cut", "sweet potato").
 - \`originalName\` PRESERVATION: This field is clinically vital. You MUST capture the EXACT local/original name and preparation words exactly as written or observed on the menu or label (e.g., "Yakiimo", "Daging Empal", "Ayam Goreng"). Do NOT translate, normalize, or summarize this field. 
 
-Visual Cross-Referencing (Anti-Hallucination) Rule
-Context over Text: You must never blindly trust your OCR transcription of a grocery label if it flatly contradicts the physical food items visible in the accompanying raw or prepared food images.
+- VISUAL CROSS-REFERENCING (ANTI-HALLUCINATION):
+  You must never blindly trust your OCR transcription of a grocery label if it flatly contradicts the physical food items visible in the accompanying images. Always cross-reference the label text with the actual food photo. If a label is blurry/abbreviated, deduce the correct word from the physical food (e.g., if you see two fish but transcribe a label as "onion", correct your keyword to match the fish).
 
-Visual Verification: Always cross-reference the label text with the actual food photo. If a label is blurry, cut off, or heavily abbreviated (e.g., "IK BAR..."), look at the physical food in the scene to deduce the correct word. For example, if you visually spot two fish in a cooking pot but transcribe a label as "onion" or "bawang", your text reading is incorrect. Correct your transcription and English keyword to match the physical item (e.g., "Ikan Baronang" / "Rabbitfish").
+- ANTI-OMISSION RULE (STRICT):
+  You must NEVER silently drop, skip, or ignore a food label simply because the text is obscured by plastic glare, or because the physical food item is hidden underneath other ingredients in the photo (e.g., a fish buried under another fish in a pot). If a label is present and contains a readable weight, you MUST extract it. If you cannot perfectly read it or visually verify it, extract your best text transcription for \`originalName\`, assign a safe/generic \`keyword\` (e.g., "fish" or "vegetable"), and downgrade your \`confidenceRating\`. Omission is a failure; a low-confidence extraction is always better than deleting an item.
 
-Semantic Alignment Rule
-Keyword Matching: The English keyword you generate MUST biologically and semantically match the text you extracted in originalName. Do not hallucinate categories. If the originalName indicates a protein/meat (e.g., "Ikan" means fish), the keyword cannot be a vegetable (e.g., "bok choy" or "onion"). If you are genuinely unsure of a local word's precise translation, default to a generic, accurate category (e.g., "fish", "meat", "vegetable") rather than misidentifying the specific plant or animal.
+- USER TEXT SUPREMACY & CONTEXT FILTERING:
+  * Explicit Quantities Override: The user's text message is the absolute mathematical authority. If the user explicitly states a quantity, count, or weight in their text message (e.g., "3 piece", "10 skewers"), you MUST mathematically calculate the \`estimatedWeightGrams\` based strictly on those units, overriding your own visual volume estimates. (e.g., If a user says "3 oranges", calculate the average weight of 3 small oranges; DO NOT calculate the visual liquid volume of the plastic cup they are served in).
+  * Background & Inventory Exclusion: Do NOT extract or weigh large bulk supplies, raw ingredients on store shelves, or street cart inventories visible in the background (e.g., a massive 3kg pile of oranges on a cart). If the user's text and the primary subject of the photo imply they are logging a single prepared portion, only extract the components of that specific meal.
 
-Confidence Scoring Calibration (Strict)
-Realism Over Optimism: You are naturally prone to overconfidence. You must actively look for reasons to doubt your initial visual or text identification and downgrade your confidenceRating accordingly:
+- SEMANTIC ALIGNMENT:
+  The English keyword you generate MUST biologically and semantically match the text you extracted in originalName. Do not hallucinate categories. If the originalName indicates a protein/meat (e.g., "Ikan" means fish), the keyword cannot be a vegetable (e.g., "bok choy"). If unsure of a translation, default to a generic category (e.g., "fish", "meat").
 
-High (>90%): Use ONLY if the food item is completely unobstructed, brightly lit, entirely distinct, AND (if present) perfectly matches a highly legible, unabbreviated label. Do not base High confidence solely on successfully extracting printed weight numbers.
-
-Medium (50-90%): You MUST downgrade to Medium if the food is visually ambiguous, partially hidden beneath other items/sauces, heavily cooked so its original form is obscured, or if you are relying on a blurry/abbreviated label.
-
-Low (<50%): You MUST downgrade to Low if you are purely guessing based on loose context.
-
-Justification: Whenever you select Medium or Low, you MUST explicitly state exactly what is obstructing your view or causing the visual ambiguity in the confidenceComment. 
+- CONFIDENCE SCORING CALIBRATION (STRICT):
+  You are naturally prone to overconfidence. You must actively look for reasons to doubt your identification and downgrade your confidenceRating accordingly:
+  * High (>90%): Use ONLY if the food is completely unobstructed, brightly lit, entirely distinct, AND perfectly matches a highly legible, unabbreviated label. Do not base High confidence solely on extracting weight numbers.
+  * Medium (50-90%): Downgrade to Medium if the food is visually ambiguous, partially hidden, heavily cooked/obscured, or if you are relying on a blurry/abbreviated label with glare.
+  * Low (<50%): Downgrade to Low if you are purely guessing based on loose context.
+  * Justification: If you select Medium or Low, explicitly state exactly what is obstructing your view or causing ambiguity in the \`confidenceComment\`. 
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers like \`\`\`json.
 {
