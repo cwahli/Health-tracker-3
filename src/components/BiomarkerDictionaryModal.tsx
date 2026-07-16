@@ -1,4 +1,4 @@
-import { trackApiCall } from '../utils/apiTracker';
+import { trackApiCall, setActiveQueryId, generateQueryId } from '../utils/apiTracker';
 import { toYYYYMMDD } from "../utils/dateUtils";
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { UserProfile, BiomarkerLog } from '../types';
@@ -719,6 +719,13 @@ export default function BiomarkerDictionaryModal({
   onDeleteMultipleBiomarkers
 }: BiomarkerDictionaryModalProps) {
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
+  useEffect(() => {
+    const qid = generateQueryId();
+    setActiveQueryId(qid);
+    return () => {
+      setActiveQueryId(null);
+    };
+  }, []);
   const [editMode, setEditMode] = useState<string | null>(null);
   const [showCombineModal, setShowCombineModal] = useState(false);
   const [showCleaningDropdown, setShowCleaningDropdown] = useState(false);

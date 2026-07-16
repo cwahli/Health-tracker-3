@@ -355,6 +355,11 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'home' | 'insights' | 'food' | 'medical' | 'trends'>('home');
 
   useEffect(() => {
+    const qid = generateQueryId();
+    setActiveQueryId(qid);
+  }, [activeTab]);
+
+  useEffect(() => {
     const handleSwitchTab = (e: Event) => {
       const customEvent = e as CustomEvent;
       if (customEvent.detail?.tab) {

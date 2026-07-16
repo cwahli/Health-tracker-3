@@ -187,3 +187,15 @@ Solution: Always use the robust extractUSDANutrientsPer100g helper which uses .i
 - Verified AGENT_REGISTRY: 12/13 agents at rolloutStatus 'unified', medical_extract still 'legacy' by design.
 - Found and fixed PII leak: `/api/gemini/daily-recommendation-chat` was embedding the raw, unfiltered `userProfile` (including email, lastUpdatedAt, deleted-ID arrays) into the Gemini prompt. Replaced with whitelisted `cleanProfile`.
 - This document was stale — last updated after commit `02ecd52`. Ten commits since then were undocumented. Future sessions: run `git log --oneline -20` first and reconcile against this file.
+
+### 2026-07-16 — Dynamic API & Agent Call Tracker Implementation
+- Replaced `src/utils/apiTracker.ts` with standard robust offline local storage tracking, dynamic user email resolution via Firebase Auth, and synchronization status indicators.
+- Created `src/components/ApiCallTrackerModal.tsx` containing an interactive daily summary dashboard, categorized diagnostic metrics (Gemini, USDA, Brave, Firebase operations), duration computation, query session grouping, and one-click cloud synchronization using batched Firestore writes to the `api_events` collection.
+- Integrated the API Call Tracker into `src/components/Header.tsx` as a general-access Action Controls button (Activity icon) and as a prominent control next to the diagnostic "View AI Logs" button within the admin view mode of the Settings dialog.
+- Implemented automated query session lifecycle management in `src/components/BiomarkerDictionaryModal.tsx` via `useEffect` to trigger and reset `activeQueryId` upon opening/closing, ensuring all API calls within the modal are correctly grouped.
+- Implemented automated query session lifecycle management in `src/components/ReviewBiomarkerModal.tsx` via `useEffect` to trigger and reset `activeQueryId` upon opening/closing, ensuring all API calls within the modal are correctly grouped.
+- Redesigned and polished `src/components/ApiCallTrackerModal.tsx` by removing card boxes in favor of a sleek, borderless, transparent daily grid layout, changing description titles to highly legible white text in dark mode (`dark:text-white`), and completely stripping white backgrounds from session summary footers.
+- Structured logs into a dynamic Day-by-Day organized chronological grouping, displaying collapsible/grouped queries with clear headers for each day.
+- Added dynamic click-to-filter mechanics allowing immediate categorization filters by tapping on "Gemini Agent", "USDA Lookups", "Brave Search", or "Firebase Call", highlighting selected filters by underlining and fading other metrics into semi-opacity.
+- Injected strict prompt guardrails into the Vision Scout prompt (`SEMANTIC ALIGNMENT RULE`) and the Nutrition Agent prompt (`CRITICAL: ORIGINAL NAME OVERRIDE & ANTI-MERGING RULE`) in `server.ts` to enforce originalName preservation as absolute ground truth and prevent blind keyword-based merging or classification errors.
+- Verified zero syntax warnings via standard linter check and verified successful application compilation.

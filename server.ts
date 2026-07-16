@@ -360,6 +360,13 @@ TRANS FAT AVOIDANCE: Trans fat (partially hydrogenated oils) is universally harm
 1. CORE NUTRIENTS: For EVERY new item, you MUST populate labelNutrientsPerServing with your best clinical estimate per 100g (set servingSizeGrams=100). When a physical label is visible, use the exact label values. When databaseMatches contains a relevant entry, use it to improve your estimate and set dbSource accordingly.
 2. TRACE NUTRIENTS: Do NOT estimate these individually. Instead, output the single most appropriate foodType string for each item (e.g., 'red_meat', 'leafy_veg', 'root_veg', etc.).
 
+CRITICAL: ORIGINAL NAME OVERRIDE & ANTI-MERGING RULE
+You must treat the originalName as the absolute ground truth for categorizing an item, overriding the keyword or scout item name if they contradict.
+
+Cross-Reference: If an originalName contains clear local identifiers for proteins (e.g., "Ikan" = fish, "Ayam" = chicken, "Daging" = beef) but the English keyword says it is a vegetable, you MUST classify it based on the local name.
+
+Anti-Merging: NEVER sum the weights of two items simply because their English keywords match. You must evaluate if their originalNames represent the same food. If they are different (e.g., "IKAN BAWANG" and "BABY PAKCHOY"), keep them as separate distinct items in the itemsBreakdown array, even if the upstream vision agent mistakenly gave them the same keyword.
+
 === MODE ROUTING DIRECTIVE (STRICTLY ENFORCED) ===
 Operate in one of five distinct modes based on current user intent:
 
@@ -1795,6 +1802,8 @@ STEP 3 — CORE EXTRACTION & GROUPING LAWS:
 CRITICAL RULES:
 - \`keyword\` MUST be a short, clean, database-friendly English name so the backend search functions successfully (e.g., "beef blade cut", "sweet potato").
 - \`originalName\` PRESERVATION: This field is clinically vital. You MUST capture the EXACT local/original name and preparation words exactly as written or observed on the menu or label (e.g., "Yakiimo", "Daging Empal", "Ayam Goreng"). Do NOT translate, normalize, or summarize this field. 
+- SEMANTIC ALIGNMENT RULE:
+  The keyword you generate MUST biologically and semantically match the text you extracted in originalName. Do not hallucinate categories. If the originalName indicates a protein/meat (e.g., "Ikan" means fish), the keyword cannot be a vegetable (e.g., "bok choy"). If you are unsure of a local word's translation, default to a generic category (e.g., "fish", "meat", "vegetable") rather than misidentifying the specific plant or animal. 
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers like \`\`\`json.
 {

@@ -1,4 +1,4 @@
-import { trackApiCall } from '../utils/apiTracker';
+import { trackApiCall, setActiveQueryId, generateQueryId } from '../utils/apiTracker';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ChatMessage, UserProfile, BiomarkerLog } from '../types';
 import { translations } from '../utils/translations';
@@ -173,6 +173,13 @@ export default function ReviewBiomarkerModal({
   onUpdateMessages,
   biomarkerHistory = []
 }: ReviewBiomarkerModalProps) {
+  useEffect(() => {
+    const qid = generateQueryId();
+    setActiveQueryId(qid);
+    return () => {
+      setActiveQueryId(null);
+    };
+  }, []);
   const t = translations[profile.language] || translations.en;
   
   const [messages, setMessages] = useState<ChatMessage[]>(() => {

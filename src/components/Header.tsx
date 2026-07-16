@@ -12,6 +12,8 @@ import { db, auth } from '../firebase';
 import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import GoogleHealthIntegration from './GoogleHealthIntegration';
 import FullScreenLogViewer from './FullScreenLogViewer';
+import ApiCallTrackerModal from './ApiCallTrackerModal';
+import { Activity } from 'lucide-react';
 import {
   getGoogleAccessToken,
   hasGoogleToken,
@@ -125,6 +127,7 @@ export default function Header({
     return 'admin';
   });
   const [showAgentLogs, setShowAgentLogs] = useState(false);
+  const [showApiTracker, setShowApiTracker] = useState(false);
   const [agentLogs, setAgentLogs] = useState<{ timestamp: string, message: string }[]>([]);
   const [isFetchingLogs, setIsFetchingLogs] = useState(false);
   const [nickname, setNickname] = useState(profile.nickname);
@@ -446,6 +449,13 @@ export default function Header({
               Sync: {lastSyncTime}
             </span>
           )}
+          <button
+            onClick={() => setShowApiTracker(true)}
+            className="p-1.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            title="View API usage & Agent log tracker"
+          >
+            <Activity className="w-4.5 h-4.5" />
+          </button>
 
           {/* Sync Status Icon Indicator */}
           {(() => {
@@ -498,6 +508,12 @@ export default function Header({
         logsArray={agentLogs.map(l => `[${l.timestamp}]\n${l.message}`)}
         onClearLogs={handleClearAgentLogs}
         eventsCount={agentLogs.length}
+      />
+      {/* API Call Tracker & Quotas */}
+      <ApiCallTrackerModal
+        isOpen={showApiTracker}
+        onClose={() => setShowApiTracker(false)}
+        userEmail={profile.email}
       />
     </header>
 
@@ -1117,13 +1133,22 @@ export default function Header({
               
               <div className="flex items-center gap-2">
                 {dbOverlayViewMode === 'admin' && (
-                  <button
-                    onClick={() => setShowAgentLogs(true)}
-                    className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 dark:text-indigo-400 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold"
-                    title="View AI Agent Logs"
-                  >
-                    <Terminal className="w-4 h-4" /> View AI Logs
-                  </button>
+                  <>
+                    <button
+                      onClick={() => setShowAgentLogs(true)}
+                      className="p-1.5 rounded-lg text-indigo-600 bg-indigo-50 dark:text-indigo-400 dark:bg-indigo-900/30 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold"
+                      title="View AI Agent Logs"
+                    >
+                      <Terminal className="w-4 h-4" /> View AI Logs
+                    </button>
+                    <button
+                      onClick={() => setShowApiTracker(true)}
+                      className="p-1.5 rounded-lg text-emerald-600 bg-emerald-50 dark:text-emerald-400 dark:bg-emerald-900/30 hover:bg-emerald-100 dark:hover:bg-emerald-900/50 transition-colors cursor-pointer flex items-center gap-1 text-xs font-bold"
+                      title="View API call stats"
+                    >
+                      <Cloud className="w-4 h-4" /> API Calls
+                    </button>
+                  </>
                 )}
                 {onCloudSync && (
 
