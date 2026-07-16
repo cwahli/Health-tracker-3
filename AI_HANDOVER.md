@@ -1,5 +1,5 @@
 # Health Cockpit App — AI Handover Document
-*Last updated: 2026-07-12 | Always check GitHub commits before starting any session*
+*Last updated: 2026-07-16 | Always check GitHub commits before starting any session*
 
 ## 1. Source of Truth
 - **Live codebase:** https://github.com/cwahli/Health-tracker-2
@@ -81,6 +81,7 @@ There is NO gemini-2.5-flash. Always default to Flash Lite.
 | Jul 12 | Raised RouteAgent output-token limit from 2048 to 3072 for headroom |
 | Jul 12 | Stripped customBiomarkers from lightProfile payload for food routes |
 | Jul 12 | Enforced strict required fields across all nested levels of foodAnalyzeSchema |
+| Jul 16 | Updated FoodCard: Grouped food by bracketed categories, fixed hero image name cleaning, and implemented expand/collapse interactions with eye-preview. |
 
 ## 7. Task Queue
 Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Session Log).
@@ -152,6 +153,7 @@ Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Sessi
 | 2026-07-12 | Replaced `{` with `[` as autocomplete trigger for variable insertion in FullScreenInstructionViewer. | AI Studio (self-directed) |
 | 2026-07-12 | Updated LogChat comparison table styling to match the Clinical Calibration table style, and updated prompt schema to include Pros and Cons inside the table. | AI Studio (self-directed) |
 | 2026-07-12 | Began Chat Component Consolidation Strategy: created `agentConfig.ts` with AGENT_REGISTRY containing all 13 agents, refactored `LogChat.tsx` to accept AgentType and generate welcome messages dynamically from the registry. | AI Studio (self-directed) |
+| 2026-07-16 | Updated FoodCard: Grouped food by bracketed categories, fixed hero image name cleaning, and implemented expand/collapse interactions with eye-preview. | AI Studio (self-directed) |
 
 ## 10. LLM Gotchas & Lessons Learned
 ### Runaway Decimal Floats & Truncations
