@@ -1788,13 +1788,17 @@ STEP 3 — CORE EXTRACTION & GROUPING LAWS:
 - NUTRITION FACTS LABELS (type b): DO NOT perform math or scale values per 100g. Extract the EXACT total package weight, serving size weight, and nutrients per serving exactly as written into the "rawNutritionLabel" object. If an item has NO legible physical nutrition panel visible, leave "rawNutritionLabel" and "nutritionFacts" entirely empty {}. Do not hallucinate.
 - FOOD PHOTOS (type c): Identify items and estimate weight using visual references (plates, hands, packaging markers).
 - MENUS AND POSTERS (type e) - SHARED CATEGORY BOUNDING BOX RULE: For normal density menus (< 15 items), do NOT attempt to draw individual bounding boxes for every single line of text or menu item. Instead, draw ONE bounding box around the parent category block, and assign that exact same bounding box to all choices in that category.
-- CLASSIFICATION LAW: If the image is a restaurant menu and you only extract text from it. Then classify it as “text”. If in your extraction you have food image with text, or food image only, then it’s classified as “visual”.
+- CLASSIFICATION LAW: Base your classification on the primary visual layout of the image, NOT the extraction method used. 
+  * If the image is a restaurant menu, promotional poster, or combo board (regardless of whether it contains food photos or just text), you MUST set "contentType" to "menu_or_poster". 
+  * If the image is a photo of a physical meal on a table, raw ingredients, or a single food item without a menu layout, set "contentType" to "visual". 
+  * If the image is purely a close-up of a receipt or nutrition label, set "contentType" to "text".
 CRITICAL RULES:
 - \`keyword\` MUST be a short, clean, database-friendly English name so the backend search functions successfully (e.g., "beef blade cut", "sweet potato").
 - \`originalName\` PRESERVATION: This field is clinically vital. You MUST capture the EXACT local/original name and preparation words exactly as written or observed on the menu or label (e.g., "Yakiimo", "Daging Empal", "Ayam Goreng"). Do NOT translate, normalize, or summarize this field. 
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers like \`\`\`json.
 {
+  "contentType": "visual" | "menu_or_poster" | "text",
   "items": [
     {
       "keyword": "string",
@@ -1864,7 +1868,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
             scoutConfidenceComment = parsedScout.confidenceComment || "";
             scoutCookingMethod = parsedScout.cookingMethod || "";
             const rawType = (parsedScout.contentType || "").toLowerCase();
-            scoutContentType = (rawType === "text" || rawType === "menu_or_poster") ? "text" : "visual";
+            scoutContentType = (rawType === "text") ? "text" : "visual";
 
             // Parse compactSpreadsheet if present (for high densities / menus)
             if (Array.isArray(parsedScout.compactSpreadsheet) && parsedScout.compactSpreadsheet.length > 0) {
@@ -5198,30 +5202,6 @@ const searchRegistry: SearchEngine[] = [
         }
       } catch (err) {
         console.error("[Wiki Search Error]", err);
-      }
-      return [];
-    }
-  },
-  // 2. Unsplash Search API
-  {
-    name: "Unsplash",
-    isEnabled: (env) => !!env.UNSPLASH_ACCESS_KEY,
-    search: async (query, count, env) => {
-      try {
-        const url = `https://api.unsplash.com/search/photos?query=${encodeURIComponent(query)}&per_page=${count}`;
-        const res = await fetch(url, {
-          headers: { "Authorization": `Client-ID ${env.UNSPLASH_ACCESS_KEY}` }
-        });
-        const data = await res.json();
-        if (res.ok && data.results) {
-          return data.results.slice(0, count).map((item: any) => ({
-            title: item.description || item.alt_description || query,
-            imageUrl: item.urls?.regular || item.urls?.small,
-            pageUrl: item.links?.html || "https://unsplash.com"
-          }));
-        }
-      } catch (err) {
-        console.error("[Unsplash Search Error]", err);
       }
       return [];
     }
