@@ -60,9 +60,13 @@ export const initializeFetchInterceptor = () => {
   (window as any).__fetch_interceptor_active = true;
   const originalFetch = window.fetch;
   
-  const wrappedFetch = async function(...args: any[]) {
-    const response = await originalFetch(...args);
-    const url = args[0] && typeof args[0] === 'string' ? args[0] : '';
+  const wrappedFetch = async function(input: RequestInfo | URL, init?: RequestInit) {
+    const response = await originalFetch(input, init);
+    const url = typeof input === 'string' 
+      ? input 
+      : (input instanceof URL 
+          ? input.toString() 
+          : (input && typeof input === 'object' && 'url' in input ? (input as any).url : ''));
     
     if (url.includes('/api/gemini/')) {
       try {
@@ -100,7 +104,6 @@ export const initializeFetchInterceptor = () => {
     }
     return response;
   };
-
   try {
     Object.defineProperty(window, 'fetch', {
       value: wrappedFetch,

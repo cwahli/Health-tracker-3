@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Cloud, RefreshCw, Trash2, Clock, Check, AlertTriangle, Activity } from 'lucide-react';
+import { X, Cloud, RefreshCw, Trash2, Clock, Check, AlertTriangle, ShieldCheck, Activity } from 'lucide-react';
 import { collection, writeBatch, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ApiCallEvent, trackApiCall } from '../utils/apiTracker';
