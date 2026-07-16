@@ -1236,7 +1236,7 @@ export default function InsightsTab({
     const isSpecialUser = profile?.email?.toLowerCase() === 'chiwah.liu@gmail.com' || profile?.email?.toLowerCase() === 'cwah.liu@gmail.com';
 
     return (
-      <div className="space-y-10 pb-24 animation-fade-in max-w-md mx-auto px-[10px] mt-4 font-sans text-slate-900 dark:text-slate-100">
+      <div className="space-y-10 pb-40 animation-fade-in max-w-md mx-auto px-[10px] mt-4 font-sans text-slate-900 dark:text-slate-100">
         
         {/* Draft Heading Alert */}
         <div className="space-y-3 relative overflow-hidden">
@@ -1451,7 +1451,7 @@ export default function InsightsTab({
   const completedCount = steps.map((_, idx) => idx).filter(idx => getStepStatus(idx) === 'Done').length;
 
   return (
-    <div className="space-y-10 pb-24 animation-fade-in max-w-md mx-auto px-[10px] mt-4 font-sans text-slate-900 dark:text-slate-100">
+    <div className="space-y-10 pb-40 animation-fade-in max-w-md mx-auto px-[10px] mt-4 font-sans text-slate-900 dark:text-slate-100">
       
       {/* Global Progress Indicator */}
       <div className="space-y-2.5">

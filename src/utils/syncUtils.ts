@@ -1,3 +1,4 @@
+import { trackApiCall } from './apiTracker';
 import { doc, getDoc, setDoc, collection, getDocs, Firestore } from 'firebase/firestore';
 import { FoodLog, BiomarkerLog } from '../types';
 import { toYYYYMMDD } from './dateUtils';
@@ -41,7 +42,8 @@ export const syncLogsWithTimeBuckets = async (
     const monthUnsyncedBiomarkers = unsyncedBiomarkers.filter(b => toYYYYMM(b.date) === monthBucket);
 
     try {
-      const bucketDoc = await getDoc(bucketRef);
+      const bucketDoc = trackApiCall('firebase_read', 'Firestore getDoc');
+      await getDoc(bucketRef);
       
       let serverData: any = { month: monthBucket, logs: {}, last_sync_timestamp: Date.now() };
       if (bucketDoc.exists()) {
@@ -89,7 +91,8 @@ export const syncLogsWithTimeBuckets = async (
 
       if (changed) {
         serverData.last_sync_timestamp = Date.now();
-        await setDoc(bucketRef, sanitizeForFirestore(serverData));
+        trackApiCall('firebase_write', 'Firestore setDoc');
+      await setDoc(bucketRef, sanitizeForFirestore(serverData));
       }
       
       // Process food updates: mark synced
@@ -125,7 +128,8 @@ export const syncLogsWithTimeBuckets = async (
 };
 
 export const fetchAllConsolidatedLogs = async (db: Firestore, uid: string) => {
-  const bucketsSnap = await getDocs(collection(db, 'users', uid, 'consolidated_logs'));
+  const bucketsSnap = trackApiCall('firebase_read', 'Firestore getDocs');
+      await getDocs(collection(db, 'users', uid, 'consolidated_logs'));
   
   let serverFoods: FoodLog[] = [];
   let serverBiomarkers: BiomarkerLog[] = [];

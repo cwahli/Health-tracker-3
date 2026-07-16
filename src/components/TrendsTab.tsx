@@ -391,7 +391,7 @@ export default function TrendsTab({
     return { name: label, value: value.toFixed(1), unit: unit, target: targetText, bounds: { min: 0, max: Infinity }, statusText: text, color, key };
   }) : [];
   return (
-    <div className="space-y-5 pb-24 animation-fade-in max-w-md mx-auto px-[15px] mt-4 font-sans text-slate-900">
+    <div className="space-y-5 pb-40 animation-fade-in max-w-md mx-auto px-[15px] mt-4 font-sans text-slate-900">
       <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-4">
         <button onClick={() => setActiveSubTab('trends')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${activeSubTab === 'trends' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}>Trends</button>
         <button onClick={() => setActiveSubTab('summary')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${activeSubTab === 'summary' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}>Summary</button>

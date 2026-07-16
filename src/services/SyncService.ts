@@ -1,3 +1,4 @@
+import { trackApiCall } from '../utils/apiTracker';
 import { collection, doc, runTransaction, getDocs, Firestore, setDoc } from 'firebase/firestore';
 import { FoodLog, BiomarkerLog, SyncState } from '../types';
 import { sanitizeForFirestore } from '../utils/firestoreUtils';
@@ -106,7 +107,8 @@ export class SyncService {
   }
 
   static async pullFromServer(db: Firestore, uid: string, localFoods: FoodLog[], localBiomarkers: BiomarkerLog[], onSyncComplete: (syncedFoods: FoodLog[], syncedBiomarkers: BiomarkerLog[]) => void) {
-    const bucketsSnap = await getDocs(collection(db, 'users', uid, 'consolidated_logs'));
+    const bucketsSnap = trackApiCall('firebase_read', 'Firestore getDocs');
+      await getDocs(collection(db, 'users', uid, 'consolidated_logs'));
     
     let serverFoods: FoodLog[] = [];
     let serverBiomarkers: BiomarkerLog[] = [];

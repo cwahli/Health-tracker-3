@@ -1,3 +1,4 @@
+import { trackApiCall } from './apiTracker';
 import { doc, getDoc, updateDoc, collection, getDocs, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { BiomarkerLog, UserProfile } from '../types';
@@ -15,11 +16,13 @@ export const runCleanupMigration = async (uid: string, email?: string) => {
     // 1. Check LocalStorage (done above)
     // 2. Secondary check in Firestore under UID
     const migrationRef = doc(db, 'users', uid, 'metadata', 'migration');
-    const migrationSnap = await getDoc(migrationRef);
+    const migrationSnap = trackApiCall('firebase_read', 'Firestore getDoc');
+      await getDoc(migrationRef);
     
     // Check old flag in profile as well for backwards compatibility
     const profileRef = doc(db, 'users', uid);
-    const profileSnap = await getDoc(profileRef);
+    const profileSnap = trackApiCall('firebase_read', 'Firestore getDoc');
+      await getDoc(profileRef);
 
     let isAlreadyDone = false;
     if (migrationSnap.exists() && migrationSnap.data().biomarkersV1Completed === true) {
@@ -42,7 +45,8 @@ export const runCleanupMigration = async (uid: string, email?: string) => {
     
     // Clean history logs under UID
     const historyRef = collection(db, 'users', uid, 'biomarkerHistory');
-    const snapshot = await getDocs(historyRef);
+    const snapshot = trackApiCall('firebase_read', 'Firestore getDocs');
+      await getDocs(historyRef);
     
     for (const docSnap of snapshot.docs) {
       const data = docSnap.data() as BiomarkerLog;
@@ -70,7 +74,8 @@ export const runCleanupMigration = async (uid: string, email?: string) => {
       if ('creatinine' in newBiomarkers) { delete newBiomarkers['creatinine']; madeChanges = true; }
 
       if (madeChanges) {
-        await updateDoc(docSnap.ref, { biomarkers: newBiomarkers });
+        trackApiCall('firebase_write', 'Firestore updateDoc');
+      await updateDoc(docSnap.ref, { biomarkers: newBiomarkers });
         console.log("Cleaned doc", docSnap.id);
       }
     }
@@ -96,10 +101,12 @@ export const runCleanupMigration = async (uid: string, email?: string) => {
     }
     
     // Mark as done in Firestore metadata
-    await setDoc(migrationRef, { biomarkersV1Completed: true }, { merge: true });
+    trackApiCall('firebase_write', 'Firestore setDoc');
+      await setDoc(migrationRef, { biomarkersV1Completed: true }, { merge: true });
     
     // If profile changes exist, apply them
     if (Object.keys(profileChanges).length > 0) {
+      trackApiCall('firebase_write', 'Firestore updateDoc');
       await updateDoc(profileRef, profileChanges);
     }
     

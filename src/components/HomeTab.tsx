@@ -578,7 +578,7 @@ export default function HomeTab({
 
   if (hasNoData) {
     return (
-      <div className="space-y-6 pb-24 animation-fade-in max-w-md mx-auto px-[15px] mt-4 font-sans text-slate-900">
+      <div className="space-y-6 pb-40 animation-fade-in max-w-md mx-auto px-[15px] mt-4 font-sans text-slate-900">
         <div className="text-center py-8 space-y-3">
           <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
             <Sparkles className="w-8 h-8" />
@@ -656,7 +656,7 @@ export default function HomeTab({
   }
 
   return (
-    <div className="space-y-6 pb-24 animation-fade-in max-w-md mx-auto px-[15px] mt-4 font-sans text-slate-900">
+    <div className="space-y-6 pb-40 animation-fade-in max-w-md mx-auto px-[15px] mt-4 font-sans text-slate-900">
       
       {/* Daily Recommendation */}
       <div id="primary-action-card" className="p-2">

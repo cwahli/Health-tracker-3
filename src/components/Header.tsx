@@ -1,3 +1,4 @@
+import { trackApiCall } from '../utils/apiTracker';
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { UserProfile, DbInteraction, QuotaData, FoodLog } from '../types';

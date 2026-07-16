@@ -1,3 +1,4 @@
+import { trackApiCall } from '../../utils/apiTracker';
 import * as React from 'react';
 import { AgentCardProps } from './types';
 import { Plus, Check, ChevronDown, ChevronUp, Sparkles, Search, X, Trash2, Eye } from 'lucide-react';
@@ -266,59 +267,6 @@ const GroupItemsContainer: React.FC<GroupItemsContainerProps> = ({ children, gro
   );
 };
 
-const OriginImageTile = ({ queryStr, fallbackSrc, onResolved, onClick, onError }: any) => {
-  const [src, setSrc] = React.useState<string>("");
-  const [loading, setLoading] = React.useState(false);
-  const [searched, setSearched] = React.useState(false);
-  
-  const handleLoad = async (e: any) => {
-    e.stopPropagation();
-    if (searched || loading) return;
-    setLoading(true);
-    setSearched(true);
-    try {
-      const res = await fetch("/api/gemini/food-image-search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: queryStr }),
-      });
-      const data = await res.json();
-      if (data.images && data.images.length > 0) {
-        const img = data.images[0];
-        setSrc(img.imageUrl);
-        if (onResolved) onResolved(img.imageUrl, img.pageUrl);
-      }
-    } catch (err) {
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (!searched) {
-    return (
-      <div className="w-full h-full flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors" onClick={handleLoad}>
-        <div className="flex items-center gap-1.5 px-3 py-1.5 bg-white dark:bg-slate-900 rounded-full shadow-sm text-xs font-medium text-slate-600 dark:text-slate-300">
-          <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
-          Search Image
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <img
-      src={src || fallbackSrc}
-      alt={queryStr}
-      className={`w-full h-full object-cover animate-fade-in ${loading ? 'animate-pulse bg-slate-200 dark:bg-slate-800' : ''}`}
-      referrerPolicy="no-referrer"
-      onClick={onClick}
-      onError={(e) => {
-        (e.target as HTMLImageElement).src = fallbackSrc;
-        if (onError) onError();
-      }}
-    />
-  );
-};
 
 export const FoodCard: React.FC<AgentCardProps & {
   isSelectingMode?: boolean;
@@ -343,9 +291,7 @@ export const FoodCard: React.FC<AgentCardProps & {
   const [searchLoading, setSearchLoading] = React.useState<Record<string, boolean>>({});
   const [brokenSearchImages, setBrokenSearchImages] = React.useState<Record<string, true>>({});
   const [searchPreview, setSearchPreview] = React.useState<{ groupKey: string, index: number } | null>(null);
-  const [originPreview, setOriginPreview] = React.useState<{ itemIdx: number, imgIdx: number } | null>(null);
-  const originImagesRef = React.useRef<Record<string, { imageUrl: string, pageUrl: string }>>({});
-  const [brokenOriginImages, setBrokenOriginImages] = React.useState<Record<string, true>>({});
+
   const [groupExpanded, setGroupExpanded] = React.useState<Record<string, boolean>>({});
   const [showTranslations, setShowTranslations] = React.useState<Record<string, boolean>>({});
 
@@ -390,6 +336,7 @@ export const FoodCard: React.FC<AgentCardProps & {
     setSearchLoading(prev => ({ ...prev, [itemKey]: true }));
     setSearchErrors(prev => ({ ...prev, [itemKey]: "" }));
     try {
+      trackApiCall('brave', `Brave Image Search (Manual) - ${query}`);
       const response = await fetch("/api/gemini/food-image-search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -597,16 +544,7 @@ export const FoodCard: React.FC<AgentCardProps & {
             }
           });
         },
-        triggerOriginSearch: (keys: string[]) => {
-          setSelectorError("");
-          const selectedNames = keys.map(key => {
-            const [gIdx, iIdx] = key.split('-').map(Number);
-            return displayGroups[gIdx]?.items?.[iIdx]?.name;
-          });
-          if (handleSend) {
-            handleSend(`Origin search: Provide the historical origin, cooking methods, typical eating occasions, top nutrient impact, and recommendations for: ${selectedNames.join(', ')}. Please include 1-3 Google image search queries for each.`);
-          }
-        },
+
         triggerCompareFood: (keys: string[]) => {
           setSelectorError("");
           const selectedNames = keys.map(key => {
@@ -831,7 +769,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                        <>
                                          {/* Label area with Search selector trigger next to it */}
                                          <div className="text-[10.5px] font-bold text-slate-400 uppercase tracking-wider mb-2 flex items-center justify-between w-full font-sans">
-                                           <span>Foods in this group ({group.items?.length || 0})</span>
+                                           <span>{isSelectingMode ? "Choose food to compare" : "Foods in this group"} ({group.items?.length || 0})</span>
                                            <div className="flex items-center gap-1.5">
 
                                              {hasTranslations && (
@@ -896,20 +834,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                         : [...prev, itemKey]
                                                     );
                                                   } else {
-                                                    if (isTextOnly) {
-                                                      setSearchModes(prev => {
-                                                        const next = { ...prev };
-                                                        Object.keys(next).forEach(k => {
-                                                          if (k.startsWith(`${groupKey}-`) && k !== fullItemKey) {
-                                                            next[k] = false;
-                                                          }
-                                                        });
-                                                        next[fullItemKey] = !prev[fullItemKey];
-                                                        return next;
-                                                      });
-                                                    } else {
-                                                      setPreviewState({ groupIdx: idx, itemIdx: itemIdx, resolvedImgSrc, overrideSrc: fetchedUrl && typeof fetchedUrl === 'string' ? fetchedUrl : undefined });
-                                                    }
+                                                    setPreviewState({ groupIdx: idx, itemIdx: itemIdx, resolvedImgSrc, overrideSrc: fetchedUrl && typeof fetchedUrl === 'string' ? fetchedUrl : undefined });
                                                   }
                                                 };
 
@@ -1021,60 +946,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                               })}
                                            </div>
 
-                                           {/* Render active search item taking full width below the row */}
-                                           {(() => {
-                                             const activeItemIdx = (group.items || []).findIndex((item: any, itemIdx: number) => {
-                                               return searchModes[`${msg.id}-${idx}-${itemIdx}`];
-                                             });
-                                             
-                                             if (activeItemIdx === -1) return <div className="pb-8" />;
-                                             
-                                             const fullItemKey = `${msg.id}-${idx}-${activeItemIdx}`;
-                                             const itemResults = searchResults[fullItemKey] || [];
-                                             const itemLoading = !!searchLoading[fullItemKey];
-
-                                             return (
-                                              <div className="w-full mt-4 pb-8 space-y-2 border-b border-slate-100 dark:border-slate-850 font-sans">
-                                                {itemLoading ? (
-                                                  <div className="text-[10px] text-indigo-500 animate-pulse text-center">Searching images...</div>
-                                                ) : itemResults.length > 0 ? (
-                                                  <div className="flex flex-col gap-3">
-                                                    {itemResults.map((res: any, sIdx: number) => {
-                                                      if (brokenSearchImages[`${fullItemKey}-${sIdx}`]) return null;
-                                                      return (
-                                                        <div 
-                                                          key={sIdx} 
-                                                          className="w-full rounded-lg overflow-hidden border border-slate-100 dark:border-slate-800 cursor-pointer hover:opacity-90 transition-opacity"
-                                                          onClick={() => setSearchPreview({ groupKey: fullItemKey, index: sIdx })}
-                                                        >
-                                                          <img 
-                                                            src={res.imageUrl} 
-                                                            alt={res.title} 
-                                                            className="w-full h-auto object-contain" 
-                                                            onError={() => setBrokenSearchImages(prev => ({ ...prev, [`${fullItemKey}-${sIdx}`]: true }))}
-                                                          />
-                                                          <div className="p-1.5 bg-slate-50 dark:bg-slate-900 text-[10px] truncate text-slate-500 text-center">{res.title}</div>
-                                                        </div>
-                                                      );
-                                                    })}
-                                                    <div className="flex justify-center mt-2">
-                                                      <button 
-                                                        onClick={(e) => { e.stopPropagation(); setSearchResults(prev => ({...prev, [fullItemKey]: []})); setSearchModes(prev => ({...prev, [fullItemKey]: false})); }}
-                                                        className="flex items-center justify-center p-2.5 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition-colors shadow-sm"
-                                                        title="Clear results"
-                                                      >
-                                                        <Trash2 className="w-4 h-4" />
-                                                      </button>
-                                                    </div>
-                                                  </div>
-                                                ) : (
-                                                  <div className="text-[9.5px] text-rose-500 dark:text-rose-400 bg-rose-50/50 dark:bg-rose-950/20 p-2 rounded-lg border border-rose-200/40 text-center leading-normal font-bold">
-                                                    ⚠️ Search Error: {searchErrors[fullItemKey] || "Search API did not return valid items."}
-                                                  </div>
-                                                )}
-                                              </div>
-                                             );
-                                           })()}
+                                           <div className="pb-8" />
 
                                          </GroupItemsContainer>
                                        </>
@@ -1212,118 +1084,9 @@ export const FoodCard: React.FC<AgentCardProps & {
           />
         );
       })()}
-      {originPreview && (() => {
-        const item = msg.data?.origins?.[originPreview.itemIdx];
-        if (!item) return null;
-        const queries = (item.imageQueries || [item.foodName]).slice(0, 3);
-        const validIndices = queries.map((_, i) => i).filter(i => !brokenOriginImages[`${originPreview.itemIdx}-${i}`]);
-        if (validIndices.length === 0) return null;
-        const currentValidPos = validIndices.indexOf(originPreview.imgIdx);
-        if (currentValidPos === -1) return null;
 
-        const resolvedData = originImagesRef.current[`${originPreview.itemIdx}-${originPreview.imgIdx}`];
-        const src = resolvedData?.imageUrl || getFoodImageUrl(item.foodName, '');
-        const pageUrl = resolvedData?.pageUrl;
-
-        return (
-          <ZoomableImage
-            src={src}
-            onClose={() => setOriginPreview(null)}
-            foodName={item.foodName}
-            sourceUrl={pageUrl}
-            hasNext={currentValidPos < validIndices.length - 1}
-            hasPrev={currentValidPos > 0}
-            onNext={() => setOriginPreview({ itemIdx: originPreview.itemIdx, imgIdx: validIndices[currentValidPos + 1] })}
-            onPrev={() => setOriginPreview({ itemIdx: originPreview.itemIdx, imgIdx: validIndices[currentValidPos - 1] })}
-          />
-        );
-      })()}
       {/* Case F: Food Origin & Details experiential encyclopedia card renderer */}
-      {msg.data?.mode === 'origin' && msg.data?.origins && msg.data.origins.length > 0 && (
-        <div className="space-y-3.5 animation-fade-in w-full max-w-full min-w-0 overflow-hidden bg-transparent font-sans text-left mb-4">
-          <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2">
-            <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-1.5 w-full">
-              <span>🗺️ Discovery:</span> <span className="text-emerald-600 dark:text-emerald-400 font-bold">Culinary Origins & History</span>
-            </h4>
-          </div>
 
-          {/* Horizontally scrollable culinary cards with vertical dividers */}
-          <div className="flex gap-0 mt-2 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full overscroll-x-contain">
-            {msg.data.origins.map((item: any, oIdx: number) => (
-              <React.Fragment key={oIdx}>
-                {oIdx > 0 && (
-                  <div className="w-[1px] bg-slate-200 dark:bg-slate-800 self-stretch my-2 shrink-0 mx-[10px]" />
-                )}
-                <div className="w-[90%] sm:w-[420px] shrink-0 snap-align-start flex flex-col relative space-y-3.5">
-                  <div className="flex flex-col gap-1.5">
-                    <h4 className="font-extrabold text-slate-800 dark:text-slate-100 text-[15px] leading-snug">
-                      {item.foodName}
-                    </h4>
-                  </div>
-
-                  {/* Horizontal Scrollable Carousel of 1-3 food pictures with interactive click-to-zoom */}
-                  <div className="flex gap-2 overflow-x-auto pb-1.5 scrollbar-thin scrollbar-thumb-slate-200/50 w-full snap-x snap-mandatory">
-                    {(item.imageQueries || [item.foodName]).slice(0, 3).map((queryStr: string, imgIdx: number) => {
-                      if (brokenOriginImages[`${oIdx}-${imgIdx}`]) return null;
-                      const backupUrl = getFoodImageUrl(item.foodName, '');
-                      return (
-                        <div 
-                          key={imgIdx} 
-                          onClick={() => setOriginPreview({ itemIdx: oIdx, imgIdx })}
-                          className="w-[90%] sm:w-80 h-48 flex-shrink-0 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-900/40 border border-slate-150 dark:border-slate-800 relative shadow-inner snap-start cursor-zoom-in hover:opacity-90 transition-opacity"
-                        >
-                          <OriginImageTile 
-                            queryStr={queryStr} 
-                            fallbackSrc={backupUrl}
-                            onResolved={(url: string, pageUrl: string) => {
-                              originImagesRef.current[`${oIdx}-${imgIdx}`] = { imageUrl: url, pageUrl };
-                            }}
-                            onError={() => setBrokenOriginImages(prev => ({ ...prev, [`${oIdx}-${imgIdx}`]: true }))}
-                          />
-                          <div className="absolute bottom-2 right-2 px-1.5 py-0.5 rounded bg-slate-900/65 text-[8.5px] font-bold text-white tracking-wide uppercase">
-                            View 🔍
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Descriptive fields */}
-                  <div className="text-[12px] space-y-2.5 text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
-                    <div className="p-3 rounded-lg bg-slate-50/55 dark:bg-slate-900/30 border border-slate-100/50 dark:border-slate-800/30">
-                      <strong className="text-slate-900 dark:text-white flex items-center gap-1 mb-0.5 text-[11px] uppercase tracking-wide text-indigo-600 dark:text-indigo-400">
-                        🌍 Origin & Heritage
-                      </strong>
-                      <span className="text-slate-600 dark:text-slate-350">{item.origin}</span>
-                    </div>
-
-                    <div className="p-3 rounded-lg bg-slate-50/55 dark:bg-slate-900/30 border border-slate-100/50 dark:border-slate-800/30">
-                      <strong className="text-slate-900 dark:text-white flex items-center gap-1 mb-0.5 text-[11px] uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
-                        🍳 Traditional Cooking
-                      </strong>
-                      <span className="text-slate-600 dark:text-slate-350">{item.howItIsCooked}</span>
-                    </div>
-
-                    <div className="p-3 rounded-lg bg-slate-50/55 dark:bg-slate-900/30 border border-slate-100/50 dark:border-slate-800/30">
-                      <strong className="text-slate-900 dark:text-white flex items-center gap-1 mb-0.5 text-[11px] uppercase tracking-wide text-amber-600 dark:text-amber-400">
-                        🍽️ Typical Occasions
-                      </strong>
-                      <span className="text-slate-600 dark:text-slate-350">{item.whenItIsEaten}</span>
-                    </div>
-
-                    <div className="p-3 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-indigo-100/50 dark:border-indigo-950/40 text-[11px] leading-normal italic text-slate-600 dark:text-slate-400 shadow-sm">
-                      <strong className="text-indigo-600 dark:text-indigo-400 font-bold block mb-0.5 not-italic uppercase tracking-wide text-[9.5px]">
-                        Clinical Impact & Recommendation:
-                      </strong>
-                      {item.healthImpact}
-                    </div>
-                  </div>
-                </div>
-              </React.Fragment>
-            ))}
-          </div>
-        </div>
-      )}
 
                   {msg.data?.pendingFoodLog && (
                     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden font-sans">

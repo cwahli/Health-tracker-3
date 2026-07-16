@@ -1,8 +1,8 @@
 const fs = require('fs');
-let code = fs.readFileSync('src/components/chat-cards/FoodScoutItemPreview.tsx', 'utf8');
+let code = fs.readFileSync('src/components/ZoomableImage.tsx', 'utf8');
 
 if (!code.includes('import { trackApiCall }')) {
-  code = "import { trackApiCall } from '../../utils/apiTracker';\n" + code;
+  code = "import { trackApiCall } from '../utils/apiTracker';\n" + code;
 }
 
 if (!code.includes('trackApiCall(\'brave\'')) {
@@ -12,4 +12,4 @@ if (!code.includes('trackApiCall(\'brave\'')) {
   );
 }
 
-fs.writeFileSync('src/components/chat-cards/FoodScoutItemPreview.tsx', code);
+fs.writeFileSync('src/components/ZoomableImage.tsx', code);

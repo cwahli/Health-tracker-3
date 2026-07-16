@@ -1,6 +1,7 @@
 import {
  ErrorBoundary } from './ErrorBoundary';
 import { agentCardRegistry } from './chat-cards';
+import { trackApiCall, setActiveQueryId, generateQueryId } from '../utils/apiTracker';
 import React, { useState, useRef, useEffect } from 'react';
 import { parse, stringify } from 'yaml';
 import { ChatMessage, FoodLog, UserProfile, FoodIdea } from '../types';
@@ -740,6 +741,7 @@ ${logsText}`);
       const compressedPayload = await compressLargeImagesInObject(payload);
 
       const docRef = doc(db, 'users', userId, 'conversations', id);
+      trackApiCall('firebase_write', 'Firestore setDoc');
       await setDoc(docRef, sanitizeForFirestore({
         id,
         userId,
@@ -799,7 +801,8 @@ ${logsText}`);
         where('type', '==', type || 'medical'),
         where('agentType', '==', agentType || null)
       );
-      const snapshot = await getDocs(q);
+      const snapshot = trackApiCall('firebase_read', 'Firestore getDocs');
+      await getDocs(q);
       const list: any[] = [];
       snapshot.forEach(docSnap => {
         list.push(docSnap.data());
@@ -877,6 +880,7 @@ ${logsText}`);
     if (!userId) return;
 
     try {
+      trackApiCall('firebase_delete', 'Firestore deleteDoc');
       await deleteDoc(doc(db, 'users', userId, 'conversations', sessId));
       const updatedList = conversationsList.filter(c => c.id !== sessId);
       setConversationsList(updatedList);
@@ -907,7 +911,11 @@ ${logsText}`);
 
   useEffect(() => {
     if (isOpen) {
+      const qid = generateQueryId();
+      setActiveQueryId(qid);
       loadConversationsFromFirestore();
+    } else {
+      setActiveQueryId(null);
     }
   }, [auth.currentUser, type, agentType, isOpen]);
 
@@ -1792,6 +1800,7 @@ ${logsText}`);
         engine: selectedModelId
       };
 
+      trackApiCall('gemini', `Medical Analyze - ${agentType}`);
       const response = await fetch('/api/gemini/medical-analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1935,6 +1944,7 @@ ${logsText}`);
       const displayPayload = { ...bodyData };
       setLastSentPayload(displayPayload);
 
+      trackApiCall('gemini', `Medical Analyze - ${agentType}`);
       const response = await fetch('/api/gemini/medical-analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -2772,30 +2782,7 @@ ${JSON.stringify(profile, null, 2)}`);
                       </span>
                     )}
                   </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (selectedItemKeys.length === 0) return;
-                      if (foodCardActionRef.current?.triggerOriginSearch) {
-                        foodCardActionRef.current.triggerOriginSearch(selectedItemKeys);
-                      }
-                      setIsSelectingMode(false);
-                      setSelectedItemKeys([]);
-                    }}
-                    disabled={selectedItemKeys.length === 0}
-                    className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
-                      selectedItemKeys.length === 0
-                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none border border-slate-200 dark:border-slate-700/40'
-                        : 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95'
-                    }`}
-                  >
-                    <span>🗺️ Origin Search</span>
-                    {selectedItemKeys.length > 0 && (
-                      <span className="px-1.5 py-0.5 bg-white/20 text-[9.5px] rounded-full">
-                        {selectedItemKeys.length}
-                      </span>
-                    )}
-                  </button>
+
                   <button
                     type="button"
                     onClick={() => {

@@ -1,3 +1,4 @@
+import { trackApiCall } from '../utils/apiTracker';
 import React, { useRef, useEffect, useState } from 'react';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 
@@ -12,6 +13,7 @@ const OnlineFoodImage: React.FC<{ foodName: string; fallbackSrc: string; classNa
     setLoading(true);
     setSearched(true);
     try {
+      trackApiCall('brave', `Brave Image Search - ${foodName}`);
       const res = await fetch("/api/gemini/food-image-search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },

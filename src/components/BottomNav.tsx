@@ -16,7 +16,7 @@ export default function BottomNav({ activeTab, setActiveTab }: BottomNavProps) {
   ] as const;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900/95 backdrop-blur-md border-t border-slate-100 dark:border-slate-800/80 shadow-lg py-2.5 px-4 z-40 transition-colors duration-200">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-900 shadow-lg py-2.5 px-4 z-40 transition-colors duration-200">
       <div className="max-w-md mx-auto flex items-center justify-around">
         {tabs.map((tab) => {
           const Icon = tab.icon;

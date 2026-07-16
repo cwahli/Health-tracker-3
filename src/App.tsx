@@ -18,6 +18,7 @@ import { getLocalFallbackReport } from './utils/fallbackReport';
 import { Plus, HeartHandshake, RefreshCw, Sparkles, Stethoscope, Utensils, Loader, CloudLightning, AlertTriangle } from 'lucide-react';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut as fbSignOut } from 'firebase/auth';
+import { trackApiCall, setActiveQueryId, generateQueryId } from './utils/apiTracker';
 import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, getDocFromServer, getDocsFromServer, onSnapshot, getDocsFromCache, writeBatch } from 'firebase/firestore';
 import { sanitizeForFirestore, checkQuotaFlag, handleRetryQuota } from './utils/firestoreUtils';
 import { getCurrentDateInTimezone, toYYYYMMDD, normalizeBiomarkerHistory } from './utils/dateUtils';
@@ -513,6 +514,11 @@ export default function App() {
     });
   };
   const logInteraction = (type: 'upload' | 'download' | 'delete' | 'sync', path: string, data: any, docCount: number = 1) => {
+    if (type === 'upload' || type === 'delete' || type === 'download') {
+      const apiType = type === 'upload' ? 'firebase_write' : type === 'delete' ? 'firebase_delete' : 'firebase_read';
+      const userEmail = auth.currentUser?.email || 'anonymous';
+      trackApiCall(apiType, `Firebase ${type} - ${path}`, userEmail);
+    }
     const sizeBytes = data ? (typeof data === 'string' ? data.length : JSON.stringify(data).length) : 0;
     const newOp: DbInteraction = {
       id: `db_op_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
@@ -948,20 +954,22 @@ export default function App() {
               v2Logs = serverBiomarkers;
               
               // We must still load images
-              if (v2Foods.length > 0) {
+              if (v2Foods.length > 0 && localStorage.getItem('auto_sync_disabled') !== 'true') {
                 const imagesSnap = await getDocs(collection(db, 'users', uid, 'foodImages'));
                 const shouldCompress = !hasRunImageCompression.current;
                 if (shouldCompress) hasRunImageCompression.current = true;
                 const imageMap: Record<string, any> = {};
-                const updatesToPush: { id: string; imageUrl?: string; imageUrls?: string[] }[] = [];
+                const updatesToPush: { id: string; imageUrl?: string; imageUrls?: string[]; compressionAttempted?: boolean }[] = [];
 
                 for (const d of imagesSnap.docs) {
                   const data = d.data();
                   let imageUrl = data.imageUrl;
                   let imageUrls = data.imageUrls || [];
                   let needsUpdate = false;
+                  let compressionAttemptedForThisDoc = false;
 
-                  if (shouldCompress && imageUrl && imageUrl.startsWith('data:image/') && imageUrl.length > 25000) {
+                  if (shouldCompress && !data.compressionAttempted && imageUrl && imageUrl.startsWith('data:image/') && imageUrl.length > 25000) {
+                    compressionAttemptedForThisDoc = true;
                     try {
                       const compressed = await compressImage(imageUrl, 400, 400, 0.5);
                       if (compressed !== imageUrl && compressed.length < imageUrl.length) {
@@ -976,7 +984,8 @@ export default function App() {
                   if (imageUrls && imageUrls.length > 0) {
                     const newUrls = [];
                     for (const url of imageUrls) {
-                      if (shouldCompress && url && url.startsWith('data:image/') && url.length > 25000) {
+                      if (shouldCompress && !data.compressionAttempted && url && url.startsWith('data:image/') && url.length > 25000) {
+                        compressionAttemptedForThisDoc = true;
                         try {
                           const compressed = await compressImage(url, 400, 400, 0.5);
                           if (compressed !== url && compressed.length < url.length) {
@@ -996,8 +1005,8 @@ export default function App() {
                     imageUrls = newUrls;
                   }
 
-                  if (needsUpdate) {
-                    updatesToPush.push({ id: d.id, imageUrl, imageUrls });
+                  if (needsUpdate || compressionAttemptedForThisDoc) {
+                    updatesToPush.push({ id: d.id, imageUrl, imageUrls, compressionAttempted: true });
                   }
 
                   imageMap[d.id] = { imageUrl, imageUrls };
@@ -1006,6 +1015,7 @@ export default function App() {
                 if (updatesToPush.length > 0) {
                   console.log(`[Auto-Recompress] Re-compressed ${updatesToPush.length} legacy large images on-the-fly. Syncing back to database...`);
                   updatesToPush.forEach(up => {
+                    trackApiCall('firebase_write', `Firebase upload - Auto-compress ${up.id}`, auth.currentUser?.email || 'anonymous');
                     setDoc(doc(db, 'users', uid, 'foodImages', up.id), sanitizeForFirestore({
                       imageUrl: up.imageUrl || null,
                       imageUrls: up.imageUrls || []
@@ -3680,6 +3690,7 @@ export default function App() {
       controller.abort();
     }, 18000); // 18-second robust timeout
     try {
+      trackApiCall('gemini', `Insight Analyze`, auth.currentUser?.email || 'anonymous');
       const response = await fetch('/api/gemini/insight-analyze', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

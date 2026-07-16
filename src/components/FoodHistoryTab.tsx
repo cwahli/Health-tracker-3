@@ -1,3 +1,4 @@
+import { trackApiCall } from '../utils/apiTracker';
 import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile, FoodLog, NutrientBreakdown, RecommendationReport } from '../types';
 import { translations } from '../utils/translations';
@@ -425,7 +426,7 @@ export default function FoodHistoryTab({
 
 
   return (
-    <div className="space-y-4 pb-24 animation-fade-in max-w-md mx-auto px-0 mt-4 font-sans text-slate-900">
+    <div className="space-y-4 pb-40 animation-fade-in max-w-md mx-auto px-0 mt-4 font-sans text-slate-900">
       
       {/* Search Input and Manual Entry Link */}
       <div className="space-y-2 px-[15px]">

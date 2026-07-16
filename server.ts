@@ -398,18 +398,6 @@ Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing two 
 - Output the specific groups in comparison.groups. Rank the groups best-to-worst for this patient's specific biomarker profile.
 - For each group, provide groupName, suitability, pros (MUST contain numeric macro values/ranges), cons (MUST contain numeric macro values/ranges), topConcernNutrient, keyDifferentiator, averageNutrients, and scoutItemIndices (or itemNames for text-only comparisons). OMIT the comparisonTable entirely.
 
-MODE F: FOOD ORIGIN LOOKUP
-  Triggered ONLY when the user's query asks for details, origin, history, description, ingredients, or "Origin search" of specific food items (e.g., "Look up details and food origin for: ...", "Origin search: ...").
-  - Do NOT expect an active meal image or try to log a meal.
-  - Instead, act as an educational, experiential culinary encyclopedia.
-  - For each selected food item in the "origins" array, you MUST provide:
-    * "origin": Historical origin country/region, cultural history, and traditional context.
-    * "howItIsCooked": Describe how this food is traditionally prepared, seasoned, and cooked.
-    * "whenItIsEaten": Describe the traditional occasions, festivals, meals (breakfast, street food), or cultural timing when this dish is typically consumed.
-    * "healthImpact": Analyze the clinical impact of this food relative to the patient's biomarkers and target top nutrients (e.g. Saturated Fat, Sodium, Calories), and give concrete dietary recommendations.
-    * "imageQueries": An array of 1 to 3 search queries to find real, vivid pictures of the food, ingredients, or prep (e.g. ["Tongkol Bakar grilled fish on plate", "Tongkol Bakar traditional preparation"]).
-  - Set "mode": "origin". Populate the "origins" array. Set foodData and comparison to null.
-
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly.
 
@@ -5129,7 +5117,7 @@ app.post("/api/gemini/food-image-search", async (req, res) => {
   const searchPromise = (async () => {
     try {
       addDebugLog(`[FoodImageSearch] Searching for images of "${query}" using Brave Search API`);
-      const apiKey = process.env.BRAVE_API_KEY || "BSAOKS3uObe_D64mK-K6K6NfOsnv_e5I";
+      const apiKey = process.env.BRAVE_API_KEY;
       
       if (!apiKey) {
         return {
@@ -5183,6 +5171,97 @@ app.post("/api/gemini/food-image-search", async (req, res) => {
   imageSearchPromises.set(query, searchPromise);
   const result = await searchPromise;
   return res.json(result);
+});
+
+app.post("/api/gemini/menu-image-search", async (req, res) => {
+  const { labels } = req.body;
+  if (!labels || !Array.isArray(labels) || labels.length === 0) {
+    return res.json({ results: [] });
+  }
+
+  const batchSize = 5;
+  const batches = [];
+  for (let i = 0; i < labels.length; i += batchSize) {
+    batches.push(labels.slice(i, i + batchSize));
+  }
+
+  let allResults: { label: string; imageUrl: string | null }[] = [];
+  
+  for (const batch of batches) {
+    const promptText = `You are an image search assistant. For each of the following food menu items, find a high-quality, hotlinkable image URL that best represents it using Google Search.
+Food Items: ${batch.join(", ")}
+
+Respond with a strictly formatted JSON array of objects. Each object must have:
+- "label": The exact food item name as provided.
+- "imageUrl": The direct hotlinkable URL of the image, or null if none could be found.`;
+
+    try {
+      const responseText = await callUnifiedLLM({
+        modelId: "gemini-pro-latest", // Can use the default or a strong model for tool use
+        systemInstruction: "You return strictly valid JSON matching the schema.",
+        promptText,
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: "ARRAY",
+          description: "List of image results for the requested food items.",
+          items: {
+            type: "OBJECT",
+            properties: {
+              label: { type: "STRING" },
+              imageUrl: { type: "STRING" } // no nullable in standard gemini schema sometimes, so string is fine
+            },
+            required: ["label", "imageUrl"]
+          }
+        },
+        googleSearch: true
+      });
+
+      try {
+        const parsed = typeof responseText === "string" ? JSON.parse(responseText) : responseText;
+        if (Array.isArray(parsed)) {
+          allResults = allResults.concat(parsed);
+        }
+      } catch (e) {
+        console.error("Failed to parse menu image search response:", e);
+      }
+    } catch (e) {
+      console.error("Error calling LLM for menu image search:", e);
+    }
+  }
+
+  return res.json({ results: allResults });
+});
+
+app.get("/api/gemini/test-menu-image-search", async (req, res) => {
+  const testLabels = [
+    "Beef Rendang",
+    "Nasi Goreng",
+    "Chicken Satay",
+    "Gado Gado",
+    "Soto Ayam",
+    "Mie Goreng",
+    "Martabak Manis",
+    "Pempek Palembang",
+    "Es Cendol",
+    "Ayam Penyet"
+  ];
+
+  try {
+    const protocol = req.protocol || "http";
+    const host = req.get("host") || "localhost:3000";
+    const url = `${protocol}://${host}/api/gemini/menu-image-search`;
+    
+    const response = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ labels: testLabels })
+    });
+    
+    const data = await response.json();
+    return res.json({ data, testLabels });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
 });
 
 // Endpoint to fetch real-time agent thinking process logs

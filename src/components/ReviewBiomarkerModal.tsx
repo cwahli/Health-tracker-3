@@ -1,3 +1,4 @@
+import { trackApiCall } from '../utils/apiTracker';
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { ChatMessage, UserProfile, BiomarkerLog } from '../types';
 import { translations } from '../utils/translations';
@@ -324,6 +325,7 @@ export default function ReviewBiomarkerModal({
         yamlContext
       };
 
+      trackApiCall('gemini', `Review Biomarker`);
       const res = await fetch('/api/gemini/review-biomarker', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

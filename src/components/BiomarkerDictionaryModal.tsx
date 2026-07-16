@@ -1,3 +1,4 @@
+import { trackApiCall } from '../utils/apiTracker';
 import { toYYYYMMDD } from "../utils/dateUtils";
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { UserProfile, BiomarkerLog } from '../types';
@@ -1077,6 +1078,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
         content: m.content
       }));
 
+      trackApiCall('gemini', `Route Chat`);
       const res = await fetch('/api/gemini/route-chat', {
         method: 'POST',
         headers: { 
@@ -1243,6 +1245,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
         }
       });
 
+      trackApiCall('gemini', `Data Accuracy`);
       const response = await fetch('/api/gemini/data-accuracy', {
         method: 'POST',
         headers: { 
@@ -1586,6 +1589,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
 
       const endpoint = isMedicalCategorisationMode ? '/api/gemini/medical-categorise' : '/api/gemini/standardize-units';
       const agentKey = isMedicalCategorisationMode ? 'medical_categorise' : 'standardize';
+      trackApiCall('gemini', `${endpoint}`);
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 
@@ -1730,6 +1734,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
 
       const sessionId = getSessionId();
 
+      trackApiCall('gemini', `Consolidate Names`);
       const res = await fetch('/api/gemini/consolidate-names', {
         method: 'POST',
         headers: { 
