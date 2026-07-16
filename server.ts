@@ -5252,10 +5252,10 @@ const searchRegistry: SearchEngine[] = [
   // 4. Brave Image Search API
   {
     name: "Brave",
-    isEnabled: (env) => !!(env.BRAVE_SEARCH_API_KEY || env.Brave_Search_API),
+    isEnabled: (env) => !!(env.BRAVE_SEARCH_API_KEY || env.Brave_Search_API || env.BRAVE_API_KEY),
     search: async (query, count, env) => {
       try {
-        const apiKey = env.BRAVE_SEARCH_API_KEY || env.Brave_Search_API;
+        const apiKey = env.BRAVE_SEARCH_API_KEY || env.Brave_Search_API || env.BRAVE_API_KEY;
         const url = `https://api.search.brave.com/res/v1/images/search?q=${encodeURIComponent(query)}&count=${count + 2}`;
         const res = await fetch(url, {
           headers: { "X-Subscription-Token": apiKey }
@@ -5275,11 +5275,47 @@ const searchRegistry: SearchEngine[] = [
     }
   }
 ];
+function cleanSearchQuery(q: string): string {
+  if (!q) return "";
+  let clean = q;
+  
+  // 1. Remove text inside square brackets [like this]
+  clean = clean.replace(/\[[^\]]*\]/g, "");
+  
+  // 2. Remove text inside parentheses (like this)
+  clean = clean.replace(/\([^)]*\)/g, "");
+  
+  // 3. Replace common Indonesian abbreviations / terms to simplify search
+  clean = clean.replace(/\/\s*(gr|goreng|bkr|bakar)/gi, "");
+  
+  // 4. Remove "+ NASI" or "+ Nasi" or "+ rice" or "with rice"
+  clean = clean.replace(/\+\s*(nasi|rice)/gi, "");
+  clean = clean.replace(/with\s+rice/gi, "");
+  clean = clean.replace(/and\s+rice/gi, "");
+  clean = clean.replace(/[\+\&]/g, " "); // replace + and & with space
+  
+  // 5. If there's a slash, take the first option (e.g. "Grilled/Fried Milkfish" -> "Grilled Milkfish")
+  if (clean.includes("/")) {
+    const parts = clean.split("/");
+    clean = parts[0];
+  }
+  
+  // 6. Common Indonesian/English replacements
+  clean = clean.replace(/\bque\b/gi, "kuwe");
+  clean = clean.replace(/\bvilet\b/gi, "fillet");
+  
+  // 7. Strip trailing/leading spaces and multiple spaces
+  clean = clean.replace(/\s+/g, " ").trim();
+  
+  return clean;
+}
+
 // Reusable Image Retrieval Manager (Fail-Proof Sequential Pipeline)
 async function retrieveFoodImages(
   query: string, 
   options: { mode?: "light" | "complete"; count?: number }
 ): Promise<Array<{title: string, imageUrl: string, pageUrl: string}>> {
+  const cleanedQuery = cleanSearchQuery(query) || query;
   const mode = options.mode || "light";
   const targetCount = options.count || 2;
   const results: Array<{title: string, imageUrl: string, pageUrl: string}> = [];
@@ -5288,13 +5324,13 @@ async function retrieveFoodImages(
     if (mode === "light" && engine.name === "Brave") return false;
     return engine.isEnabled(process.env);
   });
-  addDebugLog(`[ImageRetrieval] Searching for "${query}" (mode: ${mode}, count: ${targetCount})`);
+  addDebugLog(`[ImageRetrieval] Searching for "${cleanedQuery}" (original: "${query}") (mode: ${mode}, count: ${targetCount})`);
   for (const engine of activeEngines) {
     if (results.length >= targetCount) break;
     try {
       const needed = targetCount - results.length;
       addDebugLog(`[ImageRetrieval] Requesting ${needed} image(s) from ${engine.name}...`);
-      const engineResults = await engine.search(query, needed, process.env);
+      const engineResults = await engine.search(cleanedQuery, needed, process.env);
       if (engineResults && engineResults.length > 0) {
         results.push(...engineResults);
       }

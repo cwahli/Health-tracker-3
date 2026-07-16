@@ -92,7 +92,7 @@ export const FoodScoutItemPreview: React.FC<FoodScoutItemPreviewProps> = ({
         }`}
         onClick={onClick}
       >
-        {boundingBox ? (
+        {(boundingBox && !prefetchedSrc) ? (
           <CroppedFoodImage 
             src={src} 
             boundingBox={boundingBox} 

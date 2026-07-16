@@ -598,7 +598,7 @@ export const FoodCard: React.FC<AgentCardProps & {
             const groupKey = `${msg.id}-${gIdx}`;
 
             setFetchingGroupImages(prev => ({ ...prev, [itemKey]: true }));
-            setShowMenuImages(prev => ({ ...prev, [groupKey]: true }));
+            setShowMenuImages(prev => ({ ...prev, [itemKey]: true }));
 
             try {
               trackApiCall('brave', `Brave Image Search (Targeted Menu Lookup) - ${item.name}`);
@@ -698,8 +698,8 @@ export const FoodCard: React.FC<AgentCardProps & {
                                 {/* Group Hero Image (Programmatic online search in light mode, no Brave search) */}
                                 <div className="w-full h-32 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 shadow-sm relative shrink-0">
                                   <OnlineFoodImage 
-                                    foodName={group.groupName || (group.items?.[0]?.name) || "food"} 
-                                    fallbackSrc={getFoodImageUrl(group.items?.[0]?.name || "food")} 
+                                    foodName={(group.items?.[0]?.name?.replace(/^\[.*?\]\s*/, '')) || group.groupName || "food"} 
+                                    fallbackSrc={getFoodImageUrl(group.items?.[0]?.name?.replace(/^\[.*?\]\s*/, '') || "food")} 
                                     className="w-full h-full object-cover"
                                     searchMode="light"
                                   />
@@ -799,10 +799,15 @@ export const FoodCard: React.FC<AgentCardProps & {
                                        const isTextOnly = isMenuOrPoster || !bb || bb.length < 4 || aspect > 2.2 || height < 20;
                                        return isTextOnly ? itemIdx : -1;
                                      }).filter(index => index !== -1);
-                                     const hasTextOnlyItems = textOnlyIndices.length > 0;
-                                     const hasDishesImages = !isMenuOrPoster && groupPreviewItems.some(i => i.boundingBox && i.boundingBox.length === 4);
-                                     const groupKey = `${msg.id}-${idx}`;
-                                     const isSearchActive = !!searchModes[groupKey];
+                                      const hasTextOnlyItems = textOnlyIndices.length > 0;
+                                      const hasDishesImages = !isMenuOrPoster && groupPreviewItems.some(i => i.boundingBox && i.boundingBox.length === 4);
+                                      const groupKey = `${msg.id}-${idx}`;
+                                      const hasAnyMenuImage = (group.items || []).some((_, i) => {
+                                        const k = `${msg.id}-${idx}-${i}`;
+                                        return showMenuImages[k] || !!onlineImageUrls[k];
+                                      });
+                                      const isGridExpanded = hasDishesImages || showMenuImages[groupKey] || hasAnyMenuImage;
+                                      const isSearchActive = !!searchModes[groupKey];
                                      const resultsForGroup = searchResults[groupKey] || [];
                                      const isLoadingForGroup = !!searchLoading[groupKey];
                                      const searchedItemIdx = searchedItemIndices[groupKey];
@@ -861,143 +866,167 @@ export const FoodCard: React.FC<AgentCardProps & {
                                            onToggle={() => setGroupExpanded(prev => ({ ...prev, [groupKey]: !prev[groupKey] }))}
                                          >
                                            {/* Search results moved to group level to take full width */}
-                                            <div className={(hasDishesImages || showMenuImages[groupKey]) ? "grid grid-cols-3 sm:grid-cols-4 gap-3 w-full" : "grid grid-cols-2 gap-2 w-full"}>
-                                             {(group.items || []).map((item: any, itemIdx: number) => {
-                                                const { src: resolvedImgSrc, boundingBox: bb, imgIdx } = groupPreviewItems[itemIdx];
-                                                const isTextOnly = textOnlyIndices.includes(itemIdx);
-                                                const itemKey = `${idx}-${itemIdx}`;
-                                                const fullItemKey = `${msg.id}-${idx}-${itemIdx}`;
-                                                const isSelected = selectedItemKeys.includes(itemKey);
-                                                const itemDisplayName = showTranslations[groupKey] ? (item.keyword || item.name) : (item.originalName || item.name);
-
-                                                const chipOnClick = (fetchedUrl?: string) => {
-                                                  if (isSelectingMode) {
-                                                    setSelectedItemKeys(prev => 
-                                                      prev.includes(itemKey) 
-                                                        ? prev.filter(k => k !== itemKey) 
-                                                        : [...prev, itemKey]
-                                                    );
-                                                  } else {
-                                                    setPreviewState({ groupIdx: idx, itemIdx: itemIdx, resolvedImgSrc, overrideSrc: fetchedUrl && typeof fetchedUrl === 'string' ? fetchedUrl : undefined });
+                                            <div className="w-full flex flex-col gap-4">
+                                              {(() => {
+                                                const categorizedItems = (group.items || []).reduce((acc: any, item: any, itemIdx: number) => {
+                                                  let category = "Uncategorized";
+                                                  let rawName = item.name || "";
+                                                  const match = rawName.match(/^\[(.*?)\]\s*(.*)$/);
+                                                  if (match) {
+                                                    category = match[1];
                                                   }
-                                                };
+                                                  if (!acc[category]) acc[category] = [];
+                                                  acc[category].push({ item, itemIdx });
+                                                  return acc;
+                                                }, {} as Record<string, {item: any, itemIdx: number}[]>);
 
-                                                 const itemKeyForCache = `${msg.id}-${idx}-${itemIdx}`;
-                                                 const shouldShowAsPreview = !isTextOnly || showMenuImages[groupKey] || !!onlineImageUrls[itemKeyForCache];
-                                        const finalSrc = onlineImageUrls[itemKeyForCache] || resolvedImgSrc;
-
-                                        const chipContent = !shouldShowAsPreview ? (
-                                                  <div 
-                                                    className={`flex items-center justify-start p-2 rounded-xl border cursor-pointer shadow-sm transition-all duration-200 text-left min-h-[48px] px-3 w-full ${
-                                                      isSelected 
-                                                        ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 ring-2 ring-indigo-500/50 shadow-md font-bold scale-[1.02]' 
-                                                        : isSelectingMode 
-                                                          ? 'border-slate-200 dark:border-slate-800 bg-slate-50/20 dark:bg-slate-900/10 hover:border-indigo-400 hover:bg-indigo-50/20 hover:scale-[1.01]' 
-                                                          : 'border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 hover:shadow'
-                                                    }`}
-                                                    onClick={() => chipOnClick()}
-                                                  >
-                                                    <span className={`text-[10.5px] lowercase font-semibold leading-tight break-words text-left ${isSelected ? 'text-indigo-700 dark:text-indigo-300 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                                                      {itemDisplayName}
-                                                    </span>
-                                                  </div>
-                                                ) : (
-                                                  <FoodScoutItemPreview
-                                                    name={itemDisplayName}
-                                                    src={finalSrc}
-                                                    boundingBox={bb}
-                                                    imgIdx={imgIdx}
-                                                    messageImages={resolvedMessageImages}
-                                                    isActive={isSelected}
-                                                    isSearchMode={isSelectingMode}
-                                                    searchMode="complete"
-                                                    onClick={chipOnClick}
-                                                    prefetchedSrc={onlineImageUrls[itemKeyForCache]}
-                                                  />
-                                                );
-
-                                                const isActiveItem = searchModes[fullItemKey];
-                                                const itemResults = searchResults[fullItemKey] || [];
-                                                const itemLoading = !!searchLoading[fullItemKey];
-
-                                                return (
-                                                  <React.Fragment key={itemIdx}>
-                                                    <div className="relative flex flex-col gap-2 w-full">
-                                                        {chipContent}
-                                                        {!!searchResults[fullItemKey] && (
-                                                            <button 
-                                                              onClick={(e) => { e.stopPropagation(); setPreviewState({ groupIdx: idx, itemIdx: itemIdx, resolvedImgSrc }); }}
-                                                              className="absolute -top-1.5 -right-1.5 p-1 bg-slate-900/80 text-white rounded-full transition-colors z-10 shadow-sm"
-                                                              title="View original photo"
-                                                            >
-                                                              <Eye className="w-3 h-3" />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                    
-                                                    {isActiveItem && (
-                                                      <div className="col-span-full w-full basis-full mt-3 mb-5 border border-indigo-100 dark:border-indigo-900/40 rounded-xl p-3 bg-white/50 dark:bg-slate-900/50 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300 font-sans">
-                                                        {itemLoading ? (
-                                                          <div className="text-[10px] text-indigo-500 animate-pulse text-center py-2">Searching images...</div>
-                                                        ) : itemResults.length > 0 ? (
-                                                          <div className="flex flex-col">
-                                                            <div className="flex justify-between items-center mb-2 px-1">
-                                                              <div className="text-[10px] font-medium text-slate-500">Image Results</div>
-                                                              <button 
-                                                                onClick={(e) => { e.stopPropagation(); setSearchResults(prev => ({...prev, [fullItemKey]: []})); setSearchModes(prev => ({...prev, [fullItemKey]: false})); }}
-                                                                className="p-1 bg-slate-100 dark:bg-slate-800 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
-                                                              >
-                                                                <Trash2 className="w-3.5 h-3.5" />
-                                                              </button>
-                                                            </div>
-                                                            <div className="grid grid-cols-2 gap-2">
-                                                              {itemResults.map((res: any, sIdx: number) => {
-                                                                if (brokenSearchImages[`${fullItemKey}-${sIdx}`]) return null;
-                                                                return (
-                                                                  <div 
-                                                                    key={sIdx} 
-                                                                    className="w-full rounded-md overflow-hidden border border-slate-200 dark:border-slate-800 cursor-pointer hover:opacity-90 hover:ring-1 hover:ring-indigo-400 transition-all bg-black/5 flex flex-col"
-                                                                    onClick={() => setSearchPreview({ groupKey: fullItemKey, index: sIdx })}
-                                                                  >
-                                                                    <div className="h-24 sm:h-32 w-full flex-shrink-0">
-                                                                      <img 
-                                                                        src={res.imageUrl} 
-                                                                        alt={res.title} 
-                                                                        className="w-full h-full object-cover" 
-                                                                        onError={() => setBrokenSearchImages(prev => ({ ...prev, [`${fullItemKey}-${sIdx}`]: true }))}
-                                                                      />
-                                                                    </div>
-                                                                    <div className="p-1 bg-slate-50 dark:bg-slate-900 text-[9px] truncate text-slate-500 text-center flex-grow flex items-center justify-center">{res.title}</div>
-                                                                  </div>
-                                                                );
-                                                              })}
-                                                            </div>
-                                                          </div>
-                                                        ) : (
-                                                          <div className="flex flex-col items-center justify-center py-3 gap-2 text-center">
-                                                            <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-medium">Would you like to search web images for "{itemDisplayName}"?</p>
-                                                            <button 
-                                                              onClick={(e) => { e.stopPropagation(); handleFoodSearch(idx, itemIdx, itemDisplayName); }}
-                                                              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[10.5px] font-bold rounded-full shadow-sm transition-all cursor-pointer"
-                                                            >
-                                                              <Search className="w-3.5 h-3.5" /> Search Images
-                                                            </button>
-                                                            {searchErrors[fullItemKey] && (
-                                                              <div className="text-[9.5px] text-rose-500 bg-rose-50 dark:bg-rose-950/20 px-2.5 py-1 rounded-lg border border-rose-200/40 mt-1 max-w-full">
-                                                                ⚠️ {searchErrors[fullItemKey]}
-                                                              </div>
-                                                            )}
-                                                          </div>
-                                                        )}
+                                                return Object.entries(categorizedItems).map(([category, itemsArr]: [string, {item: any, itemIdx: number}[]], catIdx) => (
+                                                  <div key={catIdx} className="w-full flex flex-col gap-2">
+                                                    {category !== "Uncategorized" && (
+                                                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide border-b border-slate-100 dark:border-slate-800/50 pb-1 mt-1">
+                                                        {category}
                                                       </div>
                                                     )}
-                                                  </React.Fragment>
-                                                );
-                                              })}
-                                           </div>
+                                                    <div className={isGridExpanded ? "grid grid-cols-3 sm:grid-cols-4 gap-3 w-full" : "grid grid-cols-2 gap-2 w-full"}>
+                                                      {itemsArr.map(({item, itemIdx}) => {
+                                                        const { src: resolvedImgSrc, boundingBox: bb, imgIdx } = groupPreviewItems[itemIdx];
+                                                        const isTextOnly = textOnlyIndices.includes(itemIdx);
+                                                        const itemKey = `${idx}-${itemIdx}`;
+                                                        const fullItemKey = `${msg.id}-${idx}-${itemIdx}`;
+                                                        const isSelected = selectedItemKeys.includes(itemKey);
+                                                        let itemDisplayName = showTranslations[groupKey] ? (item.keyword || item.name) : (item.originalName || item.name);
+                                                        itemDisplayName = itemDisplayName.replace(/^\[.*?\]\s*/, '');
 
-                                           <div className="pb-8" />
+                                                        const itemKeyForCache = `${msg.id}-${idx}-${itemIdx}`;
+                                                        const shouldShowAsPreview = !isTextOnly || showMenuImages[groupKey] || showMenuImages[itemKeyForCache] || !!onlineImageUrls[itemKeyForCache];
+                                                        const finalSrc = onlineImageUrls[itemKeyForCache] || resolvedImgSrc;
 
+                                                        const hasBeenSearched = !!onlineImageUrls[itemKeyForCache] || (searchResults[fullItemKey] && searchResults[fullItemKey].length > 0);
+
+                                                        const chipOnClick = (fetchedUrl?: string) => {
+                                                          if (isSelectingMode) {
+                                                            setSelectedItemKeys(prev => 
+                                                              prev.includes(itemKey) 
+                                                                ? prev.filter(k => k !== itemKey) 
+                                                                : [...prev, itemKey]
+                                                            );
+                                                          } else {
+                                                            if (searchResults[fullItemKey] && searchResults[fullItemKey].length > 0) {
+                                                              setSearchModes(prev => ({...prev, [fullItemKey]: !prev[fullItemKey]}));
+                                                            } else {
+                                                              setPreviewState({ groupIdx: idx, itemIdx: itemIdx, resolvedImgSrc, overrideSrc: fetchedUrl && typeof fetchedUrl === 'string' ? fetchedUrl : undefined });
+                                                            }
+                                                          }
+                                                        };
+
+                                                        const chipContent = !shouldShowAsPreview ? (
+                                                          <div 
+                                                            className={`flex items-center justify-start p-2 rounded-xl border cursor-pointer shadow-sm transition-all duration-200 text-left min-h-[48px] px-3 w-full ${
+                                                              isSelected 
+                                                                ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 ring-2 ring-indigo-500/50 shadow-md font-bold scale-[1.02]' 
+                                                                : isSelectingMode 
+                                                                  ? 'border-slate-200 dark:border-slate-800 bg-slate-50/20 dark:bg-slate-900/10 hover:border-indigo-400 hover:bg-indigo-50/20 hover:scale-[1.01]' 
+                                                                  : 'border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 hover:shadow'
+                                                            }`}
+                                                            onClick={() => chipOnClick()}
+                                                          >
+                                                            <span className={`text-[10.5px] lowercase font-semibold leading-tight break-words text-left ${isSelected ? 'text-indigo-700 dark:text-indigo-300 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                              {itemDisplayName}
+                                                            </span>
+                                                          </div>
+                                                        ) : (
+                                                          <FoodScoutItemPreview
+                                                            name={itemDisplayName}
+                                                            src={finalSrc}
+                                                            boundingBox={bb}
+                                                            imgIdx={imgIdx}
+                                                            messageImages={resolvedMessageImages}
+                                                            isActive={isSelected}
+                                                            isSearchMode={isSelectingMode}
+                                                            searchMode="complete"
+                                                            onClick={() => chipOnClick(onlineImageUrls[itemKeyForCache])}
+                                                            prefetchedSrc={onlineImageUrls[itemKeyForCache]}
+                                                          />
+                                                        );
+
+                                                        const isActiveItem = searchModes[fullItemKey];
+                                                        const itemResults = searchResults[fullItemKey] || [];
+                                                        const itemLoading = !!searchLoading[fullItemKey];
+
+                                                        return (
+                                                          <React.Fragment key={itemIdx}>
+                                                            <div className={`relative flex flex-col gap-2 w-full ${hasBeenSearched && isGridExpanded ? 'col-span-2' : 'col-span-1'}`}>
+                                                                {chipContent}
+                                                                {!!searchResults[fullItemKey] && (
+                                                                    <button 
+                                                                      onClick={(e) => { e.stopPropagation(); setPreviewState({ groupIdx: idx, itemIdx: itemIdx, resolvedImgSrc }); }}
+                                                                      className="absolute -top-1.5 -right-1.5 p-1 bg-slate-900/80 text-white rounded-full transition-colors z-10 shadow-sm"
+                                                                      title="View original photo"
+                                                                    >
+                                                                      <Eye className="w-3 h-3" />
+                                                                    </button>
+                                                                )}
+                                                            </div>
+                                                            
+                                                            {isActiveItem && (
+                                                              <div className="col-span-full w-full basis-full mt-3 mb-5 border border-indigo-100 dark:border-indigo-900/40 rounded-xl p-3 bg-white/50 dark:bg-slate-900/50 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300 font-sans">
+                                                                {itemLoading ? (
+                                                                  <div className="text-[10px] text-indigo-500 animate-pulse text-center py-2">Searching images...</div>
+                                                                ) : itemResults.length > 0 ? (
+                                                                  <div className="flex flex-col">
+                                                                    <div className="flex justify-between items-center mb-2 px-1">
+                                                                      <div className="text-[10px] font-medium text-slate-500">Image Results</div>
+                                                                      <button 
+                                                                        onClick={(e) => { e.stopPropagation(); setSearchResults(prev => ({...prev, [fullItemKey]: []})); setSearchModes(prev => ({...prev, [fullItemKey]: false})); }}
+                                                                        className="p-1 bg-slate-100 dark:bg-slate-800 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
+                                                                      >
+                                                                        <Trash2 className="w-3.5 h-3.5" />
+                                                                      </button>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 gap-2">
+                                                                      {itemResults.map((res: any, sIdx: number) => {
+                                                                        if (brokenSearchImages[`${fullItemKey}-${sIdx}`]) return null;
+                                                                        return (
+                                                                          <div 
+                                                                            key={sIdx} 
+                                                                            className="w-full rounded-md overflow-hidden border border-slate-200 dark:border-slate-800 cursor-pointer hover:opacity-90 hover:ring-1 hover:ring-indigo-400 transition-all bg-black/5 flex flex-col"
+                                                                            onClick={() => setSearchPreview({ groupKey: fullItemKey, index: sIdx })}
+                                                                          >
+                                                                            <div className="h-24 sm:h-32 w-full flex-shrink-0">
+                                                                              <img 
+                                                                                src={res.imageUrl} 
+                                                                                alt={res.title} 
+                                                                                className="w-full h-full object-cover" 
+                                                                                onError={() => setBrokenSearchImages(prev => ({ ...prev, [`${fullItemKey}-${sIdx}`]: true }))}
+                                                                              />
+                                                                            </div>
+                                                                            <div className="p-1 bg-slate-50 dark:bg-slate-900 text-[9px] truncate text-slate-500 text-center flex-grow flex items-center justify-center">{res.title}</div>
+                                                                          </div>
+                                                                        );
+                                                                      })}
+                                                                    </div>
+                                                                  </div>
+                                                                ) : (
+                                                                  <div className="flex flex-col items-center justify-center py-4 gap-2 text-center text-slate-500 dark:text-slate-400">
+                                                                    <Search className="w-5 h-5 text-slate-300 dark:text-slate-600" />
+                                                                    <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">No images found</span>
+                                                                    <span className="text-[9.5px] text-slate-400 max-w-[200px]">
+                                                                      No web images could be retrieved for "{itemDisplayName}".
+                                                                    </span>
+                                                                  </div>
+                                                                )}
+                                                              </div>
+                                                            )}
+                                                          </React.Fragment>
+                                                        );
+                                                      })}
+                                                    </div>
+                                                  </div>
+                                                ));
+                                              })()}
+                                            </div>
+
+                                            <div className="pb-8" />
                                          </GroupItemsContainer>
                                        </>
                                      );
@@ -1059,7 +1088,8 @@ export const FoodCard: React.FC<AgentCardProps & {
         if (previewState.overrideSrc) {
           resolvedImgSrc = previewState.overrideSrc;
         }
-        const bb = item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
+        const hasLookedUpImage = !!(onlineImageUrls[itemKeyForCache] || previewState.overrideSrc);
+        const bb = hasLookedUpImage ? null : (item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null));
         const groupKey = `${msg.id}-${previewState.groupIdx}`;
         const itemDisplayName = showTranslations[groupKey] ? (item.keyword || item.name) : (item.originalName || item.name);
         return (
