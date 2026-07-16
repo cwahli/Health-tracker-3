@@ -450,6 +450,7 @@ Respond ONLY with a structured JSON format matching this schema exactly.
   "comparison": {
     "keyNutrientConcern": "Comma-separated list of 2-3 most critical nutrients to monitor for this patient (e.g., 'Sodium, Saturated Fat, Calories')",
     "comparisonTitle": "A short 2-4 word title for this comparison (e.g., 'Nutrients of Concern')", 
+    "auditChecklist": "CRITICAL: List all scoutItemIndices from the prompt (e.g., 0, 1, 2, 3...) here before grouping to ensure 100% extraction coverage.",
     "groups": [
       {
         "groupName": "Low Saturated Fat Options",
@@ -2185,6 +2186,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
           properties: {
             keyNutrientConcern: { type: Type.STRING, description: "Comma-separated list of 2-3 most critical nutrients to monitor for this patient (e.g., 'Sodium, Saturated Fat, Calories')" },
             comparisonTitle: { type: Type.STRING },
+            auditChecklist: { type: Type.STRING, description: "CRITICAL: List all scoutItemIndices from the prompt here before grouping to ensure 100% extraction coverage." },
             groups: {
               type: Type.ARRAY,
               items: {
@@ -2235,7 +2237,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
               }
             }
           },
-          required: ["keyNutrientConcern", "comparisonTitle", "groups"],
+          required: ["keyNutrientConcern", "comparisonTitle", "auditChecklist", "groups"],
           nullable: true
         },
         origins: {
