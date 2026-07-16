@@ -385,6 +385,7 @@ MODE A: NEW FOOD LOGGING
 - Extract ingredients, estimate weights, and provide the "foodData" block. Set "mode": "new_log".
 - CRITICAL: If the user uploads a picture of a meal (e.g. a plate with steak, potatoes, veggies), you MUST treat it as a single meal entry and use MODE A (NEW FOOD LOGGING). Combine the components into the itemsBreakdown array. DO NOT use MODE D (EVALUATION/COMPARISON) to compare the items on the plate unless the user explicitly asks to compare them or choose the best option.
 - CRITICAL: If the user enters a single food item name or phrase like "I ate this steak" without explicitly asking to compare, you MUST use MODE A.
+- CRITICAL: If the user provides a single food image and asks a general health question (e.g., "Is it healthy?"), that MUST be routed to MODE A, not Mode D.
 
 MODE B: DISCUSSION 
 - Triggered by general health questions, or if the user's message/query is NOT relevant to food, nutrition, or health. Set "mode": "discussion". Set structural data to null.
@@ -402,6 +403,7 @@ MODE D: EVALUATION / COMPARISON
 Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing two snacks), OR whenever the VISUAL FOOD SCOUT Content Type is "menu_or_poster".
 - CRITICAL: Check if the user is correcting or modifying an existing item before classifying as this mode. If the intent is correction, MUST use MODE C.
 - CRITICAL: Do NOT use this mode for a standard meal photo or when the user says they ate something.
+- CRITICAL: Do NOT use this mode if the user provides a single food image and asks a general health question (e.g., "Is it healthy?"). That must be routed to MODE A (NEW FOOD LOGGING).
 - ITEM REFERENCING (STRICT — PREVENTS DATA LOSS): Every item in the "=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===" list has an explicit Index number. When assigning items to groups, reference them ONLY by that Index inside "scoutItemIndices". Do NOT restate the item's name, bounding box, or database ID — the backend already has this data and will look it up by index. If two scout items share the same name (e.g. two separate bags of the same product on a shelf), they are still DISTINCT items with DIFFERENT indices — you MUST include BOTH indices. Never merge or silently drop an index because its name duplicates another.
 - COVERAGE REQUIREMENT: Every single Index from the Scout list MUST appear in exactly one group. Before finalizing your answer, count the indices you have assigned across all groups and confirm the count equals the total number of scout items.
 - TEXT-ONLY FALLBACK: If no "=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===" section is present (a pure text-based comparison with no image), use "itemNames" instead, listing the plain food names being compared. Leave scoutItemIndices empty in that case.
@@ -484,8 +486,8 @@ Respond ONLY with a structured JSON format matching this schema exactly.
     "auditChecklist": "CRITICAL: List all scoutItemIndices from the prompt (e.g., 0, 1, 2, 3...) here before grouping to ensure 100% extraction coverage.",
     "groups": [
       {
-        "groupName": "Low Saturated Fat Options",
-        "scoutItemIndices": [0, 3, 7],
+        "groupName": "Specific Item Name (if 8 or fewer items)",
+        "scoutItemIndices": [0],
         "itemNames": null,
         "suitability": "Safest option",
         "topConcernNutrient": "saturatedFat (CRITICAL: MUST BE EXACTLY ONE WORD. NO EXCEPTIONS.)",
@@ -1765,6 +1767,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
     let visionScoutItems: any[] = [];
     let scoutConfidenceRating = "High (>90%)";
     let scoutConfidenceComment = "";
+    let scoutRecommendedMode: string | null = null;
     let scoutCookingMethod = "";
     let scoutContentType = "visual";
     const dbMatchMap = new Map<string, any>();
@@ -1815,53 +1818,38 @@ CRITICAL RULES:
 - \`keyword\` MUST be a short, clean, database-friendly English name so the backend search functions successfully (e.g., "beef blade cut", "sweet potato").
 - \`originalName\` PRESERVATION: This field is clinically vital. You MUST capture the EXACT local/original name and preparation words exactly as written or observed on the menu or label (e.g., "Yakiimo", "Daging Empal", "Ayam Goreng"). Do NOT translate, normalize, or summarize this field. 
 
-- VISUAL CROSS-REFERENCING (ANTI-HALLUCINATION):
-  You must never blindly trust your OCR transcription of a grocery label if it flatly contradicts the physical food items visible in the accompanying images. Always cross-reference the label text with the actual food photo. If a label is blurry/abbreviated, deduce the correct word from the physical food (e.g., if you see two fish but transcribe a label as "onion", correct your keyword to match the fish).
-
-- ANTI-OMISSION & THE "UNKNOWN" ESCAPE HATCH (STRICT):
-  You must NEVER silently drop, skip, or ignore a food label simply because the text is obscured by glare, or because the physical food item is hidden. If you see a physical printed label in the image, its data MUST appear in your JSON.
-
-  The Escape Hatch: If you can read the weight numbers but the food name is completely obscured by plastic glare, or if the OCR contradicts the visuals and you cannot resolve it, you MUST STILL EXTRACT THE ITEM.
-
-  In these cases, set the keyword to "unknown item", set originalName to "UNREADABLE", extract the weight, and forcefully downgrade confidenceRating to Low. Omission is a strict failure.
-
+- THE "FLAG AND EXTRACT" DIRECTIVE (STRICT):
+  Never silently drop or omit an item due to glare, abbreviations, hidden food, or OCR contradictions. You must extract it to the best of your ability.
+  Instead of omitting, you MUST use the \`anomalyFlags\` array to explain the issue (e.g., ["glare covering letters", "guessed Ikan from IK"]). If any anomaly is flagged, you are mathematically required to set \`itemConfidence\` to Medium or Low.
 - USER TEXT SUPREMACY & CONTEXT FILTERING:
   * Explicit Quantities Override: The user's text message is the absolute mathematical authority. If the user explicitly states a quantity, count, or weight in their text message (e.g., "3 piece", "10 skewers"), you MUST mathematically calculate the \`estimatedWeightGrams\` based strictly on those units, overriding your own visual volume estimates. (e.g., If a user says "3 oranges", calculate the average weight of 3 small oranges; DO NOT calculate the visual liquid volume of the plastic cup they are served in).
   * Background & Inventory Exclusion: Do NOT extract or weigh large bulk supplies, raw ingredients on store shelves, or street cart inventories visible in the background (e.g., a massive 3kg pile of oranges on a cart). If the user's text and the primary subject of the photo imply they are logging a single prepared portion, only extract the components of that specific meal.
-
 - SEMANTIC ALIGNMENT:
   The English keyword you generate MUST biologically and semantically match the text you extracted in originalName. Do not hallucinate categories. If the originalName indicates a protein/meat (e.g., "Ikan" means fish), the keyword cannot be a vegetable (e.g., "bok choy"). If unsure of a translation, default to a generic category (e.g., "fish", "meat").
-
-- CONFIDENCE SCORING CALIBRATION (STRICT):
-  You are naturally prone to overconfidence. You must actively look for reasons to doubt your identification and downgrade your confidenceRating accordingly:
-  * High (>90%): Use ONLY if the food is completely unobstructed, brightly lit, entirely distinct, AND perfectly matches a highly legible, unabbreviated label. Do not base High confidence solely on extracting weight numbers.
-  * Medium (50-90%): Downgrade to Medium if the food is visually ambiguous, partially hidden, heavily cooked/obscured, or if you are relying on a blurry/abbreviated label with glare.
-  * Low (<50%): Downgrade to Low if you are purely guessing based on loose context.
-  * Justification: If you select Medium or Low, explicitly state exactly what is obstructing your view or causing ambiguity in the \`confidenceComment\`. 
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers like \`\`\`json.
 {
-  "contentType": "visual" | "menu_or_poster" | "text",
+  "recommendedMode": "new_log | evaluation | discussion",
+  "contentType": "visual | menu_or_poster | text",
   "items": [
     {
-      "keyword": "string (CRITICAL: Your English keyword MUST logically fit the visual evidence and meal context. If your OCR translation results in an absurd or out-of-place item [e.g., 145g of garlic] that you cannot physically see in the photo, do NOT trust the OCR. Use contextual clues to deduce the most logical food item, and flag this deduction in your confidenceComment.)",
-      "estimatedWeightGrams": "number (You MUST extract this if you see weight numbers printed on a label, even if the rest of the label is pure glare)",
-      "originalName": "string (Transcribe exactly what is visible. If the label is blurry, cut off, or has glare, you are allowed to guess the missing letters, but doing so REQUIRES you to lower the confidenceRating.)",
+      "keyword": "string (English. If visual contradicts OCR, trust visual. If totally obscured, use 'unknown item')",
+      "estimatedWeightGrams": "number (Prioritize user text quantities over visual volume)",
+      "originalName": "string (Exact OCR. If unreadable, 'UNREADABLE')",
       "source": "label | visual",
       "boundingBox2D": [0, 0, 0, 0],
       "sourceImageIndex": 0,
       "nutritionFacts": {},
       "rawNutritionLabel": {},
-      "confidenceRating": "Low (<50%) | Medium (50-90%) | High (>90%) (CRITICAL: You MUST downgrade to Medium or Low if ANY of these occur: 1. You had to deduce a hidden/unseen item based on context. 2. You had to override an absurd OCR translation. 3. You had to guess missing letters due to glare/abbreviations. High confidence is ONLY for 100% visible items with crystal-clear, unabbreviated labels.)",
-      "confidenceComment": "string | null (If Medium or Low confidence, you MUST explicitly explain your deduction. Example: 'Label OCR read BAWANG but no garlic is visible; deduced hidden fish based on IK abbreviation and meal context.')"
+      "anomalyFlags": [
+        "string (List specific issues here, e.g., 'abbreviation used', 'glare on label', 'visual mismatch', 'hidden item', 'guessed missing letters'. Leave empty [] if perfect)"
+      ],
+      "itemConfidence": "High | Medium | Low (CRITICAL: If anomalyFlags is NOT empty, this MUST be Medium or Low)"
     }
   ],
   "compactSpreadsheet": [],
   "cookingMethod": "string",
-  "confidenceRating": "Low (<50%) | Medium (50-90%) | High (>90%) (CRITICAL: You MUST downgrade to Medium or Low if ANY of these occur: 1. You had to deduce a hidden/unseen item based on context. 2. You had to override an absurd OCR translation. 3. You had to guess missing letters due to glare/abbreviations. High confidence is ONLY for 100% visible items with crystal-clear, unabbreviated labels.)",
-  "confidenceComment": "string | null (If Medium or Low confidence, you MUST explicitly explain your deduction. Example: 'Label OCR read BAWANG but no garlic is visible; deduced hidden fish based on IK abbreviation and meal context.')",
-  "scanCompleteness": "full",
-  "contentType": "visual | text"
+  "scanCompleteness": "full | partial"
 }
 `;
 
@@ -1881,11 +1869,26 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
             parsedScout = JSON.parse(extractBalancedJson(scoutOutput));
           }
           if (parsedScout) {
-            scoutConfidenceRating = parsedScout.confidenceRating || "High (>90%)";
-            scoutConfidenceComment = parsedScout.confidenceComment || "";
+            let lowestConfidence = "High (>90%)";
+            let globalComment = "";
+            if (Array.isArray(parsedScout.items)) {
+              for (const it of parsedScout.items) {
+                if (it.itemConfidence && it.itemConfidence.toLowerCase().includes("low")) {
+                  lowestConfidence = "Low (<50%)";
+                } else if (it.itemConfidence && it.itemConfidence.toLowerCase().includes("medium") && lowestConfidence !== "Low (<50%)") {
+                  lowestConfidence = "Medium (50-90%)";
+                }
+                if (Array.isArray(it.anomalyFlags) && it.anomalyFlags.length > 0) {
+                  globalComment += `[${it.keyword}]: ${it.anomalyFlags.join(', ')}. `;
+                }
+              }
+            }
+            scoutConfidenceRating = lowestConfidence;
+            scoutConfidenceComment = globalComment.trim();
             scoutCookingMethod = parsedScout.cookingMethod || "";
             const rawType = (parsedScout.contentType || "").toLowerCase();
-            scoutContentType = (rawType === "text") ? "text" : "visual";
+            scoutContentType = (rawType === "text" || rawType === "menu_or_poster") ? rawType : "visual";
+            scoutRecommendedMode = parsedScout.recommendedMode || null;
 
             // Parse compactSpreadsheet if present (for high densities / menus)
             if (Array.isArray(parsedScout.compactSpreadsheet) && parsedScout.compactSpreadsheet.length > 0) {
@@ -2139,6 +2142,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
       }).join("\n");
       visionScoutCtx = `\n=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===\n${itemsList}\n` +
         `Content Type: ${scoutContentType} (${visionScoutItems.length} items identified)\n` +
+        (scoutRecommendedMode ? `\nCRITICAL ROUTING OVERRIDE: The Vision Scout explicitly requires you to use mode: "${scoutRecommendedMode}". You MUST obey this mode.\n` : "") +
         `Visual Scout Confidence Rating: ${scoutConfidenceRating}\n` +
         (scoutConfidenceComment ? `Visual Scout Confidence Comment: ${scoutConfidenceComment}\n` : "") +
         `Identified Cooking Method & Preparation/Seasonings: ${scoutCookingMethod}\n` +
@@ -2425,6 +2429,12 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
 
     const mode = rawParsed.mode || "new_log";
 
+    const apiCalls = [
+      ...(hasImage ? [{ type: 'gemini', label: 'Food nutrition agent - Visual Scout (gemini-3.1-flash-lite)' }] : []),
+      ...(queriesToSearch && queriesToSearch.length > 0 ? [{ type: 'usda', label: `Food nutrition agent - USDA (${queriesToSearch.length})` }] : []),
+      { type: 'gemini', label: `Food nutrition agent - Dietitian (${engine || 'gemini-3.1-flash-lite'})` }
+    ];
+
     // CASE F: food origin lookup mode
     if (mode === "origin") {
       addDebugLog(`[Mode Routing] ORIGIN mode triggered.`);
@@ -2433,7 +2443,8 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         origins: rawParsed.origins || [],
         text: rawParsed.message || "Here are the historical details and origins for your selection.",
         message: rawParsed.message,
-        agentPrompt: fullPromptSent
+        agentPrompt: fullPromptSent,
+        apiCalls
       });
     }
 
@@ -2444,7 +2455,8 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         mode: "discussion",
         text: rawParsed.message || "Here is the details on this meal composition.",
         data: null,
-        agentPrompt: fullPromptSent
+        agentPrompt: fullPromptSent,
+        apiCalls
       });
     }
 
@@ -2464,7 +2476,8 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         scoutContentType: scoutContentType,
         agentPrompt: fullPromptSent,
         message: rawParsed.message,
-        text: rawParsed.message
+        text: rawParsed.message,
+        apiCalls
       });
     }
 
@@ -2652,11 +2665,6 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
   }];
 }
 
-      const apiCalls = [
-        ...(image || (images && images.length > 0) ? [{ type: 'gemini', label: 'Food nutrition agent - Visual Scout (gemini-3.1-flash-lite)' }] : []),
-        ...(queriesToSearch && queriesToSearch.length > 0 ? [{ type: 'usda', label: `Food nutrition agent - USDA (${queriesToSearch.length})` }] : []),
-        { type: 'gemini', label: `Food nutrition agent - Dietitian (${engine || 'gemini-3.1-flash-lite'})` }
-      ];
       return res.json({
         text: rawParsed.message || `I have analyzed the food: **${parsedData.name}** (${parsedData.quantity}).`,
         data: parsedData,
@@ -2894,9 +2902,6 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         }
       }
 
-      const apiCalls = [
-        { type: 'gemini', label: `Food nutrition agent - Dietitian (${engine || 'gemini-3.1-flash-lite'})` }
-      ];
       return res.json({
         mode: "modify",
         text: rawParsed.message || "I have recalculated your meal's metrics with precision based on your instructions.",

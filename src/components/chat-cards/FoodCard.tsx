@@ -1282,6 +1282,46 @@ export const FoodCard: React.FC<AgentCardProps & {
                                  );
                                })}
                              </div>
+                             {activeScoutItems.some((i: any) => (i.nutritionFacts && Object.keys(i.nutritionFacts).length > 0) || (i.rawNutritionLabel && Object.keys(i.rawNutritionLabel).length > 0)) && (
+                               <div className="mt-2 text-left pt-1 font-sans">
+                                 <details className="group [&_summary::-webkit-details-marker]:hidden">
+                                   <summary className="flex items-center gap-1.5 cursor-pointer text-[10px] font-bold text-indigo-600 dark:text-indigo-400 select-none">
+                                     <span>View Nutrition Labels</span>
+                                     <svg className="w-3 h-3 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                                     </svg>
+                                   </summary>
+                                   <div className="mt-2 space-y-2 pl-2 border-l-2 border-indigo-100 dark:border-indigo-900/30">
+                                     {activeScoutItems.map((item: any, i: number) => {
+                                       const hasRaw = item.rawNutritionLabel && Object.keys(item.rawNutritionLabel).length > 0;
+                                       const hasNut = item.nutritionFacts && Object.keys(item.nutritionFacts).length > 0;
+                                       if (!hasRaw && !hasNut) return null;
+                                       return (
+                                         <div key={`nut-${i}`} className="text-[10px] text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg">
+                                           <strong className="block text-slate-800 dark:text-slate-200 mb-1">{item.originalName || item.keyword}</strong>
+                                           {hasRaw && (
+                                              <div className="mb-1 leading-relaxed">
+                                                <span className="font-semibold text-[9px] text-slate-500 uppercase tracking-wider block mb-0.5">Raw Label: </span>
+                                                {Object.entries(item.rawNutritionLabel).map(([k, v]) => (
+                                                  <span key={k} className="inline-block mr-2.5"><span className="opacity-75">{k}:</span> <span className="font-medium text-slate-700 dark:text-slate-300">{String(v)}</span></span>
+                                                ))}
+                                              </div>
+                                           )}
+                                           {hasNut && (
+                                              <div className="leading-relaxed">
+                                                <span className="font-semibold text-[9px] text-slate-500 uppercase tracking-wider block mb-0.5">Per 100g: </span>
+                                                {Object.entries(item.nutritionFacts).map(([k, v]) => (
+                                                  <span key={k} className="inline-block mr-2.5"><span className="opacity-75">{k}:</span> <span className="font-medium text-slate-700 dark:text-slate-300">{String(v)}</span></span>
+                                                ))}
+                                              </div>
+                                           )}
+                                         </div>
+                                       );
+                                     })}
+                                   </div>
+                                 </details>
+                               </div>
+                             )}
                           </div>
                         );
                       })()}
