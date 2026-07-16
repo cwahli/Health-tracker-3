@@ -196,7 +196,7 @@ const getFoodImageUrl = (foodName: string, suppliedUrl?: string) => {
       return "https://images.unsplash.com/photo-1585938338392-50a59970d8ee?w=400&auto=format&fit=crop&q=60"; // Indian curry plate
     }
     if (tz.includes('europe') || tz.includes('london') || tz.includes('paris') || tz.includes('berlin') || tz.includes('rome') || tz.includes('madrid') || tz.includes('amsterdam') || tz.includes('brussels')) {
-      return "https://images.unsplash.com/photo-1490815685121-030b3e31f29c?w=400&auto=format&fit=crop&q=60"; // Mediterranean European dining
+      return "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=400&auto=format&fit=crop&q=60"; // Mediterranean European dining
     }
   } catch (e) {
     // Ignore error
@@ -585,6 +585,44 @@ export const FoodCard: React.FC<AgentCardProps & {
           });
         },
 
+        triggerFetchMenuImages: async (keys: string[]) => {
+          setSelectorError("");
+          const promises = keys.map(async (key) => {
+            const [gIdx, iIdx] = key.split('-').map(Number);
+            const group = displayGroups[gIdx];
+            if (!group || !group.items) return;
+            const item = group.items[iIdx];
+            if (!item) return;
+
+            const itemKey = `${msg.id}-${gIdx}-${iIdx}`;
+            const groupKey = `${msg.id}-${gIdx}`;
+
+            setFetchingGroupImages(prev => ({ ...prev, [itemKey]: true }));
+            setShowMenuImages(prev => ({ ...prev, [groupKey]: true }));
+
+            try {
+              trackApiCall('brave', `Brave Image Search (Targeted Menu Lookup) - ${item.name}`);
+              const res = await fetch("/api/gemini/food-image-search", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ query: item.name, mode: "complete" })
+              });
+              const data = await res.json();
+              if (data.images && data.images.length > 0) {
+                setOnlineImageUrls(prev => ({
+                  ...prev,
+                  [itemKey]: data.images[0].imageUrl
+                }));
+              }
+            } catch (err) {
+              console.warn("Failed to fetch targeted menu image for", item.name, err);
+            } finally {
+              setFetchingGroupImages(prev => ({ ...prev, [itemKey]: false }));
+            }
+          });
+          await Promise.all(promises);
+        },
+
         triggerCompareFood: (keys: string[]) => {
           setSelectorError("");
           const selectedNames = keys.map(key => {
@@ -714,7 +752,8 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                          {/* Items in this bucket */}
                                  <div className="pt-2 border-t border-slate-100 dark:border-slate-800/50">
                                    {(() => {
-                                     const isMenuOrPoster = msg.data?.scoutContentType === 'text' || msg.data?.scoutContentType === 'menu_or_poster';
+                                     const scoutType = (msg.data?.scoutContentType || '').toLowerCase();
+                                     const isMenuOrPoster = scoutType === 'text' || scoutType === 'menu_or_poster';
                                      
                                      // Look back in messages history to find original uploads containing images
                                      const historicalMsgWithImages = (() => {
@@ -790,35 +829,8 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                </button>
                                              )}
 
-                                              {hasTextOnlyItems && (
-                                                <button 
-                                                  type="button"
-                                                  onClick={() => {
-                                                    const groupKey = `${msg.id}-${idx}`;
-                                                    if (showMenuImages[groupKey]) {
-                                                      setShowMenuImages(prev => ({ ...prev, [groupKey]: false }));
-                                                    } else {
-                                                      fetchGroupMenuImages(idx);
-                                                    }
-                                                  }}
-                                                  className={`px-2 py-0.5 text-[9px] font-bold border border-slate-200 dark:border-slate-800 rounded-md bg-slate-50 dark:bg-slate-900/50 hover:bg-slate-100 text-slate-500 dark:text-slate-400 transition-all flex items-center gap-1 cursor-pointer ${
-                                                    showMenuImages[`${msg.id}-${idx}`]
-                                                      ? 'border-indigo-200 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400'
-                                                      : ''
-                                                  }`}
-                                                  disabled={fetchingGroupImages[`${msg.id}-${idx}`]}
-                                                >
-                                                  {fetchingGroupImages[`${msg.id}-${idx}`] ? (
-                                                    <span className="w-2.5 h-2.5 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin inline-block"></span>
-                                                  ) : (
-                                                    <span>🖼️</span>
-                                                  )}
-                                                  <span>{showMenuImages[`${msg.id}-${idx}`] ? 'Hide Images' : 'Show Menu Images'}</span>
-                                                </button>
-                                              )}
-
-                                             <button
-                                               type="button"
+                                              <button
+                                                type="button"
                                                onClick={() => {
                                                  if (!isSelectingMode && props.onEnterSelectingMode) props.onEnterSelectingMode();
                                                  setIsSelectingMode(!isSelectingMode);
@@ -870,8 +882,8 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                   }
                                                 };
 
-                                                const shouldShowAsPreview = !isTextOnly || showMenuImages[groupKey];
-                                        const itemKeyForCache = `${msg.id}-${idx}-${itemIdx}`;
+                                                 const itemKeyForCache = `${msg.id}-${idx}-${itemIdx}`;
+                                                 const shouldShowAsPreview = !isTextOnly || showMenuImages[groupKey] || !!onlineImageUrls[itemKeyForCache];
                                         const finalSrc = onlineImageUrls[itemKeyForCache] || resolvedImgSrc;
 
                                         const chipContent = !shouldShowAsPreview ? (
@@ -900,6 +912,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                     isSearchMode={isSelectingMode}
                                                     searchMode="complete"
                                                     onClick={chipOnClick}
+                                                    prefetchedSrc={onlineImageUrls[itemKeyForCache]}
                                                   />
                                                 );
 
@@ -1057,8 +1070,8 @@ export const FoodCard: React.FC<AgentCardProps & {
             foodName={itemDisplayName}
             hasNext={previewState.itemIdx < group.items.length - 1}
             hasPrev={previewState.itemIdx > 0}
-            onNext={() => setPreviewState(prev => prev ? { ...prev, itemIdx: prev.itemIdx + 1 } : null)}
-            onPrev={() => setPreviewState(prev => prev ? { ...prev, itemIdx: prev.itemIdx - 1 } : null)}
+            onNext={() => setPreviewState(prev => prev ? { ...prev, itemIdx: prev.itemIdx + 1, resolvedImgSrc: undefined, overrideSrc: undefined } : null)}
+            onPrev={() => setPreviewState(prev => prev ? { ...prev, itemIdx: prev.itemIdx - 1, resolvedImgSrc: undefined, overrideSrc: undefined } : null)}
           />
         );
       })()}
@@ -1138,7 +1151,8 @@ export const FoodCard: React.FC<AgentCardProps & {
 
 
                       {(() => {
-                        const isMenuOrPoster = msg.data?.scoutContentType === 'text' || msg.data?.scoutContentType === 'menu_or_poster';
+                        const scoutType = (msg.data?.scoutContentType || '').toLowerCase();
+                        const isMenuOrPoster = scoutType === 'text' || scoutType === 'menu_or_poster';
                         const activeScoutItems = (() => {
                           if (msg.data?.scoutItems && msg.data.scoutItems.length > 0) {
                             return msg.data.scoutItems;

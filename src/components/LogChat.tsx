@@ -2787,6 +2787,31 @@ ${JSON.stringify(profile, null, 2)}`);
                     type="button"
                     onClick={() => {
                       if (selectedItemKeys.length === 0) return;
+                      if (foodCardActionRef.current?.triggerFetchMenuImages) {
+                        foodCardActionRef.current.triggerFetchMenuImages(selectedItemKeys);
+                      }
+                      setIsSelectingMode(false);
+                      setSelectedItemKeys([]);
+                    }}
+                    disabled={selectedItemKeys.length === 0}
+                    className={`flex-1 py-3 px-4 rounded-xl text-xs font-bold shadow-md transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
+                      selectedItemKeys.length === 0
+                        ? 'bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-600 cursor-not-allowed shadow-none border border-slate-200 dark:border-slate-700/40'
+                        : 'bg-emerald-600 hover:bg-emerald-700 text-white active:scale-95'
+                    }`}
+                  >
+                    <span>🖼️ Show Menu Image</span>
+                    {selectedItemKeys.length > 0 && (
+                      <span className="px-1.5 py-0.5 bg-white/20 text-[9.5px] rounded-full">
+                        {selectedItemKeys.length}
+                      </span>
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (selectedItemKeys.length === 0) return;
                       if (foodCardActionRef.current?.triggerCompareFood) {
                         foodCardActionRef.current.triggerCompareFood(selectedItemKeys);
                       }

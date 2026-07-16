@@ -5,15 +5,22 @@ export const OnlineFoodImage: React.FC<{
   fallbackSrc: string; 
   className?: string;
   searchMode?: "light" | "complete";
+  prefetchedSrc?: string;
 }> = ({ 
   foodName, 
   fallbackSrc, 
   className,
-  searchMode = "light"
+  searchMode = "light",
+  prefetchedSrc
 }) => {
-  const [src, setSrc] = React.useState<string>("");
-  const [loading, setLoading] = React.useState(true);
+  const [src, setSrc] = React.useState<string>(prefetchedSrc || "");
+  const [loading, setLoading] = React.useState(!prefetchedSrc);
   React.useEffect(() => {
+    if (prefetchedSrc) {
+      setSrc(prefetchedSrc);
+      setLoading(false);
+      return;
+    }
     let active = true;
     const fetchImage = async () => {
       try {
@@ -34,12 +41,13 @@ export const OnlineFoodImage: React.FC<{
     };
     fetchImage();
     return () => { active = false; };
-  }, [foodName, searchMode]);
+  }, [foodName, searchMode, prefetchedSrc]);
   return (
     <img 
       src={src || fallbackSrc} 
       alt={foodName} 
       className={`${className} ${loading ? 'animate-pulse bg-slate-100 dark:bg-slate-800' : ''}`}
+      referrerPolicy="no-referrer"
       onError={(e) => {
         (e.target as HTMLImageElement).src = fallbackSrc;
       }}
@@ -57,6 +65,7 @@ interface FoodScoutItemPreviewProps {
   isActive?: boolean;
   isSearchMode?: boolean;
   searchMode?: "light" | "complete";
+  prefetchedSrc?: string;
 }
 export const FoodScoutItemPreview: React.FC<FoodScoutItemPreviewProps> = ({
   name,
@@ -68,7 +77,8 @@ export const FoodScoutItemPreview: React.FC<FoodScoutItemPreviewProps> = ({
   aspectClassName = "aspect-square",
   isActive = false,
   isSearchMode = false,
-  searchMode = "light"
+  searchMode = "light",
+  prefetchedSrc
 }) => {
   return (
     <div className="flex flex-col items-center gap-1.5 w-full text-center">
@@ -97,6 +107,7 @@ export const FoodScoutItemPreview: React.FC<FoodScoutItemPreviewProps> = ({
             fallbackSrc={src} 
             className="w-full h-full object-cover"
             searchMode={searchMode}
+            prefetchedSrc={prefetchedSrc}
           />
         )}
       </div>

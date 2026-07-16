@@ -1747,7 +1747,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
     let scoutConfidenceRating = "High (>90%)";
     let scoutConfidenceComment = "";
     let scoutCookingMethod = "";
-    let scoutContentType = "individual_food_items";
+    let scoutContentType = "visual";
     const dbMatchMap = new Map<string, any>();
     const queriesToSearch: string[] = [];
 
@@ -1788,7 +1788,7 @@ STEP 3 — CORE EXTRACTION & GROUPING LAWS:
 - NUTRITION FACTS LABELS (type b): DO NOT perform math or scale values per 100g. Extract the EXACT total package weight, serving size weight, and nutrients per serving exactly as written into the "rawNutritionLabel" object. If an item has NO legible physical nutrition panel visible, leave "rawNutritionLabel" and "nutritionFacts" entirely empty {}. Do not hallucinate.
 - FOOD PHOTOS (type c): Identify items and estimate weight using visual references (plates, hands, packaging markers).
 - MENUS AND POSTERS (type e) - SHARED CATEGORY BOUNDING BOX RULE: For normal density menus (< 15 items), do NOT attempt to draw individual bounding boxes for every single line of text or menu item. Instead, draw ONE bounding box around the parent category block, and assign that exact same bounding box to all choices in that category.
-- CLASSIFICATION LAW: If the image is a restaurant menu, list, or combo board listing text options (even if it contains tiny decorative food pictures or drawings elsewhere), you MUST set "contentType" to "menu_or_poster" or "text". You should only set "contentType" to "visual" if the primary content consists of actual food pictures, meals, or physical food items that are the main focus of logging.
+- CLASSIFICATION LAW: If the image is a restaurant menu and you only extract text from it. Then classify it as “text”. If in your extraction you have food image with text, or food image only, then it’s classified as “visual”.
 CRITICAL RULES:
 - \`keyword\` MUST be a short, clean, database-friendly English name so the backend search functions successfully (e.g., "beef blade cut", "sweet potato").
 - \`originalName\` PRESERVATION: This field is clinically vital. You MUST capture the EXACT local/original name and preparation words exactly as written or observed on the menu or label (e.g., "Yakiimo", "Daging Empal", "Ayam Goreng"). Do NOT translate, normalize, or summarize this field. 
@@ -1840,7 +1840,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
   "confidenceRating": "Low (<50%) | Medium (50-90%) | High (>90%)",
   "confidenceComment": "string | null",
   "scanCompleteness": "full (all items extracted via items array) | full_dense (extracted via compactSpreadsheet due to high physical density) | partial_text_cap (capped at 100 items due to extreme menu length)",
-  "contentType": "visual | text | menu_or_poster"
+  "contentType": "visual | text"
 }
 `;
 
@@ -1863,7 +1863,8 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
             scoutConfidenceRating = parsedScout.confidenceRating || "High (>90%)";
             scoutConfidenceComment = parsedScout.confidenceComment || "";
             scoutCookingMethod = parsedScout.cookingMethod || "";
-            scoutContentType = (parsedScout.contentType === "text" || parsedScout.contentType === "menu_or_poster") ? "menu_or_poster" : "individual_food_items";
+            const rawType = (parsedScout.contentType || "").toLowerCase();
+            scoutContentType = (rawType === "text" || rawType === "menu_or_poster") ? "text" : "visual";
 
             // Parse compactSpreadsheet if present (for high densities / menus)
             if (Array.isArray(parsedScout.compactSpreadsheet) && parsedScout.compactSpreadsheet.length > 0) {
@@ -1988,7 +1989,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
     const cleanQuery = (raw: string) => raw.replace(/\s*\(.*?\)\s*/g, '').replace(/\b(raw|fresh|cooked)\s+/i, '').trim();
 
     const hasImage = imagePayloads && imagePayloads.length > 0;
-    const isMenuScale = scoutContentType === "menu_or_poster";
+    const isMenuScale = scoutContentType === "menu_or_poster" || scoutContentType === "text";
     // Skip database search if evaluating a large number of items (Mode D / Evaluation Scale) to prevent connection pool exhaustion and timeouts
     const isEvaluationScale = queriesToSearch.length >= 10;
     const shouldRunDbSearch = !isWeightModification && !isMenuScale && !isEvaluationScale && (visionScoutRanAndReturnedItems || (!hasImage && queriesToSearch.length > 0));
