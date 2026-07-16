@@ -39,16 +39,7 @@ export const WelcomeCard: React.FC<any> = (props) => {
           What's up today?
         </button>
       )}
-      {!isFoodIdea && !isDailyRec && !isFood && (
-        <button
-          type="button"
-          onClick={() => handleSend(autoSendMessage || 'Start')}
-          disabled={isAnalyzing}
-          className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition-all cursor-pointer shadow-md flex items-center gap-1.5"
-        >
-          {autoSendMessage ? (autoSendMessage.toLowerCase().includes('calibrate') ? 'Start Calibration' : 'Start Review') : "Let's start"}
-        </button>
-      )}
+      {/* Handled consistently at bottom action row instead of inline welcoming stream */}
     </div>
   );
 };

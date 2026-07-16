@@ -19,6 +19,8 @@ export const syncLogsWithTimeBuckets = async (
   uid: string, 
   localFoods: FoodLog[], 
   localBiomarkers: BiomarkerLog[],
+  deletedFoodLogIds: string[],
+  deletedBiomarkerLogIds: string[],
   onSyncComplete: (syncedFoods: FoodLog[], syncedBiomarkers: BiomarkerLog[]) => void
 ) => {
   const unsyncedFoods = localFoods.filter(f => f.sync_state && f.sync_state !== 'synced');
@@ -27,20 +29,16 @@ export const syncLogsWithTimeBuckets = async (
   if (unsyncedFoods.length === 0 && unsyncedBiomarkers.length === 0) {
     return;
   }
-
   const bucketsToSync = new Set<string>();
   unsyncedFoods.forEach(f => bucketsToSync.add(toYYYYMM(f.date)));
   unsyncedBiomarkers.forEach(b => bucketsToSync.add(toYYYYMM(b.date)));
-
   const updatedLocalFoods = [...localFoods];
   const updatedLocalBiomarkers = [...localBiomarkers];
-
   for (const monthBucket of bucketsToSync) {
     const bucketRef = doc(db, 'users', uid, 'consolidated_logs', monthBucket);
     
     const monthUnsyncedFoods = unsyncedFoods.filter(f => toYYYYMM(f.date) === monthBucket);
     const monthUnsyncedBiomarkers = unsyncedBiomarkers.filter(b => toYYYYMM(b.date) === monthBucket);
-
     try {
       trackApiCall('firebase_read', 'Firestore getDoc');
       const bucketDoc = await getDoc(bucketRef);
@@ -49,9 +47,7 @@ export const syncLogsWithTimeBuckets = async (
       if (bucketDoc.exists()) {
         serverData = bucketDoc.data();
       }
-
       let changed = false;
-
       const processItem = (item: any, type: 'food' | 'biomarker') => {
         const serverItem = serverData.logs[item.id];
         
@@ -62,12 +58,10 @@ export const syncLogsWithTimeBuckets = async (
           }
         } else {
           if (!serverItem || (item.updated_at || 0) >= (serverItem.updated_at || 0)) {
-            // Store basic types. Keep images out of here to save space
             const dataToSave = { ...item };
             delete dataToSave.imageUrl;
             delete dataToSave.imageUrls;
             
-            // Clean up chat transcript to avoid exceeding Firestore 1MB document limit
             if (dataToSave.chatTranscript && Array.isArray(dataToSave.chatTranscript)) {
               const rawTranscript = dataToSave.chatTranscript;
               const sliced = rawTranscript.slice(-15);
@@ -85,20 +79,16 @@ export const syncLogsWithTimeBuckets = async (
           }
         }
       };
-
       monthUnsyncedFoods.forEach(f => processItem(f, 'food'));
       monthUnsyncedBiomarkers.forEach(b => processItem(b, 'biomarker'));
-
       if (changed) {
         serverData.last_sync_timestamp = Date.now();
         trackApiCall('firebase_write', 'Firestore setDoc');
-      await setDoc(bucketRef, sanitizeForFirestore(serverData));
+        await setDoc(bucketRef, sanitizeForFirestore(serverData));
       }
       
-      // Process food updates: mark synced
       const syncedFoodIds = new Set(monthUnsyncedFoods.filter(f => f.sync_state !== 'delete').map(f => f.id));
       const deletedFoodIds = new Set(monthUnsyncedFoods.filter(f => f.sync_state === 'delete').map(f => f.id));
-
       for (let i = updatedLocalFoods.length - 1; i >= 0; i--) {
         if (deletedFoodIds.has(updatedLocalFoods[i].id)) {
           updatedLocalFoods.splice(i, 1);
@@ -106,11 +96,8 @@ export const syncLogsWithTimeBuckets = async (
           updatedLocalFoods[i] = { ...updatedLocalFoods[i], sync_state: 'synced' };
         }
       }
-
-      // Process biomarker updates: mark synced
       const syncedBioIds = new Set(monthUnsyncedBiomarkers.filter(b => b.sync_state !== 'delete').map(b => b.id));
       const deletedBioIds = new Set(monthUnsyncedBiomarkers.filter(b => b.sync_state === 'delete').map(b => b.id));
-
       for (let i = updatedLocalBiomarkers.length - 1; i >= 0; i--) {
         if (deletedBioIds.has(updatedLocalBiomarkers[i].id)) {
           updatedLocalBiomarkers.splice(i, 1);
@@ -118,16 +105,23 @@ export const syncLogsWithTimeBuckets = async (
           updatedLocalBiomarkers[i] = { ...updatedLocalBiomarkers[i], sync_state: 'synced' };
         }
       }
-
     } catch (err) {
       console.error(`Sync failed for bucket ${monthBucket}:`, err);
     }
   }
   
-  onSyncComplete(updatedLocalFoods.filter(f => f.sync_state !== 'delete'), updatedLocalBiomarkers.filter(b => b.sync_state !== 'delete'));
+  onSyncComplete(
+    updatedLocalFoods.filter(f => f.sync_state !== 'delete' && !deletedFoodLogIds.includes(f.id)), 
+    updatedLocalBiomarkers.filter(b => b.sync_state !== 'delete' && !deletedBiomarkerLogIds.includes(b.id))
+  );
 };
 
-export const fetchAllConsolidatedLogs = async (db: Firestore, uid: string) => {
+export const fetchAllConsolidatedLogs = async (
+  db: Firestore, 
+  uid: string, 
+  deletedFoodLogIds: string[] = [], 
+  deletedBiomarkerLogIds: string[] = []
+) => {
   trackApiCall('firebase_read', 'Firestore getDocs');
       const bucketsSnap = await getDocs(collection(db, 'users', uid, 'consolidated_logs'));
   
@@ -139,9 +133,13 @@ export const fetchAllConsolidatedLogs = async (db: Firestore, uid: string) => {
     if (data && data.logs) {
       Object.values(data.logs).forEach((logInfo: any) => {
         if (logInfo.type === 'food') {
-          serverFoods.push({ ...logInfo.data, sync_state: 'synced' });
+          if (!deletedFoodLogIds.includes(logInfo.data.id)) {
+            serverFoods.push({ ...logInfo.data, sync_state: 'synced' });
+          }
         } else if (logInfo.type === 'biomarker') {
-          serverBiomarkers.push({ ...logInfo.data, sync_state: 'synced' });
+          if (!deletedBiomarkerLogIds.includes(logInfo.data.id)) {
+            serverBiomarkers.push({ ...logInfo.data, sync_state: 'synced' });
+          }
         }
       });
     }

@@ -497,7 +497,9 @@ export const FoodCard: React.FC<AgentCardProps & {
         return {
           ...item,
           boundingBox2D: item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null),
-          sourceImageIndex: typeof item.sourceImageIndex === 'number' ? item.sourceImageIndex : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0)
+          sourceImageIndex: typeof item.sourceImageIndex === 'number' ? item.sourceImageIndex : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0),
+          confidenceRating: item.confidenceRating,
+          confidenceComment: item.confidenceComment
         };
       });
 
@@ -932,6 +934,11 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                           >
                                                             <span className={`text-[10.5px] lowercase font-semibold leading-tight break-words text-left ${isSelected ? 'text-indigo-700 dark:text-indigo-300 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
                                                               {itemDisplayName}
+                                                              {(item.confidenceRating === 'Low' || item.confidenceRating === 'Medium') && (
+                                                                <div className="text-[9px] font-medium text-amber-600 dark:text-amber-400 mt-1 italic">
+                                                                  Low confidence: Please provide new picture or description.
+                                                                </div>
+                                                              )}
                                                             </span>
                                                           </div>
                                                         ) : (

@@ -21,7 +21,7 @@ import exifr from 'exifr';
 import { auth, db } from '../firebase';
 import { getAgentCalibration, getAllAgentCalibrations } from '../utils/agentCalibration';
 import { collection, query, where, getDocs, setDoc, doc, deleteDoc, getDoc } from 'firebase/firestore';
-import { sanitizeForFirestore } from '../utils/firestoreUtils';
+import { sanitizeForFirestore, checkQuotaFlag } from '../utils/firestoreUtils';
 
 
 import { resolveFoodImage } from '../utils/imageResolver';
@@ -379,6 +379,7 @@ interface LogChatProps {
   dataReviewBatchIdx?: number | string | null;
   dataReviewBatchKeys?: string[];
   batchSize?: number;
+  isFirestoreQuotaExceeded?: boolean;
 }
 
 const getSessionId = (): string => {
@@ -414,7 +415,8 @@ export default function LogChat({
   autoSendMessage = null,
   dataReviewBatchIdx = null,
   dataReviewBatchKeys = [],
-  batchSize = 20
+  batchSize = 20,
+  isFirestoreQuotaExceeded = false
 }: LogChatProps) {
   const activeAgentKey = (type === 'medical' && agentType) ? (agentType as AgentType) : (type as AgentType);
   const activeAgentConfig = AGENT_REGISTRY[activeAgentKey] || AGENT_REGISTRY[type as AgentType];
@@ -699,7 +701,7 @@ ${logsText}`);
     }
 
     const isManualSyncOnly = localStorage.getItem('auto_sync_disabled') === 'true';
-    if (isManualSyncOnly) {
+    if (isManualSyncOnly || checkQuotaFlag() || isFirestoreQuotaExceeded) {
       try {
         localStorage.setItem(`${chatStorageKey}_${userId}_${id}`, JSON.stringify(msgs));
         if (payload) localStorage.setItem(`${payloadStorageKey}_${userId}_${id}`, JSON.stringify(payload));
@@ -2725,21 +2727,38 @@ ${JSON.stringify(profile, null, 2)}`);
 
           {/* Quick Action Prompts */}
           {(messages.length <= 1 || selectedImages.length > 0) && (
-            <div className="flex items-center gap-2 mb-2 pb-1 overflow-x-auto scrollbar-hide">
-              <button
-                type="button"
-                onClick={() => { setInputText("I ate this meal"); setTimeout(() => document.getElementById("food-chat-input")?.focus(), 50); }}
-                className="whitespace-nowrap px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-full transition-colors flex items-center gap-1.5"
-              >
-                <span>🔍 Review Meal</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => { setInputText("Compare food items"); setTimeout(() => document.getElementById("food-chat-input")?.focus(), 50); }}
-                className="whitespace-nowrap px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-full transition-colors flex items-center gap-1.5"
-              >
-                <span>⚖️ Compare Food</span>
-              </button>
+            <div className="flex gap-2 mb-2 w-full overflow-x-auto scrollbar-none pb-1 shrink-0">
+              {isAgent('food') ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => { setInputText("I ate this meal"); setTimeout(() => document.getElementById("food-chat-input")?.focus(), 50); }}
+                    className="whitespace-nowrap px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-full transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>🔍 Review Meal</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => { setInputText("Compare food items"); setTimeout(() => document.getElementById("food-chat-input")?.focus(), 50); }}
+                    className="whitespace-nowrap px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-full transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>⚖️ Compare Food</span>
+                  </button>
+                </>
+              ) : (
+                !isAgent('food_idea') && !isAgent('daily_recommendation') && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const triggerText = autoSendMessage || 'Start';
+                      handleSend(triggerText);
+                    }}
+                    className="whitespace-nowrap px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-full transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+                  >
+                    <span>🚀 {autoSendMessage ? (autoSendMessage.toLowerCase().includes('calibrate') ? 'Start Calibration' : 'Start Review') : "Let's start"}</span>
+                  </button>
+                )
+              )}
             </div>
           )}
           {isSelectingMode && (

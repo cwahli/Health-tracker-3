@@ -128,6 +128,7 @@ export default function Header({
   });
   const [showAgentLogs, setShowAgentLogs] = useState(false);
   const [showApiTracker, setShowApiTracker] = useState(false);
+  const [isTrackerOpen, setIsTrackerOpen] = useState(false);
   const [agentLogs, setAgentLogs] = useState<{ timestamp: string, message: string }[]>([]);
   const [isFetchingLogs, setIsFetchingLogs] = useState(false);
   const [nickname, setNickname] = useState(profile.nickname);
@@ -449,13 +450,13 @@ export default function Header({
               Sync: {lastSyncTime}
             </span>
           )}
-          <button
-            onClick={() => setShowApiTracker(true)}
-            className="p-1.5 rounded-xl text-slate-400 hover:text-indigo-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
-            title="View API usage & Agent log tracker"
-          >
-            <Activity className="w-4.5 h-4.5" />
-          </button>
+            <button
+              onClick={() => setIsTrackerOpen(true)}
+              className="p-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-650 dark:text-slate-300 rounded-2xl transition-all flex items-center justify-center cursor-pointer hover:scale-[1.03]"
+              title="API Call Tracker"
+            >
+              <Activity className="w-5 h-5" />
+            </button>
 
           {/* Sync Status Icon Indicator */}
           {(() => {
@@ -508,12 +509,6 @@ export default function Header({
         logsArray={agentLogs.map(l => `[${l.timestamp}]\n${l.message}`)}
         onClearLogs={handleClearAgentLogs}
         eventsCount={agentLogs.length}
-      />
-      {/* API Call Tracker & Quotas */}
-      <ApiCallTrackerModal
-        isOpen={showApiTracker}
-        onClose={() => setShowApiTracker(false)}
-        userEmail={profile.email}
       />
     </header>
 
@@ -1991,6 +1986,12 @@ export default function Header({
           </div>
         </div>
       ), document.body)}
+
+      <ApiCallTrackerModal
+        isOpen={isTrackerOpen}
+        onClose={() => setIsTrackerOpen(false)}
+        userEmail={profile?.email || auth.currentUser?.email || 'guest'}
+      />
     </>
   );
 }

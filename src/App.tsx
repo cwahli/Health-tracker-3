@@ -18,7 +18,7 @@ import { getLocalFallbackReport } from './utils/fallbackReport';
 import { Plus, HeartHandshake, RefreshCw, Sparkles, Stethoscope, Utensils, Loader, CloudLightning, AlertTriangle } from 'lucide-react';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut as fbSignOut } from 'firebase/auth';
-import { trackApiCall, setActiveQueryId, generateQueryId } from './utils/apiTracker';
+import { trackApiCall, setActiveQueryId, generateQueryId, initializeFetchInterceptor } from './utils/apiTracker';
 import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, getDocFromServer, getDocsFromServer, onSnapshot, getDocsFromCache, writeBatch } from 'firebase/firestore';
 import { sanitizeForFirestore, checkQuotaFlag, handleRetryQuota } from './utils/firestoreUtils';
 import { getCurrentDateInTimezone, toYYYYMMDD, normalizeBiomarkerHistory } from './utils/dateUtils';
@@ -325,6 +325,10 @@ export default function App() {
   const [snapshots, setSnapshots] = useState<any[]>([]);
   const [showSnapshotPanel, setShowSnapshotPanel] = useState(false);
   const [lastSnapshotLabel, setLastSnapshotLabel] = useState<string | null>(null);
+  useEffect(() => {
+    initializeFetchInterceptor();
+  }, []);
+
   // One-time prompt reset to clean up stale localStorage for data_review
   useEffect(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('migration_july06_prompts_cleaned_v2') !== 'true') {
@@ -933,7 +937,7 @@ export default function App() {
         } else {
           if (forcePull) {
             console.log("[Sync] Force pull (Manual Sync) active. Pushing local unsynced logs first.");
-            await syncLogsWithTimeBuckets(db, uid, localFoods, localBioHistory, (sf, sb) => {
+            await syncLogsWithTimeBuckets(db, uid, localFoods, localBioHistory, [], [], (sf, sb) => {
               localFoods = sf;
               localBioHistory = sb;
             });
@@ -954,7 +958,12 @@ export default function App() {
               return;
             }
             try {
-              const { serverFoods, serverBiomarkers } = await fetchAllConsolidatedLogs(db, uid);
+              const { serverFoods, serverBiomarkers } = await fetchAllConsolidatedLogs(
+                db, 
+                uid, 
+                cloudProfile?.deletedFoodLogIds || localProfile?.deletedFoodLogIds || [], 
+                cloudProfile?.deletedBiomarkerLogIds || localProfile?.deletedBiomarkerLogIds || []
+              );
               v2Foods = serverFoods;
               v2Logs = serverBiomarkers;
               
@@ -1762,7 +1771,7 @@ export default function App() {
                   });
                   
                   // Save to V2 bucket documents
-                  await syncLogsWithTimeBuckets(db, uid, mergedFoods, mergedHistory, (sf, sb) => {
+                  await syncLogsWithTimeBuckets(db, uid, mergedFoods, mergedHistory, [], [], (sf, sb) => {
                     loadedFoods = sf;
                     loadedHistory = sb;
                     setFoodLogs(sf);
@@ -2113,7 +2122,7 @@ export default function App() {
       setSyncState('local');
       return;
     }
-    if (isFirestoreQuotaExceeded) {
+    if (isFirestoreQuotaExceeded || checkQuotaFlag()) {
       setSyncState('local');
       return;
     }
@@ -2191,7 +2200,9 @@ export default function App() {
             'Profile write'
           );
         } else if (specificUpdate.type === 'foodLog' && specificUpdate.targetId) {
-          await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, (sf, sb) => {
+          const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || [];
+          const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || [];
+          await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
             setFoodLogs(sf);
             setBiomarkerHistory(sb);
           });
@@ -2203,11 +2214,15 @@ export default function App() {
             }).catch(err => console.error(err));
           }
         } else if (specificUpdate.type === 'biomarkerLog' && specificUpdate.targetId) {
-          await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, (sf, sb) => {
+          const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || [];
+          const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || [];
+          await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
             setFoodLogs(sf); setBiomarkerHistory(sb);
           });
         } else if (specificUpdate.type === 'biomarkerLogsBatch' && (specificUpdate.targetIds || specificUpdate.deletedIds)) {
-          await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, (sf, sb) => {
+          const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || [];
+          const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || [];
+          await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
             setFoodLogs(sf); setBiomarkerHistory(sb);
           });
           const profilePromise = setDoc(doc(db, 'users', uid), sanitizeForFirestore(profileForCloud)).catch(err => handleFirestoreError(err));
@@ -2259,12 +2274,16 @@ export default function App() {
             'Dashboard report sync'
           );
         } else if (specificUpdate.type === 'deleteFood' && specificUpdate.targetId) {
-          await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, (sf, sb) => {
+          const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || [];
+          const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || [];
+          await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
             setFoodLogs(sf); setBiomarkerHistory(sb);
           });
           deleteDoc(doc(db, 'users', uid, 'foodLogs', specificUpdate.targetId)).catch(() => {});
         } else if (specificUpdate.type === 'deleteBiomarker' && specificUpdate.targetId) {
-          await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, (sf, sb) => {
+          const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || [];
+          const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || [];
+          await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
             setFoodLogs(sf); setBiomarkerHistory(sb);
           });
           deleteDoc(doc(db, 'users', uid, 'biomarkerHistory', specificUpdate.targetId)).catch(() => {});
@@ -2280,7 +2299,9 @@ export default function App() {
         const cloudBioHistory = (specificUpdate as any).cloudBioHistory || [];
 
         // V2 bulk sync
-        await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, (sf, sb) => {
+        const deletedFoods = currProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || [];
+        const deletedBioLogs = currProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || [];
+        await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
           setFoodLogs(sf); setBiomarkerHistory(sb);
         });
 
@@ -2351,7 +2372,9 @@ export default function App() {
         }
         
         // V2 bulk sync
-        await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, (sf, sb) => {
+        const deletedFoods = currProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || [];
+        const deletedBioLogs = currProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || [];
+        await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
           setFoodLogs(sf); setBiomarkerHistory(sb);
         });
 
@@ -4107,6 +4130,7 @@ export default function App() {
         biomarkerHistory={biomarkerHistory}
         foodLogs={foodLogs}
         report={report}
+        isFirestoreQuotaExceeded={isFirestoreQuotaExceeded}
         onGoToManualEdit={(errorMsg) => {
           setIsFoodChatOpen(false);
           setActiveTab('food');
@@ -4134,6 +4158,7 @@ export default function App() {
         biomarkerHistory={biomarkerHistory}
         foodLogs={foodLogs}
         report={report}
+        isFirestoreQuotaExceeded={isFirestoreQuotaExceeded}
         agentType={activeAgentType}
         dataReviewBatchIdx={activeDataReviewBatchIdx}
         dataReviewBatchKeys={activeDataReviewBatchKeys}

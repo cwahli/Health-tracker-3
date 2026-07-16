@@ -181,6 +181,8 @@ export interface FoodItemBreakdown {
   calories: number;
   saturatedFat: number;
   sodium: number;
+  confidenceRating?: 'Low' | 'Medium' | 'High';
+  confidenceComment?: string;
 }
 
 export type SyncState = 'synced' | 'new' | 'update' | 'delete';

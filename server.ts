@@ -400,6 +400,7 @@ Triggered ONLY when the user asks to modify, add, or correct a weight for an ite
 
 MODE D: EVALUATION / COMPARISON
 Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing two snacks), OR whenever the VISUAL FOOD SCOUT Content Type is "menu_or_poster".
+- CRITICAL: Check if the user is correcting or modifying an existing item before classifying as this mode. If the intent is correction, MUST use MODE C.
 - CRITICAL: Do NOT use this mode for a standard meal photo or when the user says they ate something.
 - ITEM REFERENCING (STRICT — PREVENTS DATA LOSS): Every item in the "=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===" list has an explicit Index number. When assigning items to groups, reference them ONLY by that Index inside "scoutItemIndices". Do NOT restate the item's name, bounding box, or database ID — the backend already has this data and will look it up by index. If two scout items share the same name (e.g. two separate bags of the same product on a shelf), they are still DISTINCT items with DIFFERENT indices — you MUST include BOTH indices. Never merge or silently drop an index because its name duplicates another.
 - COVERAGE REQUIREMENT: Every single Index from the Scout list MUST appear in exactly one group. Before finalizing your answer, count the indices you have assigned across all groups and confirm the count equals the total number of scout items.
@@ -436,10 +437,11 @@ Respond ONLY with a structured JSON format matching this schema exactly.
   "message": "A highly personalized conversational response detailing the clinical rationale.",
   "modificationCommand": [
     {
-      "action": "update_weight | remove_item | add_item",
+      "action": "update_weight | remove_item | add_item | rename_item",
       "itemName": "EXACT literal name from the itemsBreakdown list.",
       "newWeightGrams": 120,
-      "targetDbId": "EXACT dbId from itemsBreakdown. CRITICAL for backend matching."
+      "targetDbId": "EXACT dbId from itemsBreakdown. CRITICAL for backend matching.",
+      "newName": "New name if action is rename_item"
     }
   ],
   "foodData": {
@@ -1816,8 +1818,12 @@ CRITICAL RULES:
 - VISUAL CROSS-REFERENCING (ANTI-HALLUCINATION):
   You must never blindly trust your OCR transcription of a grocery label if it flatly contradicts the physical food items visible in the accompanying images. Always cross-reference the label text with the actual food photo. If a label is blurry/abbreviated, deduce the correct word from the physical food (e.g., if you see two fish but transcribe a label as "onion", correct your keyword to match the fish).
 
-- ANTI-OMISSION RULE (STRICT):
-  You must NEVER silently drop, skip, or ignore a food label simply because the text is obscured by plastic glare, or because the physical food item is hidden underneath other ingredients in the photo (e.g., a fish buried under another fish in a pot). If a label is present and contains a readable weight, you MUST extract it. If you cannot perfectly read it or visually verify it, extract your best text transcription for \`originalName\`, assign a safe/generic \`keyword\` (e.g., "fish" or "vegetable"), and downgrade your \`confidenceRating\`. Omission is a failure; a low-confidence extraction is always better than deleting an item.
+- ANTI-OMISSION & THE "UNKNOWN" ESCAPE HATCH (STRICT):
+  You must NEVER silently drop, skip, or ignore a food label simply because the text is obscured by glare, or because the physical food item is hidden. If you see a physical printed label in the image, its data MUST appear in your JSON.
+
+  The Escape Hatch: If you can read the weight numbers but the food name is completely obscured by plastic glare, or if the OCR contradicts the visuals and you cannot resolve it, you MUST STILL EXTRACT THE ITEM.
+
+  In these cases, set the keyword to "unknown item", set originalName to "UNREADABLE", extract the weight, and forcefully downgrade confidenceRating to Low. Omission is a strict failure.
 
 - USER TEXT SUPREMACY & CONTEXT FILTERING:
   * Explicit Quantities Override: The user's text message is the absolute mathematical authority. If the user explicitly states a quantity, count, or weight in their text message (e.g., "3 piece", "10 skewers"), you MUST mathematically calculate the \`estimatedWeightGrams\` based strictly on those units, overriding your own visual volume estimates. (e.g., If a user says "3 oranges", calculate the average weight of 3 small oranges; DO NOT calculate the visual liquid volume of the plastic cup they are served in).
@@ -1838,49 +1844,23 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
   "contentType": "visual" | "menu_or_poster" | "text",
   "items": [
     {
-      "keyword": "string",
-      "estimatedWeightGrams": "number",
-      "originalName": "string",
+      "keyword": "string (CRITICAL: Your English keyword MUST logically fit the visual evidence and meal context. If your OCR translation results in an absurd or out-of-place item [e.g., 145g of garlic] that you cannot physically see in the photo, do NOT trust the OCR. Use contextual clues to deduce the most logical food item, and flag this deduction in your confidenceComment.)",
+      "estimatedWeightGrams": "number (You MUST extract this if you see weight numbers printed on a label, even if the rest of the label is pure glare)",
+      "originalName": "string (Transcribe exactly what is visible. If the label is blurry, cut off, or has glare, you are allowed to guess the missing letters, but doing so REQUIRES you to lower the confidenceRating.)",
       "source": "label | visual",
       "boundingBox2D": [0, 0, 0, 0],
       "sourceImageIndex": 0,
-      "nutritionFacts": {
-        "caloriesPer100g": "number (optional)",
-        "proteinPer100g": "number (optional)",
-        "fatPer100g": "number (optional)",
-        "carbsPer100g": "number (optional)",
-        "saturatedFatPer100g": "number (optional)",
-        "transFatPer100g": "number (optional)",
-        "addedSugarPer100g": "number (optional)",
-        "sodiumPer100g": "number (optional)",
-        "potassiumPer100g": "number (optional)",
-        "totalFibrePer100g": "number (optional)",
-        "solubleFibrePer100g": "number (optional)"
-      },
-      "rawNutritionLabel": {
-        "totalWeightGrams": "number (optional)",
-        "servingSizeGrams": "number (optional)",
-        "calories": "number (optional)",
-        "totalFat": "number (optional)",
-        "saturatedFatPer100g": "number (optional)",
-        "transFatPer100g": "number (optional)",
-        "cholesterol": "number (optional)",
-        "sodium": "number (optional)",
-        "carbohydrates": "number (optional)",
-        "dietaryFiber": "number (optional)",
-        "addedSugars": "number (optional)",
-        "protein": "number (optional)",
-        "potassium": "number (optional)"
-      }
+      "nutritionFacts": {},
+      "rawNutritionLabel": {},
+      "confidenceRating": "Low (<50%) | Medium (50-90%) | High (>90%) (CRITICAL: You MUST downgrade to Medium or Low if ANY of these occur: 1. You had to deduce a hidden/unseen item based on context. 2. You had to override an absurd OCR translation. 3. You had to guess missing letters due to glare/abbreviations. High confidence is ONLY for 100% visible items with crystal-clear, unabbreviated labels.)",
+      "confidenceComment": "string | null (If Medium or Low confidence, you MUST explicitly explain your deduction. Example: 'Label OCR read BAWANG but no garlic is visible; deduced hidden fish based on IK abbreviation and meal context.')"
     }
   ],
-  "compactSpreadsheet": [
-    "string (ONLY populated for >15 items. Format MUST be pipe-delimited exactly as: Category|English Keyword|Original Local Name|Weight/Price|ymin,xmin,ymax,xmax. Example: Aneka Ikan Bakar|grilled tilapia with rice|NILA BAKAR / GR + NASI|30K|154,48,248,542)"
-  ],
-  "cookingMethod": "string (Identify the cooking method and list any seasonings/sauces used, providing indication on the type of sauce and what sort of oil is being added or anything that can help the dietetician to make an accurate diagnostic)",
-  "confidenceRating": "Low (<50%) | Medium (50-90%) | High (>90%)",
-  "confidenceComment": "string | null",
-  "scanCompleteness": "full (all items extracted via items array) | full_dense (extracted via compactSpreadsheet due to high physical density) | partial_text_cap (capped at 100 items due to extreme menu length)",
+  "compactSpreadsheet": [],
+  "cookingMethod": "string",
+  "confidenceRating": "Low (<50%) | Medium (50-90%) | High (>90%) (CRITICAL: You MUST downgrade to Medium or Low if ANY of these occur: 1. You had to deduce a hidden/unseen item based on context. 2. You had to override an absurd OCR translation. 3. You had to guess missing letters due to glare/abbreviations. High confidence is ONLY for 100% visible items with crystal-clear, unabbreviated labels.)",
+  "confidenceComment": "string | null (If Medium or Low confidence, you MUST explicitly explain your deduction. Example: 'Label OCR read BAWANG but no garlic is visible; deduced hidden fish based on IK abbreviation and meal context.')",
+  "scanCompleteness": "full",
   "contentType": "visual | text"
 }
 `;
@@ -2153,7 +2133,9 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
         const imgIdx = item.sourceImageIndex !== undefined && item.sourceImageIndex !== null ? item.sourceImageIndex : "0";
         const nutritionStr = item.nutritionFacts && Object.keys(item.nutritionFacts).length > 0 ? ` | Nutrition (per 100g): ${JSON.stringify(item.nutritionFacts)}` : "";
         const rawLabelStr = item.rawNutritionLabel && Object.keys(item.rawNutritionLabel).length > 0 ? ` | RawNutritionLabel: ${JSON.stringify(item.rawNutritionLabel)}` : "";
-        return `- Index: ${item.scoutIndex} | Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName || ''}" | Source: ${item.source} | BoundingBox: ${bboxStr} | ImageIndex: ${imgIdx}${nutritionStr}${rawLabelStr}`;
+        const confStr = item.confidenceRating ? ` | Confidence: ${item.confidenceRating}` : "";
+        const confCommentStr = item.confidenceComment ? ` | ConfidenceComment: ${item.confidenceComment}` : "";
+        return `- Index: ${item.scoutIndex} | Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName || ''}" | Source: ${item.source} | BoundingBox: ${bboxStr} | ImageIndex: ${imgIdx}${nutritionStr}${rawLabelStr}${confStr}${confCommentStr}`;
       }).join("\n");
       visionScoutCtx = `\n=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===\n${itemsList}\n` +
         `Content Type: ${scoutContentType} (${visionScoutItems.length} items identified)\n` +
@@ -2246,7 +2228,9 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
                     type: Type.STRING,
                     nullable: true,
                     description: "Food category for trace nutrient derivation. One of: 'red_meat' | 'poultry' | 'fish_fatty' | 'fish_lean' | 'shellfish' | 'egg' | 'dairy' | 'leafy_veg' | 'root_veg' | 'legume' | 'grain' | 'fruit' | 'processed' | 'unknown'. Examples: beef blade → 'red_meat', salmon → 'fish_fatty', spinach → 'leafy_veg', white rice → 'grain', enoki mushroom → 'root_veg', chicken breast → 'poultry'."
-                  }
+                  },
+                  confidenceRating: { type: Type.STRING, nullable: true },
+                  confidenceComment: { type: Type.STRING, nullable: true }
                 },
                 required: ["canonicalDbName", "weightGrams", "dbSource", "dbId", "labelNutrientsPerServing", "foodType"]
               }
@@ -2668,11 +2652,17 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
   }];
 }
 
+      const apiCalls = [
+        ...(image || (images && images.length > 0) ? [{ type: 'gemini', label: 'Food nutrition agent - Visual Scout (gemini-3.1-flash-lite)' }] : []),
+        ...(queriesToSearch && queriesToSearch.length > 0 ? [{ type: 'usda', label: `Food nutrition agent - USDA (${queriesToSearch.length})` }] : []),
+        { type: 'gemini', label: `Food nutrition agent - Dietitian (${engine || 'gemini-3.1-flash-lite'})` }
+      ];
       return res.json({
         text: rawParsed.message || `I have analyzed the food: **${parsedData.name}** (${parsedData.quantity}).`,
         data: parsedData,
         agentPrompt: fullPromptSent,
-        scoutItems: visionScoutItems || []
+        scoutItems: visionScoutItems || [],
+        apiCalls
       });
     }
 
@@ -2904,11 +2894,15 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         }
       }
 
+      const apiCalls = [
+        { type: 'gemini', label: `Food nutrition agent - Dietitian (${engine || 'gemini-3.1-flash-lite'})` }
+      ];
       return res.json({
         mode: "modify",
         text: rawParsed.message || "I have recalculated your meal's metrics with precision based on your instructions.",
         data: activeMeal,
-        agentPrompt: fullPromptSent
+        agentPrompt: fullPromptSent,
+        apiCalls
       });
     }
   } catch (error: any) {
@@ -3704,7 +3698,8 @@ reviewedBiomarkers: []`;
           hasMoreMarkers,
           remainingText,
           estimatedTotalMarkers,
-          agentPrompt: fullPromptSent
+          agentPrompt: fullPromptSent,
+          apiCalls: [{ type: 'gemini', label: `Medical History Agent (${engine || 'gemini-3.1-flash-lite'})` }]
         });
       }
 
@@ -3717,7 +3712,8 @@ reviewedBiomarkers: []`;
           hasMoreMarkers: false,
           remainingText: "",
           estimatedTotalMarkers: 0,
-          agentPrompt: fullPromptSent
+          agentPrompt: fullPromptSent,
+          apiCalls: [{ type: 'gemini', label: `Medical History Agent (${engine || 'gemini-3.1-flash-lite'})` }]
         });
       }
       
@@ -3729,10 +3725,11 @@ reviewedBiomarkers: []`;
             mode: parsed.mode || 'discussion',
             status: parsed.status || 'active',
             agentPrompt: fullPromptSent,
-            agentType: agentType || 'agent4'
+            agentType: agentType || 'agent4',
+            apiCalls: [{ type: 'gemini', label: `Medical History Agent (${engine || 'gemini-3.1-flash-lite'})` }]
           });
         } catch (e) {
-          return res.json({ text: textOutput, mode: 'discussion', status: 'active', agentPrompt: fullPromptSent, agentType: agentType || 'agent4' });
+          return res.json({ text: textOutput, mode: 'discussion', status: 'active', agentPrompt: fullPromptSent, agentType: agentType || 'agent4', apiCalls: [{ type: 'gemini', label: `Medical History Agent (${engine || 'gemini-3.1-flash-lite'})` }] });
         }
       }
 
@@ -3743,7 +3740,8 @@ reviewedBiomarkers: []`;
           hasMoreMarkers: false,
           remainingText: "",
           estimatedTotalMarkers: 0,
-          agentPrompt: fullPromptSent
+          agentPrompt: fullPromptSent,
+          apiCalls: [{ type: 'gemini', label: `Medical History Agent (${engine || 'gemini-3.1-flash-lite'})` }]
       });
     }
   } catch (error: any) {
@@ -3758,6 +3756,8 @@ reviewedBiomarkers: []`;
 app.post("/api/gemini/review-biomarker", async (req, res) => {
   const { message, history, profile, biomarkerDef, currentValue, modelId, yamlContext } = req.body;
   if (!message) return res.status(400).json({ error: "Missing message" });
+  
+  const engine = modelId || 'gemini-3.1-flash-lite';
 
   try {
     let historyText = "";
@@ -3873,6 +3873,7 @@ instructions:
     }
     
     resultJson.agentPrompt = fullPromptSent;
+    resultJson.apiCalls = [{ type: 'gemini', label: `Biomarker Calibration Agent (${engine || 'gemini-3.1-flash-lite'})` }];
     res.json(resultJson);
   } catch (err: any) {
     console.error("Gemini Review Error:", err);
@@ -4221,7 +4222,10 @@ app.post("/api/gemini/insight-analyze", async (req, res) => {
     }
 
     parsedData.agentPrompt = `System Instruction:\nYou are a world-class AI dietitian. Your response must be an exact JSON matching the requested schema. Never add markdown wrappers.\n\n${promptText}`;
-    res.json(parsedData);
+    res.json({
+      ...parsedData,
+      apiCalls: [{ type: 'gemini', label: `Biomarker Insight Agent (${engine || 'gemini-3.1-flash-lite'})` }]
+    });
   } catch (error: any) {
     console.error("[Insight Analyze Error]:", error);
     res.status(500).json({ error: "Failed to generate preventative recommendations: " + error.message });
@@ -4393,7 +4397,10 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
     }
 
     parsedData.agentPrompt = `System Instruction:\nYou are a world-class preventative cardiologist, endocrinologist, and clinical longevity researcher. Your response must be an exact JSON matching the requested schema. Never add markdown wrappers.\n\n${promptText}`;
-    res.json(parsedData);
+    res.json({
+      ...parsedData,
+      apiCalls: [{ type: 'gemini', label: `Health Baseline Agent (${engine || 'gemini-3.1-flash-lite'})` }]
+    });
   } catch (error: any) {
     console.error("[Health Baseline Analyze Error]:", error);
     res.status(500).json({ error: "Failed to generate health baseline: " + error.message });
@@ -4934,7 +4941,10 @@ This Month Trends (Daily Nutrient Intakes and Steps): ${JSON.stringify(thisMonth
       responseMimeType: "text/plain"
     });
     
-    res.json({ text: textOutput.trim() });
+    res.json({
+      text: textOutput.trim(),
+      apiCalls: [{ type: 'gemini', label: `Daily Recommendation Agent (${engine || 'gemini-3.1-flash-lite'})` }]
+    });
   } catch (error) {
     console.error("[Daily Recommendation Error]:", error);
     res.status(500).json({ error: "Failed to generate recommendation: " + error.message });
@@ -5180,7 +5190,10 @@ Respond with a structured JSON format matching this schema exactly:
     }
 
     parsedData.agentPrompt = `System Instruction:\nYou are a world-class AI dietitian. Your response must be an exact JSON matching the requested schema. Never add markdown wrappers.\n\n${promptText}`;
-    res.json(parsedData);
+    res.json({
+      ...parsedData,
+      apiCalls: [{ type: 'gemini', label: `Food Idea Agent (${engine || 'gemini-3.1-flash-lite'})` }]
+    });
   } catch (error: any) {
     addDebugLog(`[FoodIdea] Error occurred: ${error.message || error}`);
     console.error("[Food Idea Analyze Error]:", error);
@@ -5231,7 +5244,8 @@ const searchRegistry: SearchEngine[] = [
               results.push({
                 title: page.title,
                 imageUrl: page.thumbnail.source,
-                pageUrl: `https://en.wikipedia.org/?curid=${pageId}`
+                pageUrl: `https://en.wikipedia.org/?curid=${pageId}`,
+                engine: "Wikipedia"
               });
             }
           }
@@ -5257,7 +5271,8 @@ const searchRegistry: SearchEngine[] = [
           return data.items.slice(0, count).map((item: any) => ({
             title: item.title,
             imageUrl: item.link,
-            pageUrl: item.image?.contextLink || `https://www.google.com/search?q=${encodeURIComponent(query)}`
+            pageUrl: item.image?.contextLink || `https://www.google.com/search?q=${encodeURIComponent(query)}`,
+            engine: "GoogleCSE"
           }));
         }
       } catch (err) {
@@ -5282,7 +5297,8 @@ const searchRegistry: SearchEngine[] = [
           return data.results.slice(0, count).map((item: any) => ({
             title: item.title || query,
             imageUrl: item.properties?.url || item.url,
-            pageUrl: item.page_url || "https://brave.com"
+            pageUrl: item.page_url || "https://brave.com",
+            engine: "Brave"
           }));
         }
       } catch (err) {
@@ -5331,11 +5347,11 @@ function cleanSearchQuery(q: string): string {
 async function retrieveFoodImages(
   query: string, 
   options: { mode?: "light" | "complete"; count?: number }
-): Promise<Array<{title: string, imageUrl: string, pageUrl: string}>> {
+): Promise<Array<{title: string, imageUrl: string, pageUrl: string, engine?: string}>> {
   const cleanedQuery = cleanSearchQuery(query) || query;
   const mode = options.mode || "light";
   const targetCount = options.count || 2;
-  const results: Array<{title: string, imageUrl: string, pageUrl: string}> = [];
+  const results: Array<{title: string, imageUrl: string, pageUrl: string, engine?: string}> = [];
   // Filter enabled engines based on active mode
   const activeEngines = searchRegistry.filter(engine => {
     if (mode === "light" && engine.name === "Brave") return false;
@@ -5362,16 +5378,41 @@ async function retrieveFoodImages(
 app.post("/api/gemini/food-image-search", async (req, res) => {
   const { query, mode, count } = req.body;
   addDebugLog(`[FoodImageSearch] Route triggered for query: "${query}"`);
+  
+  if (imageSearchCache.has(query)) {
+    const cached = imageSearchCache.get(query);
+    // Ensure apiCalls are always reported even on cache hits
+    return res.json({
+      ...cached,
+      apiCalls: [{ type: 'brave', label: `Brave Search (cached) - ${query}` }]
+    });
+  }
+
   try {
     const images = await retrieveFoodImages(query, {
       mode: mode || "light",
       count: typeof count === "number" ? count : 2
     });
-    res.json({
+    
+    // De-duplicate engine names for apiCalls
+    const enginesUsed = Array.from(new Set(images.map((img: any) => img.engine || 'Brave')));
+    const apiCalls = enginesUsed.map(engineName => ({
+      type: engineName.toLowerCase() === 'wikipedia' ? 'wikipedia' : engineName.toLowerCase() === 'unsplash' ? 'unsplash' : 'brave',
+      label: `${engineName} Search - ${query}`
+    }));
+
+    const payload = {
       images,
       isAvailable: images.length > 0,
+      apiCalls,
       error: images.length > 0 ? null : "No images could be retrieved across active search engines."
-    });
+    };
+    
+    if (images.length > 0) {
+      imageSearchCache.set(query, payload);
+    }
+
+    res.json(payload);
   } catch (error: any) {
     console.error("[FoodImageSearch Endpoint Error]:", error);
     res.json({
@@ -5497,7 +5538,22 @@ app.post("/api/gemini/menu-image-search", async (req, res) => {
       }
     }
   }
-  return res.json({ results: allResults });
+  // Accumulate calls made during this batch
+  const localApiCalls = [];
+  const batchCount = Math.ceil(labels.length / 5);
+  for (let i = 0; i < batchCount; i++) {
+    localApiCalls.push({ type: 'gemini', label: 'Menu image search - Gemini 2.5 Flash' });
+  }
+  // Check if we hit the fallback search for any items
+  allResults.forEach(r => {
+    if (r.imageUrl) {
+      localApiCalls.push({ type: 'brave', label: `Brave Search (menu fallback) - ${r.label}` });
+    }
+  });
+  return res.json({ 
+    results: allResults,
+    apiCalls: localApiCalls
+  });
 });
 
 /* old code replacement */
