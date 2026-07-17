@@ -33,6 +33,11 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
 
             const missingWeight = !item.estimatedWeightGrams || isNaN(Number(item.estimatedWeightGrams));
 
+            const isUnclear = item.itemConfidence?.toLowerCase().includes('low') || 
+                              item.itemConfidence?.toLowerCase().includes('medium') || 
+                              (item.anomalyFlags && item.anomalyFlags.length > 0);
+            const showWarning = missingWeight || isUnclear;
+
             // Merge keys for table
             const allKeys = Array.from(
               new Set([
@@ -63,23 +68,6 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                   )}
                 </div>
 
-                {missingWeight && (
-                  <div className="mb-3 flex items-center justify-between bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-200 dark:border-amber-800/50">
-                    <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
-                      <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                      <span className="font-medium">Missing portion size to calculate total nutrients.</span>
-                    </div>
-                    <button 
-                      onClick={() => { document.getElementById('food-chat-input')?.focus(); }}
-                      className="flex items-center gap-1 font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1 px-2 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all"
-                    >
-                      <Camera className="w-3 h-3" />
-                      <Search className="w-3 h-3" />
-                      Update
-                    </button>
-                  </div>
-                )}
-
                 <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700/50">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -91,7 +79,7 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                           Original Label
                         </th>
                         <th className="py-1.5 px-2 font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50 whitespace-nowrap">
-                          Total {missingWeight ? '(N/A)' : `(${item.estimatedWeightGrams}g)`}
+                          Total Nutrition Value {missingWeight ? '(N/A)' : `(${item.estimatedWeightGrams}g)`}
                         </th>
                       </tr>
                     </thead>
@@ -145,6 +133,40 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                     </tbody>
                   </table>
                 </div>
+
+                {showWarning && (
+                  <div className="mt-2 flex flex-col gap-1.5 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/50 rounded-lg p-2 font-sans">
+                    <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400">
+                      <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                      </svg>
+                      <div className="flex flex-col">
+                        <span className="text-[11px] font-bold leading-tight">
+                          {missingWeight ? "Missing portion size to calculate total nutrients." : "Visual scout flagged this item as unclear."}
+                        </span>
+                        <span className="text-[10px] font-medium leading-tight opacity-90 mt-0.5">
+                          {isUnclear 
+                            ? `Low confidence or anomalies detected (${item.anomalyFlags?.join(', ') || 'unclear detail'}).` 
+                            : "Provide a portion size or weight so the total nutrients can be computed."}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2 mt-1">
+                      <button 
+                        onClick={() => { document.getElementById('food-chat-input')?.focus(); }} 
+                        className="flex-1 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all text-center"
+                      >
+                        Correct Item
+                      </button>
+                      <button 
+                        onClick={() => { document.getElementById('food-chat-input')?.focus(); }} 
+                        className="flex-1 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all text-center"
+                      >
+                        Upload New Photo
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}

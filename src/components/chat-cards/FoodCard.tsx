@@ -867,7 +867,6 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                 mealValue={parsedVal}
                                                 nutrientKey={key as any}
                                                 size="sm"
-                                                color={nutrientColors[key]}
                                               />
                                             </div>
                                           );
