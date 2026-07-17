@@ -125,15 +125,30 @@ export default function FullScreenLogViewer({
 
     currentChunks.forEach(chunk => {
       const lower = chunk.toLowerCase();
+      
+      // If it is a generic LLM log, it should just inherit the current phase
+      // and NOT trigger any agent-detecting tags (which can false-positive
+      // if the dietitian prompt/response mentions 'vision scout' or 'image payload').
+      if (lower.includes('[unifiedllm')) {
+        if (currentPhase === 'scout') {
+          scoutChunks.push(chunk);
+        } else if (currentPhase === 'dietitian') {
+          dietitianChunks.push(chunk);
+        }
+        return;
+      }
       const isScoutTag = lower.includes('vision scout') || lower.includes('image payload');
       const isDietitianTag = lower.includes('routeagent') ||
                               lower.includes('modify math') ||
                               lower.includes('mode routing') ||
                               lower.includes('client state') ||
                               lower.includes('database matches') ||
+                              lower.includes('database search') ||
+                              lower.includes('text search') ||
+                              lower.includes('nutrient') ||
+                              lower.includes('json parse') ||
                               lower.includes('fallback') ||
                               lower.includes('comparison resolve');
-
       if (isScoutTag) {
         currentPhase = 'scout';
         scoutChunks.push(chunk);
@@ -143,13 +158,6 @@ export default function FullScreenLogViewer({
         currentPhase = 'dietitian';
         dietitianChunks.push(chunk);
         return;
-      }
-      if (lower.includes('unifiedllm')) {
-        if (currentPhase === 'scout') {
-          scoutChunks.push(chunk);
-        } else if (currentPhase === 'dietitian') {
-          dietitianChunks.push(chunk);
-        }
       }
     });
 
