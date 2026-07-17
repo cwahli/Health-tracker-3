@@ -385,7 +385,8 @@ MODE A: NEW FOOD LOGGING
 - Extract ingredients, estimate weights, and provide the "foodData" block. Set "mode": "new_log".
 - CRITICAL: If the user uploads a picture of a meal (e.g. a plate with steak, potatoes, veggies), you MUST treat it as a single meal entry and use MODE A (NEW FOOD LOGGING). Combine the components into the itemsBreakdown array. DO NOT use MODE D (EVALUATION/COMPARISON) to compare the items on the plate unless the user explicitly asks to compare them or choose the best option.
 - CRITICAL: If the user enters a single food item name or phrase like "I ate this steak" without explicitly asking to compare, you MUST use MODE A.
-- CRITICAL: If the user provides a single food image and asks a general health question (e.g., "Is it healthy?"), that MUST be routed to MODE A, not Mode D.
+- CRITICAL: If the user provides a single food image and asks a general health question (e.g., "Is it healthy?"), that MUST be routed to MODE A, not Mode D. You MUST directly answer the question in the "message" field evaluating its clinical impact.
+- CONFIDENCE ACKNOWLEDGEMENT (CRITICAL): Check the "Visual Scout Confidence Rating" and any anomaly flags listed for the items in the === VISUAL FOOD SCOUT IDENTIFIED ITEMS === section. If any item is marked as Medium or Low confidence (or has anomaly flags), you MUST start your response by explicitly acknowledging this uncertainty. You MUST explicitly invite the user to correct the identification manually via text, or upload a clearer picture so you can update the lower rating.
 
 MODE B: DISCUSSION 
 - Triggered by general health questions, or if the user's message/query is NOT relevant to food, nutrition, or health. Set "mode": "discussion". Set structural data to null.
@@ -431,12 +432,15 @@ Triggered ONLY when the user's query asks for details, origin, history, descript
   * "imageQueries": An array of 1 to 3 search queries to find real, vivid pictures of the food, ingredients, or prep (e.g. ["Tongkol Bakar grilled fish on plate", "Tongkol Bakar traditional preparation"]).
 - Set "mode": "origin". Populate the "origins" array. Set foodData and comparison to null.
 
+- RESOLVING VISUAL WARNINGS:
+  If the user provides a text correction for a previously unclear visual item (e.g. they say "the unclear fish is ikan bandoneng"), you MUST update that specific item in the \`scoutItems\` array schema field. You must update its keyword, completely clear its anomaly flags, and upgrade its confidence to High. You must return the ENTIRE array including the unaffected items.
+
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly.
 
 {
   "mode": "new_log | discussion | modify | evaluation | origin",
-  "message": "A highly personalized conversational response detailing the clinical rationale.",
+  "message": "A highly personalized conversational response detailing the clinical rationale. If the user asked a specific question (e.g., \"is this healthy?\"), you MUST directly answer it here.",
   "modificationCommand": [
     {
       "action": "update_weight | remove_item | add_item | rename_item",
@@ -1764,12 +1768,13 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
 
     let databaseMatches = "";
     const databaseMatchesArray: any[] = [];
-    let visionScoutItems: any[] = [];
+    // Initialize with active items from previous turns so the Dietitian can see and update them
+    let visionScoutItems: any[] = req.body.activeScoutItems || [];
     let scoutConfidenceRating = "High (>90%)";
     let scoutConfidenceComment = "";
     let scoutRecommendedMode: string | null = null;
     let scoutCookingMethod = "";
-    let scoutContentType = "visual";
+    let visionScoutContentType = 'visual';
     const dbMatchMap = new Map<string, any>();
     const queriesToSearch: string[] = [];
 
@@ -1805,7 +1810,7 @@ Assess the total item density across all provided images before selecting an ext
   * NORMAL DENSITY (< 15 visual items total): Use standard structured JSON parsing. Populate the "items" array with fully broken-down objects including individual "boundingBox2D" arrays. Leave "compactSpreadsheet" completely empty [].
   * DENSE MENUS & EXTREME VISUAL DENSITY (> 15 distinct items or text options): Standard JSON will cause token fatigue and truncation. You MUST switch to COMPACT SPREADSHEET MODE. Leave the "items" array completely empty []. Instead, populate the "compactSpreadsheet" array field with highly condensed, pipe-delimited strings containing the data textually.
 STEP 3 — CORE EXTRACTION & GROUPING LAWS:
-- EXHAUSTIVENESS DIRECTIVE: Extract EVERY distinct food item, ingredient, or menu option visible up to your active density cap. Do not get lazy or stop early. 
+- EXHAUSTIVENESS DIRECTIVE (CRITICAL): Count the total number of distinct food items before extracting. You MUST extract EVERY distinct food item, ingredient, or menu option visible. Do not get lazy or stop early. Look closely for hidden, blurred, or secondary items. If there are 4 items, you MUST output 4 objects. Never merge items unless they are the exact same product. 
 - PRODUCT/PRICE LABELS (type a): Read the EXACT food name and weight. Convert kg to grams.
 - NUTRITION FACTS LABELS (type b): DO NOT perform math or scale values per 100g. Extract the EXACT total package weight, serving size weight, and nutrients per serving exactly as written into the "rawNutritionLabel" object. If an item has NO legible physical nutrition panel visible, leave "rawNutritionLabel" and "nutritionFacts" entirely empty {}. Do not hallucinate.
 - FOOD PHOTOS (type c): Identify items and estimate weight using visual references (plates, hands, packaging markers).
@@ -1819,17 +1824,18 @@ CRITICAL RULES:
 - \`originalName\` PRESERVATION: This field is clinically vital. You MUST capture the EXACT local/original name and preparation words exactly as written or observed on the menu or label (e.g., "Yakiimo", "Daging Empal", "Ayam Goreng"). Do NOT translate, normalize, or summarize this field. 
 
 - THE "FLAG AND EXTRACT" DIRECTIVE (STRICT):
-  Never silently drop or omit an item due to glare, abbreviations, hidden food, or OCR contradictions. You must extract it to the best of your ability.
-  Instead of omitting, you MUST use the \`anomalyFlags\` array to explain the issue (e.g., ["glare covering letters", "guessed Ikan from IK"]). If any anomaly is flagged, you are mathematically required to set \`itemConfidence\` to Medium or Low.
+  Never silently drop or omit an item due to glare, abbreviations, hidden food, or OCR contradictions. You must extract EVERY item you see to the best of your ability.
+  CRITICAL: If you see a package, label, or food item but are unsure what it is, you MUST STILL EXTRACT IT. Use 'unknown item' or a best guess for the keyword. Do NOT drop it.
+  Instead of omitting, you MUST use the \`anomalyFlags\` array to explain the issue (e.g., ["glare covering letters", "guessed Ikan from IK", "unidentifiable package"]). If any anomaly is flagged, you are mathematically required to set \`itemConfidence\` to Medium or Low.
 - USER TEXT SUPREMACY & CONTEXT FILTERING:
   * Explicit Quantities Override: The user's text message is the absolute mathematical authority. If the user explicitly states a quantity, count, or weight in their text message (e.g., "3 piece", "10 skewers"), you MUST mathematically calculate the \`estimatedWeightGrams\` based strictly on those units, overriding your own visual volume estimates. (e.g., If a user says "3 oranges", calculate the average weight of 3 small oranges; DO NOT calculate the visual liquid volume of the plastic cup they are served in).
-  * Background & Inventory Exclusion: Do NOT extract or weigh large bulk supplies, raw ingredients on store shelves, or street cart inventories visible in the background (e.g., a massive 3kg pile of oranges on a cart). If the user's text and the primary subject of the photo imply they are logging a single prepared portion, only extract the components of that specific meal.
+  * Background & Inventory Exclusion: Do NOT extract bulk store inventories in the background. HOWEVER, you MUST extract ALL items that are part of the user's meal on the table, including side dishes, drinks, small condiments, and separate plates. Never assume an item on the table is "background" if it is part of the meal setting.
 - SEMANTIC ALIGNMENT:
   The English keyword you generate MUST biologically and semantically match the text you extracted in originalName. Do not hallucinate categories. If the originalName indicates a protein/meat (e.g., "Ikan" means fish), the keyword cannot be a vegetable (e.g., "bok choy"). If unsure of a translation, default to a generic category (e.g., "fish", "meat").
 JSON SCHEMA STRICT REQUIREMENT:
-Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers like \`\`\`json.
+Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers.
 {
-  "recommendedMode": "new_log | evaluation | discussion",
+  "recommendedMode": "new_log | evaluation | discussion (CRITICAL: 'evaluation' MUST ONLY be used if the image contains MULTIPLE distinct options like a menu, or if the user explicitly asks to compare items. If the user asks 'is it healthy?' for a single product, you MUST use 'new_log')",
   "contentType": "visual | menu_or_poster | text",
   "items": [
     {
@@ -1837,14 +1843,14 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
       "estimatedWeightGrams": "number (Prioritize user text quantities over visual volume)",
       "originalName": "string (Exact OCR. If unreadable, 'UNREADABLE')",
       "source": "label | visual",
-      "boundingBox2D": [0, 0, 0, 0],
+      "boundingBox2D": "[ymin, xmin, ymax, xmax] (CRITICAL: Box the ENTIRE food item or package, not just the barcode/label)",
       "sourceImageIndex": 0,
-      "nutritionFacts": {},
-      "rawNutritionLabel": {},
+      "nutritionFacts": "{ 'calories': number, 'protein': string, ... } (Extract all printed nutrients if visible)",
+      "rawNutritionLabel": "{ 'calories': number, 'protein': string, ... } (Extract per-serving nutrients if visible)",
       "anomalyFlags": [
-        "string (List specific issues here, e.g., 'abbreviation used', 'glare on label', 'visual mismatch', 'hidden item', 'guessed missing letters'. Leave empty [] if perfect)"
+        "string (List issues e.g. 'abbreviation used', 'glare'. Leave empty [] if perfect)"
       ],
-      "itemConfidence": "High | Medium | Low (CRITICAL: If anomalyFlags is NOT empty, this MUST be Medium or Low)"
+      "itemConfidence": "High | Medium | Low (If anomalyFlags is NOT empty, MUST be Medium or Low)"
     }
   ],
   "compactSpreadsheet": [],
@@ -1887,7 +1893,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
             scoutConfidenceComment = globalComment.trim();
             scoutCookingMethod = parsedScout.cookingMethod || "";
             const rawType = (parsedScout.contentType || "").toLowerCase();
-            scoutContentType = (rawType === "text" || rawType === "menu_or_poster") ? rawType : "visual";
+            visionScoutContentType = (rawType === "text" || rawType === "menu_or_poster") ? rawType : "visual";
             scoutRecommendedMode = parsedScout.recommendedMode || null;
 
             // Parse compactSpreadsheet if present (for high densities / menus)
@@ -2013,7 +2019,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
     const cleanQuery = (raw: string) => raw.replace(/\s*\(.*?\)\s*/g, '').replace(/\b(raw|fresh|cooked)\s+/i, '').trim();
 
     const hasImage = imagePayloads && imagePayloads.length > 0;
-    const isMenuScale = scoutContentType === "menu_or_poster" || scoutContentType === "text";
+    const isMenuScale = visionScoutContentType === "menu_or_poster" || visionScoutContentType === "text";
     // Skip database search if evaluating a large number of items (Mode D / Evaluation Scale) to prevent connection pool exhaustion and timeouts
     const isEvaluationScale = queriesToSearch.length >= 10;
     const shouldRunDbSearch = !isWeightModification && !isMenuScale && !isEvaluationScale && (visionScoutRanAndReturnedItems || (!hasImage && queriesToSearch.length > 0));
@@ -2131,17 +2137,15 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
 
     let visionScoutCtx = "";
     if (visionScoutItems && visionScoutItems.length > 0) {
-      const itemsList = visionScoutItems.map((item: any) => {
-        const bboxStr = item.boundingBox2D ? JSON.stringify(item.boundingBox2D) : "null";
-        const imgIdx = item.sourceImageIndex !== undefined && item.sourceImageIndex !== null ? item.sourceImageIndex : "0";
-        const nutritionStr = item.nutritionFacts && Object.keys(item.nutritionFacts).length > 0 ? ` | Nutrition (per 100g): ${JSON.stringify(item.nutritionFacts)}` : "";
-        const rawLabelStr = item.rawNutritionLabel && Object.keys(item.rawNutritionLabel).length > 0 ? ` | RawNutritionLabel: ${JSON.stringify(item.rawNutritionLabel)}` : "";
-        const confStr = item.confidenceRating ? ` | Confidence: ${item.confidenceRating}` : "";
-        const confCommentStr = item.confidenceComment ? ` | ConfidenceComment: ${item.confidenceComment}` : "";
-        return `- Index: ${item.scoutIndex} | Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName || ''}" | Source: ${item.source} | BoundingBox: ${bboxStr} | ImageIndex: ${imgIdx}${nutritionStr}${rawLabelStr}${confStr}${confCommentStr}`;
-      }).join("\n");
+      const itemsList = visionScoutItems.map((item: any, idx: number) => {
+        let flagStr = (item.anomalyFlags && item.anomalyFlags.length > 0) ? ` | Flags: [${item.anomalyFlags.join(', ')}]` : '';
+        let confStr = item.itemConfidence ? ` | Confidence: ${item.itemConfidence}` : '';
+        let rawLabelStr = item.rawNutritionLabel && Object.keys(item.rawNutritionLabel).length > 0 ? ` | RawNutritionLabel: ${JSON.stringify(item.rawNutritionLabel)}` : "";
+        let factsStr = item.nutritionFacts && Object.keys(item.nutritionFacts).length > 0 ? ` | NutritionFacts: ${JSON.stringify(item.nutritionFacts)}` : "";
+        return `- Index: ${idx} | Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName}" | Source: ${item.source} | BoundingBox: ${JSON.stringify(item.boundingBox2D)} | ImageIndex: ${item.sourceImageIndex}${rawLabelStr}${factsStr}${flagStr}${confStr}`;
+      }).join('\n');
       visionScoutCtx = `\n=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===\n${itemsList}\n` +
-        `Content Type: ${scoutContentType} (${visionScoutItems.length} items identified)\n` +
+        `Content Type: ${visionScoutContentType} (${visionScoutItems.length} items identified)\n` +
         (scoutRecommendedMode ? `\nCRITICAL ROUTING OVERRIDE: The Vision Scout explicitly requires you to use mode: "${scoutRecommendedMode}". You MUST obey this mode.\n` : "") +
         `Visual Scout Confidence Rating: ${scoutConfidenceRating}\n` +
         (scoutConfidenceComment ? `Visual Scout Confidence Comment: ${scoutConfidenceComment}\n` : "") +
@@ -2343,6 +2347,12 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
             },
             required: ["foodName", "origin", "howItIsCooked", "whenItIsEaten", "healthImpact", "imageQueries"]
           }
+        },
+        scoutItems: { 
+          type: Type.ARRAY, 
+          items: { type: Type.OBJECT }, 
+          description: "If you resolved a user's correction to a visual item, return the ENTIRE updated scoutItems array here (with the item's keyword corrected, itemConfidence set to High, and anomalyFlags completely removed). If no corrections were made to visual items, omit this or return null.", 
+          nullable: true 
         }
       },
       required: ["mode", "message", "modificationCommand", "foodData", "comparison"]
@@ -2427,7 +2437,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
 
     addDebugLog(`[RouteAgent Chat] Received response from Gemini. Length: ${textOutput.length} chars.`);
 
-    const mode = rawParsed.mode || "new_log";
+    let mode = rawParsed.mode || "new_log";
 
     const apiCalls = [
       ...(hasImage ? [{ type: 'gemini', label: 'Food nutrition agent - Visual Scout (gemini-3.1-flash-lite)' }] : []),
@@ -2472,13 +2482,18 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       return res.json({
         mode: "evaluation",
         comparison: comparisonData,
-        scoutItems: visionScoutItems, // ensure the client has the bounding boxes
-        scoutContentType: scoutContentType,
+        scoutItems: (rawParsed.scoutItems && rawParsed.scoutItems.length > 0) ? rawParsed.scoutItems : visionScoutItems,
+        scoutContentType: visionScoutContentType,
         agentPrompt: fullPromptSent,
         message: rawParsed.message,
         text: rawParsed.message,
         apiCalls
       });
+    }
+
+    if (mode === "modify" && rawParsed.foodData && rawParsed.foodData.itemsBreakdown && rawParsed.foodData.itemsBreakdown.length > 0) {
+      addDebugLog(`[Mode Rewrite] AI fully regenerated foodData in MODIFY mode. Routing through NEW_LOG pipeline to compute full nutrients.`);
+      mode = "new_log";
     }
 
     // CASE A: NEW FOOD LOGGING
@@ -2665,24 +2680,42 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
   }];
 }
 
+      if (mode === "modify") {
+        parsedData.id = req.body.activeMeal?.id;
+        if (!parsedData.imageUrl) parsedData.imageUrl = req.body.activeMeal?.imageUrl;
+        if (!parsedData.imageUrls) parsedData.imageUrls = req.body.activeMeal?.imageUrls;
+        
+        return res.json({
+          mode: "modify",
+          text: rawParsed.message || `I have updated your meal to reflect the correction.`,
+          data: parsedData,
+          agentPrompt: fullPromptSent,
+          scoutItems: (rawParsed.scoutItems && rawParsed.scoutItems.length > 0) ? rawParsed.scoutItems : (visionScoutItems || []),
+          apiCalls
+        });
+      }
+
       return res.json({
+        mode: "new_log",
         text: rawParsed.message || `I have analyzed the food: **${parsedData.name}** (${parsedData.quantity}).`,
         data: parsedData,
         agentPrompt: fullPromptSent,
-        scoutItems: visionScoutItems || [],
+        scoutItems: (rawParsed.scoutItems && rawParsed.scoutItems.length > 0) ? rawParsed.scoutItems : (visionScoutItems || []),
         apiCalls
       });
     }
 
-    // CASE C: modification commands mode
+    // CASE C: modification commands mode (Math-only fallbacks)
     if (mode === "modify") {
-      addDebugLog(`[Mode Routing] MODIFY mode triggered.`);
+      addDebugLog(`[Mode Routing] MODIFY mode triggered (Math Fallback).`);
       
+      let activeMeal = req.body.activeMeal;
       if (!activeMeal) {
         addDebugLog(`[Modify Math Error] No active meal exists in Firestore to modify.`);
         return res.json({
           text: rawParsed.message || "I couldn't modify the meal because there's no active meal currently logged. Please log a meal first!",
-          data: null
+          data: null,
+          apiCalls
         });
       }
 
@@ -2691,7 +2724,8 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         addDebugLog(`[Modify Math Error] Modification command array was empty or null.`);
         return res.json({
           text: rawParsed.message || "I received a modify request but no modification instructions were provided.",
-          data: activeMeal
+          data: activeMeal,
+          apiCalls
         });
       }
 
@@ -5413,9 +5447,8 @@ app.post("/api/gemini/food-image-search", async (req, res) => {
       error: images.length > 0 ? null : "No images could be retrieved across active search engines."
     };
     
-    if (images.length > 0) {
-      imageSearchCache.set(query, payload);
-    }
+    // Always cache the result to prevent infinite lookup loops for unfound items
+    imageSearchCache.set(query, payload);
 
     res.json(payload);
   } catch (error: any) {

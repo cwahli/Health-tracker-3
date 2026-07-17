@@ -1,3 +1,5 @@
+import { NutritionLabelTable } from "./NutritionLabelTable";
+import { AverageNutrientsTable } from "./AverageNutrientsTable";
 import { trackApiCall } from '../../utils/apiTracker';
 import * as React from 'react';
 import { AgentCardProps } from './types';
@@ -294,6 +296,16 @@ export const FoodCard: React.FC<AgentCardProps & {
 
   const [groupExpanded, setGroupExpanded] = React.useState<Record<string, boolean>>({});
   const [showTranslations, setShowTranslations] = React.useState<Record<string, boolean>>({});
+
+  const activeScoutItems = React.useMemo(() => {
+    if (msg.data?.agentResult?.scoutData?.items && Array.isArray(msg.data.agentResult.scoutData.items)) return msg.data.agentResult.scoutData.items;
+    if (msg.data?.scoutData?.items && Array.isArray(msg.data.scoutData.items)) return msg.data.scoutData.items;
+    if (msg.data?.scoutItems && msg.data.scoutItems.length > 0) return msg.data.scoutItems;
+    for (let mIdx = (messages ? messages.length - 1 : -1); mIdx >= 0; mIdx--) {
+      if (messages[mIdx].data?.scoutItems && messages[mIdx].data.scoutItems.length > 0) return messages[mIdx].data.scoutItems;
+    }
+    return [];
+  }, [msg.data, messages]);
 
   // Selection hooks for Card-Wide Multi-Select
   const [_isSelectingMode, _setIsSelectingMode] = React.useState<boolean>(false);
@@ -648,6 +660,21 @@ export const FoodCard: React.FC<AgentCardProps & {
     <>
       {msg.data?.agentResult && msg.data?.agentResult.mode === 'evaluation' && msg.data?.agentResult.comparison && (
                     <div className="space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden bg-transparent">
+                      {msg.data.correctionOf && (
+                         <div className="flex justify-center pb-2">
+                           <button 
+                             onClick={() => {
+                               // Assuming the bubble has an ID like 'chat-message-' + msg.id, 
+                               // but scrolling to the container is safer
+                               window.scrollTo({ top: 0, behavior: 'smooth' });
+                             }}
+                             className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center gap-1.5"
+                           >
+                             <ChevronUp className="w-3 h-3" />
+                             Scroll to top
+                           </button>
+                         </div>
+                      )}
                       <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2 gap-2">
                         <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm break-words flex flex-wrap items-center gap-1.5 w-full">
                           <span className="shrink-0">⚖️ Comparison:</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold break-words">
@@ -658,6 +685,72 @@ export const FoodCard: React.FC<AgentCardProps & {
                           </span>
                         </h4>
                       </div>
+
+                      {/* Shared Scout Items Row for Comparison Mode */}
+                      {activeScoutItems.length > 0 && (
+                        <div className="bg-slate-50/50 dark:bg-slate-900/30 rounded-xl p-3 border border-slate-100 dark:border-slate-800/60 mb-2">
+                           <div className="flex items-center justify-between mb-2">
+                             <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                               <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
+                               Identified Ingredients
+                             </div>
+                           </div>
+                           <div className="flex gap-3 overflow-x-auto pt-2 pb-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full font-sans">
+                             {activeScoutItems.map((item: any, i: number) => {
+                               const imgIdx = typeof item.sourceImageIndex === 'number' ? item.sourceImageIndex : 0;
+                               const resolvedImgSrc = (messageImages.length > 0)
+                                 ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
+                                 : getFoodImageUrl(item.keyword);
+                               return (
+                                 <div key={i} className="flex flex-col items-center gap-1 shrink-0 snap-align-start w-[72px] relative group">
+                                   <div className="relative">
+                                     <div 
+                                       className={`w-[72px] h-[72px] rounded-xl overflow-hidden cursor-pointer hover:scale-105 active:scale-95 transition-all shadow-sm ${
+                                         (item.itemConfidence?.toLowerCase().includes('low') || item.itemConfidence?.toLowerCase().includes('medium')) 
+                                           ? 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-400 dark:border-amber-500 shadow-amber-500/20'
+                                           : 'bg-slate-100 dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50'
+                                       }`}
+                                       onClick={() => setScoutPreviewIdx(i)}
+                                     >
+                                       {item.boundingBox2D ? (
+                                         <CroppedFoodImage 
+                                           src={resolvedImgSrc} 
+                                           boundingBox={item.boundingBox2D} 
+                                           alt={item.keyword} 
+                                           className="w-full h-full object-cover"
+                                           imageUrls={messageImages}
+                                           sourceImageIndex={imgIdx}
+                                         />
+                                       ) : (
+                                         <img 
+                                           src={resolvedImgSrc} 
+                                           alt={item.keyword} 
+                                           className="w-full h-full object-cover"
+                                           onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format'; }}
+                                         />
+                                       )}
+                                     </div>
+                                     {(item.itemConfidence?.toLowerCase().includes('low') || item.itemConfidence?.toLowerCase().includes('medium')) && (
+                                       <div className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white rounded-full w-4 h-4 flex items-center justify-center shadow-sm z-10">
+                                         <span className="text-[10px] font-bold">!</span>
+                                       </div>
+                                     )}
+                                   </div>
+                                   <span className="text-[9px] text-center font-medium leading-tight text-slate-500 truncate w-full font-sans">
+                                     {showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
+                                   </span>
+                                   {item.anomalyFlags && item.anomalyFlags.length > 0 && (
+                                     <span className="text-[8px] text-center leading-tight text-amber-600 dark:text-amber-500 w-full font-sans line-clamp-2">
+                                       {item.anomalyFlags.join(', ')}
+                                     </span>
+                                   )}
+                                 </div>
+                               );
+                             })}
+                           </div>
+                        </div>
+                      )}
+
 
                       {/* Foods Comparison Cards - Horizontally Scrollable (200px wide, borderless, separated by vertical dividers with 10px spacing) */}
                       <div className="flex gap-0 mt-2 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full overscroll-x-contain">
@@ -697,41 +790,57 @@ export const FoodCard: React.FC<AgentCardProps & {
                                     )}
                                   </div>
                                 </div>
-                                {/* Group Hero Image (Programmatic online search in light mode, no Brave search) */}
+                                {/* Group Hero Image: Use Vision Scout crop if available, otherwise fallback to online search */}
                                 <div className="w-full h-32 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 shadow-sm relative shrink-0">
-                                  <OnlineFoodImage 
-                                    foodName={(group.items?.[0]?.name?.replace(/^\[.*?\]\s*/, '')) || group.groupName || "food"} 
-                                    fallbackSrc={getFoodImageUrl(group.items?.[0]?.name?.replace(/^\[.*?\]\s*/, '') || "food")} 
-                                    className="w-full h-full object-cover"
-                                    searchMode="light"
-                                  />
-                                </div>
-                                
-                                {/* Aggregated Nutrients - Filters and shows only profile top nutrients */}
-                                <div className="space-y-1">
                                   {(() => {
-                                    // Filter comparison nutrients to match the profile top nutrients configuration
-                                    const keysToRender = profile?.topNutrientsToMonitor || ["calories", "saturatedFat", "sodium"];
+                                    const scoutItem = (group.scoutItemIndices && group.scoutItemIndices.length > 0 && activeScoutItems[group.scoutItemIndices[0]]) 
+                                      ? activeScoutItems[group.scoutItemIndices[0]] 
+                                      : null;
                                     
-                                    return keysToRender.map((k) => {
-                                      const v = group.averageNutrients?.[k];
-                                      if (v === undefined || v === null) return null;
-                                      
-                                      const nutDef = nutrientDefinitions.find(n => n.key.toLowerCase() === k.toLowerCase());
-                                      const unit = k === 'calories' ? 'kcal' : (nutDef ? nutDef.unit : 'g');
-                                      const label = k === 'calories' 
-                                        ? 'Average Calories' 
-                                        : (nutDef ? (nutDef.labels[profile?.language || 'en'] || nutDef.labels.en) : k);
+                                    if (scoutItem) {
+                                      const imgIdx = typeof scoutItem.sourceImageIndex === 'number' ? scoutItem.sourceImageIndex : 0;
+                                      const resolvedImgSrc = (messageImages.length > 0)
+                                        ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
+                                        : getFoodImageUrl(scoutItem.keyword);
                                         
-                                      return (
-                                        <div key={k} className="flex justify-between items-center text-xs pb-1 border-b border-slate-100 dark:border-slate-800/50">
-                                          <span className="text-slate-500">{label}</span>
-                                          <span className="font-bold text-slate-800 dark:text-slate-200">{v} {unit}</span>
-                                        </div>
-                                      );
-                                    });
+                                      if (scoutItem.boundingBox2D) {
+                                        return (
+                                          <CroppedFoodImage 
+                                            src={resolvedImgSrc} 
+                                            boundingBox={scoutItem.boundingBox2D} 
+                                            alt={scoutItem.keyword} 
+                                            className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                                            imageUrls={messageImages}
+                                            sourceImageIndex={imgIdx}
+                                            onTap={() => setScoutPreviewIdx(group.scoutItemIndices[0])}
+                                          />
+                                        );
+                                      } else {
+                                        return (
+                                          <img 
+                                            src={resolvedImgSrc} 
+                                            alt={scoutItem.keyword} 
+                                            className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
+                                            onClick={() => setScoutPreviewIdx(group.scoutItemIndices[0])}
+                                            onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format'; }}
+                                          />
+                                        );
+                                      }
+                                    }
+                                    
+                                    // Fallback to stock online image if no visual is available
+                                    return (
+                                      <OnlineFoodImage 
+                                        foodName={(group.items?.[0]?.name?.replace(/^\[.*?\]\s*/, '')) || group.groupName || "food"} 
+                                        fallbackSrc={getFoodImageUrl(group.items?.[0]?.name?.replace(/^\[.*?\]\s*/, '') || "food")} 
+                                        className="w-full h-full object-cover"
+                                        searchMode="light"
+                                      />
+                                    );
                                   })()}
                                 </div>
+                                
+                                <AverageNutrientsTable averageNutrients={group.averageNutrients} profileLanguage={profile?.language || 'en'} />
                                 
                                 {/* Pros and Cons */}
                                 <div className="space-y-1.5 pt-1">
@@ -1114,17 +1223,7 @@ export const FoodCard: React.FC<AgentCardProps & {
       })()}
       {(() => {
         if (scoutPreviewIdx === null) return null;
-        const activeScoutItems = (() => {
-          if (msg.data?.scoutItems && msg.data.scoutItems.length > 0) {
-            return msg.data.scoutItems;
-          }
-          for (let mIdx = (messages ? messages.length - 1 : -1); mIdx >= 0; mIdx--) {
-            if (messages[mIdx].data?.scoutItems && messages[mIdx].data.scoutItems.length > 0) {
-              return messages[mIdx].data.scoutItems;
-            }
-          }
-          return [];
-        })();
+        
         const item = activeScoutItems[scoutPreviewIdx];
         if (!item) return null;
         const imgIdx = typeof item.sourceImageIndex === 'number' ? item.sourceImageIndex : 0;
@@ -1179,6 +1278,19 @@ export const FoodCard: React.FC<AgentCardProps & {
 
                   {msg.data?.pendingFoodLog && (
                     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden font-sans">
+                      {msg.data.correctionOf && (
+                         <div className="flex justify-center pb-2">
+                           <button 
+                             onClick={() => {
+                               window.scrollTo({ top: 0, behavior: 'smooth' });
+                             }}
+                             className="text-[10px] font-bold text-slate-500 bg-slate-100 dark:bg-slate-800 px-3 py-1.5 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 transition-all flex items-center gap-1.5"
+                           >
+                             <ChevronUp className="w-3 h-3" />
+                             Scroll to top
+                           </button>
+                         </div>
+                      )}
                       {msg.data?.pendingFoodLog.imageUrls && msg.data?.pendingFoodLog.imageUrls.length > 0 && (
                         <div className="overflow-hidden border-y sm:border border-slate-100 dark:border-slate-700/50 shadow-sm mb-3 w-[calc(100%+2rem)] -mx-4 sm:mx-0 sm:w-full sm:rounded-2xl">
                           <ImageSlider images={msg.data?.pendingFoodLog.imageUrls} altText={msg.data?.pendingFoodLog.name || "Pending meal"} />
@@ -1190,18 +1302,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                       {(() => {
                         const scoutType = (msg.data?.scoutContentType || '').toLowerCase();
                         const isMenuOrPoster = scoutType === 'text' || scoutType === 'menu_or_poster';
-                        const activeScoutItems = (() => {
-                          if (msg.data?.scoutItems && msg.data.scoutItems.length > 0) {
-                            return msg.data.scoutItems;
-                          }
-                          // Lookup in historical messages if current correction message cleared scoutItems
-                          for (let mIdx = (messages ? messages.length - 1 : -1); mIdx >= 0; mIdx--) {
-                            if (messages[mIdx].data?.scoutItems && messages[mIdx].data.scoutItems.length > 0) {
-                              return messages[mIdx].data.scoutItems;
-                            }
-                          }
-                          return [];
-                        })();
+
                         if (activeScoutItems.length === 0) return null;
                         return (
                           <div className="mb-6 text-left">
@@ -1233,7 +1334,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                 </span>
                               )}
                             </div>
-                             <div className={isMenuOrPoster ? "flex flex-wrap gap-2 pt-1 font-sans" : "flex gap-3 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full font-sans"}>
+                             <div className={isMenuOrPoster ? "flex flex-wrap gap-2 pt-1 font-sans" : "flex gap-3 overflow-x-auto pt-2 pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full font-sans"}>
                                {activeScoutItems.map((item: any, i: number) => {
                                  if (isMenuOrPoster) {
                                    return (
@@ -1250,78 +1351,73 @@ export const FoodCard: React.FC<AgentCardProps & {
                                    ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
                                    : getFoodImageUrl(item.keyword);
                                  return (
-                                   <div key={i} className="flex flex-col items-center gap-1 shrink-0 snap-align-start w-[72px]">
-                                     <div 
-                                       className="w-[72px] h-[72px] rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-pointer border border-slate-200/50 dark:border-slate-700/50 hover:scale-105 active:scale-95 transition-all shadow-sm"
-                                       onClick={() => setScoutPreviewIdx(i)}
-                                     >
-                                       {item.boundingBox2D ? (
-                                         <CroppedFoodImage 
-                                           src={resolvedImgSrc} 
-                                           boundingBox={item.boundingBox2D} 
-                                           alt={item.keyword} 
-                                           className="w-full h-full object-cover"
-                                           imageUrls={messageImages}
-                                           sourceImageIndex={imgIdx}
-                                         />
-                                       ) : (
-                                         <img 
-                                           src={resolvedImgSrc} 
-                                           alt={item.keyword} 
-                                           className="w-full h-full object-cover"
-                                           onError={(e) => {
-                                             (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format';
-                                           }}
-                                         />
+                                   <div key={i} className="flex flex-col items-center gap-1 shrink-0 snap-align-start w-[72px] relative group">
+                                     <div className="relative">
+                                       <div 
+                                         className={`w-[72px] h-[72px] rounded-xl overflow-hidden cursor-pointer hover:scale-105 active:scale-95 transition-all shadow-sm ${
+                                           (item.itemConfidence?.toLowerCase().includes('low') || item.itemConfidence?.toLowerCase().includes('medium')) 
+                                             ? 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-400 dark:border-amber-500 shadow-amber-500/20'
+                                             : 'bg-slate-100 dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50'
+                                         }`}
+                                         onClick={() => setScoutPreviewIdx(i)}
+                                       >
+                                         {item.boundingBox2D ? (
+                                           <CroppedFoodImage 
+                                             src={resolvedImgSrc} 
+                                             boundingBox={item.boundingBox2D} 
+                                             alt={item.keyword} 
+                                             className="w-full h-full object-cover"
+                                             imageUrls={messageImages}
+                                             sourceImageIndex={imgIdx}
+                                           />
+                                         ) : (
+                                           <img 
+                                             src={resolvedImgSrc} 
+                                             alt={item.keyword} 
+                                             className="w-full h-full object-cover"
+                                             onError={(e) => {
+                                               (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format';
+                                             }}
+                                           />
+                                         )}
+                                       </div>
+                                       {/* Warning Icon for Low/Medium Confidence - Moved OUTSIDE the overflow-hidden div */}
+                                       {(item.itemConfidence?.toLowerCase().includes('low') || item.itemConfidence?.toLowerCase().includes('medium')) && (
+                                         <div className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white rounded-full w-4 h-4 flex items-center justify-center shadow-sm z-10">
+                                           <span className="text-[10px] font-bold">!</span>
+                                         </div>
                                        )}
                                      </div>
                                      <span className="text-[9px] text-center font-medium leading-tight text-slate-500 truncate w-full font-sans">
                                        {showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
                                      </span>
+                                     {/* Visible Anomaly Warning below the name */}
+                                     {item.anomalyFlags && item.anomalyFlags.length > 0 && (
+                                       <span className="text-[8px] text-center leading-tight text-amber-600 dark:text-amber-500 w-full font-sans line-clamp-2">
+                                         {item.anomalyFlags.join(', ')}
+                                       </span>
+                                     )}
                                    </div>
                                  );
                                })}
                              </div>
-                             {activeScoutItems.some((i: any) => (i.nutritionFacts && Object.keys(i.nutritionFacts).length > 0) || (i.rawNutritionLabel && Object.keys(i.rawNutritionLabel).length > 0)) && (
-                               <div className="mt-2 text-left pt-1 font-sans">
-                                 <details className="group [&_summary::-webkit-details-marker]:hidden">
-                                   <summary className="flex items-center gap-1.5 cursor-pointer text-[10px] font-bold text-indigo-600 dark:text-indigo-400 select-none">
-                                     <span>View Nutrition Labels</span>
-                                     <svg className="w-3 h-3 transition-transform group-open:rotate-180" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                                     </svg>
-                                   </summary>
-                                   <div className="mt-2 space-y-2 pl-2 border-l-2 border-indigo-100 dark:border-indigo-900/30">
-                                     {activeScoutItems.map((item: any, i: number) => {
-                                       const hasRaw = item.rawNutritionLabel && Object.keys(item.rawNutritionLabel).length > 0;
-                                       const hasNut = item.nutritionFacts && Object.keys(item.nutritionFacts).length > 0;
-                                       if (!hasRaw && !hasNut) return null;
-                                       return (
-                                         <div key={`nut-${i}`} className="text-[10px] text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 p-2 rounded-lg">
-                                           <strong className="block text-slate-800 dark:text-slate-200 mb-1">{item.originalName || item.keyword}</strong>
-                                           {hasRaw && (
-                                              <div className="mb-1 leading-relaxed">
-                                                <span className="font-semibold text-[9px] text-slate-500 uppercase tracking-wider block mb-0.5">Raw Label: </span>
-                                                {Object.entries(item.rawNutritionLabel).map(([k, v]) => (
-                                                  <span key={k} className="inline-block mr-2.5"><span className="opacity-75">{k}:</span> <span className="font-medium text-slate-700 dark:text-slate-300">{String(v)}</span></span>
-                                                ))}
-                                              </div>
-                                           )}
-                                           {hasNut && (
-                                              <div className="leading-relaxed">
-                                                <span className="font-semibold text-[9px] text-slate-500 uppercase tracking-wider block mb-0.5">Per 100g: </span>
-                                                {Object.entries(item.nutritionFacts).map(([k, v]) => (
-                                                  <span key={k} className="inline-block mr-2.5"><span className="opacity-75">{k}:</span> <span className="font-medium text-slate-700 dark:text-slate-300">{String(v)}</span></span>
-                                                ))}
-                                              </div>
-                                           )}
-                                         </div>
-                                       );
-                                     })}
-                                   </div>
-                                 </details>
+                             
+                             {/* Uncertain Items Helper Button */}
+                             {activeScoutItems.some((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0)) && (
+                               <div className="mt-2 flex flex-col gap-1.5 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/50 rounded-lg p-2 font-sans">
+                                 <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                                   <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                   <span className="text-[10px] font-medium leading-tight">Some items are unclear or obscured.</span>
+                                 </div>
+                                 <button 
+                                   onClick={() => { document.getElementById('food-chat-input')?.focus(); }} 
+                                   className="text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all w-full text-center"
+                                 >
+                                   Type correction or upload new photo
+                                 </button>
                                </div>
                              )}
+                             <NutritionLabelTable activeScoutItems={activeScoutItems} />
                           </div>
                         );
                       })()}

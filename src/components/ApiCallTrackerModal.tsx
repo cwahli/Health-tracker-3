@@ -13,6 +13,14 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
   const [events, setEvents] = useState<ApiCallEvent[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<'idle' | 'success' | 'error'>('idle');
+
+  const [startDate, setStartDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(() => new Date().toISOString().split('T')[0]);
+  const [startTime, setStartTime] = useState('');
+  const [endTime, setEndTime] = useState('');
+
+  const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
+
   const loadEvents = () => {
     try {
       const saved = localStorage.getItem('local_api_events');
@@ -25,12 +33,14 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
       console.warn("Could not load api events", e);
     }
   };
+
   useEffect(() => {
     if (isOpen) {
       loadEvents();
       setSyncStatusMsg('idle');
     }
   }, [isOpen]);
+
   useEffect(() => {
     const handleEventAdded = () => {
       loadEvents();
@@ -38,11 +48,40 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
     window.addEventListener('local_api_event_added', handleEventAdded);
     return () => window.removeEventListener('local_api_event_added', handleEventAdded);
   }, []);
-  const todayEvents = useMemo(() => {
-    const todayStr = new Date().toDateString();
-    return events.filter(e => new Date(e.timestamp).toDateString() === todayStr);
-  }, [events]);
-  const todayTotals = useMemo(() => {
+
+  const filteredEventsByDate = useMemo(() => {
+    return events.filter(e => {
+      const eventDate = new Date(e.timestamp);
+      
+      if (startDate) {
+        const [y, m, d] = startDate.split('-');
+        const start = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+        if (startTime) {
+           const [h, min] = startTime.split(':');
+           start.setHours(parseInt(h, 10), parseInt(min, 10), 0, 0);
+        } else {
+           start.setHours(0, 0, 0, 0);
+        }
+        if (eventDate < start) return false;
+      }
+      
+      if (endDate) {
+        const [y, m, d] = endDate.split('-');
+        const end = new Date(parseInt(y, 10), parseInt(m, 10) - 1, parseInt(d, 10));
+        if (endTime) {
+           const [h, min] = endTime.split(':');
+           end.setHours(parseInt(h, 10), parseInt(min, 10), 59, 999);
+        } else {
+           end.setHours(23, 59, 59, 999);
+        }
+        if (eventDate > end) return false;
+      }
+
+      return true;
+    });
+  }, [events, startDate, endDate, startTime, endTime]);
+
+  const filteredTotals = useMemo(() => {
     const totals = {
       gemini: 0,
       usda: 0,
@@ -53,16 +92,27 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
       firebase_write: 0,
       firebase_delete: 0
     };
-    todayEvents.forEach(e => {
+    filteredEventsByDate.forEach(e => {
       if (e.type in totals) {
         totals[e.type as keyof typeof totals]++;
       }
     });
     return totals;
-  }, [todayEvents]);
+  }, [filteredEventsByDate]);
+
+  const finalFilteredEvents = useMemo(() => {
+     if (!selectedMetric) return filteredEventsByDate;
+     if (selectedMetric === 'unsplash_wiki') {
+       return filteredEventsByDate.filter(e => e.type === 'unsplash' || e.type === 'wikipedia');
+     } else if (selectedMetric === 'firebase_all') {
+       return filteredEventsByDate.filter(e => e.type.startsWith('firebase_'));
+     }
+     return filteredEventsByDate.filter(e => e.type === selectedMetric);
+  }, [filteredEventsByDate, selectedMetric]);
+
   const groupedQueries = useMemo(() => {
     const groups: Record<string, ApiCallEvent[]> = {};
-    events.forEach(e => {
+    finalFilteredEvents.forEach(e => {
       const qid = e.queryId || 'default';
       if (!groups[qid]) {
         groups[qid] = [];
@@ -112,7 +162,7 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
         firstTimestamp: firstEvent.timestamp
       };
     });
-  }, [events]);
+  }, [finalFilteredEvents]);
   const handleSyncToCloud = async () => {
     if (isSyncing || events.length === 0) return;
     setIsSyncing(true);
@@ -180,28 +230,47 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
       <div className="flex-1 overflow-y-auto p-6 space-y-6 max-w-5xl mx-auto w-full">
         {/* Today's Breakdown */}
         <div className="bg-slate-950/40 border border-slate-800 rounded-3xl p-6 space-y-5">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-bold text-slate-200">Today's Usage Summary</h3>
-              <p className="text-[10px] text-slate-500 font-medium">Aggregated counts for today's queries & transactions</p>
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div>
+                   <label className="block text-[10px] text-slate-400 font-bold mb-1">Start Date</label>
+                   <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-white outline-none focus:border-indigo-500 transition-colors" />
+                   <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-white ml-2 outline-none focus:border-indigo-500 transition-colors" />
+                </div>
+                <div>
+                   <label className="block text-[10px] text-slate-400 font-bold mb-1">End Date</label>
+                   <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-white outline-none focus:border-indigo-500 transition-colors" />
+                   <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-white ml-2 outline-none focus:border-indigo-500 transition-colors" />
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleSyncToCloud}
+                  disabled={isSyncing || events.length === 0}
+                  className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer hover:scale-[1.01]"
+                >
+                  {isSyncing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Cloud className="w-3.5 h-3.5" />}
+                  <span>Sync to Cloud</span>
+                </button>
+                <button
+                  onClick={handleClearHistory}
+                  className="p-2 bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-300 rounded-xl transition-all cursor-pointer"
+                  title="Clear local logs"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
             </div>
-            
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleSyncToCloud}
-                disabled={isSyncing || events.length === 0}
-                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer hover:scale-[1.01]"
-              >
-                {isSyncing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Cloud className="w-3.5 h-3.5" />}
-                <span>Sync to Cloud</span>
-              </button>
-              <button
-                onClick={handleClearHistory}
-                className="p-2 bg-slate-800 hover:bg-rose-900/40 text-slate-400 hover:text-rose-300 rounded-xl transition-all cursor-pointer"
-                title="Clear local logs"
-              >
-                <Trash2 className="w-4 h-4" />
-              </button>
+            <div>
+              <h3 className="text-sm font-bold text-slate-200">
+                {startDate === endDate ? (
+                  startDate === new Date().toISOString().split('T')[0] ? "Today's Usage Summary" : `${startDate} Usage Summary`
+                ) : (
+                  `From ${startDate} ${startTime || '00:00'} to ${endDate} ${endTime || '23:59'}`
+                )}
+              </h3>
+              <p className="text-[10px] text-slate-500 font-medium">Aggregated counts for the selected timeframe. Click a metric to filter history.</p>
             </div>
           </div>
           {/* Sync Status Banner */}
@@ -221,38 +290,48 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
           )}
           {/* Metric Grid */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="p-4 bg-slate-900 border border-slate-800/80 rounded-2xl">
+            <button 
+              onClick={() => setSelectedMetric(selectedMetric === 'gemini' ? null : 'gemini')}
+              className={`p-4 text-left border rounded-2xl transition-all cursor-pointer outline-none focus:ring-2 focus:ring-indigo-500/50 ${selectedMetric === 'gemini' ? 'bg-indigo-950/40 border-indigo-500/50 ring-1 ring-indigo-500/50' : 'bg-slate-900 border-slate-800/80 hover:bg-slate-800/50'}`}>
               <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Gemini Calls</span>
-              <span className="text-2xl font-mono font-bold text-indigo-400">{todayTotals.gemini}</span>
-            </div>
+              <span className="text-2xl font-mono font-bold text-indigo-400">{filteredTotals.gemini}</span>
+            </button>
             
-            <div className="p-4 bg-slate-900 border border-slate-800/80 rounded-2xl">
+            <button 
+              onClick={() => setSelectedMetric(selectedMetric === 'usda' ? null : 'usda')}
+              className={`p-4 text-left border rounded-2xl transition-all cursor-pointer outline-none focus:ring-2 focus:ring-amber-500/50 ${selectedMetric === 'usda' ? 'bg-amber-950/40 border-amber-500/50 ring-1 ring-amber-500/50' : 'bg-slate-900 border-slate-800/80 hover:bg-slate-800/50'}`}>
               <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">USDA Queries</span>
-              <span className="text-2xl font-mono font-bold text-amber-400">{todayTotals.usda}</span>
-            </div>
-            <div className="p-4 bg-slate-900 border border-slate-800/80 rounded-2xl">
+              <span className="text-2xl font-mono font-bold text-amber-400">{filteredTotals.usda}</span>
+            </button>
+            <button 
+              onClick={() => setSelectedMetric(selectedMetric === 'brave' ? null : 'brave')}
+              className={`p-4 text-left border rounded-2xl transition-all cursor-pointer outline-none focus:ring-2 focus:ring-sky-500/50 ${selectedMetric === 'brave' ? 'bg-sky-950/40 border-sky-500/50 ring-1 ring-sky-500/50' : 'bg-slate-900 border-slate-800/80 hover:bg-slate-800/50'}`}>
               <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Brave Searches</span>
-              <span className="text-2xl font-mono font-bold text-sky-400">{todayTotals.brave}</span>
-            </div>
-            <div className="p-4 bg-slate-900 border border-slate-800/80 rounded-2xl">
+              <span className="text-2xl font-mono font-bold text-sky-400">{filteredTotals.brave}</span>
+            </button>
+            <button 
+              onClick={() => setSelectedMetric(selectedMetric === 'unsplash_wiki' ? null : 'unsplash_wiki')}
+              className={`p-4 text-left border rounded-2xl transition-all cursor-pointer outline-none focus:ring-2 focus:ring-emerald-500/50 ${selectedMetric === 'unsplash_wiki' ? 'bg-emerald-950/40 border-emerald-500/50 ring-1 ring-emerald-500/50' : 'bg-slate-900 border-slate-800/80 hover:bg-slate-800/50'}`}>
               <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Unsplash / Wiki</span>
-              <span className="text-2xl font-mono font-bold text-emerald-400">{todayTotals.unsplash + todayTotals.wikipedia}</span>
-            </div>
+              <span className="text-2xl font-mono font-bold text-emerald-400">{filteredTotals.unsplash + filteredTotals.wikipedia}</span>
+            </button>
           </div>
-          <div className="p-4 bg-slate-900 border border-slate-800/80 rounded-2xl grid grid-cols-3 gap-4 text-center">
+          <button 
+            onClick={() => setSelectedMetric(selectedMetric === 'firebase_all' ? null : 'firebase_all')}
+            className={`w-full p-4 border rounded-2xl grid grid-cols-3 gap-4 text-center transition-all cursor-pointer outline-none focus:ring-2 focus:ring-slate-500/50 ${selectedMetric === 'firebase_all' ? 'bg-slate-800/80 border-slate-500/50 ring-1 ring-slate-500/50' : 'bg-slate-900 border-slate-800/80 hover:bg-slate-800/50'}`}>
             <div>
               <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Firestore Reads</span>
-              <span className="text-base font-mono font-semibold text-slate-300">{todayTotals.firebase_read}</span>
+              <span className="text-base font-mono font-semibold text-slate-300">{filteredTotals.firebase_read}</span>
             </div>
             <div className="border-x border-slate-800">
               <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Firestore Writes</span>
-              <span className="text-base font-mono font-semibold text-slate-300">{todayTotals.firebase_write}</span>
+              <span className="text-base font-mono font-semibold text-slate-300">{filteredTotals.firebase_write}</span>
             </div>
             <div>
               <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Firestore Deletes</span>
-              <span className="text-base font-mono font-semibold text-slate-300">{todayTotals.firebase_delete}</span>
+              <span className="text-base font-mono font-semibold text-slate-300">{filteredTotals.firebase_delete}</span>
             </div>
-          </div>
+          </button>
         </div>
         {/* Query History list */}
         <div className="space-y-4">

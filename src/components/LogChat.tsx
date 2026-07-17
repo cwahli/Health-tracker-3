@@ -703,7 +703,15 @@ ${logsText}`);
     const isManualSyncOnly = localStorage.getItem('auto_sync_disabled') === 'true';
     if (isManualSyncOnly || checkQuotaFlag() || isFirestoreQuotaExceeded) {
       try {
-        localStorage.setItem(`${chatStorageKey}_${userId}_${id}`, JSON.stringify(msgs));
+        // Strip heavy base64 images before saving to localStorage to prevent quota crashes!
+        const strippedMsgs = msgs.map(m => {
+           const copy = { ...m };
+           if (copy.imageUrls) copy.imageUrls = [];
+           if (copy.imageUrl) delete copy.imageUrl;
+           return copy;
+        });
+        
+        localStorage.setItem(`${chatStorageKey}_${userId}_${id}`, JSON.stringify(strippedMsgs));
         if (payload) localStorage.setItem(`${payloadStorageKey}_${userId}_${id}`, JSON.stringify(payload));
         
         // Also update the local list so the sidebar is completely in sync and beautiful
@@ -839,7 +847,6 @@ ${logsText}`);
         const welcome = getWelcomeMessage();
         setMessages([welcome]);
         setLastSentPayload(null);
-        debouncedSaveConversation(newId, [welcome], null);
         setConversationsList([{
           id: newId,
           type: type || 'medical',
@@ -862,8 +869,6 @@ ${logsText}`);
     const welcome = getWelcomeMessage();
     setMessages([welcome]);
     setLastSentPayload(null);
-    debouncedSaveConversation(newId, [welcome], null);
-    
     setConversationsList(prev => [
       {
         id: newId,
@@ -928,7 +933,7 @@ ${logsText}`);
   }, [isOpen, messages.length]);
 
   useEffect(() => {
-    if (activeConversationId && messages && messages.length > 0) {
+    if (activeConversationId && messages && messages.length > 1) {
       debouncedSaveConversation(activeConversationId, messages, lastSentPayload);
     }
   }, [messages, lastSentPayload, activeConversationId]);
@@ -1367,6 +1372,13 @@ ${logsText}`);
         if (lastFoodLog) {
           bodyData.activeMeal = lastFoodLog;
         }
+        
+        // Pass the active scout items to the backend so the Dietitian can resolve warnings
+        const lastScoutMsg = [...messages].reverse().find(m => m.data?.scoutItems && m.data.scoutItems.length > 0);
+        if (lastScoutMsg) {
+          bodyData.activeScoutItems = lastScoutMsg.data.scoutItems;
+        }
+        
         bodyData.biomarkersNeedingImprovement = outOfRangeBiomarkers.map(b => `${b.name} is ${getBiomarkerStatusLabel(b.key, b.status, profile?.customBiomarkers?.[b.key], b.value, profile).toUpperCase()} (${b.value} ${b.unit}, normal range: ${b.normalRange})`);
         bodyData.remainingAllowance = {
           calories: remainingAllowance.calories,

@@ -70,8 +70,22 @@ async function testConnection() {
   try {
     const isExceeded = typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem('firestore_quota_exceeded') === 'true';
     if (isExceeded) {
-      console.warn("Firestore connection test skipped: Quota is marked as exceeded.");
-      return;
+      const exceededTimeStr = window.localStorage?.getItem('firestore_quota_exceeded_time');
+      if (exceededTimeStr) {
+        const exceededTime = parseInt(exceededTimeStr, 10);
+        // If 12 hours have passed, clear the flag to try again
+        if (new Date().getTime() - exceededTime > 12 * 60 * 60 * 1000) {
+          window.localStorage.removeItem('firestore_quota_exceeded');
+          window.localStorage.removeItem('firestore_quota_exceeded_time');
+          console.log("Firestore quota lockout expired. Retrying connection...");
+        } else {
+          console.warn("Firestore connection test skipped: Quota is marked as exceeded.");
+          return;
+        }
+      } else {
+        console.warn("Firestore connection test skipped: Quota is marked as exceeded.");
+        return;
+      }
     }
     await getDocFromServer(doc(db, 'test', 'connection'));
   } catch (error) {
