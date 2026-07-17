@@ -1718,35 +1718,56 @@ ${logsText}`);
       const migratedAssistantMsg = migrateMessages([assistantMsg])[0];
 
       setMessages(prev => {
-        if (isAgent('food') && resData.mode === 'modify' && resData.data) {
-          // Check if this food was already saved to database history
-          const wasLogged = prev.some(m => m.data?.pendingFoodLog && m.data?.pendingFoodLog.id === resData.data.id && loggedMessageIds.includes(m.id));
-          if (wasLogged) {
-            // Automatically mark the modified card message as logged too
-            setLoggedMessageIds(prevIds => [...prevIds, migratedAssistantMsg.id]);
-            // Automatically trigger the log update handler to push modifications to database
-            if (onLogFood) {
-              onLogFood(resData.data as FoodLog);
+        if (isAgent('food') && resData.mode === 'modify' && (resData.data || (resData.scoutItems && resData.scoutItems.length > 0))) {
+          let newPrev = [...prev];
+
+          if (resData.data) {
+            // Check if this food was already saved to database history
+            const wasLogged = prev.some(m => m.data?.pendingFoodLog && m.data?.pendingFoodLog.id === resData.data.id && loggedMessageIds.includes(m.id));
+            if (wasLogged) {
+              // Automatically mark the modified card message as logged too
+              setLoggedMessageIds(prevIds => [...prevIds, migratedAssistantMsg.id]);
+              // Automatically trigger the log update handler to push modifications to database
+              if (onLogFood) {
+                onLogFood(resData.data as FoodLog);
+              }
             }
+
+            let updated = false;
+            newPrev = [...newPrev].reverse().map(m => {
+              if (!updated && m.data?.pendingFoodLog) {
+                updated = true;
+                return {
+                  ...m,
+                  data: {
+                    ...m.data,
+                    pendingFoodLog: {
+                      ...m.data?.pendingFoodLog,
+                      ...resData.data
+                    }
+                  }
+                };
+              }
+              return m;
+            }).reverse();
           }
 
-          let updated = false;
-          const newPrev = [...prev].reverse().map(m => {
-            if (!updated && m.data?.pendingFoodLog) {
-              updated = true;
-              return {
-                ...m,
-                data: {
-                  ...m.data,
-                  pendingFoodLog: {
-                    ...m.data?.pendingFoodLog,
-                    ...resData.data
-                  }
-                }
-              };
-            }
-            return m;
-          }).reverse();
+          if (resData.scoutItems && resData.scoutItems.length > 0) {
+            // A correction was resolved for a previously flagged item (text correction
+            // or new photo). MODE C intentionally returns foodData=null when no full
+            // recompute is needed, so this must run independently of the pendingFoodLog
+            // merge above — otherwise the corrected scoutItems array is silently
+            // dropped and "Items in Review" / the thumbnail keep showing the stale item.
+            let scoutUpdated = false;
+            newPrev = [...newPrev].reverse().map(m => {
+              if (!scoutUpdated && m.data?.scoutItems && m.data.scoutItems.length > 0) {
+                scoutUpdated = true;
+                return { ...m, data: { ...m.data, scoutItems: resData.scoutItems } };
+              }
+              return m;
+            }).reverse();
+          }
+
           // Clear the pending food log from the new assistant message so it doesn't render a duplicate card
           if (migratedAssistantMsg.data) {
             migratedAssistantMsg.data.pendingFoodLog = null;
@@ -2605,6 +2626,8 @@ ${JSON.stringify(profile, null, 2)}`);
                         handleSend={handleSend}
                         setActiveInstructionAgentType={setActiveInstructionAgentType}
                         setActiveInstructionPrompt={setActiveInstructionPrompt}
+                        setInputText={setInputText}
+                        fileInputRef={fileInputRef}
                         onDeleteMessage={(id) => setMessages(prev => prev.filter(m => m.id !== id))}
                         onLogMedical={onLogMedical}
                         isAnalyzing={isAnalyzing}

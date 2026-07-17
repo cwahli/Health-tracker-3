@@ -22,4 +22,6 @@ export interface AgentCardProps {
   setActiveInstructionAgentType?: (type: string) => void;
   setActiveInstructionPrompt?: (prompt: string | null) => void;
   onDeleteMessage?: (id: string) => void;
+  setInputText?: (val: string) => void;
+  fileInputRef?: React.MutableRefObject<HTMLInputElement | null>;
 }

@@ -279,7 +279,8 @@ export const FoodCard: React.FC<AgentCardProps & {
 }> = (props) => {
   const {
     msg, messages, report, foodLogs, t, formatNutrientValue,
-    onLogFood, setLoggedMessageIds, loggedMessageIds, profile, handleSend
+    onLogFood, setLoggedMessageIds, loggedMessageIds, profile, handleSend,
+    setInputText, fileInputRef
   } = props;
 
   const [expandedTables, setExpandedTables] = React.useState<Record<string, boolean>>({});
@@ -925,13 +926,20 @@ export const FoodCard: React.FC<AgentCardProps & {
                                  {/* Top Nutrients for Mode D */}
                                 {group.averageNutrients && Object.keys(group.averageNutrients).length > 0 && (
                                   <div className="py-2 border-t border-slate-100 dark:border-slate-800 mt-2">
-                                    <div className="flex flex-wrap gap-2 justify-center pb-2">
+                                    <div className="flex flex-wrap gap-2 justify-start pb-2">
                                       {(() => {
                                         const defaultTargets: { [key: string]: number } = { calories: 2000, saturatedFat: 15, sodium: 1200, addedSugar: 30, totalFat: 65, protein: 50, carbohydrates: 250, totalFibre: 30 };
                                         const nutrientColors: { [key: string]: string } = { calories: 'rgb(249, 115, 22)', saturatedFat: 'rgb(234, 179, 8)', sodium: 'rgb(34, 197, 94)', addedSugar: 'rgb(239, 68, 68)', totalFat: 'rgb(168, 85, 247)', protein: 'rgb(59, 130, 246)', carbohydrates: 'rgb(6, 182, 212)', totalFibre: 'rgb(16, 185, 129)' };
                                         const nutrientLabels: { [key: string]: string } = { calories: 'Calories', saturatedFat: 'Sat Fat', sodium: 'Sodium', addedSugar: 'Added Sugar', totalFat: 'Total Fat', protein: 'Protein', carbohydrates: 'Carbs', totalFibre: 'Fiber' };
                                         const nutrientUnits: { [key: string]: string } = { calories: 'kcal', saturatedFat: 'g', sodium: 'mg', addedSugar: 'g', totalFat: 'g', protein: 'g', carbohydrates: 'g', totalFibre: 'g' };
-                                        const formatNutrientValue = (v: number, u: string) => `${v.toFixed(1).replace(/\.0$/, '')}${u}`;
+                                        const formatNutrientValue = (v: number, u: string) => {
+                                          if (v === null || v === undefined || isNaN(v)) return `—${u}`;
+                                          const abs = Math.abs(v);
+                                          if (abs >= 1000) return `${(v / 1000).toFixed(2)}k${u}`;
+                                          if (abs >= 100) return `${Math.round(v)}${u}`;
+                                          if (abs >= 10) return `${v.toFixed(1)}${u}`;
+                                          return `${v.toFixed(2)}${u}`;
+                                        };
                                         
                                         // Respect the user's selected primary nutrients from their profile (defaults to calories, saturatedFat, sodium) to stay consistent with Mode A
                                         const activeKeys = profile?.topNutrientsToMonitor || ['calories', 'saturatedFat', 'sodium'];
@@ -1457,7 +1465,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                           <div className="mb-6 text-left">
                             <div className="flex items-center justify-between mb-3 border-b border-slate-100 dark:border-slate-800/50 pb-2 font-sans">
                               <div className="flex items-center gap-2">
-                                <span className="text-[10.5px] font-bold text-indigo-500 dark:text-indigo-400 uppercase tracking-wider">
+                                <span className="text-[10.5px] font-bold text-indigo-500 dark:text-indigo-400">
                                   🔍 Meal composition
                                 </span>
                                 {activeScoutItems.some((i: any) => i.originalName && i.originalName.toLowerCase() !== (i.keyword || "").toLowerCase()) && (
@@ -1540,10 +1548,10 @@ export const FoodCard: React.FC<AgentCardProps & {
                                      <span className="text-[9px] text-center font-medium leading-tight text-slate-500 truncate w-full font-sans">
                                        {showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
                                      </span>
-                                     {/* Visible Anomaly Warning below the name */}
-                                     {item.anomalyFlags && item.anomalyFlags.length > 0 && (
-                                       <span className="text-[8px] text-center leading-tight text-amber-600 dark:text-amber-500 w-full font-sans line-clamp-2">
-                                         {item.anomalyFlags.join(', ')}
+                                     {/* Confidence badge below the name — full detail now lives in Items in Review */}
+                                     {(item.itemConfidence?.toLowerCase().includes('low') || item.itemConfidence?.toLowerCase().includes('medium')) && (
+                                       <span className="text-[8px] text-center leading-tight text-amber-600 dark:text-amber-500 w-full font-sans">
+                                         Confidence: {(item.itemConfidence || '').split('(')[0].trim()}
                                        </span>
                                      )}
                                    </div>
@@ -1556,25 +1564,31 @@ export const FoodCard: React.FC<AgentCardProps & {
                                <div className="mt-2 flex flex-col gap-1.5 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/50 rounded-lg p-2 font-sans">
                                  <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400">
                                    <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                                   <div className="flex flex-col">
+                                   <div className="flex flex-col gap-0.5">
                                      <span className="text-[11px] font-bold leading-tight">Items in Review:</span>
-                                     <span className="text-[10px] font-medium leading-tight">
-                                       {activeScoutItems
-                                          .filter((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0))
-                                          .map((i: any) => i.originalName || i.keyword || i.name)
-                                          .join(', ')}
-                                     </span>
+                                     {activeScoutItems
+                                        .filter((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0))
+                                        .map((i: any, reviewIdx: number) => (
+                                          <span key={reviewIdx} className="text-[10px] font-medium leading-tight">
+                                            {(i.originalName || i.keyword || i.name)}{i.anomalyFlags && i.anomalyFlags.length > 0 ? ` - ${i.anomalyFlags.join(', ')}` : ''}
+                                          </span>
+                                        ))}
                                    </div>
                                  </div>
                                  <div className="flex gap-2">
                                    <button 
-                                     onClick={() => { document.getElementById('food-chat-input')?.focus(); }} 
+                                     onClick={() => {
+                                       const flaggedItem = activeScoutItems.find((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0));
+                                       const targetName = flaggedItem?.originalName || flaggedItem?.keyword || flaggedItem?.name || 'this item';
+                                       if (setInputText) setInputText(`Correct ${targetName} to `);
+                                       setTimeout(() => document.getElementById('food-chat-input')?.focus(), 50);
+                                     }} 
                                      className="flex-1 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all text-center"
                                    >
                                      Correct Item
                                    </button>
                                    <button 
-                                     onClick={() => { document.getElementById('food-chat-input')?.focus(); }} 
+                                     onClick={() => { fileInputRef?.current?.click(); }} 
                                      className="flex-1 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all text-center"
                                    >
                                      Upload New Photo
@@ -1665,6 +1679,14 @@ export const FoodCard: React.FC<AgentCardProps & {
                         };
                         // Read top nutrients from profile, fall back to default calories, satFat, sodium
                         const activeKeys = profile?.topNutrientsToMonitor || ['calories', 'saturatedFat', 'sodium'];
+                        const formatNutrientValue = (v: number, u: string) => {
+                          if (v === null || v === undefined || isNaN(v)) return `— ${u}`;
+                          const abs = Math.abs(v);
+                          if (abs >= 1000) return `${(v / 1000).toFixed(2)}k ${u}`;
+                          if (abs >= 100) return `${Math.round(v)} ${u}`;
+                          if (abs >= 10) return `${v.toFixed(1)} ${u}`;
+                          return `${v.toFixed(2)} ${u}`;
+                        };
                         return (
                           <div className="flex flex-wrap items-center gap-3 pt-2">
                             {activeKeys.map((key) => {
