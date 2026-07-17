@@ -285,8 +285,15 @@ const resolvedIndices = new Set<number>();
     }
 
     const resolvedThreats: Record<string, string> = {};
-    if (g.itemClinicalThreats && typeof g.itemClinicalThreats === "object") {
-      Object.entries(g.itemClinicalThreats).forEach(([key, threat]) => {
+    const threatEntries: [string, any][] = Array.isArray(g.itemClinicalThreats)
+      ? g.itemClinicalThreats
+          .filter((t: any) => t && (typeof t.scoutIndex !== "undefined"))
+          .map((t: any) => [String(t.scoutIndex), t.threat])
+      : (g.itemClinicalThreats && typeof g.itemClinicalThreats === "object")
+          ? Object.entries(g.itemClinicalThreats) // legacy fallback for any old-format responses still in flight
+          : [];
+    if (threatEntries.length > 0) {
+      threatEntries.forEach(([key, threat]) => {
         let targetIdx: number | null = null;
         const parsedKey = parseInt(key, 10);
         if (!isNaN(parsedKey)) {
@@ -497,12 +504,9 @@ Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing snac
 - GROUPING STRATEGY (SMART-ADAPTIVE):
   * INDIVIDUAL MODE (<= 5 items): If there are 5 or fewer items, DO NOT group them into multi-item buckets. Instead, create a separate group object inside the 'comparison.groups' array for EVERY individual item (so if there are 4 items, 'comparison.groups' must contain exactly 4 separate objects). For each object: Set "groupName" to the specific product name (e.g., "Mr. Bread Whole Wheat"), set "scoutItemIndices" to an array containing only that single item's index (e.g., [2]), and use "pros" and "cons" to analyze that specific item alone.
   * BUCKET MODE (> 5 items): Only trigger multi-item "Bucket Mode" when there are 6 or more items. In Bucket Mode, group items strictly by clinical threat or benefit, using the Evaluation Hierarchy rules defined above. Set "groupName" to a descriptive title targeting the specific threat or benefit (e.g., "Critical Sodium Warning (Acute)", "Safe for Lipid Profile").
-  * CLINICAL DIVERGENCE RULE: Even in Bucket Mode, never group items if they have different primary clinical threats (e.g., do not group a 'High Sugar' item with a 'High Sodium' item).
   * Set "scoutItemIndices" to an array of all shelf indices that contain those specific types of food.
   * CRITICAL MATH REQUIREMENT: When evaluating items that provide a 'rawNutritionLabel', you MUST multiply the per-serving nutrients by the total package 'estimatedWeightGrams' (divided by serving size) to determine the TOTAL nutritional payload. Your 'averageNutrients', 'pros', and 'cons' MUST reflect the TOTAL values for the whole package.
 
-- SPECIFICITY FOR PROS/CONS (STRICT): Your 'pros' and 'cons' descriptions for each group must be highly specific and driven strictly by the hierarchy.
-  * CLINICAL BLANKING: You do NOT have to fill both. If a group is clinically dangerous, set "pros" to "None for your clinical profile." Do not invent a "pro" (like praising protein) for a food that violates a high-risk biomarker or budget limit. If a group is perfectly healthy, set "cons" to "None."
   * NO AVERAGING EXTREMES: When grouping multiple items, you MUST use absolute ranges (e.g., '12g - 38g of sugar') rather than averages if there is a wide variance. Never use an average that masks a dangerous outlier. 
   * Set "topConcernNutrient" to the single nutrient defining that group's clinical threat or benefit.
   * Set "keyDifferentiator" to a short sentence contrasting this group against the others in the context of the patient's hierarchy threats.
@@ -511,19 +515,7 @@ Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing snac
   * Output the specific groups in comparison.groups. Rank the groups best-to-worst for this patient's specific biomarker and budget profile.
   * CRITICAL SYNTAX: Each element inside the comparison.groups array MUST be a complete JSON object enclosed in curly braces '{' and '}'. Never output bare keys or skip curly braces. The first property of each group object inside the curly braces MUST be "groupName".
   * For each group object, provide groupName, suitability, pros (MUST contain numeric macro values/ranges), cons (MUST contain numeric macro values/ranges), topConcernNutrient, keyDifferentiator, averageNutrients, and scoutItemIndices (or itemNames for text-only comparisons). OMIT the comparisonTable entirely.
-  * Inside each group, add an "itemClinicalThreats" map/object. This map MUST map each 'scoutItemIndex' to a specific clinical threat (e.g., {"0": "None", "1": "High Sugar", "3": "High Sodium"}). This allows the UI to display specific warnings even when items are grouped together.
-
-MODE F: FOOD ORIGIN LOOKUP
-Triggered ONLY when the user's query asks for details, origin, history, description, ingredients, or "Origin search" of specific food items (e.g., "Look up details and food origin for: ...", "Origin search: ...").
-- Do NOT expect an active meal image or try to log a meal.
-- Instead, act as an educational, experiential culinary encyclopedia.
-- For each selected food item in the "origins" array, you MUST provide:
-  * "origin": Historical origin country/region, cultural history, and traditional context.
-  * "howItIsCooked": Describe how this food is traditionally prepared, seasoned, and cooked.
-  * "whenItIsEaten": Describe the traditional occasions, festivals, meals (breakfast, street food), or cultural timing when this dish is typically consumed.
-  * "healthImpact": Analyze the clinical impact of this food relative to the patient's biomarkers and target top nutrients (e.g. Saturated Fat, Sodium, Calories), and give concrete dietary recommendations.
-  * "imageQueries": An array of 1 to 3 search queries to find real, vivid pictures of the food, ingredients, or prep (e.g. ["Tongkol Bakar grilled fish on plate", "Tongkol Bakar traditional preparation"]).
-- Set "mode": "origin". Populate the "origins" array. Set foodData and comparison to null.
+  * Inside each group, add an "itemClinicalThreats" array. Each entry MUST be an object {"scoutIndex": <number>, "threat": "<short label>"} covering every scoutItemIndex in that group (e.g., [{"scoutIndex": 0, "threat": "None"}, {"scoutIndex": 1, "threat": "High Sugar"}]). This allows the UI to display specific warnings even when items are grouped together.
 
 - RESOLVING VISUAL WARNINGS:
   If the user provides a text correction for a previously unclear visual item (e.g. they say "the unclear fish is ikan bandoneng"), you MUST update that specific item in the \`scoutItems\` array schema field. You must update its keyword, completely clear its anomaly flags, and upgrade its confidence to High. You must return the ENTIRE array including the unaffected items.
@@ -605,16 +597,7 @@ Respond ONLY with a structured JSON format matching this schema exactly.
       }
     ]
   },
-  "origins": [
-    {
-      "foodName": "Literal food name",
-      "origin": "Historical origin country/region and traditional context",
-      "howItIsCooked": "How it is traditionally cooked and prepared",
-      "whenItIsEaten": "Typical occasions or meals when it is eaten",
-      "healthImpact": "Clinical analysis and target biomarker recommendations",
-      "imageQueries": ["Query 1", "Query 2"]
-    }
-  ]
+
 }`;
 }
 
@@ -2546,9 +2529,17 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
                     description: "One short sentence contrasting this group against the other group(s)."
                   },
                   itemClinicalThreats: {
-                    type: Type.OBJECT,
+                    type: Type.ARRAY,
                     nullable: true,
-                    description: "A map/object mapping each 'scoutItemIndex' to a specific clinical threat description (e.g., {'0': 'None', '1': 'High Sugar', '3': 'High Sodium'})."
+                    description: "One entry per scout item in this group, describing its specific clinical threat.",
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        scoutIndex: { type: Type.INTEGER, description: "The scoutItemIndex this threat applies to." },
+                        threat: { type: Type.STRING, description: "Short clinical threat label, e.g. 'High Sugar', 'None'." }
+                      },
+                      required: ["scoutIndex", "threat"]
+                    }
                   }
                 },
                 required: ["groupName", "scoutItemIndices", "suitability", "topConcernNutrient", "keyDifferentiator", "pros", "cons", "averageNutrients"]
@@ -2558,27 +2549,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
           required: ["keyNutrientConcern", "comparisonTitle", "auditChecklist", "groups"],
           nullable: true
         },
-        origins: {
-          type: Type.ARRAY,
-          nullable: true,
-          description: "For origin mode only: list of detailed historical food origin lookup results.",
-          items: {
-            type: Type.OBJECT,
-            properties: {
-              foodName: { type: Type.STRING },
-              origin: { type: Type.STRING, description: "Historical origin country/region and traditional context" },
-              howItIsCooked: { type: Type.STRING, description: "How it is traditionally cooked and prepared" },
-              whenItIsEaten: { type: Type.STRING, description: "Typical occasions or meals when it is eaten" },
-              healthImpact: { type: Type.STRING, description: "Clinical analysis and target biomarker recommendations" },
-              imageQueries: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: "List of 1-3 Google search queries to find pictures of this food"
-              }
-            },
-            required: ["foodName", "origin", "howItIsCooked", "whenItIsEaten", "healthImpact", "imageQueries"]
-          }
-        },
+
         scoutItems: { 
           type: Type.ARRAY, 
           items: { type: Type.OBJECT }, 
@@ -2708,17 +2679,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
     ];
 
     // CASE F: food origin lookup mode
-    if (mode === "origin") {
-      addDebugLog(`[Mode Routing] ORIGIN mode triggered.`);
-      return res.json({
-        mode: "origin",
-        origins: rawParsed.origins || [],
-        text: rawParsed.message || "Here are the historical details and origins for your selection.",
-        message: rawParsed.message,
-        agentPrompt: fullPromptSent,
-        apiCalls
-      });
-    }
+
 
     // CASE B: discussion mode
     if (mode === "discussion") {
