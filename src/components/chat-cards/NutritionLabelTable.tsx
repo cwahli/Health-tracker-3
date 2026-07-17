@@ -4,10 +4,10 @@ import { nutrientDefinitions } from '../../utils/nutrition';
 
 export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: any[] }) {
   if (!activeScoutItems?.length) return null;
+  // Only `rawNutritionLabel` is gated on "a real physical panel is visible" — `nutritionFacts`
+  // is a general-purpose estimate field and must never be treated as evidence of a real label.
   const hasLabels = activeScoutItems.some(
-    (i: any) =>
-      (i.nutritionFacts && Object.keys(i.nutritionFacts).length > 0) ||
-      (i.rawNutritionLabel && Object.keys(i.rawNutritionLabel).length > 0)
+    (i: any) => i.rawNutritionLabel && Object.keys(i.rawNutritionLabel).length > 0
   );
 
   if (!hasLabels) return null;
@@ -30,7 +30,7 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
           {activeScoutItems.map((item: any, i: number) => {
             const hasRaw = item.rawNutritionLabel && Object.keys(item.rawNutritionLabel).length > 0;
             const hasNut = item.nutritionFacts && Object.keys(item.nutritionFacts).length > 0;
-            if (!hasRaw && !hasNut) return null;
+            if (!hasRaw) return null;
 
             const missingWeight = !item.estimatedWeightGrams || isNaN(Number(item.estimatedWeightGrams));
 

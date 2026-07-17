@@ -1,5 +1,5 @@
 # Health Cockpit App — AI Handover Document
-*Last updated: 2026-07-16 | Always check GitHub commits before starting any session*
+*Last updated: 2026-07-17 | Always check GitHub commits before starting any session*
 
 ## 1. Source of Truth
 - **Live codebase:** https://github.com/cwahli/Health-tracker-2
@@ -86,6 +86,9 @@ There is NO gemini-2.5-flash. Always default to Flash Lite.
 ## 7. Task Queue
 Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Session Log).
 ### P0 — Critical
+- [ ] **Fix: "View Nutrition Labels" false positive + adaptive-density Vision Scout bounding boxes**
+  Two bugs, exact find-and-replace instructions in `URGENT_FIX_2026-07-17.md` (repo root — read it in full before starting): (1) `NutritionLabelTable.tsx` treats `nutritionFacts` as evidence of a real printed label, so the "View Nutrition Labels" dropdown appears on plain menu photos with no physical label. Fix restricts the check to `rawNutritionLabel` only. (2) Vision Scout prompt in `server.ts` switches to a fragile pipe-delimited `compactSpreadsheet` text format above 15 items, which loses/defaults bounding boxes. Replaced with an adaptive-density prompt that always emits structured `items[]` (individual boxes below 15 items, category-block/cluster boxes above 15), works from 2–100 items, and adds an `ingredientsList` field for Komposisi transcription. Follow the fix doc exactly — do not deviate, do not touch any file/line not listed in it.
+  Model: gemini-3.5-flash-lite for the two `NutritionLabelTable.tsx` edits, gemini-3.5-flash for the `server.ts` prompt replacement.
 - [x] **Fix: Food weight schema integers + USDA extraction + Map priority**
   Enforce Type.INTEGER on all weight schema fields to stop runaway float decimals. Update USDA search insertion to use extractUSDANutrientsPer100g to fix zero-value fields (protein, sat fat, sodium). Prioritize dbMatchMap lookup over the matches array in server.ts.
   Model: gemini-3.5-flash
