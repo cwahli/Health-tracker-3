@@ -78,6 +78,7 @@ interface FoodScoutItemPreviewProps {
   isSearchMode?: boolean;
   searchMode?: "light" | "complete";
   prefetchedSrc?: string;
+  clinicalThreat?: string;
 }
 export const FoodScoutItemPreview: React.FC<FoodScoutItemPreviewProps> = ({
   name,
@@ -90,7 +91,8 @@ export const FoodScoutItemPreview: React.FC<FoodScoutItemPreviewProps> = ({
   isActive = false,
   isSearchMode = false,
   searchMode = "light",
-  prefetchedSrc
+  prefetchedSrc,
+  clinicalThreat
 }) => {
   return (
     <div className="flex flex-col items-center gap-1.5 w-full text-center">
@@ -128,6 +130,26 @@ export const FoodScoutItemPreview: React.FC<FoodScoutItemPreviewProps> = ({
       }`}>
         {name}
       </span>
+      {clinicalThreat && clinicalThreat.toLowerCase() !== 'none' && (() => {
+        const t = clinicalThreat.toLowerCase();
+        let bg = "bg-rose-50 dark:bg-rose-950/25 border border-rose-200/30";
+        let text = "text-rose-700 dark:text-rose-400";
+        let icon = "⚠️";
+        if (t.includes('safe') || t.includes('no threat') || t.includes('healthy')) {
+          bg = "bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/30";
+          text = "text-emerald-700 dark:text-emerald-400";
+          icon = "✓";
+        } else if (t.includes('caution') || t.includes('moderate') || t.includes('medium')) {
+          bg = "bg-amber-50 dark:bg-amber-950/20 border border-amber-200/30";
+          text = "text-amber-700 dark:text-amber-400";
+          icon = "⚠️";
+        }
+        return (
+          <div className={`px-1.5 py-0.5 rounded text-[8.5px] font-bold inline-block max-w-full truncate ${bg} ${text}`} title={clinicalThreat}>
+            {icon} {clinicalThreat}
+          </div>
+        );
+      })()}
     </div>
   );
 };

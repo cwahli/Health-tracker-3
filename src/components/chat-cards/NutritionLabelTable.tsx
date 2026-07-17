@@ -2,19 +2,92 @@ import React from 'react';
 import { Camera, Search } from 'lucide-react';
 import { nutrientDefinitions } from '../../utils/nutrition';
 
-export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: any[] }) {
+function normalizeNutritionKeys(obj: any) {
+  if (!obj || typeof obj !== 'object') return obj;
+  const normalized: any = {};
+  
+  // Mapping of variation to standard camelCase keys
+  const keyMapping: { [key: string]: string } = {
+    'calories': 'calories', 'energy': 'calories', 'energi': 'calories', 'energitotal': 'calories', 'energi total': 'calories',
+    'totalfat': 'totalFat', 'lemaktotal': 'totalFat', 'lemak total': 'totalFat',
+    'saturatedfat': 'saturatedFat', 'lemakjenuh': 'saturatedFat', 'lemak jenuh': 'saturatedFat',
+    'saturatedfatenergy': 'saturatedFatEnergy', 'energidarilemakjenuh': 'saturatedFatEnergy',
+    'energyfromfat': 'energyFromFat', 'energidarilemak': 'energyFromFat',
+    'totalcarbohydrate': 'totalCarbohydrate', 'totalcarbs': 'totalCarbohydrate', 'karbohidrat': 'totalCarbohydrate', 'karbohidrattotal': 'totalCarbohydrate', 'karbohidrat total': 'totalCarbohydrate',
+    'sugar': 'sugar', 'gula': 'sugar', 'gulatotal': 'sugar', 'gula total': 'sugar',
+    'salt': 'salt', 'garam': 'salt', 'sodium': 'salt', 'natrium': 'salt',
+    'protein': 'protein',
+    'servingsize': 'servingSize', 'takaransaji': 'servingSize', 'takaran saji': 'servingSize',
+    'servingspercontainer': 'servingsPerContainer', 'jumlahsajianperkemasan': 'servingsPerContainer', 'sajianperkemasan': 'servingsPerContainer', 'sajian per kemasan': 'servingsPerContainer'
+  };
+
+  Object.keys(obj).forEach(k => {
+    const cleanKey = k.toLowerCase().replace(/_/g, '').replace(/-/g, '').trim();
+    const standardKey = keyMapping[cleanKey] || k;
+    normalized[standardKey] = obj[k];
+  });
+  
+  return normalized;
+}
+
+export function NutritionLabelTable({ activeScoutItems, onConfirmItem }: { activeScoutItems: any[], onConfirmItem?: (idx: any) => void }) {
   if (!activeScoutItems?.length) return null;
   // Only `rawNutritionLabel` is gated on "a real physical panel is visible" — `nutritionFacts`
   // is a general-purpose estimate field and must never be treated as evidence of a real label.
-  const hasLabels = activeScoutItems.some(
-    (i: any) => i.rawNutritionLabel && Object.keys(i.rawNutritionLabel).length > 0
-  );
+  const processedItems = activeScoutItems.map(item => {
+    if (!item) return item;
+    let parsedRaw = item.rawNutritionLabel;
+    if (typeof parsedRaw === 'string') {
+      try { parsedRaw = JSON.parse(parsedRaw.replace(/'/g, '"')); } catch (e) { parsedRaw = null; }
+    }
+    let parsedFacts = item.nutritionFacts;
+    if (typeof parsedFacts === 'string') {
+      try { parsedFacts = JSON.parse(parsedFacts.replace(/'/g, '"')); } catch (e) { parsedFacts = null; }
+    }
+    
+    let autoCorrectedCalories = item.autoCorrectedCalories || false;
+    let originalCalories = item.originalCalories || null;
+    let correctedRaw = normalizeNutritionKeys(parsedRaw);
+    let correctedFacts = normalizeNutritionKeys(parsedFacts);
+    
+    // Check if anomalyFlags indicate calorie correction
+    if (item.anomalyFlags && Array.isArray(item.anomalyFlags)) {
+      const calorieFlag = item.anomalyFlags.find((f: string) => f.includes("calories mathematically auto-corrected from"));
+      if (calorieFlag) {
+        autoCorrectedCalories = true;
+        const match = calorieFlag.match(/from (\d+(?:\.\d+)?) to/);
+        if (match) {
+          originalCalories = match[1];
+        }
+      }
+    }
+    
+    return { 
+      ...item, 
+      rawNutritionLabel: correctedRaw, 
+      nutritionFacts: correctedFacts,
+      autoCorrectedCalories,
+      originalCalories
+    };
+  });
+
+  const hasLabels = processedItems.some((item: any) => {
+    if (!item || !item.rawNutritionLabel || typeof item.rawNutritionLabel !== 'object') {
+      return false;
+    }
+    const keys = Object.keys(item.rawNutritionLabel);
+    if (keys.length === 0) return false;
+    return keys.some(k => {
+      const val = item.rawNutritionLabel[k];
+      return val !== undefined && val !== null && val !== '' && val !== '-' && val !== '--';
+    });
+  });
 
   if (!hasLabels) return null;
 
   return (
     <div className="mt-2 text-left pt-1 font-sans">
-      <details className="group [&_summary::-webkit-details-marker]:hidden">
+      <details className="group [&_summary::-webkit-details-marker]:hidden" open>
         <summary className="flex items-center gap-1.5 cursor-pointer text-[10px] font-bold text-indigo-600 dark:text-indigo-400 select-none">
           <span>View Nutrition Labels</span>
           <svg
@@ -27,7 +100,7 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
           </svg>
         </summary>
         <div className="mt-2 space-y-3 pl-2 border-l-2 border-indigo-100 dark:border-indigo-900/30">
-          {activeScoutItems.map((item: any, i: number) => {
+          {processedItems.map((item: any, i: number) => {
             const hasRaw = item.rawNutritionLabel && Object.keys(item.rawNutritionLabel).length > 0;
             const hasNut = item.nutritionFacts && Object.keys(item.nutritionFacts).length > 0;
             if (!hasRaw) return null;
@@ -73,6 +146,15 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                       {item.rawNutritionLabel?.servingSize || item.nutritionFacts?.servingSize}
                     </div>
                   )}
+                  {((item.rawNutritionLabel?.servingsPerContainer !== undefined && item.rawNutritionLabel?.servingsPerContainer !== null) || 
+                    (item.nutritionFacts?.servingsPerContainer !== undefined && item.nutritionFacts?.servingsPerContainer !== null)) && (
+                    <div className="font-medium text-slate-700 dark:text-slate-300">
+                      <span className="text-slate-400 font-normal">Servings Per Container:</span>{' '}
+                      {item.rawNutritionLabel?.servingsPerContainer !== undefined && item.rawNutritionLabel?.servingsPerContainer !== null 
+                        ? item.rawNutritionLabel.servingsPerContainer 
+                        : item.nutritionFacts?.servingsPerContainer}
+                    </div>
+                  )}
                 </div>
 
                 <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700/50">
@@ -83,10 +165,10 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                           Nutrient
                         </th>
                         <th className="py-1.5 px-2 font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
-                          Original Label
+                          Original
                         </th>
                         <th className="py-1.5 px-2 font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50 whitespace-nowrap">
-                          Total value {missingWeight ? '(N/A)' : `(${item.estimatedWeightGrams}g)`}
+                          Total
                         </th>
                       </tr>
                     </thead>
@@ -101,6 +183,8 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                           const match = String(originalVal).match(/[\d.]+/);
                           if (match) numVal = parseFloat(match[0]);
                         }
+                        
+                        const isServingField = k.toLowerCase().includes('serving');
                         
                         let totalStr = '-';
                         if (numVal !== null && !missingWeight) {
@@ -120,19 +204,23 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                           
                           const total = (numVal * multiplier).toFixed(1).replace(/\.0$/, '');
                           const nutDef = nutrientDefinitions.find((n: any) => n.key.toLowerCase() === k.toLowerCase());
-                          const defaultUnit = k.toLowerCase().includes('calories') ? 'kcal' : (nutDef ? nutDef.unit : 'g');
+                          const defaultUnit = k.toLowerCase().includes('calories') ? 'kcal' : (isServingField ? '' : (nutDef ? nutDef.unit : 'g'));
                           const unit = String(originalVal).replace(/[\d.\s]/g, '') || defaultUnit;
-                          totalStr = `${total}${unit}`;
+                          if (isServingField) {
+                            totalStr = '-';
+                          } else {
+                            totalStr = `${total}${unit}`;
+                          }
                         }
 
                         let originalDisplay = '-';
                         if (originalVal !== undefined && originalVal !== null) {
                           const hasUnit = /[a-zA-Z%]/.test(String(originalVal));
-                          if (hasUnit) {
+                          if (hasUnit && !isServingField) {
                             originalDisplay = String(originalVal);
                           } else {
                             const nutDef = nutrientDefinitions.find((n: any) => n.key.toLowerCase() === k.toLowerCase());
-                            const defaultUnit = k.toLowerCase().includes('calories') ? 'kcal' : (nutDef ? nutDef.unit : 'g');
+                            const defaultUnit = k.toLowerCase().includes('calories') ? 'kcal' : (isServingField ? '' : (nutDef ? nutDef.unit : 'g'));
                             originalDisplay = `${originalVal}${defaultUnit}`;
                           }
                         }
@@ -142,8 +230,22 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                             <td className="py-1.5 px-2 font-medium text-slate-700 dark:text-slate-300 capitalize">
                               {k.replace(/([A-Z])/g, ' $1').trim()}
                             </td>
-                            <td className="py-1.5 px-2 text-slate-600 dark:text-slate-400">
-                              {originalDisplay}
+                            <td className="py-1.5 px-2 text-slate-600 dark:text-slate-400 relative group/tooltip">
+                              <div className="flex items-center gap-1">
+                                {originalDisplay}
+                                {k.toLowerCase().includes('calories') && item.autoCorrectedCalories && (
+                                  <div className="relative z-50">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500 cursor-help">
+                                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+                                      <path d="M12 9v4"></path>
+                                      <path d="M12 17h.01"></path>
+                                    </svg>
+                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none whitespace-normal min-w-[200px] w-max max-w-[250px] p-2 bg-slate-800 text-white text-[10px] rounded shadow-lg text-center">
+                                      Received abnormal value of {item.originalCalories} kcal which deviated &gt;20% from calculation (Fat×9 + Carbs×4 + Protein×4). Auto-corrected to {originalDisplay}.
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
                             </td>
                             <td className="py-1.5 px-2 text-indigo-600 dark:text-indigo-400 font-bold">
                               {totalStr}
@@ -154,6 +256,13 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                     </tbody>
                   </table>
                 </div>
+
+                {item.ingredientsList && (
+                  <div className="mt-2.5 p-2 bg-slate-100/60 dark:bg-slate-800/40 rounded-lg text-[9.5px] leading-normal border border-slate-200/40 dark:border-slate-700/30 text-left">
+                    <span className="font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1 text-[8.5px]">📋 Ingredients / Komposisi:</span>
+                    <span className="text-slate-700 dark:text-slate-300 font-normal">{item.ingredientsList}</span>
+                  </div>
+                )}
 
                 {showWarning && (
                   <div className="mt-2 flex flex-col gap-1.5 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/50 rounded-lg p-2 font-sans">
@@ -180,12 +289,21 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                         Correct Item
                       </button>
                       <button 
-                        onClick={() => { document.getElementById('food-chat-input')?.focus(); }} 
+                        onClick={() => { 
+                          if (onConfirmItem) {
+                            onConfirmItem(item.scoutIndex ?? i);
+                          }
+                        }} 
                         className="flex-1 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all text-center"
                       >
-                        Upload New Photo
+                        This is correct
                       </button>
                     </div>
+                  </div>
+                )}
+                {item._preservedAnomalyFlags && item._preservedAnomalyFlags.length > 0 && (
+                  <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400 font-sans px-1">
+                    Note: {item._preservedAnomalyFlags.join(', ')}
                   </div>
                 )}
               </div>

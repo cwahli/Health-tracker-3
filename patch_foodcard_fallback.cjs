@@ -1,57 +1,25 @@
 const fs = require('fs');
-let code = fs.readFileSync('src/components/chat-cards/FoodCard.tsx', 'utf8');
+let content = fs.readFileSync('src/components/chat-cards/FoodCard.tsx', 'utf8');
 
-const targetStr = `  if (error) {
-    return (
-      <img 
-        src={baseImageSrc} 
-        alt={alt} 
-        className={className}
-        referrerPolicy="no-referrer"
-        onClick={onTap}
-      />
-    );
-  }`;
+const replacement = `                                {(() => {
+                                  let groupScoutItems = (group.scoutItemIndices && group.scoutItemIndices.length > 0)
+                                    ? group.scoutItemIndices.map((i: number) => activeScoutItems[i]).filter(Boolean)
+                                    : [];
+                                  
+                                  if (groupScoutItems.length === 0 && group.items && group.items.length > 0) {
+                                    groupScoutItems = activeScoutItems.filter(s => {
+                                      return group.items.some((gi: any) => 
+                                        gi.name === s.keyword || 
+                                        gi.name === s.originalName ||
+                                        (gi.name && s.keyword && gi.name.toLowerCase().includes(s.keyword.toLowerCase()))
+                                      );
+                                    });
+                                  }
+                                    
+                                  if (groupScoutItems.length > 0) {
+                                    return <NutritionLabelTable activeScoutItems={groupScoutItems} />;
+                                  }`;
 
-const newCode = `  if (error) {
-    if (!boundingBox || boundingBox.length !== 4) {
-      return (
-        <img 
-          src={baseImageSrc} 
-          alt={alt} 
-          className={className}
-          referrerPolicy="no-referrer"
-          onClick={onTap}
-        />
-      );
-    }
-    const [ymin, xmin, ymax, xmax] = boundingBox;
-    const top = ymin / 10;
-    const left = xmin / 10;
-    const height = Math.max((ymax - ymin) / 10, 1);
-    const width = Math.max((xmax - xmin) / 10, 1);
-    const scaleX = 100 / width;
-    const scaleY = 100 / height;
-    
-    return (
-      <div className={\`overflow-hidden relative \${className || ''}\`} onClick={onTap} title={alt}>
-        <img 
-          src={baseImageSrc} 
-          alt={alt}
-          referrerPolicy="no-referrer"
-          className="absolute max-w-none"
-          style={{
-            top: \`-\${top * scaleY}%\`,
-            left: \`-\${left * scaleX}%\`,
-            width: \`\${100 * scaleX}%\`,
-            height: \`\${100 * scaleY}%\`,
-            objectFit: 'fill'
-          }}
-        />
-      </div>
-    );
-  }`;
-
-code = code.replace(targetStr, newCode);
-fs.writeFileSync('src/components/chat-cards/FoodCard.tsx', code);
-console.log('FoodCard fallback patched');
+content = content.replace(/\{\(\(\) => \{\s*const groupScoutItems = \(group\.scoutItemIndices && group\.scoutItemIndices\.length > 0\)\s*\? group\.scoutItemIndices\.map\(\(i: number\) => activeScoutItems\[i\]\)\.filter\(Boolean\)\s*: \[\];\s*if \(groupScoutItems\.length > 0\) \{\s*return <NutritionLabelTable activeScoutItems=\{groupScoutItems\} \/>;\s*\}/, replacement);
+fs.writeFileSync('src/components/chat-cards/FoodCard.tsx', content);
+console.log("Replaced with regex");

@@ -155,7 +155,7 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
       });
       return {
         queryId: qid,
-        displayNumber: sortedQueryIds.length - idx,
+        displayNumber: idx + 1,
         events: queryEvents,
         duration: durationStr,
         counts,
@@ -361,7 +361,7 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
                       </h4>
                       <p className="text-[10px] text-slate-450 font-medium mt-0.5 flex items-center gap-1.5">
                         <Clock className="w-3.5 h-3.5" />
-                        <span>Started {new Date(group.firstTimestamp).toLocaleString()}</span>
+                        <span>Started {new Date(group.firstTimestamp).toLocaleString([], { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</span>
                         <span>•</span>
                         <span>Duration: {group.duration}</span>
                       </p>
@@ -382,12 +382,50 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
                   {/* List of query events */}
                   <div className="divide-y divide-slate-800/40">
                     {group.events.map((e, idx) => (
-                      <div key={idx} className="py-2.5 flex items-center justify-between text-xs gap-3">
+                      <div key={idx} className="py-2.5 flex items-start justify-between text-xs gap-3">
                         <div className="flex items-start gap-3">
-                          <span className="font-mono text-[10px] text-slate-500 pt-0.5">{new Date(e.timestamp).toLocaleTimeString()}</span>
-                          <div>
-                            <span className="block font-semibold text-slate-200">{e.label}</span>
-                            <span className="text-[9.5px] font-bold text-slate-450 uppercase tracking-wider">{e.type.replace('_', ' ')}</span>
+                          <span className="font-mono text-[10px] text-slate-500 pt-0.5 shrink-0">{new Date(e.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false })}</span>
+                          <div className="flex flex-col gap-0.5">
+                            <span className="block font-semibold text-slate-200 leading-snug">{e.label}</span>
+                            <div className="flex items-center gap-1.5">
+                              {(() => {
+                                let badgeClass = "text-slate-450 bg-slate-900/40 border border-slate-800/60";
+                                if (e.type === 'gemini') {
+                                  badgeClass = "text-indigo-400 bg-indigo-950/40 border border-indigo-800/40";
+                                } else if (e.type === 'usda') {
+                                  badgeClass = "text-amber-400 bg-amber-950/40 border border-amber-800/40";
+                                } else if (e.type === 'brave') {
+                                  badgeClass = "text-sky-400 bg-sky-950/40 border border-sky-800/40";
+                                } else if (e.type === 'unsplash') {
+                                  badgeClass = "text-emerald-400 bg-emerald-950/40 border border-emerald-800/40";
+                                } else if (e.type === 'wikipedia') {
+                                  badgeClass = "text-green-400 bg-green-950/40 border border-green-800/40";
+                                } else if (e.type === 'firebase_read') {
+                                  badgeClass = "text-blue-350 bg-blue-950/30 border border-blue-900/30";
+                                } else if (e.type === 'firebase_write') {
+                                  badgeClass = "text-orange-400 bg-orange-950/30 border border-orange-900/30";
+                                } else if (e.type === 'firebase_delete') {
+                                  badgeClass = "text-rose-400 bg-rose-950/30 border border-rose-900/30";
+                                }
+                                return (
+                                  <span className={`inline-flex items-center px-1.5 py-0.5 text-[8.5px] font-extrabold uppercase tracking-wider rounded border ${badgeClass}`}>
+                                    {e.type.replace('_', ' ')}
+                                  </span>
+                                );
+                              })()}
+                              {e.type === 'gemini' && (() => {
+                                const modelMatch = e.label.match(/\(([^)]*gemini[^)]*)\)/i);
+                                if (modelMatch) {
+                                  return (
+                                    <span className="inline-flex items-center gap-1 text-[9px] font-bold text-violet-400 bg-violet-950/40 border border-violet-800/40 px-1.5 py-0.5 rounded-full">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-violet-500 shrink-0" />
+                                      {modelMatch[1]}
+                                    </span>
+                                  );
+                                }
+                                return null;
+                              })()}
+                            </div>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">

@@ -297,16 +297,40 @@ export const FoodCard: React.FC<AgentCardProps & {
   const [groupExpanded, setGroupExpanded] = React.useState<Record<string, boolean>>({});
   const [showTranslations, setShowTranslations] = React.useState<Record<string, boolean>>({});
   const [warningsDismissed, setWarningsDismissed] = React.useState(false);
+  const [reviewsOpen, setReviewsOpen] = React.useState<boolean>(true);
+
+  const [confirmedScoutIndices, setConfirmedScoutIndices] = React.useState<Set<number>>(new Set());
 
   const activeScoutItems = React.useMemo(() => {
-    if (msg.data?.agentResult?.scoutData?.items && Array.isArray(msg.data.agentResult.scoutData.items)) return msg.data.agentResult.scoutData.items;
-    if (msg.data?.scoutData?.items && Array.isArray(msg.data.scoutData.items)) return msg.data.scoutData.items;
-    if (msg.data?.scoutItems && msg.data.scoutItems.length > 0) return msg.data.scoutItems;
-    for (let mIdx = (messages ? messages.length - 1 : -1); mIdx >= 0; mIdx--) {
-      if (messages[mIdx].data?.scoutItems && messages[mIdx].data.scoutItems.length > 0) return messages[mIdx].data.scoutItems;
+    let items = [];
+    if (msg.data?.agentResult?.scoutData?.items && Array.isArray(msg.data.agentResult.scoutData.items)) items = msg.data.agentResult.scoutData.items;
+    else if (msg.data?.scoutData?.items && Array.isArray(msg.data.scoutData.items)) items = msg.data.scoutData.items;
+    else if (msg.data?.scoutItems && msg.data.scoutItems.length > 0) items = msg.data.scoutItems;
+    else {
+      for (let mIdx = (messages ? messages.length - 1 : -1); mIdx >= 0; mIdx--) {
+        if (messages[mIdx].data?.scoutItems && messages[mIdx].data.scoutItems.length > 0) {
+          items = messages[mIdx].data.scoutItems;
+          break;
+        }
+      }
     }
-    return [];
-  }, [msg.data, messages]);
+    
+    if (confirmedScoutIndices.size > 0) {
+      return items.map((item: any, i: number) => {
+        if (confirmedScoutIndices.has(i) || confirmedScoutIndices.has(item.scoutIndex)) {
+          return {
+            ...item,
+            itemConfidence: 'High',
+            _preservedAnomalyFlags: item.anomalyFlags,
+            anomalyFlags: []
+          };
+        }
+        return item;
+      });
+    }
+    
+    return items;
+  }, [msg.data, messages, confirmedScoutIndices]);
 
   // Selection hooks for Card-Wide Multi-Select
   const [_isSelectingMode, _setIsSelectingMode] = React.useState<boolean>(false);
@@ -732,7 +756,14 @@ export const FoodCard: React.FC<AgentCardProps & {
                                        )}
                                      </div>
                                      {(item.itemConfidence?.toLowerCase().includes('low') || item.itemConfidence?.toLowerCase().includes('medium')) && (
-                                       <div className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white rounded-full w-4 h-4 flex items-center justify-center shadow-sm z-10">
+                                       <div 
+                                         onClick={(e) => {
+                                           e.stopPropagation();
+                                           setReviewsOpen(true);
+                                         }}
+                                         className="absolute -top-1.5 -right-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-full w-4 h-4 flex items-center justify-center shadow-sm z-10 cursor-pointer hover:scale-110 transition-transform"
+                                         title="Show low confidence identification panel"
+                                       >
                                          <span className="text-[10px] font-bold">!</span>
                                        </div>
                                      )}
@@ -751,12 +782,19 @@ export const FoodCard: React.FC<AgentCardProps & {
                            </div>
 
                            {/* Uncertain Items Helper Button */}
-                           {activeScoutItems.some((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0)) && (
-                             <div className="mt-2 flex flex-col gap-1.5 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/50 rounded-lg p-2 font-sans">
-                               <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400">
+                           {reviewsOpen && activeScoutItems.some((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0)) && (
+                             <div className="mt-2 flex flex-col gap-1.5 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/50 rounded-lg p-2 font-sans relative">
+                               <button 
+                                 onClick={() => setReviewsOpen(false)}
+                                 className="absolute top-1.5 right-1.5 text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 p-0.5 rounded-full hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors"
+                                 title="Close panel"
+                               >
+                                 <X className="w-3.5 h-3.5" />
+                               </button>
+                               <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400 pr-6">
                                  <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                  <div className="flex flex-col">
-                                   <span className="text-[11px] font-bold leading-tight">Items in Review:</span>
+                                   <span className="text-[11px] font-bold leading-tight">Low confidence identification</span>
                                    <span className="text-[10px] font-medium leading-tight">
                                      {activeScoutItems
                                         .filter((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0))
@@ -773,10 +811,13 @@ export const FoodCard: React.FC<AgentCardProps & {
                                    Correct Item
                                  </button>
                                  <button 
-                                   onClick={() => { document.getElementById('food-chat-input')?.focus(); }} 
+                                   onClick={() => { 
+                                      const idx = activeScoutItems[0]?.scoutIndex ?? 0;
+                                      setConfirmedScoutIndices(prev => new Set([...prev, idx]));
+                                   }} 
                                    className="flex-1 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all text-center"
                                  >
-                                   Upload New Photo
+                                   This is correct
                                  </button>
                                </div>
                              </div>
@@ -784,6 +825,13 @@ export const FoodCard: React.FC<AgentCardProps & {
                         </div>
                       )}
 
+                      {(msg.content || msg.data?.agentResult?.message) && (
+                        <div className="text-[11.5px] text-slate-700 dark:text-slate-300 font-sans leading-relaxed text-left pb-3 whitespace-pre-line break-words">
+                          {typeof (msg.content || msg.data?.agentResult?.message) === 'object' 
+                            ? JSON.stringify(msg.content || msg.data?.agentResult?.message) 
+                            : (msg.content || msg.data?.agentResult?.message)}
+                        </div>
+                      )}
 
                       {/* Foods Comparison Cards - Horizontally Scrollable (200px wide, borderless, separated by vertical dividers with 10px spacing) */}
                       <div className="flex gap-0 mt-2 overflow-x-auto pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full overscroll-x-contain">
@@ -793,15 +841,19 @@ export const FoodCard: React.FC<AgentCardProps & {
                           
                           let suitabilityClass = "text-slate-700 dark:text-slate-300";
                           let suitabilityBadgeBg = "bg-slate-100 dark:bg-slate-800";
-                          if (lowerSuit.includes('good') || lowerSuit.includes('safe') || lowerSuit.includes('best') || lowerSuit.includes('low risk')) {
-                            suitabilityClass = "text-emerald-700 dark:text-emerald-400";
-                            suitabilityBadgeBg = "bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50";
-                          } else if (lowerSuit.includes('moderate') || lowerSuit.includes('medium') || lowerSuit.includes('caution') || lowerSuit.includes('amber') || lowerSuit.includes('yellow')) {
-                            suitabilityClass = "text-amber-700 dark:text-amber-400";
-                            suitabilityBadgeBg = "bg-amber-50 dark:bg-amber-950/30 border border-amber-200/50";
-                          } else if (lowerSuit.includes('bad') || lowerSuit.includes('avoid') || lowerSuit.includes('high risk') || lowerSuit.includes('severe') || lowerSuit.includes('red')) {
+                          const isNegatedPositive = /not\s+(recommended|safe|good|best|low|least|safest|perfect)/i.test(lowerSuit);
+                          const isNegativeLeast = /least\s+(suitable|recommended|safe|good|healthy|beneficial|ideal)/i.test(lowerSuit);
+                          const isBetter = lowerSuit.includes('better') && !/better\s+to\s+avoid/i.test(lowerSuit);
+                          
+                          if (lowerSuit.includes('bad') || lowerSuit.includes('avoid') || lowerSuit.includes('high risk') || lowerSuit.includes('severe') || lowerSuit.includes('red') || lowerSuit.includes('strongly discouraged') || lowerSuit.includes('extremely harmful') || lowerSuit.includes('extremely') || lowerSuit.includes('discouraged') || isNegatedPositive || lowerSuit.includes('worst')) {
                             suitabilityClass = "text-rose-700 dark:text-rose-400";
                             suitabilityBadgeBg = "bg-rose-50 dark:bg-rose-950/30 border border-rose-200/50";
+                          } else if (lowerSuit.includes('moderate') || lowerSuit.includes('medium') || lowerSuit.includes('caution') || lowerSuit.includes('amber') || lowerSuit.includes('yellow') || lowerSuit.includes('acceptable') || lowerSuit.includes('limited') || lowerSuit.includes('occasional') || isNegativeLeast) {
+                            suitabilityClass = "text-amber-700 dark:text-amber-400";
+                            suitabilityBadgeBg = "bg-amber-50 dark:bg-amber-950/30 border border-amber-200/50";
+                          } else if (lowerSuit.includes('good') || lowerSuit.includes('safe') || lowerSuit.includes('best') || lowerSuit.includes('low risk') || lowerSuit.includes('least harmful') || lowerSuit.includes('safest') || lowerSuit.includes('recommended') || isBetter) {
+                            suitabilityClass = "text-emerald-700 dark:text-emerald-400";
+                            suitabilityBadgeBg = "bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200/50";
                           }
 
                           return (
@@ -821,44 +873,86 @@ export const FoodCard: React.FC<AgentCardProps & {
                                         {group.suitability.toUpperCase()}
                                       </div>
                                     )}
+                                    {group.topConcernNutrient && (
+                                      <div className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 uppercase tracking-wider text-[10px] font-bold px-2 py-0.5 rounded-md inline-block w-fit">
+                                        ⚠️ {group.topConcernNutrient}
+                                      </div>
+                                    )}
                                   </div>
+                                  {group.keyDifferentiator && (
+                                    <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug italic border-l-2 border-slate-200 dark:border-slate-700 pl-2">
+                                      {group.keyDifferentiator}
+                                    </p>
+                                  )}
                                 </div>
-                                {/* Group Hero Image: Use Vision Scout crop if available, otherwise fallback to online search */}
+                                {/* Group Hero Image: Use first associated item crop/image, otherwise fallback to online search */}
                                 <div className="w-full h-32 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 shadow-sm relative shrink-0">
                                   {(() => {
-                                    const scoutItemIdx = (group.scoutItemIndices && group.scoutItemIndices.length > 0)
-                                      ? group.scoutItemIndices[0]
-                                      : (activeScoutItems && activeScoutItems.length > 0 ? 0 : null);
-
-                                    const scoutItem = (scoutItemIdx !== null && activeScoutItems[scoutItemIdx]) 
-                                      ? activeScoutItems[scoutItemIdx] 
-                                      : null;
+                                    const firstItem = group.items?.[0];
                                     
-                                    if (scoutItem && scoutItemIdx !== null) {
-                                      const imgIdx = typeof scoutItem.sourceImageIndex === 'number' ? scoutItem.sourceImageIndex : 0;
-                                      const resolvedImgSrc = (messageImages.length > 0)
-                                        ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
-                                        : getFoodImageUrl(scoutItem.keyword);
-                                        
-                                      if (scoutItem.boundingBox2D) {
+                                    // Look back in messages history to find original uploads containing images
+                                    const historicalMsgWithImages = (() => {
+                                      const currentImgs = msg.data?.pendingFoodLog?.imageUrls || msg.data?.imageUrls || [];
+                                      if (currentImgs.length > 0) return msg;
+                                      if (messages) {
+                                        for (let mIdx = messages.length - 1; mIdx >= 0; mIdx--) {
+                                          const m = messages[mIdx];
+                                          const mImages = m.data?.pendingFoodLog?.imageUrls || m.data?.imageUrls || [];
+                                          if (mImages.length > 0) return m;
+                                        }
+                                      }
+                                      return null;
+                                    })();
+                                    const resolvedMessageImages = messageImages.length > 0 
+                                      ? messageImages 
+                                      : (historicalMsgWithImages?.data?.pendingFoodLog?.imageUrls || historicalMsgWithImages?.data?.imageUrls || []);
+                                    const resolvedScoutItems = msg.data?.scoutItems && msg.data.scoutItems.length > 0
+                                      ? msg.data.scoutItems
+                                      : (historicalMsgWithImages?.data?.scoutItems || []);
+
+                                    if (firstItem) {
+                                      // Find matching scout item
+                                      const matchingScout = (resolvedScoutItems || []).find((s: any) => 
+                                        (firstItem.name || "").toLowerCase().includes((s.keyword || "").toLowerCase()) || 
+                                        (s.keyword || "").toLowerCase().includes((firstItem.name || "").toLowerCase()) ||
+                                        (firstItem.name || "").toLowerCase().split(' ')[0] === (s.keyword || "").toLowerCase().split(' ')[0]
+                                      );
+                                      const imgIdx = typeof firstItem.sourceImageIndex === 'number' 
+                                        ? firstItem.sourceImageIndex 
+                                        : (matchingScout && typeof matchingScout.sourceImageIndex === 'number' ? matchingScout.sourceImageIndex : 0);
+                                      const resolvedImgSrc = (resolvedMessageImages.length > 0)
+                                        ? resolvedMessageImages[imgIdx >= 0 && imgIdx < resolvedMessageImages.length ? imgIdx : 0]
+                                        : getFoodImageUrl(firstItem.name, '');
+                                      const bb = firstItem.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null);
+
+                                      if (bb && bb.length === 4) {
+                                        const activeScoutIdx = activeScoutItems.findIndex((s: any) => s.keyword === (matchingScout?.keyword || firstItem.name));
                                         return (
                                           <CroppedFoodImage 
                                             src={resolvedImgSrc} 
-                                            boundingBox={scoutItem.boundingBox2D} 
-                                            alt={scoutItem.keyword} 
+                                            boundingBox={bb} 
+                                            alt={firstItem.name} 
                                             className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
-                                            imageUrls={messageImages}
+                                            imageUrls={resolvedMessageImages}
                                             sourceImageIndex={imgIdx}
-                                            onTap={() => setScoutPreviewIdx(scoutItemIdx)}
+                                            onTap={() => {
+                                              if (activeScoutIdx !== -1) {
+                                                setScoutPreviewIdx(activeScoutIdx);
+                                              } else {
+                                                setPreviewState({ groupIdx: idx, itemIdx: 0, resolvedImgSrc });
+                                              }
+                                            }}
                                           />
                                         );
                                       } else {
                                         return (
                                           <img 
                                             src={resolvedImgSrc} 
-                                            alt={scoutItem.keyword} 
+                                            alt={firstItem.name} 
                                             className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
-                                            onClick={() => setScoutPreviewIdx(scoutItemIdx)}
+                                            onClick={() => {
+                                              setPreviewState({ groupIdx: idx, itemIdx: 0, resolvedImgSrc });
+                                            }}
                                             onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format'; }}
                                           />
                                         );
@@ -877,13 +971,23 @@ export const FoodCard: React.FC<AgentCardProps & {
                                   })()}
                                 </div>
                                 
-                                {(() => {
-                                  const groupScoutItems = (group.scoutItemIndices && group.scoutItemIndices.length > 0)
+                                                                {(() => {
+                                  let groupScoutItems = (group.scoutItemIndices && group.scoutItemIndices.length > 0)
                                     ? group.scoutItemIndices.map((i: number) => activeScoutItems[i]).filter(Boolean)
                                     : [];
                                   
+                                  if (groupScoutItems.length === 0 && group.items && group.items.length > 0) {
+                                    groupScoutItems = activeScoutItems.filter(s => {
+                                      return group.items.some((gi: any) => 
+                                        gi.name === s.keyword || 
+                                        gi.name === s.originalName ||
+                                        (gi.name && s.keyword && gi.name.toLowerCase().includes(s.keyword.toLowerCase()))
+                                      );
+                                    });
+                                  }
+                                    
                                   if (groupScoutItems.length > 0) {
-                                    return <NutritionLabelTable activeScoutItems={groupScoutItems} />;
+                                    return <NutritionLabelTable activeScoutItems={groupScoutItems} onConfirmItem={(idx) => setConfirmedScoutIndices(prev => new Set(prev).add(idx))} />;
                                   }
 
                                   // No real scout items for this group (e.g. a text-only comparison with no
@@ -972,6 +1076,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                    {(() => {
                                      const scoutType = (msg.data?.scoutContentType || '').toLowerCase();
                                      const isMenuOrPoster = scoutType === 'text' || scoutType === 'menu_or_poster';
+                                     const isVisualOrPosted = scoutType === 'visual_or_posted';
                                      
                                      // Look back in messages history to find original uploads containing images
                                      const historicalMsgWithImages = (() => {
@@ -1008,13 +1113,13 @@ export const FoodCard: React.FC<AgentCardProps & {
                                        const bb = previewState?.overrideSrc ? null : (item.boundingBox2D || (matchingScout ? matchingScout.boundingBox2D : null));
                                        return { src: resolvedImgSrc, boundingBox: bb, foodName: item.name, imgIdx };
                                      });
-                                     // 2. Compute indices of text-only items (force for menu contentType or aspect ratio > 2.2 or height < 20)
+                                     // 2. Compute indices of text-only items (force for menu contentType or aspect ratio > 2.2 or height < 20, unless visual_or_posted)
                                      const textOnlyIndices = (group.items || []).map((item: any, itemIdx: number) => {
                                        const bb = groupPreviewItems[itemIdx]?.boundingBox;
                                        const height = bb ? Math.abs(bb[2] - bb[0]) : 0;
                                        const width = bb ? Math.abs(bb[3] - bb[1]) : 0;
                                        const aspect = height > 0 ? width / height : 0;
-                                       const isTextOnly = isMenuOrPoster || !bb || bb.length < 4 || aspect > 2.2 || height < 20;
+                                       const isTextOnly = !isVisualOrPosted && (isMenuOrPoster || !bb || bb.length < 4 || aspect > 2.2 || height < 20);
                                        return isTextOnly ? itemIdx : -1;
                                      }).filter(index => index !== -1);
                                       const hasTextOnlyItems = textOnlyIndices.length > 0;
@@ -1024,7 +1129,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                         const k = `${msg.id}-${idx}-${i}`;
                                         return showMenuImages[k] || !!onlineImageUrls[k];
                                       });
-                                      const isGridExpanded = hasDishesImages || showMenuImages[groupKey] || hasAnyMenuImage;
+                                      const isGridExpanded = hasDishesImages || showMenuImages[groupKey] || hasAnyMenuImage || isVisualOrPosted;
                                       const isSearchActive = !!searchModes[groupKey];
                                      const resultsForGroup = searchResults[groupKey] || [];
                                      const isLoadingForGroup = !!searchLoading[groupKey];
@@ -1116,7 +1221,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                         itemDisplayName = itemDisplayName.replace(/^\[.*?\]\s*/, '');
 
                                                         const itemKeyForCache = `${msg.id}-${idx}-${itemIdx}`;
-                                                        const shouldShowAsPreview = !isTextOnly || showMenuImages[groupKey] || showMenuImages[itemKeyForCache] || !!onlineImageUrls[itemKeyForCache];
+                                                        const shouldShowAsPreview = !isTextOnly || showMenuImages[groupKey] || showMenuImages[itemKeyForCache] || !!onlineImageUrls[itemKeyForCache] || isVisualOrPosted;
                                                         const finalSrc = onlineImageUrls[itemKeyForCache] || resolvedImgSrc;
 
                                                         const hasBeenSearched = !!onlineImageUrls[itemKeyForCache] || (searchResults[fullItemKey] && searchResults[fullItemKey].length > 0);
@@ -1137,9 +1242,55 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                           }
                                                         };
 
+                                                        const itemClinicalThreat = (() => {
+                                                          if (!group.itemClinicalThreats) return undefined;
+                                                          const matchingScoutIdx = activeScoutItems.findIndex((s: any) => 
+                                                            (item.name || "").toLowerCase().includes((s.keyword || "").toLowerCase()) || 
+                                                            (s.keyword || "").toLowerCase().includes((item.name || "").toLowerCase()) ||
+                                                            (item.name || "").toLowerCase().split(' ')[0] === (s.keyword || "").toLowerCase().split(' ')[0]
+                                                          );
+                                                          if (matchingScoutIdx !== -1 && group.itemClinicalThreats[matchingScoutIdx] !== undefined) {
+                                                            return group.itemClinicalThreats[matchingScoutIdx];
+                                                          }
+                                                          if (group.itemClinicalThreats[itemIdx] !== undefined) {
+                                                            return group.itemClinicalThreats[itemIdx];
+                                                          }
+                                                          if (group.itemClinicalThreats[item.name] !== undefined) {
+                                                            return group.itemClinicalThreats[item.name];
+                                                          }
+                                                          if (group.itemClinicalThreats[itemDisplayName] !== undefined) {
+                                                            return group.itemClinicalThreats[itemDisplayName];
+                                                          }
+                                                          if (matchingScoutIdx !== -1 && group.itemClinicalThreats[String(matchingScoutIdx)] !== undefined) {
+                                                            return group.itemClinicalThreats[String(matchingScoutIdx)];
+                                                          }
+                                                          if (group.itemClinicalThreats[String(itemIdx)] !== undefined) {
+                                                            return group.itemClinicalThreats[String(itemIdx)];
+                                                          }
+                                                          return undefined;
+                                                        })();
+
+                                                        const threatBadge = (() => {
+                                                          if (!itemClinicalThreat) return null;
+                                                          const t = String(itemClinicalThreat).toLowerCase();
+                                                          let bg = "bg-rose-50 dark:bg-rose-950/25 border border-rose-200/30";
+                                                          let text = "text-rose-700 dark:text-rose-400";
+                                                          let icon = "⚠️";
+                                                          if (t.includes('safe') || t.includes('no threat') || t.includes('healthy') || t.includes('none')) {
+                                                            bg = "bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200/30";
+                                                            text = "text-emerald-700 dark:text-emerald-400";
+                                                            icon = "✓";
+                                                          } else if (t.includes('caution') || t.includes('moderate') || t.includes('medium')) {
+                                                            bg = "bg-amber-50 dark:bg-amber-950/20 border border-amber-200/30";
+                                                            text = "text-amber-700 dark:text-amber-400";
+                                                            icon = "⚠️";
+                                                          }
+                                                          return { bg, text, icon };
+                                                        })();
+
                                                         const chipContent = !shouldShowAsPreview ? (
                                                           <div 
-                                                            className={`flex items-center justify-start p-2 rounded-xl border cursor-pointer shadow-sm transition-all duration-200 text-left min-h-[48px] px-3 w-full ${
+                                                            className={`flex flex-col justify-center p-2 rounded-xl border cursor-pointer shadow-sm transition-all duration-200 text-left min-h-[48px] px-3 w-full ${
                                                               isSelected 
                                                                 ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 ring-2 ring-indigo-500/50 shadow-md font-bold scale-[1.02]' 
                                                                 : isSelectingMode 
@@ -1148,14 +1299,21 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                             }`}
                                                             onClick={() => chipOnClick()}
                                                           >
-                                                            <span className={`text-[10.5px] lowercase font-semibold leading-tight break-words text-left ${isSelected ? 'text-indigo-700 dark:text-indigo-300 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
-                                                              {itemDisplayName}
-                                                              {(item.confidenceRating === 'Low' || item.confidenceRating === 'Medium') && (
-                                                                <div className="text-[9px] font-medium text-amber-600 dark:text-amber-400 mt-1 italic">
-                                                                  Low confidence: Please provide new picture or description.
+                                                            <div className="flex flex-col gap-1 w-full">
+                                                              <span className={`text-[10.5px] lowercase font-semibold leading-tight break-words text-left ${isSelected ? 'text-indigo-700 dark:text-indigo-300 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                                {itemDisplayName}
+                                                                {(item.confidenceRating === 'Low' || item.confidenceRating === 'Medium') && (
+                                                                  <span className="block text-[9px] font-medium text-amber-600 dark:text-amber-400 mt-1 italic">
+                                                                    Low confidence: Please provide new picture or description.
+                                                                  </span>
+                                                                )}
+                                                              </span>
+                                                              {itemClinicalThreat && threatBadge && (
+                                                                <div className={`px-1.5 py-0.5 rounded text-[8.5px] font-bold inline-block w-fit max-w-full truncate ${threatBadge.bg} ${threatBadge.text}`} title={itemClinicalThreat}>
+                                                                  {threatBadge.icon} {itemClinicalThreat}
                                                                 </div>
                                                               )}
-                                                            </span>
+                                                            </div>
                                                           </div>
                                                         ) : (
                                                           <FoodScoutItemPreview
@@ -1169,6 +1327,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                             searchMode="complete"
                                                             onClick={() => chipOnClick(onlineImageUrls[itemKeyForCache])}
                                                             prefetchedSrc={onlineImageUrls[itemKeyForCache]}
+                                                            clinicalThreat={itemClinicalThreat}
                                                           />
                                                         );
 
@@ -1409,6 +1568,8 @@ export const FoodCard: React.FC<AgentCardProps & {
                       {(() => {
                         const scoutType = (msg.data?.scoutContentType || '').toLowerCase();
                         const isMenuOrPoster = scoutType === 'text' || scoutType === 'menu_or_poster';
+                        const isVisualOrPosted = scoutType === 'visual_or_posted';
+                        const displayAsMenu = isMenuOrPoster && !isVisualOrPosted;
 
                         if (activeScoutItems.length === 0) return null;
                         return (
@@ -1441,9 +1602,9 @@ export const FoodCard: React.FC<AgentCardProps & {
                                 </span>
                               )}
                             </div>
-                             <div className={isMenuOrPoster ? "flex flex-wrap gap-2 pt-1 font-sans" : "flex gap-3 overflow-x-auto pt-2 pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full font-sans"}>
+                             <div className={displayAsMenu ? "flex flex-wrap gap-2 pt-1 font-sans" : "flex gap-3 overflow-x-auto pt-2 pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full font-sans"}>
                                {activeScoutItems.map((item: any, i: number) => {
-                                 if (isMenuOrPoster) {
+                                 if (displayAsMenu) {
                                    return (
                                      <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 text-slate-700 dark:text-slate-300">
                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
@@ -1490,7 +1651,14 @@ export const FoodCard: React.FC<AgentCardProps & {
                                        </div>
                                        {/* Warning Icon for Low/Medium Confidence - Moved OUTSIDE the overflow-hidden div */}
                                        {(item.itemConfidence?.toLowerCase().includes('low') || item.itemConfidence?.toLowerCase().includes('medium')) && (
-                                         <div className="absolute -top-1.5 -right-1.5 bg-amber-500 text-white rounded-full w-4 h-4 flex items-center justify-center shadow-sm z-10">
+                                         <div 
+                                           onClick={(e) => {
+                                             e.stopPropagation();
+                                             setReviewsOpen(true);
+                                           }}
+                                           className="absolute -top-1.5 -right-1.5 bg-amber-500 hover:bg-amber-600 text-white rounded-full w-4 h-4 flex items-center justify-center shadow-sm z-10 cursor-pointer hover:scale-110 transition-transform"
+                                           title="Show low confidence identification panel"
+                                         >
                                            <span className="text-[10px] font-bold">!</span>
                                          </div>
                                        )}
@@ -1510,12 +1678,19 @@ export const FoodCard: React.FC<AgentCardProps & {
                              </div>
                              
                              {/* Uncertain Items Helper Button */}
-                             {activeScoutItems.some((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0)) && (
-                               <div className="mt-2 flex flex-col gap-1.5 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/50 rounded-lg p-2 font-sans">
-                                 <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400">
+                             {reviewsOpen && activeScoutItems.some((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0)) && (
+                               <div className="mt-2 flex flex-col gap-1.5 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/50 rounded-lg p-2 font-sans relative">
+                                 <button 
+                                   onClick={() => setReviewsOpen(false)}
+                                   className="absolute top-1.5 right-1.5 text-amber-500 hover:text-amber-700 dark:hover:text-amber-300 p-0.5 rounded-full hover:bg-amber-100/50 dark:hover:bg-amber-900/30 transition-colors"
+                                   title="Close panel"
+                                 >
+                                   <X className="w-3.5 h-3.5" />
+                                 </button>
+                                 <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400 pr-6">
                                    <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                    <div className="flex flex-col gap-0.5">
-                                     <span className="text-[11px] font-bold leading-tight">Items in Review:</span>
+                                     <span className="text-[11px] font-bold leading-tight">Low confidence identification</span>
                                      {activeScoutItems
                                         .filter((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0))
                                         .map((i: any, reviewIdx: number) => (
@@ -1538,15 +1713,21 @@ export const FoodCard: React.FC<AgentCardProps & {
                                      Correct Item
                                    </button>
                                    <button 
-                                     onClick={() => { fileInputRef?.current?.click(); }} 
+                                     onClick={() => { 
+                                       const flaggedIndices = activeScoutItems
+                                         .map((i: any, idx: number) => ({ i, idx }))
+                                         .filter(({ i }: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0))
+                                         .map(({ i, idx }: any) => i.scoutIndex ?? idx);
+                                       setConfirmedScoutIndices(prev => new Set([...prev, ...flaggedIndices]));
+                                     }} 
                                      className="flex-1 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all text-center"
                                    >
-                                     Upload New Photo
+                                     This is correct
                                    </button>
                                  </div>
                                </div>
                              )}
-                             <NutritionLabelTable activeScoutItems={activeScoutItems} />
+                             <NutritionLabelTable activeScoutItems={activeScoutItems} onConfirmItem={(idx) => setConfirmedScoutIndices(prev => new Set(prev).add(idx))} />
                           </div>
                         );
                       })()}
@@ -1563,9 +1744,11 @@ export const FoodCard: React.FC<AgentCardProps & {
                         </div>
                       </div>
 
-                      {msg.content && (
+                      {(msg.content || msg.data?.agentResult?.message) && (
                         <div className="text-[11.5px] text-slate-700 dark:text-slate-300 font-sans leading-relaxed text-left py-2 border-b border-slate-100 dark:border-slate-800/50 whitespace-pre-line break-words">
-                          {typeof msg.content === 'object' ? JSON.stringify(msg.content) : msg.content}
+                          {typeof (msg.content || msg.data?.agentResult?.message) === 'object' 
+                            ? JSON.stringify(msg.content || msg.data?.agentResult?.message) 
+                            : (msg.content || msg.data?.agentResult?.message)}
                         </div>
                       )}
 

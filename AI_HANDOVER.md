@@ -89,6 +89,9 @@ Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Sessi
 - [x] **Fix (part 2): Mode D comparison-group rendering broke under category-block scout items**
   The part-1 adaptive-density Vision Scout prompt introduced category-block scout items (`estimatedWeightGrams: 0`, comma-separated multi-dish `originalName`). Three Mode D (evaluation/comparison) rendering paths assumed the old one-dish-per-scout-item shape and broke as a result. Exact find-and-replace instructions in `URGENT_FIX_2026-07-17-part2.md` (repo root): (1) `resolveComparisonGroups()` in `server.ts` now explodes a category block's comma-separated `originalName` into individual dish items instead of one giant merged chip. (2) `FoodCard.tsx`'s Mode D nutrient bar no longer multiplies `averageNutrients` by a weight-based scaling factor (was dividing by `estimatedWeightGrams: 0`, zeroing out every value) — `averageNutrients` is already a final total, not a per-100g figure. (3) `FoodCard.tsx` no longer fabricates a fake `rawNutritionLabel` from `averageNutrients` when a group has no matched scout items — that re-broke the part-1 "View Nutrition Labels" fix. Follow the fix doc exactly.
   Model: gemini-3.5-flash-lite for all 3 edits.
+- [x] **Fix: Dietitian agent anti-confusion clause**
+  Added a critical anti-confusion clause to the Dietitian agent's prompt to ensure it treats Scout indices as individual items even if they contain comma-separated names, preventing bucket mode mis-triggering.
+  Model: gemini-3.5-flash-lite
 - [x] **Fix (part 1): "View Nutrition Labels" false positive + adaptive-density Vision Scout bounding boxes**
   Verified applied correctly in commit `c8c985b` — `NutritionLabelTable.tsx` now gates on `rawNutritionLabel` only, and the Vision Scout prompt now always emits structured `items[]` with real bounding boxes from 2–100 items.
 - [x] **Fix: Food weight schema integers + USDA extraction + Map priority**
@@ -159,7 +162,6 @@ Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Sessi
 | 2026-07-12 | Updated LogChat comparison table styling to match the Clinical Calibration table style, and updated prompt schema to include Pros and Cons inside the table. | AI Studio (self-directed) |
 | 2026-07-12 | Began Chat Component Consolidation Strategy: created `agentConfig.ts` with AGENT_REGISTRY containing all 13 agents, refactored `LogChat.tsx` to accept AgentType and generate welcome messages dynamically from the registry. | AI Studio (self-directed) |
 | 2026-07-16 | Updated FoodCard: Grouped food by bracketed categories, fixed hero image name cleaning, and implemented expand/collapse interactions with eye-preview. | AI Studio (self-directed) |
-| 2026-07-17 | Fixed Mode D comparison-group rendering (exploded categories, removed fabricated labels, corrected nutrient bar scaling). | AI Studio (self-directed) |
 
 ## 10. LLM Gotchas & Lessons Learned
 ### Runaway Decimal Floats & Truncations
@@ -194,7 +196,12 @@ Solution: Always use the robust extractUSDANutrientsPer100g helper which uses .i
 - Found and fixed PII leak: `/api/gemini/daily-recommendation-chat` was embedding the raw, unfiltered `userProfile` (including email, lastUpdatedAt, deleted-ID arrays) into the Gemini prompt. Replaced with whitelisted `cleanProfile`.
 - This document was stale — last updated after commit `02ecd52`. Ten commits since then were undocumented. Future sessions: run `git log --oneline -20` first and reconcile against this file.
 
-### 2026-07-16 — Dynamic API & Agent Call Tracker Implementation
+### 2026-07-17 — Visual Scout Spatial Row Clustering & Dietitian Index Indivisibility
+- Updated the Vision Scout's High Density (`BRANCH B`) prompt in `server.ts` to implement **Spatial Row Clustering** for physical grocery shelves and image grids. Instead of extracting individual items that exceed the token or display budgets (which led to omitted items) or drawing a single giant bounding box (which triggered frontend duplicate crops), the Vision Scout now groups physical shelves and grids by spatial blocks/rows (e.g. "Top Shelf Snacks", "Middle Row Drinks") with a clear bounding box for each row and a comma-separated list of items.
+- Updated the Dietitian / Nutrition Agent's Mode D prompt in `server.ts` to enforce the **Index Indivisibility** rule. Since a physical bounding box (or Index) is structurally unbreakable in the UI crop, the Dietitian is now strictly forbidden from splitting items belonging to the same visual index across multiple groups.
+- Enforced strict index-based counting (counting distinct scout indices instead of originalName words) in the Dietitian grouping strategy prompt to reliably select between INDIVIDUAL MODE (8 or fewer indices, creating exactly one group mapping to one visual shelf/row) and BUCKET MODE (9 or more indices).
+- Verified clean syntax parsing and error-free compilation of the updated full-stack server application.
+
 - Replaced `src/utils/apiTracker.ts` with standard robust offline local storage tracking, dynamic user email resolution via Firebase Auth, and synchronization status indicators.
 - Created `src/components/ApiCallTrackerModal.tsx` containing an interactive daily summary dashboard, categorized diagnostic metrics (Gemini, USDA, Brave, Firebase operations), duration computation, query session grouping, and one-click cloud synchronization using batched Firestore writes to the `api_events` collection.
 - Integrated the API Call Tracker into `src/components/Header.tsx` as a general-access Action Controls button (Activity icon) and as a prominent control next to the diagnostic "View AI Logs" button within the admin view mode of the Settings dialog.
@@ -209,3 +216,12 @@ Solution: Always use the robust extractUSDANutrientsPer100g helper which uses .i
 - Updated mode routing logic to explicitly prioritize `MODE C` (MODIFICATION COMMAND) over `MODE D` (EVALUATION/COMPARISON) for user correction inputs, and expanded the `modificationCommand` schema to support `rename_item` to resolve food identification inaccuracies without disrupting logging flow.
 - Refined Vision Scout instructions to enforce "Transparent Guessing": the agent is permitted to guess/infer cut-off labels, but MUST explicitly document the guess in the `confidenceComment` and downgrade confidence to Medium or Low, ensuring higher transparency and avoiding overconfident but incorrect labels.
 - Verified zero syntax warnings via standard linter check and verified successful application compilation.
+- Implemented `explodeScoutItemIntoDishItems` in `resolveComparisonGroups` to explode category-block dish names into individual items, improving UI representation of dense menu items.
+- Fixed `FoodCard.tsx`: Removed fake nutrition label fabrication and corrected Mode D nutrient scaling to stop erroneous weight-based multiplication.
+- Updated RAG color-coding logic in `FoodCard.tsx` for suitability tags, expanding keywords and ensuring Red is evaluated first to avoid false positives.
+- Improved `ApiCallTrackerModal.tsx`: Fixed query session numbering to 1-based ascending, switched start/event timestamps to 24-hour format, added interactive purple badges identifying the Gemini model in event rows, and added distinct, color-coded tag/badge styling for all transaction event rows (Brave, USDA, Wikipedia, Unsplash, and specific read/write/delete operations for Firebase).
+- Refined suitability tag RAG color coding in `FoodCard.tsx`: Introduced robust regex checks to properly color negated positive terms (e.g., "NOT RECOMMENDED" or "not safe") in red/destructive tone instead of green/success.
+- Upgraded High Density `BRANCH B` of the Vision Scout in `server.ts` with a strict "Anti-Giant-Box" rule that mathematically forbids drawing a single full-image box for physical grocery shelves and grids, forcing the model to divide them into 3 to 6 distinct spatial rows or shelves with real individual crop coordinates.
+- Upgraded the Dietitian / Nutrition Agent Mode D prompt in `server.ts` with the "Index Uniqueness Law" to enforce mathematical index-uniqueness constraints (forbidding reuse of the same visual crop coordinates across different clinical categories) and ensure that if the Vision Scout yields only a single combined index, the Dietitian outputs exactly one group representing that combined block.
+- Implemented persistent structured request logging for the Diagnostic Agent Log Viewer by creating `agentLogsTracker.ts`. Instead of a flat array of transient global logs, agent execution logs are now captured at the end of each `handleSend` request and saved into `localStorage` under `agent_request_logs`.
+- Updated `FullScreenLogViewer.tsx` to group diagnostic logs by individual request session and load them from `localStorage`. Added a dropdown to switch between "All Requests" (showing merged real-time and historical logs) and specific historical requests, along with a deletion function for individual sessions.

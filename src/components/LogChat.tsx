@@ -2,6 +2,7 @@ import {
  ErrorBoundary } from './ErrorBoundary';
 import { agentCardRegistry } from './chat-cards';
 import { trackApiCall, setActiveQueryId, generateQueryId } from '../utils/apiTracker';
+import { saveAgentRequestLog } from '../utils/agentLogsTracker';
 import React, { useState, useRef, useEffect } from 'react';
 import { parse, stringify } from 'yaml';
 import { ChatMessage, FoodLog, UserProfile, FoodIdea } from '../types';
@@ -1257,6 +1258,8 @@ ${logsText}`);
   };
 
   const handleSend = async (overrideText?: string | any) => {
+    const currentReqId = generateQueryId();
+    setActiveQueryId(currentReqId);
     let textToSend = typeof overrideText === 'string' ? overrideText : (overrideText?.text || inputText);
     const compareOnly = typeof overrideText === 'object' && overrideText?.compareOnly;
     const compareItems = typeof overrideText === 'object' && overrideText?.compareItems;
@@ -1601,10 +1604,32 @@ ${logsText}`);
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'X-Session-ID': getSessionId()
+          'X-Session-ID': currentReqId
         },
         body: JSON.stringify(bodyData)
       });
+
+      // Capture agent debug logs for this request
+      try {
+        const logsRes = await fetch(`/api/gemini/debug-logs?sessionId=${currentReqId}`);
+        if (logsRes.ok) {
+           const logsData = await logsRes.json();
+           if (logsData && logsData.logs && logsData.logs.length > 0) {
+              const summary = [
+                selectedImages.length > 0 ? `[${selectedImages.length} Image(s)]` : null,
+                textToSend ? (textToSend.length > 50 ? textToSend.substring(0, 50) + '...' : textToSend) : null
+              ].filter(Boolean).join(' ') || 'Empty Request';
+              saveAgentRequestLog({
+                 id: currentReqId,
+                 timestamp: new Date().toISOString(),
+                 summary,
+                 logs: logsData.logs
+              });
+           }
+        }
+      } catch (e) {
+        console.warn("Could not save agent request logs", e);
+      }
 
       if (!response.ok) {
         const rawText = await response.text().catch(() => '');

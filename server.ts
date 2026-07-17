@@ -149,6 +149,35 @@ function extractBalancedJson(text: string): string {
   return cleaned;
 }
 
+// Safely merge LLM scout item corrections with the original visual scout data
+// to ensure we never drop rich metadata like bounding boxes or raw nutrition labels.
+function mergeScoutItems(visionItems: any[], llmItems: any[] | null | undefined): any[] {
+  if (!visionItems || visionItems.length === 0) {
+    return (llmItems && llmItems.length > 0) ? llmItems : [];
+  }
+  if (!llmItems || llmItems.length === 0) {
+    return visionItems;
+  }
+  return visionItems.map((vItem: any, idx: number) => {
+    // Try to match by scoutIndex first, then fallback to index
+    const lItem = llmItems.find((l: any) => l.scoutIndex === vItem.scoutIndex) || llmItems[idx];
+    if (lItem) {
+      return {
+        ...vItem,
+        ...lItem,
+        // CRITICAL: Preserve these from the original vision scout as the LLM might drop them
+        rawNutritionLabel: vItem.rawNutritionLabel,
+        nutritionFacts: vItem.nutritionFacts,
+        ingredientsList: vItem.ingredientsList,
+        boundingBox2D: vItem.boundingBox2D,
+        sourceImageIndex: vItem.sourceImageIndex,
+        source: vItem.source
+      };
+    }
+    return vItem;
+  });
+}
+
 // Resolves LLM-provided scoutItemIndices (or itemNames for text-only comparisons) back into
 // full item objects using the authoritative Vision Scout data. This guarantees exact names,
 // bounding boxes, and image indices — the LLM never has to regurgitate this data, which was
@@ -209,6 +238,7 @@ function resolveComparisonGroups(rawGroups: any[], scoutItems: any[]): any[] {
       g.topConcernNutrient = cleanedTop;
     }
 
+const resolvedIndices = new Set<number>();
     indices.forEach((rawIdx: any) => {
       // 1. Try to parse as integer (0-based)
       let i = typeof rawIdx === "number" ? rawIdx : parseInt(String(rawIdx).trim(), 10);
@@ -242,6 +272,7 @@ function resolveComparisonGroups(rawGroups: any[], scoutItems: any[]): any[] {
       // 4. If we successfully resolved to a scout item, add it to this group
       if (s && i >= 0 && i < scoutItems.length) {
         usedIndices.add(i);
+        resolvedIndices.add(i);
         items.push(...explodeScoutItemIntoDishItems(s));
       }
     });
@@ -253,6 +284,43 @@ function resolveComparisonGroups(rawGroups: any[], scoutItems: any[]): any[] {
       });
     }
 
+    const resolvedThreats: Record<string, string> = {};
+    if (g.itemClinicalThreats && typeof g.itemClinicalThreats === "object") {
+      Object.entries(g.itemClinicalThreats).forEach(([key, threat]) => {
+        let targetIdx: number | null = null;
+        const parsedKey = parseInt(key, 10);
+        if (!isNaN(parsedKey)) {
+          let i = parsedKey;
+          let s = (i >= 0 && i < scoutItems.length) ? scoutItems[i] : null;
+          if (!s && i > 0 && i <= scoutItems.length) {
+            s = scoutItems[i - 1];
+            i = i - 1;
+          }
+          if (s) {
+            targetIdx = i;
+          }
+        }
+        if (targetIdx === null) {
+          const cleanKey = key.trim().toLowerCase();
+          if (cleanKey.length > 1) {
+            const foundIdx = scoutItems.findIndex((item: any) => {
+              const kw = (item.keyword || "").toLowerCase();
+              const orig = (item.originalName || "").toLowerCase();
+              return cleanKey.includes(kw) || kw.includes(cleanKey) || cleanKey.includes(orig) || orig.includes(cleanKey);
+            });
+            if (foundIdx !== -1) {
+              targetIdx = foundIdx;
+            }
+          }
+        }
+        if (targetIdx !== null) {
+          resolvedThreats[String(targetIdx)] = String(threat);
+        } else {
+          resolvedThreats[key] = String(threat);
+        }
+      });
+    }
+
     return {
       groupName: g.groupName,
       suitability: g.suitability,
@@ -261,6 +329,8 @@ function resolveComparisonGroups(rawGroups: any[], scoutItems: any[]): any[] {
       topConcernNutrient: g.topConcernNutrient || null,
       keyDifferentiator: g.keyDifferentiator || null,
       averageNutrients: g.averageNutrients || null,
+      scoutItemIndices: Array.from(resolvedIndices),
+      itemClinicalThreats: resolvedThreats,
       items
     };
   });
@@ -278,6 +348,8 @@ function resolveComparisonGroups(rawGroups: any[], scoutItems: any[]): any[] {
         topConcernNutrient: null,
         keyDifferentiator: null,
         averageNutrients: null,
+        scoutItemIndices: scoutItems.map((_, i) => i).filter(i => !usedIndices.has(i)),
+        itemClinicalThreats: {},
         items: missing.flatMap((s: any) => explodeScoutItemIntoDishItems(s))
       });
     }
@@ -407,24 +479,39 @@ Triggered ONLY when the user asks to modify, add, or correct a weight for an ite
 - Set "mode": "modify". Populate the "modificationCommand" array. Set foodData and comparison to null.
 
 MODE D: EVALUATION / COMPARISON
-Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing two snacks), OR whenever the VISUAL FOOD SCOUT Content Type is "menu_or_poster".
-- CRITICAL: Check if the user is correcting or modifying an existing item before classifying as this mode. If the intent is correction, MUST use MODE C.
-- CRITICAL: Do NOT use this mode for a standard meal photo or when the user says they ate something.
-- CRITICAL: Do NOT use this mode if the user provides a single food image and asks a general health question (e.g., "Is it healthy?"). That must be routed to MODE A (NEW FOOD LOGGING).
-- ITEM REFERENCING (STRICT — PREVENTS DATA LOSS): Every item in the "=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===" list has an explicit Index number. When assigning items to groups, reference them ONLY by that Index inside "scoutItemIndices". Do NOT restate the item's name, bounding box, or database ID — the backend already has this data and will look it up by index. If two scout items share the same name (e.g. two separate bags of the same product on a shelf), they are still DISTINCT items with DIFFERENT indices — you MUST include BOTH indices. Never merge or silently drop an index because its name duplicates another.
-- COVERAGE REQUIREMENT: Every single Index from the Scout list MUST appear in exactly one group. Before finalizing your answer, count the indices you have assigned across all groups and confirm the count equals the total number of scout items.
-- TEXT-ONLY FALLBACK: If no "=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===" section is present (a pure text-based comparison with no image), use "itemNames" instead, listing the plain food names being compared. Leave scoutItemIndices empty in that case.
-- SPECIFICITY FOR PROS/CONS (STRICT): Your 'pros' and 'cons' descriptions for each group must be highly specific, referencing the exact key nutrients (e.g. saturated fat, sodium, calories, sugar). Instead of general phrases like 'high in saturated fat and sodium', you MUST write 'high in saturated fat (average Xg) and sodium (average Ymg)'. If praising an item for being 'lower saturated fat', you MUST specify 'lower saturated fat (average Xg compared to Yg in Group 2)'. Provide clear numerical estimates or ranges based on the average nutrients.
-- GROUPING STRATEGY (STRICT — follow based on item count, do not guess):
-  \${compareItemCount > 0 ? \`You have exactly \${compareItemCount} item(s) from the Visual Food Scout — use this exact count for the branch below.\` : \`No image was provided. Count the distinct foods being discussed in the user's text and use that count for the branch below.\`}
-  - 8 OR FEWER distinct items → INDIVIDUAL MODE. Create exactly ONE group per item — do NOT average or bucket multiple items together. Set "groupName" to that single item's own name (not a category name). "averageNutrients" holds that ONE item's real nutrients (not an average of several items). Each group's "scoutItemIndices" (or "itemNames" for text-only) contains exactly one index/name.
-  - 9 OR MORE distinct items → BUCKET MODE. Group items into relevant buckets based on shared nutrient profile or base ingredient. 
-    CRITICAL: Do NOT group items merely by package size, weight, or portion (e.g., do not use "Family Packs" vs "Single Serve"). 
-    Instead, group them by their primary ingredient base (e.g., "Potato-Based Chips", "Corn/Tortilla Chips", "Cassava/Root Veggie Snacks") OR distinct clinical profiles (e.g., "Highest Sodium Threat", "Trans-Fat Risks"). 
-    Aim for 3 to 5 distinct buckets when analyzing large, diverse sets of items. You MUST create AT LEAST 2 buckets, unless every item's core nutrients (calories, saturatedFat, sodium) are genuinely within roughly 10% of each other — in that rare case, output exactly 1 bucket and say so explicitly in "message". "averageNutrients" is the true average across every item in that bucket.
-  - Either mode: set "topConcernNutrient" to the single nutrient that most defines this group/item's risk or benefit relative to the OTHER groups/items. Set "keyDifferentiator" to one short sentence contrasting this group/item against the other group(s)/item(s), e.g. "Lower sodium than Group 2, but roughly double the saturated fat."
-- Output the specific groups in comparison.groups. Rank the groups best-to-worst for this patient's specific biomarker profile.
-- For each group, provide groupName, suitability, pros (MUST contain numeric macro values/ranges), cons (MUST contain numeric macro values/ranges), topConcernNutrient, keyDifferentiator, averageNutrients, and scoutItemIndices (or itemNames for text-only comparisons). OMIT the comparisonTable entirely.
+Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing snacks), OR whenever the VISUAL FOOD SCOUT Content Type is "menu_or_poster".
+
+- NUTRITIONAL DOMINANCE LAW (CRITICAL): You MUST group items strictly by their clinical nutritional value, primary base ingredient, or risk profile. You are strictly FORBIDDEN from creating groups named after physical layout locations like shelves, rows, or tables (e.g., Do NOT use 'Top Shelf Selections').
+
+- CROSS-SHELF INDEX MAPPING (THE BREAKOUT RULE): Because the Vision Scout groups foods by physical rows to preserve bounding boxes, a single physical row may contain multiple types of foods. 
+  * You are allowed to include the SAME Scout Index in MULTIPLE nutritional groups if that physical shelf contains products belonging to both categories.
+  * Your UI will seamlessly render the correct row crop for both comparisons without breaking.
+
+- COVERAGE REQUIREMENT: Every single Index provided in the === VISUAL FOOD SCOUT IDENTIFIED ITEMS === list MUST appear in at least one nutritional group.
+
+- THE EVALUATION HIERARCHY (CRITICAL): Before grouping, you MUST evaluate the TOTAL package payload of every item against this strict 3-step hierarchy:
+  1. UNIVERSAL THREATS: Does it contain universally harmful ingredients (e.g., trans fats)?
+  2. THE DAILY BUDGET (ACUTE THREATS): Does the TOTAL package payload consume more than 50% of ANY "REMAINING NUTRITIONAL TARGET LIMIT" (e.g., Sodium, Calories, Saturated Fat)? If yes, it is an acute dietary threat.
+  3. BIOMARKER STRATEGY (CHRONIC THREATS): Does the biochemical nature of the food trigger any of the specific "PATIENT BIOMARKER WARNINGS"?
+
+- GROUPING STRATEGY (SMART-ADAPTIVE):
+  * INDIVIDUAL MODE (<= 5 items): If there are 5 or fewer items, DO NOT group them into multi-item buckets. Instead, create a separate group object inside the 'comparison.groups' array for EVERY individual item (so if there are 4 items, 'comparison.groups' must contain exactly 4 separate objects). For each object: Set "groupName" to the specific product name (e.g., "Mr. Bread Whole Wheat"), set "scoutItemIndices" to an array containing only that single item's index (e.g., [2]), and use "pros" and "cons" to analyze that specific item alone.
+  * BUCKET MODE (> 5 items): Only trigger multi-item "Bucket Mode" when there are 6 or more items. In Bucket Mode, group items strictly by clinical threat or benefit, using the Evaluation Hierarchy rules defined above. Set "groupName" to a descriptive title targeting the specific threat or benefit (e.g., "Critical Sodium Warning (Acute)", "Safe for Lipid Profile").
+  * CLINICAL DIVERGENCE RULE: Even in Bucket Mode, never group items if they have different primary clinical threats (e.g., do not group a 'High Sugar' item with a 'High Sodium' item).
+  * Set "scoutItemIndices" to an array of all shelf indices that contain those specific types of food.
+  * CRITICAL MATH REQUIREMENT: When evaluating items that provide a 'rawNutritionLabel', you MUST multiply the per-serving nutrients by the total package 'estimatedWeightGrams' (divided by serving size) to determine the TOTAL nutritional payload. Your 'averageNutrients', 'pros', and 'cons' MUST reflect the TOTAL values for the whole package.
+
+- SPECIFICITY FOR PROS/CONS (STRICT): Your 'pros' and 'cons' descriptions for each group must be highly specific and driven strictly by the hierarchy.
+  * CLINICAL BLANKING: You do NOT have to fill both. If a group is clinically dangerous, set "pros" to "None for your clinical profile." Do not invent a "pro" (like praising protein) for a food that violates a high-risk biomarker or budget limit. If a group is perfectly healthy, set "cons" to "None."
+  * NO AVERAGING EXTREMES: When grouping multiple items, you MUST use absolute ranges (e.g., '12g - 38g of sugar') rather than averages if there is a wide variance. Never use an average that masks a dangerous outlier. 
+  * Set "topConcernNutrient" to the single nutrient defining that group's clinical threat or benefit.
+  * Set "keyDifferentiator" to a short sentence contrasting this group against the others in the context of the patient's hierarchy threats.
+
+- SCHEMA DETAILS:
+  * Output the specific groups in comparison.groups. Rank the groups best-to-worst for this patient's specific biomarker and budget profile.
+  * CRITICAL SYNTAX: Each element inside the comparison.groups array MUST be a complete JSON object enclosed in curly braces '{' and '}'. Never output bare keys or skip curly braces. The first property of each group object inside the curly braces MUST be "groupName".
+  * For each group object, provide groupName, suitability, pros (MUST contain numeric macro values/ranges), cons (MUST contain numeric macro values/ranges), topConcernNutrient, keyDifferentiator, averageNutrients, and scoutItemIndices (or itemNames for text-only comparisons). OMIT the comparisonTable entirely.
+  * Inside each group, add an "itemClinicalThreats" map/object. This map MUST map each 'scoutItemIndex' to a specific clinical threat (e.g., {"0": "None", "1": "High Sugar", "3": "High Sodium"}). This allows the UI to display specific warnings even when items are grouped together.
 
 MODE F: FOOD ORIGIN LOOKUP
 Triggered ONLY when the user's query asks for details, origin, history, description, ingredients, or "Origin search" of specific food items (e.g., "Look up details and food origin for: ...", "Origin search: ...").
@@ -1820,11 +1907,15 @@ BRANCH A — LOW DENSITY (< 15 total items):
 - MEAL vs. COMPARISON ROUTING: if the images show distinct packaged products or menu options of the same category meant to be compared (e.g., 4 different bread wrappers, or a menu of options), set "recommendedMode" to "evaluation". If the images show ingredients or dishes meant to be eaten together as one meal (e.g., fish + rice + a side, or several grocery items for a single meal), set "recommendedMode" to "new_log".
 
 BRANCH B — HIGH DENSITY (>= 15 total items):
-Still populate "items" as real JSON objects — never switch to a text/spreadsheet format. Adapt HOW you group items based on the visual layout, to balance exhaustiveness with a manageable array size:
-  1. TEXT-HEAVY STRUCTURED MENUS: Use category blocking. One "items" entry per menu section. Draw ONE \`boundingBox2D\` around the parent category block (e.g. "Aneka Ikan Bakar"). Set "keyword" to the category name, and "originalName" to a comma-separated list of every precise food name within that block, ignoring prices. Set "estimatedWeightGrams" to 0.
-  2. PHYSICAL GROCERY SHELVES: Do NOT category-block. Extract the 15-20 most prominent, clearly visible, front-facing products, each with its own tight \`boundingBox2D\`. Silently ignore blurry or occluded background items to protect the token budget.
-  3. IMAGE GRID MENUS (e.g. rows of drink photos): Extract individual items where feasible. If extreme density forces grouping, draw one \`boundingBox2D\` around a distinct physical row or cluster (e.g. "Top row drinks") rather than inventing a semantic category that isn't visually present.
-  4. UNSTRUCTURED TEXT LISTS: Group by physical proximity or column. One \`boundingBox2D\` per cluster of roughly 8-10 lines to keep the array manageable.
+Still populate "items" as real JSON objects. Adapt HOW you group items based on the visual layout to guarantee 100% coverage without crashing token limits:
+  1. TEXT-HEAVY STRUCTURED MENUS: Use semantic category blocking. One entry per section (e.g. "Aneka Ikan Bakar"). Draw ONE \`boundingBox2D\` around the section. Set "keyword" to the category name, and "originalName" to a comma-separated list of items.
+  2. PHYSICAL GROCERY SHELVES & IMAGE GRIDS (e.g. rows of drinks or chips): Group by PHYSICAL SPACE.
+     - CRITICAL REJECTION: You are strictly FORBIDDEN from drawing a single massive bounding box around the entire image (e.g., covering the whole frame).
+     - You MUST physically slice the image into 3 to 6 distinct spatial rows or shelves (e.g., "Top Row", "Middle Row").
+     - Create one "items" object per row. 
+     - Set \`keyword\` to the spatial name. 
+     - Set \`originalName\` to a comma-separated list of all legible products in that specific row.
+  3. UNSTRUCTURED TEXT LISTS: Group by physical proximity. One \`boundingBox2D\` per cluster of roughly 8-10 lines.
   Every "items" entry, however it is grouped, MUST still carry a real, specific \`boundingBox2D\` and \`sourceImageIndex\` — never default to the full image bounds unless the item genuinely fills the entire frame.
 STEP 3 — CORE EXTRACTION & GROUPING LAWS (apply in both branches):
 - PRODUCT/PRICE LABELS (type a): Read the EXACT food name and weight. Convert kg to grams.
@@ -1842,9 +1933,15 @@ CRITICAL RULES:
   Never silently drop or omit an item due to glare, abbreviations, hidden food, or OCR contradictions. You must extract EVERY item you see to the best of your ability.
   CRITICAL: If you see a package, label, or food item but are unsure what it is, you MUST STILL EXTRACT IT. Use 'unknown item' or a best guess for the keyword. Do NOT drop it.
   Instead of omitting, you MUST use the \`anomalyFlags\` array to explain the issue (e.g., ["glare covering letters", "guessed Ikan from IK", "unidentifiable package"]). If any anomaly is flagged, you are mathematically required to set \`itemConfidence\` to Medium or Low.
-- USER TEXT SUPREMACY & CONTEXT FILTERING:
-  * Explicit Quantities Override: The user's text message is the absolute mathematical authority. If the user explicitly states a quantity, count, or weight in their text message (e.g., "3 piece", "10 skewers"), you MUST mathematically calculate the \`estimatedWeightGrams\` based strictly on those units, overriding your own visual volume estimates. (e.g., If a user says "3 oranges", calculate the average weight of 3 small oranges; DO NOT calculate the visual liquid volume of the plastic cup they are served in).
-  * Background & Inventory Exclusion: Do NOT extract bulk store inventories in the background. HOWEVER, you MUST extract ALL items that are part of the user's meal on the table, including side dishes, drinks, small condiments, and separate plates. Never assume an item on the table is "background" if it is part of the meal setting.
+- FOREGROUND ISOLATION vs. SHELF SCANNING (CRITICAL OVERRIDE):
+  Before extracting, determine the camera's focus and depth of field:
+  * HELD ITEMS / CLOSE-UPS: If the image clearly shows a hand holding a specific product in the foreground, or is a clear macro close-up of a single package/label, that single item is the SOLE subject. You MUST completely ignore and omit all out-of-focus products and background store shelves. The "Flag and Extract" rule does NOT apply to background inventory in this scenario. Do not extract them.
+  * WIDE SHELF SCANS: If the image is a wide shot of a grocery shelf or display with NO single item held in the foreground, then the shelf itself is the primary subject. Proceed with Branch B density rules.
+  * PLATED MEALS: For a meal on a table, extract ALL visible dishes, sides, drinks, and condiments. Never treat a side dish on a table as "background inventory."
+- USER TEXT SUPREMACY & TARGET FILTERING (CRITICAL FOCUS OVERRIDE):
+  The user's text message is the absolute authority on WHAT to extract and HOW MUCH:
+  * Subject Isolation (What to extract): If the user's text explicitly names a specific item, category, or subset of foods (e.g., "I ate the mung bean pia", "Compare the chips", "Is this beef healthy?", "Just the red bags"), you MUST restrict your extraction ONLY to the items that semantically match their text. Completely ignore and omit all other visible foods, menu items, or products in the image, treating them as irrelevant background.
+  * Explicit Quantities (How much): If the user explicitly states a quantity, count, or weight in their text (e.g., "3 piece", "10 skewers"), you MUST mathematically calculate the estimatedWeightGrams based strictly on those units, overriding visual volume defaults.
 - SEMANTIC ALIGNMENT:
   The English keyword you generate MUST biologically and semantically match the text you extracted in originalName. Do not hallucinate categories. If the originalName indicates a protein/meat (e.g., "Ikan" means fish), the keyword cannot be a vegetable (e.g., "bok choy"). If unsure of a translation, default to a generic category (e.g., "fish", "meat").
 JSON SCHEMA STRICT REQUIREMENT:
@@ -1860,7 +1957,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
       "source": "label | visual",
       "boundingBox2D": "[ymin, xmin, ymax, xmax] (CRITICAL: a real, specific box for this item, category block, or cluster — never the default full-image box unless the item truly fills the frame)",
       "sourceImageIndex": 0,
-      "ingredientsList": "string | null (Full printed ingredients/Komposisi list if visible on packaging, otherwise null)",
+      "ingredientsList": "string | null (Extract all visible ingredients/Komposisi. If the text is partially cut off by the camera, extract what you can see and add '...' at the end. If totally invisible, use null)",
       "rawNutritionLabel": "{ 'servingSize': string, 'calories': number, 'protein': string, ... } (Exact printed macros ONLY if a physical nutrition panel is visible for this item. Otherwise {}. Never estimate.)",
       "nutritionFacts": "{} (Always leave this exactly empty. Reserved for downstream use — do not populate.)",
       "anomalyFlags": [
@@ -1908,7 +2005,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
             scoutConfidenceComment = globalComment.trim();
             scoutCookingMethod = parsedScout.cookingMethod || "";
             const rawType = (parsedScout.contentType || "").toLowerCase();
-            visionScoutContentType = (rawType === "text" || rawType === "menu_or_poster") ? rawType : "visual";
+            visionScoutContentType = (rawType === "text" || rawType === "menu_or_poster" || rawType === "visual_or_posted") ? rawType : "visual";
             scoutRecommendedMode = parsedScout.recommendedMode || null;
 
             // Parse compactSpreadsheet if present (for high densities / menus)
@@ -1981,7 +2078,85 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
             }
 
             if (Array.isArray(parsedScout.items)) {
-              visionScoutItems = parsedScout.items.map((item: any, idx: number) => ({ ...item, scoutIndex: idx }));
+              visionScoutItems = parsedScout.items.map((item: any, idx: number) => {
+                let newItem = { ...item, scoutIndex: idx };
+                if (newItem.rawNutritionLabel && typeof newItem.rawNutritionLabel === 'object') {
+                  const getVal = (key: string) => {
+                    const val = newItem.rawNutritionLabel[key];
+                    if (val === undefined || val === null) return 0;
+                    const match = String(val).match(/[\d.]+/);
+                    return match ? parseFloat(match[0]) : 0;
+                  };
+                  
+                  const fat = getVal('totalFat') || getVal('fat') || 0;
+                  const carbs = getVal('totalCarbohydrate') || getVal('carbohydrate') || getVal('carbohydrates') || 0;
+                  const protein = getVal('protein') || 0;
+                  
+                  // 1. Fat Overflow (Saturated Fat > Total Fat)
+                  const satFat = getVal('saturatedFat') || 0;
+                  let correctedFat = fat;
+                  if (satFat > fat) {
+                    correctedFat = satFat;
+                    if (!newItem.anomalyFlags) newItem.anomalyFlags = [];
+                    newItem.anomalyFlags.push(`fat overflow corrected: totalFat increased from ${fat} to ${satFat}`);
+                    if (newItem.rawNutritionLabel.totalFat !== undefined) newItem.rawNutritionLabel.totalFat = satFat;
+                    else newItem.rawNutritionLabel.fat = satFat;
+                  }
+                  
+                  // 2. Serving Mismatch / Macros Overflow
+                  let servingSizeGrams = 100; // default for per 100g
+                  if (newItem.rawNutritionLabel.servingSize) {
+                    const ssMatch = String(newItem.rawNutritionLabel.servingSize).match(/[\d.]+/);
+                    if (ssMatch) servingSizeGrams = parseFloat(ssMatch[0]);
+                  }
+                  const totalMacros = correctedFat + carbs + protein;
+                  if (totalMacros > servingSizeGrams + 2) {
+                    if (!newItem.anomalyFlags) newItem.anomalyFlags = [];
+                    newItem.anomalyFlags.push(`macros overflow: sum of fat, carbs, protein (${totalMacros}g) exceeds serving size (${servingSizeGrams}g)`);
+                  }
+
+                  // 3. The Algebraic Healer
+                  const safeMath = (value) => Math.max(0, Math.round(value * 10) / 10);
+                  const expectedCalories = (correctedFat * 9) + (carbs * 4) + (protein * 4);
+                  const c = getVal('calories');
+
+                  const healAnomaly = (item, macroName) => {
+                      if (item.anomalyFlags && Array.isArray(item.anomalyFlags)) {
+                          item.anomalyFlags = item.anomalyFlags.filter(f => !f.toLowerCase().includes(macroName) && !f.toLowerCase().includes('legible'));
+                          if (item.anomalyFlags.length === 0) {
+                             item.itemConfidence = "High";
+                          }
+                      }
+                  };
+
+                  if (c === 0 || (expectedCalories > 0 && Math.abs(expectedCalories - c) / expectedCalories > 0.20)) {
+                      newItem.originalCalories = c;
+                      newItem.autoCorrectedCalories = true;
+                      newItem.rawNutritionLabel.calories = Math.round(expectedCalories);
+                      healAnomaly(newItem, "calories");
+                  } else if (correctedFat === 0 && c > 0) {
+                      newItem.rawNutritionLabel.totalFat = safeMath((c - (carbs * 4) - (protein * 4)) / 9);
+                      if (newItem.rawNutritionLabel.fat === 0) { newItem.rawNutritionLabel.fat = newItem.rawNutritionLabel.totalFat; }
+                      healAnomaly(newItem, "fat");
+                  } else if (carbs === 0 && c > 0) {
+                      newItem.rawNutritionLabel.totalCarbohydrate = safeMath((c - (correctedFat * 9) - (protein * 4)) / 4);
+                      if (newItem.rawNutritionLabel.carbohydrates === 0) { newItem.rawNutritionLabel.carbohydrates = newItem.rawNutritionLabel.totalCarbohydrate; }
+                      healAnomaly(newItem, "carbohydrates");
+                      healAnomaly(newItem, "carbs");
+                  } else if (protein === 0 && c > 0) {
+                      newItem.rawNutritionLabel.protein = safeMath((c - (correctedFat * 9) - (carbs * 4)) / 4);
+                      healAnomaly(newItem, "protein");
+                  }
+
+                  if (newItem.anomalyFlags && Array.isArray(newItem.anomalyFlags)) {
+                      newItem.anomalyFlags = newItem.anomalyFlags.filter(f => !f.toLowerCase().includes('ingredient'));
+                      if (newItem.anomalyFlags.length === 0) {
+                          newItem.itemConfidence = "High";
+                      }
+                  }
+                }
+                return newItem;
+              });
               for (const item of visionScoutItems) {
                 if (item.keyword) {
                   queriesToSearch.push(item.keyword);
@@ -2155,9 +2330,45 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
       const itemsList = visionScoutItems.map((item: any, idx: number) => {
         let flagStr = (item.anomalyFlags && item.anomalyFlags.length > 0) ? ` | Flags: [${item.anomalyFlags.join(', ')}]` : '';
         let confStr = item.itemConfidence ? ` | Confidence: ${item.itemConfidence}` : '';
-        let rawLabelStr = item.rawNutritionLabel && Object.keys(item.rawNutritionLabel).length > 0 ? ` | RawNutritionLabel: ${JSON.stringify(item.rawNutritionLabel)}` : "";
-        let factsStr = item.nutritionFacts && Object.keys(item.nutritionFacts).length > 0 ? ` | NutritionFacts: ${JSON.stringify(item.nutritionFacts)}` : "";
-        return `- Index: ${idx} | Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName}" | Source: ${item.source} | BoundingBox: ${JSON.stringify(item.boundingBox2D)} | ImageIndex: ${item.sourceImageIndex}${rawLabelStr}${factsStr}${flagStr}${confStr}`;
+        let scaledNutrientsStr = "";
+        const raw = item.rawNutritionLabel;
+        const facts = item.nutritionFacts;
+        
+        if (raw && Object.keys(raw).length > 0) {
+           let multiplier = 1;
+           const estimatedWeight = item.estimatedWeightGrams || 100;
+           if (raw.servingSize) {
+              const ssMatch = String(raw.servingSize).match(/[\d.]+/);
+              if (ssMatch) {
+                 multiplier = estimatedWeight / parseFloat(ssMatch[0]);
+              } else {
+                 multiplier = estimatedWeight / 100;
+              }
+           } else {
+              multiplier = estimatedWeight / 100;
+           }
+           
+           const scaledRaw: any = {};
+           for (const [k, v] of Object.entries(raw)) {
+              if (k.toLowerCase().includes('serving')) {
+                 scaledRaw[k] = v;
+              } else {
+                 const match = String(v).match(/[\d.]+/);
+                 if (match) {
+                    const num = parseFloat(match[0]);
+                    const unit = String(v).replace(/[\d.\s]/g, '');
+                    scaledRaw[k] = `${Math.round(num * multiplier)}${unit}`;
+                 } else {
+                    scaledRaw[k] = v;
+                 }
+              }
+           }
+           scaledNutrientsStr = ` | TRUE TOTAL NUTRITIONAL PAYLOAD FOR ENTIRE WEIGHT (${estimatedWeight}g): ${JSON.stringify(scaledRaw)} (CRITICAL: USE THESE TOTALS DIRECTLY for averageNutrients, pros, and cons. Do not do any more math!)`;
+        } else if (facts && Object.keys(facts).length > 0) {
+           scaledNutrientsStr = ` | NutritionFacts: ${JSON.stringify(facts)}`;
+        }
+        
+        return `- Index: ${idx} | Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName}" | Source: ${item.source} | BoundingBox: ${JSON.stringify(item.boundingBox2D)} | ImageIndex: ${item.sourceImageIndex}${scaledNutrientsStr}${flagStr}${confStr}`;
       }).join('\n');
       visionScoutCtx = `\n=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===\n${itemsList}\n` +
         `Content Type: ${visionScoutContentType} (${visionScoutItems.length} items identified)\n` +
@@ -2333,6 +2544,11 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
                     type: Type.STRING,
                     nullable: true,
                     description: "One short sentence contrasting this group against the other group(s)."
+                  },
+                  itemClinicalThreats: {
+                    type: Type.OBJECT,
+                    nullable: true,
+                    description: "A map/object mapping each 'scoutItemIndex' to a specific clinical threat description (e.g., {'0': 'None', '1': 'High Sugar', '3': 'High Sodium'})."
                   }
                 },
                 required: ["groupName", "scoutItemIndices", "suitability", "topConcernNutrient", "keyDifferentiator", "pros", "cons", "averageNutrients"]
@@ -2384,7 +2600,7 @@ ${visionScoutCtx}
 ${databaseMatchesCtx}
 Current User Input: "${message}"
 
-If MODE D (evaluation/comparison) applies: reference every item ONLY by its Index number from the Scout list above inside "scoutItemIndices". Every Index must be assigned to exactly one group — including duplicate-named items, which are still separate indices. Do not restate names, bounding boxes, or database IDs.`;
+If MODE D (evaluation/comparison) applies: reference every item ONLY by its Index number from the Scout list above inside "scoutItemIndices". Every Index must be assigned to at least one group — including duplicate-named items, which are still separate indices. You are allowed to map the same Scout Index to multiple groups if a physical shelf contains items belonging to both categories. Do not restate names, bounding boxes, or database IDs.`;
 
     const fullPromptSent = `System Instruction:\n${finalSystemInstruction}\n\n${promptText}`;
     addDebugLog(`[RouteAgent Chat] Sending request to Gemini...`);
@@ -2406,24 +2622,55 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       try {
         rawParsed = JSON.parse(extractBalancedJson(cleanJson));
       } catch (parseErr: any) {
-        addDebugLog(`[JSON Parse Error] JSON parse failed: ${parseErr.message}. Attempting truncation repair...`);
+        addDebugLog(`[JSON Parse Error] JSON parse failed: ${parseErr.message}. Attempting robust truncation repair...`);
         try {
-          // Attempt to repair a truncated JSON by closing open structures
-          let repaired = cleanJson;
-          // Truncate at the last complete top-level property if string is unterminated
-          const lastComma = repaired.lastIndexOf(',\n');
-          const lastBrace = repaired.lastIndexOf('}');
-          if (lastComma > lastBrace) {
-            repaired = repaired.substring(0, lastComma);
+          let repaired = cleanJson.trim();
+          
+          // 1. Remove trailing comma followed by a half-written key
+          repaired = repaired.replace(/,\s*"[^"]*"?\s*$/, "");
+          
+          // 2. Handle unescaped double quotes inside an unclosed string
+          let quoteCount = 0;
+          for (let idx = 0; idx < repaired.length; idx++) {
+            if (repaired[idx] === '"' && (idx === 0 || repaired[idx - 1] !== '\\')) {
+              quoteCount++;
+            }
           }
-          // Close any open arrays/objects
-          const opens = (repaired.match(/\[/g) || []).length - (repaired.match(/\]/g) || []).length;
-          const openBraces = (repaired.match(/\{/g) || []).length - (repaired.match(/\}/g) || []).length;
-          repaired += ']'.repeat(Math.max(0, opens)) + '}'.repeat(Math.max(0, openBraces));
+          if (quoteCount % 2 !== 0) {
+            repaired += '"';
+          }
+
+          // 3. Remove trailing comma or colon
+          if (repaired.endsWith(",")) {
+            repaired = repaired.slice(0, -1).trim();
+          } else if (repaired.endsWith(":")) {
+            repaired += "null";
+          }
+
+          // 4. Count open braces and brackets outside strings
+          let openBraces = 0;
+          let openBrackets = 0;
+          let insideStr = false;
+          
+          for (let i = 0; i < repaired.length; i++) {
+            const char = repaired[i];
+            if (char === '"' && (i === 0 || repaired[i - 1] !== '\\')) {
+              insideStr = !insideStr;
+            }
+            if (!insideStr) {
+              if (char === '{') openBraces++;
+              else if (char === '}') openBraces--;
+              else if (char === '[') openBrackets++;
+              else if (char === ']') openBrackets--;
+            }
+          }
+
+          repaired += ']'.repeat(Math.max(0, openBrackets)) + '}'.repeat(Math.max(0, openBraces));
+          
           rawParsed = JSON.parse(repaired);
-          addDebugLog(`[JSON Parse Error] Truncation repair succeeded.`);
+          addDebugLog(`[JSON Parse Error] Robust truncation repair succeeded.`);
         } catch (repairErr: any) {
-          addDebugLog(`[JSON Parse Error] Truncation repair also failed: ${repairErr.message}.`);
+          addDebugLog(`[JSON Parse Error] Robust truncation repair also failed: ${repairErr.message}.`);
           throw parseErr;
         }
       }
@@ -2497,7 +2744,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       return res.json({
         mode: "evaluation",
         comparison: comparisonData,
-        scoutItems: (rawParsed.scoutItems && rawParsed.scoutItems.length > 0) ? rawParsed.scoutItems : visionScoutItems,
+        scoutItems: mergeScoutItems(visionScoutItems, rawParsed.scoutItems),
         scoutContentType: visionScoutContentType,
         agentPrompt: fullPromptSent,
         message: rawParsed.message,
@@ -2705,7 +2952,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           text: rawParsed.message || `I have updated your meal to reflect the correction.`,
           data: parsedData,
           agentPrompt: fullPromptSent,
-          scoutItems: (rawParsed.scoutItems && rawParsed.scoutItems.length > 0) ? rawParsed.scoutItems : (visionScoutItems || []),
+          scoutItems: mergeScoutItems(visionScoutItems, rawParsed.scoutItems),
           apiCalls
         });
       }
@@ -2715,7 +2962,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         text: rawParsed.message || `I have analyzed the food: **${parsedData.name}** (${parsedData.quantity}).`,
         data: parsedData,
         agentPrompt: fullPromptSent,
-        scoutItems: (rawParsed.scoutItems && rawParsed.scoutItems.length > 0) ? rawParsed.scoutItems : (visionScoutItems || []),
+        scoutItems: mergeScoutItems(visionScoutItems, rawParsed.scoutItems),
         apiCalls
       });
     }
