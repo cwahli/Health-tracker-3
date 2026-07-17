@@ -886,40 +886,11 @@ export const FoodCard: React.FC<AgentCardProps & {
                                     return <NutritionLabelTable activeScoutItems={groupScoutItems} />;
                                   }
 
-                                  if (group.averageNutrients && Object.keys(group.averageNutrients).length > 0) {
-                                    let weight = parseFloat(group.averageNutrients.weight || group.averageNutrients.estimatedWeightGrams || "");
-                                    if (isNaN(weight)) {
-                                      const firstItem = group.items?.[0];
-                                      if (firstItem) {
-                                        weight = parseFloat(firstItem.weightGrams || firstItem.estimatedWeightGrams || "");
-                                      }
-                                    }
-                                    if (isNaN(weight) && activeScoutItems && activeScoutItems.length > 0) {
-                                      weight = activeScoutItems[0].estimatedWeightGrams;
-                                    }
-
-                                    const servingSize = group.averageNutrients.servingSize || (group.items?.[0]?.servingSize) || "100g";
-                                    
-                                    const rawNutritionLabel: any = { servingSize };
-                                    const nutritionFacts: any = { servingSize };
-
-                                    Object.entries(group.averageNutrients).forEach(([k, v]) => {
-                                      if (k === 'weight' || k === 'estimatedWeightGrams' || k === 'servingSize') return;
-                                      rawNutritionLabel[k] = v;
-                                      nutritionFacts[k] = v;
-                                    });
-
-                                    const pseudoScoutItem = {
-                                      originalName: group.groupName,
-                                      keyword: group.groupName,
-                                      estimatedWeightGrams: weight,
-                                      nutritionFacts,
-                                      rawNutritionLabel,
-                                      itemConfidence: "high",
-                                    };
-
-                                    return <NutritionLabelTable activeScoutItems={[pseudoScoutItem]} />;
-                                  }
+                                  // No real scout items for this group (e.g. a text-only comparison with no
+                                  // image). group.averageNutrients is an AI estimate, not a printed label, so
+                                  // it must never be shown as a "nutrition label" — it's already surfaced
+                                  // correctly in the "Top Nutrients for Mode D" bar directly below.
+                                  return null;
 
                                   return null;
                                 })()}
@@ -944,36 +915,15 @@ export const FoodCard: React.FC<AgentCardProps & {
                                         // Respect the user's selected primary nutrients from their profile (defaults to calories, saturatedFat, sodium) to stay consistent with Mode A
                                         const activeKeys = profile?.topNutrientsToMonitor || ['calories', 'saturatedFat', 'sodium'];
                                         const keysToRender = activeKeys.filter(k => group.averageNutrients[k] !== undefined && group.averageNutrients[k] !== null);
-                                        
-                                        // Calculate multiplier for Mode D total value scaling
-                                        let weight = parseFloat(group.averageNutrients.weight || group.averageNutrients.estimatedWeightGrams || "");
-                                        if (isNaN(weight)) {
-                                          const firstItem = group.items?.[0];
-                                          if (firstItem) {
-                                            weight = parseFloat(firstItem.weightGrams || firstItem.estimatedWeightGrams || "");
-                                          }
-                                        }
-                                        if (isNaN(weight) && activeScoutItems && activeScoutItems.length > 0) {
-                                          weight = activeScoutItems[0].estimatedWeightGrams;
-                                        }
-                                        if (isNaN(weight)) weight = 100; // default fallback
-
-                                        const servingSize = group.averageNutrients.servingSize || (group.items?.[0]?.servingSize) || "100g";
-                                        let multiplier = 1;
-                                        const ssMatch = String(servingSize).match(/[\d.]+/);
-                                        if (ssMatch) {
-                                          multiplier = weight / parseFloat(ssMatch[0]);
-                                        } else {
-                                          multiplier = weight / 100;
-                                        }
 
                                         return keysToRender.map(key => {
                                           const val = group.averageNutrients[key];
                                           const parsedVal = typeof val === 'string' ? parseFloat(val.replace(/[^\d.]/g, '')) : val;
                                           if (isNaN(parsedVal)) return null;
                                           
-                                          // Scale portion total value
-                                          const totalVal = parsedVal * multiplier;
+                                          // group.averageNutrients already holds the group's real/average total
+                                          // nutrient values (not a per-100g figure) — no weight-based scaling here.
+                                          const totalVal = parsedVal;
                                           
                                           const color = nutrientColors[key] || 'rgb(100, 116, 139)';
                                           const label = nutrientLabels[key] || (key.replace(/([A-Z])/g, ' $1').trim());

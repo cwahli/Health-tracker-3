@@ -154,6 +154,24 @@ function extractBalancedJson(text: string): string {
 // bounding boxes, and image indices — the LLM never has to regurgitate this data, which was
 // the root cause of silent item drops and incorrect targetDbId hallucination in MODE D groups.
 function resolveComparisonGroups(rawGroups: any[], scoutItems: any[]): any[] {
+  // Dense-menu category blocks pack multiple dish names into one comma-separated
+  // originalName (see Vision Scout BRANCH B rule 1). Explode those into individual
+  // dish items so each dish appears as its own entry in the UI instead of one
+  // giant merged chip containing the whole category's food list.
+  const explodeScoutItemIntoDishItems = (s: any): any[] => {
+    const rawOriginal = s.originalName || s.keyword || "";
+    const dishNames = rawOriginal.includes(",")
+      ? rawOriginal.split(",").map((n: string) => n.trim()).filter((n: string) => n.length > 0)
+      : [rawOriginal];
+    return dishNames.map((dishName: string) => ({
+      name: dishName || s.keyword,
+      keyword: s.keyword || null,
+      originalName: dishName || null,
+      boundingBox2D: s.boundingBox2D || null,
+      sourceImageIndex: typeof s.sourceImageIndex === "number" ? s.sourceImageIndex : 0
+    }));
+  };
+
   const usedIndices = new Set<number>();
 
   const resolvedGroups = (Array.isArray(rawGroups) ? rawGroups : []).map((g: any) => {
@@ -224,13 +242,7 @@ function resolveComparisonGroups(rawGroups: any[], scoutItems: any[]): any[] {
       // 4. If we successfully resolved to a scout item, add it to this group
       if (s && i >= 0 && i < scoutItems.length) {
         usedIndices.add(i);
-        items.push({
-          name: s.originalName || s.keyword,
-          keyword: s.keyword || null,
-          originalName: s.originalName || null,
-          boundingBox2D: s.boundingBox2D || null,
-          sourceImageIndex: typeof s.sourceImageIndex === "number" ? s.sourceImageIndex : 0
-        });
+        items.push(...explodeScoutItemIntoDishItems(s));
       }
     });
 
@@ -266,13 +278,7 @@ function resolveComparisonGroups(rawGroups: any[], scoutItems: any[]): any[] {
         topConcernNutrient: null,
         keyDifferentiator: null,
         averageNutrients: null,
-        items: missing.map((s: any) => ({
-          name: s.originalName || s.keyword,
-          keyword: s.keyword || null,
-          originalName: s.originalName || null,
-          boundingBox2D: s.boundingBox2D || null,
-          sourceImageIndex: typeof s.sourceImageIndex === "number" ? s.sourceImageIndex : 0
-        }))
+        items: missing.flatMap((s: any) => explodeScoutItemIntoDishItems(s))
       });
     }
   }
