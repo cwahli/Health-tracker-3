@@ -86,7 +86,7 @@ There is NO gemini-2.5-flash. Always default to Flash Lite.
 ## 7. Task Queue
 Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Session Log).
 ### P0 — Critical
-- [ ] **Fix (part 2): Mode D comparison-group rendering broke under category-block scout items**
+- [x] **Fix (part 2): Mode D comparison-group rendering broke under category-block scout items**
   The part-1 adaptive-density Vision Scout prompt introduced category-block scout items (`estimatedWeightGrams: 0`, comma-separated multi-dish `originalName`). Three Mode D (evaluation/comparison) rendering paths assumed the old one-dish-per-scout-item shape and broke as a result. Exact find-and-replace instructions in `URGENT_FIX_2026-07-17-part2.md` (repo root): (1) `resolveComparisonGroups()` in `server.ts` now explodes a category block's comma-separated `originalName` into individual dish items instead of one giant merged chip. (2) `FoodCard.tsx`'s Mode D nutrient bar no longer multiplies `averageNutrients` by a weight-based scaling factor (was dividing by `estimatedWeightGrams: 0`, zeroing out every value) — `averageNutrients` is already a final total, not a per-100g figure. (3) `FoodCard.tsx` no longer fabricates a fake `rawNutritionLabel` from `averageNutrients` when a group has no matched scout items — that re-broke the part-1 "View Nutrition Labels" fix. Follow the fix doc exactly.
   Model: gemini-3.5-flash-lite for all 3 edits.
 - [x] **Fix (part 1): "View Nutrition Labels" false positive + adaptive-density Vision Scout bounding boxes**
@@ -159,6 +159,7 @@ Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Sessi
 | 2026-07-12 | Updated LogChat comparison table styling to match the Clinical Calibration table style, and updated prompt schema to include Pros and Cons inside the table. | AI Studio (self-directed) |
 | 2026-07-12 | Began Chat Component Consolidation Strategy: created `agentConfig.ts` with AGENT_REGISTRY containing all 13 agents, refactored `LogChat.tsx` to accept AgentType and generate welcome messages dynamically from the registry. | AI Studio (self-directed) |
 | 2026-07-16 | Updated FoodCard: Grouped food by bracketed categories, fixed hero image name cleaning, and implemented expand/collapse interactions with eye-preview. | AI Studio (self-directed) |
+| 2026-07-17 | Fixed Mode D comparison-group rendering (exploded categories, removed fabricated labels, corrected nutrient bar scaling). | AI Studio (self-directed) |
 
 ## 10. LLM Gotchas & Lessons Learned
 ### Runaway Decimal Floats & Truncations
