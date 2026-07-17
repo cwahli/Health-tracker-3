@@ -1974,13 +1974,13 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
             imagePayloads,
             responseMimeType: "application/json"
           });
-          addDebugLog(`[Vision Scout] Parsed ${Array.isArray(JSON.parse(scoutOutput || "{}")?.items) ? JSON.parse(scoutOutput || "{}").items.length : 0} item(s). (Full payload already logged above by UnifiedLLM-Response.)`);
           let parsedScout: any = null;
           try {
             parsedScout = typeof scoutOutput === "string" ? JSON.parse(scoutOutput) : scoutOutput;
           } catch (e) {
             parsedScout = JSON.parse(extractBalancedJson(scoutOutput));
           }
+          addDebugLog(`[Vision Scout] Parsed ${Array.isArray(parsedScout?.items) ? parsedScout.items.length : 0} item(s). (Full payload already logged above by UnifiedLLM-Response.)`);
           if (parsedScout) {
             let lowestConfidence = "High (>90%)";
             let globalComment = "";
@@ -2579,11 +2579,25 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
       required: ["mode", "message", "modificationCommand", "foodData", "comparison"]
     };
 
+    let biomarkersCtx = "";
+    if (biomarkersNeedingImprovement && biomarkersNeedingImprovement.length > 0) {
+      biomarkersCtx = `\nCRITICAL PATIENT BIOMARKER WARNINGS:\n` +
+        biomarkersNeedingImprovement.map((b: any) => {
+          if (typeof b === "string") return `• ${b}`;
+          if (b && typeof b === "object" && b.name) {
+            const statusStr = b.status ? ` is ${String(b.status).toUpperCase()}` : "";
+            const valStr = b.value !== undefined ? ` (${b.value} ${b.unit || ""}, normal range: ${b.normalRange || ""})` : "";
+            return `• ${b.name}${statusStr}${valStr}`;
+          }
+          return `• ${String(b)}`;
+        }).join("\n") + "\n";
+    }
     const finalSystemInstruction = customSystemInstruction || systemInstruction;
     const promptText = customVariableData 
-      ? `${customVariableData}\n${visionScoutCtx}\n${databaseMatchesCtx}\nCurrent User Input: "${message}"`
+      ? `${customVariableData}\n${biomarkersCtx}\n${visionScoutCtx}\n${databaseMatchesCtx}\nCurrent User Input: "${message}"`
       : `${historyContext}Analyze this current food request.
 ${userCtx}
+${biomarkersCtx}
 ${timeCtx}
 ${imageCtx}
 ${visionScoutCtx}
