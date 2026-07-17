@@ -1044,7 +1044,7 @@ async function callUnifiedLLM({
   let finalResponseText = "{}";
   addDebugLog(`[UnifiedLLM] Dispatching prompt to model: "${targetGeminiModel}". Contents turns: ${contents.length}.`);
   addDebugLog(`[UnifiedLLM] Attaching ${imagePayloads?.length || (imagePayload ? 1 : 0)} image part(s) to model "${targetGeminiModel}".`);
-  addDebugLog(`[UnifiedLLM-Prompt] System Instruction:\n${resolvedInstruction}`);
+  addDebugLog(`[UnifiedLLM-Prompt] System Instruction: (${resolvedInstruction.length} chars — static per-mode prompt, full text omitted from log)`);
   addDebugLog(`[UnifiedLLM-Prompt] User Prompt:\n${promptText}`);
   try {
     let response = await ai.models.generateContent({
@@ -1140,7 +1140,11 @@ async function callUnifiedLLM({
     }
     
     addDebugLog(`[UnifiedLLM] Successfully completed content generation. Response length: ${response.text?.length || 0} chars.`);
-    addDebugLog(`[UnifiedLLM-Response] Complete response returned from agent:\n${response.text || "{}"}`);
+    const __respText = response.text || "{}";
+    const __respLogged = __respText.length > 6000
+      ? `${__respText.slice(0, 6000)}\n... [truncated, ${__respText.length} chars total — see raw response if needed]`
+      : __respText;
+    addDebugLog(`[UnifiedLLM-Response] Complete response returned from agent:\n${__respLogged}`);
     return response.text || "{}";
   } catch (err: any) {
     addDebugLog(`[UnifiedLLM] First generation attempt failed: ${err.message || err}. Stack: ${err.stack}`);
@@ -1962,7 +1966,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
             imagePayloads,
             responseMimeType: "application/json"
           });
-          addDebugLog(`[Vision Scout] Output: ${scoutOutput}`);
+          addDebugLog(`[Vision Scout] Parsed ${Array.isArray(JSON.parse(scoutOutput || "{}")?.items) ? JSON.parse(scoutOutput || "{}").items.length : 0} item(s). (Full payload already logged above by UnifiedLLM-Response.)`);
           let parsedScout: any = null;
           try {
             parsedScout = typeof scoutOutput === "string" ? JSON.parse(scoutOutput) : scoutOutput;
