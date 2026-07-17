@@ -111,22 +111,49 @@ export default function FullScreenLogViewer({
   const filteredByAgent = useMemo(() => {
     const currentChunks = chunks;
     if (selectedAgent === 'all') return currentChunks;
-    return currentChunks.filter(chunk => {
+
+    // Distinctive tags reliably identify which agent a log line belongs to.
+    // Generic "[UnifiedLLM] ..." lines (dispatch/attach/system instruction/
+    // completion/response) carry no distinguishing text of their own, so they
+    // inherit the category of whichever agent's request is currently "open"
+    // based on log order. This avoids silently dropping them, and avoids the
+    // old unreliable fallback that only matched by coincidence when prior
+    // chat history happened to contain certain phrases.
+    let currentPhase: 'scout' | 'dietitian' | null = null;
+    const scoutChunks: string[] = [];
+    const dietitianChunks: string[] = [];
+
+    currentChunks.forEach(chunk => {
       const lower = chunk.toLowerCase();
-      if (selectedAgent === 'scout') {
-        return lower.includes('vision scout') || 
-               lower.includes('image payload') || 
-               (lower.includes('unifiedllm') && (lower.includes('visual food identification') || lower.includes('analyze this image')));
-      } else {
-        return lower.includes('routeagent') || 
-               lower.includes('modify math') || 
-               lower.includes('mode routing') || 
-               lower.includes('client state') || 
-               lower.includes('database matches') ||
-               lower.includes('fallback') ||
-               (lower.includes('unifiedllm') && (lower.includes('clinical dietitian') || lower.includes('current_active_meal_state')));
+      const isScoutTag = lower.includes('vision scout') || lower.includes('image payload');
+      const isDietitianTag = lower.includes('routeagent') ||
+                              lower.includes('modify math') ||
+                              lower.includes('mode routing') ||
+                              lower.includes('client state') ||
+                              lower.includes('database matches') ||
+                              lower.includes('fallback') ||
+                              lower.includes('comparison resolve');
+
+      if (isScoutTag) {
+        currentPhase = 'scout';
+        scoutChunks.push(chunk);
+        return;
+      }
+      if (isDietitianTag) {
+        currentPhase = 'dietitian';
+        dietitianChunks.push(chunk);
+        return;
+      }
+      if (lower.includes('unifiedllm')) {
+        if (currentPhase === 'scout') {
+          scoutChunks.push(chunk);
+        } else if (currentPhase === 'dietitian') {
+          dietitianChunks.push(chunk);
+        }
       }
     });
+
+    return selectedAgent === 'scout' ? scoutChunks : dietitianChunks;
   }, [chunks, selectedAgent]);
 
   const filteredChunks = useMemo(() => {
