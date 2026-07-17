@@ -658,8 +658,8 @@ ${logsText}`);
     if (typeof obj === 'string') {
       if (obj.startsWith('data:image/') && obj.length > 8000) {
         try {
-          // Compress base64 to maximum 1400x1400 pixels at 0.8 quality
-          const compressed = await compressImage(obj, 1400, 1400, 0.8);
+          // STRICT RULE: Compress base64 to maximum 400x400 pixels at 0.5 quality to prevent Firestore exhaustion
+          const compressed = await compressImage(obj, 400, 400, 0.5);
           return compressed;
         } catch (e) {
           console.warn("Failed to compress base64 image in object:", e);

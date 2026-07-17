@@ -843,6 +843,40 @@ export const FoodCard: React.FC<AgentCardProps & {
                                 
                                 <AverageNutrientsTable averageNutrients={group.averageNutrients} profileLanguage={profile?.language || 'en'} />
                                 
+                                {group.scoutItemIndices && group.scoutItemIndices.length > 0 && (
+                                  <NutritionLabelTable activeScoutItems={group.scoutItemIndices.map((i: number) => activeScoutItems[i]).filter(Boolean)} />
+                                )}
+                                {/* Top Nutrients for Mode D */}
+                                {group.averageNutrients && Object.keys(group.averageNutrients).length > 0 && (
+                                  <div className="py-2 border-t border-slate-100 dark:border-slate-800 mt-2">
+                                    <div className="flex flex-wrap gap-2 justify-center pb-2">
+                                      {(() => {
+                                        const defaultTargets: { [key: string]: number } = { calories: 2000, saturatedFat: 15, sodium: 1200, addedSugar: 30, totalFat: 65, protein: 50, carbohydrates: 250, totalFibre: 30 };
+                                        const nutrientColors: { [key: string]: string } = { calories: 'rgb(249, 115, 22)', saturatedFat: 'rgb(234, 179, 8)', sodium: 'rgb(34, 197, 94)', addedSugar: 'rgb(239, 68, 68)', totalFat: 'rgb(168, 85, 247)', protein: 'rgb(59, 130, 246)', carbohydrates: 'rgb(6, 182, 212)', totalFibre: 'rgb(16, 185, 129)' };
+                                        
+                                        const keysToRender = Object.keys(defaultTargets).filter(k => group.averageNutrients[k] !== undefined && group.averageNutrients[k] !== null);
+                                        return keysToRender.map(key => {
+                                          const val = group.averageNutrients[key];
+                                          const parsedVal = typeof val === 'string' ? parseFloat(val.replace(/[^\d.]/g, '')) : val;
+                                          if (isNaN(parsedVal)) return null;
+                                          return (
+                                            <div key={key} className="flex items-center gap-1.5">
+                                              <NutrientPieChart
+                                                allowance={profile?.targets?.[key as any] ?? defaultTargets[key]}
+                                                alreadyConsumed={0}
+                                                mealValue={parsedVal}
+                                                nutrientKey={key as any}
+                                                size="sm"
+                                                color={nutrientColors[key]}
+                                              />
+                                            </div>
+                                          );
+                                        });
+                                      })()}
+                                    </div>
+                                  </div>
+                                )}
+                                
                                 {/* Pros and Cons */}
                                 <div className="space-y-1.5 pt-1">
                                   {group.pros && (
@@ -1404,47 +1438,35 @@ export const FoodCard: React.FC<AgentCardProps & {
                              </div>
                              
                              {/* Uncertain Items Helper Button */}
-                             {!warningsDismissed && activeScoutItems.some((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0)) && (
-                               (() => {
-                                 const unclearItems = activeScoutItems.filter((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0));
-                                 return (
-                                   <div className="mt-2 flex flex-col gap-2 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/50 rounded-lg p-3 font-sans">
-                                     <div className="flex flex-col gap-1 text-amber-700 dark:text-amber-400">
-                                       <div className="flex items-center gap-1.5 font-bold mb-1">
-                                         <svg className="w-4 h-4 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
-                                         <span className="text-[11px] leading-tight uppercase tracking-wider">Items in review</span>
-                                       </div>
-                                       <ul className="list-disc pl-5 text-[10px] space-y-1">
-                                         {unclearItems.map((item: any, idx: number) => (
-                                           <li key={idx} className="font-medium">
-                                             <span className="font-bold text-amber-800 dark:text-amber-300">{item.originalName || item.keyword}</span>
-                                             {item.anomalyFlags && item.anomalyFlags.length > 0 && (
-                                               <span className="opacity-80 ml-1">({item.anomalyFlags.join(', ')})</span>
-                                             )}
-                                           </li>
-                                         ))}
-                                       </ul>
-                                     </div>
-                                     <div className="flex flex-col sm:flex-row gap-2 mt-1">
-                                       <button 
-                                         onClick={() => setWarningsDismissed(true)} 
-                                         className="flex-1 flex items-center justify-center gap-1.5 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all text-center"
-                                       >
-                                         <Check className="w-3.5 h-3.5" />
-                                         The estimation is correct
-                                       </button>
-                                       <button 
-                                         onClick={() => { document.getElementById('food-chat-input')?.focus(); }} 
-                                         className="flex-1 flex items-center justify-center gap-1.5 text-[10px] font-bold bg-indigo-50 dark:bg-indigo-900/40 border border-indigo-200 dark:border-indigo-700 text-indigo-700 dark:text-indigo-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-indigo-100 dark:hover:bg-indigo-900/60 active:scale-95 transition-all text-center"
-                                       >
-                                         <Camera className="w-3.5 h-3.5" />
-                                         <Search className="w-3.5 h-3.5" />
-                                         Update
-                                       </button>
-                                     </div>
+                             {activeScoutItems.some((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0)) && (
+                               <div className="mt-2 flex flex-col gap-1.5 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/50 rounded-lg p-2 font-sans">
+                                 <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400">
+                                   <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                   <div className="flex flex-col">
+                                     <span className="text-[11px] font-bold leading-tight">Items in Review:</span>
+                                     <span className="text-[10px] font-medium leading-tight">
+                                       {activeScoutItems
+                                          .filter((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0))
+                                          .map((i: any) => i.originalName || i.keyword || i.name)
+                                          .join(', ')}
+                                     </span>
                                    </div>
-                                 );
-                               })()
+                                 </div>
+                                 <div className="flex gap-2">
+                                   <button 
+                                     onClick={() => { document.getElementById('food-chat-input')?.focus(); }} 
+                                     className="flex-1 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all text-center"
+                                   >
+                                     Correct Item
+                                   </button>
+                                   <button 
+                                     onClick={() => { document.getElementById('food-chat-input')?.focus(); }} 
+                                     className="flex-1 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all text-center"
+                                   >
+                                     Upload New Photo
+                                   </button>
+                                 </div>
+                               </div>
                              )}
                              <NutritionLabelTable activeScoutItems={activeScoutItems} />
                           </div>

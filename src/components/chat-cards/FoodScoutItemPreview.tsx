@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { CroppedFoodImage } from './FoodCard';
+const onlineImageCache = new Map<string, string>();
 export const OnlineFoodImage: React.FC<{ 
   foodName: string; 
   fallbackSrc: string; 
@@ -21,6 +22,14 @@ export const OnlineFoodImage: React.FC<{
       setLoading(false);
       return;
     }
+    
+    const cacheKey = `${searchMode}_${foodName}`;
+    if (onlineImageCache.has(cacheKey)) {
+      setSrc(onlineImageCache.get(cacheKey)!);
+      setLoading(false);
+      return;
+    }
+    
     let active = true;
     const fetchImage = async () => {
       try {
@@ -31,7 +40,9 @@ export const OnlineFoodImage: React.FC<{
         });
         const data = await res.json();
         if (active && data.images && data.images.length > 0) {
-          setSrc(data.images[0].imageUrl);
+          const fetchedUrl = data.images[0].imageUrl;
+          onlineImageCache.set(cacheKey, fetchedUrl);
+          setSrc(fetchedUrl);
         }
       } catch (err) {
         console.warn("Online search failed for", foodName, err);
