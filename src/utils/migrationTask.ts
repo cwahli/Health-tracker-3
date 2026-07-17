@@ -16,12 +16,12 @@ export const runCleanupMigration = async (uid: string, email?: string) => {
     // 1. Check LocalStorage (done above)
     // 2. Secondary check in Firestore under UID
     const migrationRef = doc(db, 'users', uid, 'metadata', 'migration');
-    trackApiCall('firebase_read', 'Firestore getDoc');
+    trackApiCall('firebase_read', 'Firestore Read - Migration Check: Fetch July 5th cleanup metadata (checks if database schema migration is already applied)');
       const migrationSnap = await getDoc(migrationRef);
     
     // Check old flag in profile as well for backwards compatibility
     const profileRef = doc(db, 'users', uid);
-    trackApiCall('firebase_read', 'Firestore getDoc');
+    trackApiCall('firebase_read', 'Firestore Read - Migration Check: Read User Profile (backwards compatibility check for july 5th migration)');
       const profileSnap = await getDoc(profileRef);
 
     let isAlreadyDone = false;
@@ -45,7 +45,7 @@ export const runCleanupMigration = async (uid: string, email?: string) => {
     
     // Clean history logs under UID
     const historyRef = collection(db, 'users', uid, 'biomarkerHistory');
-    trackApiCall('firebase_read', 'Firestore getDocs');
+    trackApiCall('firebase_read', 'Firestore Read - Migration Exec: Fetch biomarker history list (loads full logs to perform July 5th key duplicates cleanup)');
       const snapshot = await getDocs(historyRef);
     
     for (const docSnap of snapshot.docs) {
@@ -74,7 +74,7 @@ export const runCleanupMigration = async (uid: string, email?: string) => {
       if ('creatinine' in newBiomarkers) { delete newBiomarkers['creatinine']; madeChanges = true; }
 
       if (madeChanges) {
-        trackApiCall('firebase_write', 'Firestore updateDoc');
+        trackApiCall('firebase_write', 'Firestore Write - Migration Exec: Clean up biomarker duplicate data (overwrites single history document with cleaned key-value payload)');
       await updateDoc(docSnap.ref, { biomarkers: newBiomarkers });
         console.log("Cleaned doc", docSnap.id);
       }
@@ -101,12 +101,12 @@ export const runCleanupMigration = async (uid: string, email?: string) => {
     }
     
     // Mark as done in Firestore metadata
-    trackApiCall('firebase_write', 'Firestore setDoc');
+    trackApiCall('firebase_write', 'Firestore Write - Migration Exec: Mark July 5th cleanup as completed in Cloud metadata');
       await setDoc(migrationRef, { biomarkersV1Completed: true }, { merge: true });
     
     // If profile changes exist, apply them
     if (Object.keys(profileChanges).length > 0) {
-      trackApiCall('firebase_write', 'Firestore updateDoc');
+      trackApiCall('firebase_write', 'Firestore Write - Migration Exec: Remove profile custom biomarker list duplicates');
       await updateDoc(profileRef, profileChanges);
     }
     

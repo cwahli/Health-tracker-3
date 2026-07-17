@@ -1,5 +1,4 @@
 import { NutritionLabelTable } from "./NutritionLabelTable";
-import { AverageNutrientsTable } from "./AverageNutrientsTable";
 import { trackApiCall } from '../../utils/apiTracker';
 import * as React from 'react';
 import { AgentCardProps } from './types';
@@ -826,11 +825,15 @@ export const FoodCard: React.FC<AgentCardProps & {
                                 {/* Group Hero Image: Use Vision Scout crop if available, otherwise fallback to online search */}
                                 <div className="w-full h-32 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 shadow-sm relative shrink-0">
                                   {(() => {
-                                    const scoutItem = (group.scoutItemIndices && group.scoutItemIndices.length > 0 && activeScoutItems[group.scoutItemIndices[0]]) 
-                                      ? activeScoutItems[group.scoutItemIndices[0]] 
-                                      : (activeScoutItems && activeScoutItems.length > 0 ? activeScoutItems[0] : null);
+                                    const scoutItemIdx = (group.scoutItemIndices && group.scoutItemIndices.length > 0)
+                                      ? group.scoutItemIndices[0]
+                                      : (activeScoutItems && activeScoutItems.length > 0 ? 0 : null);
+
+                                    const scoutItem = (scoutItemIdx !== null && activeScoutItems[scoutItemIdx]) 
+                                      ? activeScoutItems[scoutItemIdx] 
+                                      : null;
                                     
-                                    if (scoutItem) {
+                                    if (scoutItem && scoutItemIdx !== null) {
                                       const imgIdx = typeof scoutItem.sourceImageIndex === 'number' ? scoutItem.sourceImageIndex : 0;
                                       const resolvedImgSrc = (messageImages.length > 0)
                                         ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
@@ -845,7 +848,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                             className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
                                             imageUrls={messageImages}
                                             sourceImageIndex={imgIdx}
-                                            onTap={() => setScoutPreviewIdx(group.scoutItemIndices[0])}
+                                            onTap={() => setScoutPreviewIdx(scoutItemIdx)}
                                           />
                                         );
                                       } else {
@@ -854,7 +857,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                             src={resolvedImgSrc} 
                                             alt={scoutItem.keyword} 
                                             className="w-full h-full object-cover cursor-pointer hover:scale-105 transition-transform"
-                                            onClick={() => setScoutPreviewIdx(group.scoutItemIndices[0])}
+                                            onClick={() => setScoutPreviewIdx(scoutItemIdx)}
                                             onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format'; }}
                                           />
                                         );
@@ -873,12 +876,53 @@ export const FoodCard: React.FC<AgentCardProps & {
                                   })()}
                                 </div>
                                 
-                                <AverageNutrientsTable averageNutrients={group.averageNutrients} profileLanguage={profile?.language || 'en'} />
-                                
-                                {group.scoutItemIndices && group.scoutItemIndices.length > 0 && (
-                                  <NutritionLabelTable activeScoutItems={group.scoutItemIndices.map((i: number) => activeScoutItems[i]).filter(Boolean)} />
-                                )}
-                                {/* Top Nutrients for Mode D */}
+                                {(() => {
+                                  const groupScoutItems = (group.scoutItemIndices && group.scoutItemIndices.length > 0)
+                                    ? group.scoutItemIndices.map((i: number) => activeScoutItems[i]).filter(Boolean)
+                                    : [];
+                                  
+                                  if (groupScoutItems.length > 0) {
+                                    return <NutritionLabelTable activeScoutItems={groupScoutItems} />;
+                                  }
+
+                                  if (group.averageNutrients && Object.keys(group.averageNutrients).length > 0) {
+                                    let weight = parseFloat(group.averageNutrients.weight || group.averageNutrients.estimatedWeightGrams || "");
+                                    if (isNaN(weight)) {
+                                      const firstItem = group.items?.[0];
+                                      if (firstItem) {
+                                        weight = parseFloat(firstItem.weightGrams || firstItem.estimatedWeightGrams || "");
+                                      }
+                                    }
+                                    if (isNaN(weight) && activeScoutItems && activeScoutItems.length > 0) {
+                                      weight = activeScoutItems[0].estimatedWeightGrams;
+                                    }
+
+                                    const servingSize = group.averageNutrients.servingSize || (group.items?.[0]?.servingSize) || "100g";
+                                    
+                                    const rawNutritionLabel: any = { servingSize };
+                                    const nutritionFacts: any = { servingSize };
+
+                                    Object.entries(group.averageNutrients).forEach(([k, v]) => {
+                                      if (k === 'weight' || k === 'estimatedWeightGrams' || k === 'servingSize') return;
+                                      rawNutritionLabel[k] = v;
+                                      nutritionFacts[k] = v;
+                                    });
+
+                                    const pseudoScoutItem = {
+                                      originalName: group.groupName,
+                                      keyword: group.groupName,
+                                      estimatedWeightGrams: weight,
+                                      nutritionFacts,
+                                      rawNutritionLabel,
+                                      itemConfidence: "high",
+                                    };
+
+                                    return <NutritionLabelTable activeScoutItems={[pseudoScoutItem]} />;
+                                  }
+
+                                  return null;
+                                })()}
+                                 {/* Top Nutrients for Mode D */}
                                 {group.averageNutrients && Object.keys(group.averageNutrients).length > 0 && (
                                   <div className="py-2 border-t border-slate-100 dark:border-slate-800 mt-2">
                                     <div className="flex flex-wrap gap-2 justify-center pb-2">
@@ -889,11 +933,39 @@ export const FoodCard: React.FC<AgentCardProps & {
                                         const nutrientUnits: { [key: string]: string } = { calories: 'kcal', saturatedFat: 'g', sodium: 'mg', addedSugar: 'g', totalFat: 'g', protein: 'g', carbohydrates: 'g', totalFibre: 'g' };
                                         const formatNutrientValue = (v: number, u: string) => `${v.toFixed(1).replace(/\.0$/, '')}${u}`;
                                         
-                                        const keysToRender = Object.keys(defaultTargets).filter(k => group.averageNutrients[k] !== undefined && group.averageNutrients[k] !== null);
+                                        // Respect the user's selected primary nutrients from their profile (defaults to calories, saturatedFat, sodium) to stay consistent with Mode A
+                                        const activeKeys = profile?.topNutrientsToMonitor || ['calories', 'saturatedFat', 'sodium'];
+                                        const keysToRender = activeKeys.filter(k => group.averageNutrients[k] !== undefined && group.averageNutrients[k] !== null);
+                                        
+                                        // Calculate multiplier for Mode D total value scaling
+                                        let weight = parseFloat(group.averageNutrients.weight || group.averageNutrients.estimatedWeightGrams || "");
+                                        if (isNaN(weight)) {
+                                          const firstItem = group.items?.[0];
+                                          if (firstItem) {
+                                            weight = parseFloat(firstItem.weightGrams || firstItem.estimatedWeightGrams || "");
+                                          }
+                                        }
+                                        if (isNaN(weight) && activeScoutItems && activeScoutItems.length > 0) {
+                                          weight = activeScoutItems[0].estimatedWeightGrams;
+                                        }
+                                        if (isNaN(weight)) weight = 100; // default fallback
+
+                                        const servingSize = group.averageNutrients.servingSize || (group.items?.[0]?.servingSize) || "100g";
+                                        let multiplier = 1;
+                                        const ssMatch = String(servingSize).match(/[\d.]+/);
+                                        if (ssMatch) {
+                                          multiplier = weight / parseFloat(ssMatch[0]);
+                                        } else {
+                                          multiplier = weight / 100;
+                                        }
+
                                         return keysToRender.map(key => {
                                           const val = group.averageNutrients[key];
                                           const parsedVal = typeof val === 'string' ? parseFloat(val.replace(/[^\d.]/g, '')) : val;
                                           if (isNaN(parsedVal)) return null;
+                                          
+                                          // Scale portion total value
+                                          const totalVal = parsedVal * multiplier;
                                           
                                           const color = nutrientColors[key] || 'rgb(100, 116, 139)';
                                           const label = nutrientLabels[key] || (key.replace(/([A-Z])/g, ' $1').trim());
@@ -904,12 +976,12 @@ export const FoodCard: React.FC<AgentCardProps & {
                                               <NutrientPieChart
                                                 allowance={profile?.targets?.[key as any] ?? defaultTargets[key]}
                                                 alreadyConsumed={0}
-                                                mealValue={parsedVal}
+                                                mealValue={totalVal}
                                                 nutrientKey={key as any}
                                                 size="sm"
                                               />
                                               <span className={key === 'calories' ? "text-[11px] font-extrabold" : "text-[11px] font-bold"} style={{ color }}>
-                                                {key === 'calories' ? '' : `${label}: `}{formatNutrientValue(parsedVal, unit)}
+                                                {key === 'calories' ? '' : `${label}: `}{formatNutrientValue(totalVal, unit)}
                                               </span>
                                             </div>
                                           );
@@ -1666,7 +1738,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                             key={itemIdx} 
                                             className="border-b last:border-b-0 border-slate-100 dark:border-slate-850 text-slate-750 dark:text-slate-200 font-medium hover:bg-slate-50 dark:hover:bg-slate-850/20"
                                           >
-                                            <td className="p-2 font-semibold truncate max-w-[120px]" title={item.name}>
+                                            <td className="p-2 font-semibold text-xs leading-normal whitespace-normal break-words max-w-[180px]" title={item.name}>
                                               {item.name}
                                             </td>
                                             <td className="p-2 text-right font-mono text-slate-500">
@@ -1762,7 +1834,11 @@ export const FoodCard: React.FC<AgentCardProps & {
                           type="button"
                           onClick={() => {
                             if (msg.data?.pendingFoodLog && onLogFood) {
-                              onLogFood(msg.data?.pendingFoodLog as FoodLog);
+                              const foodToLog = {
+                                ...msg.data.pendingFoodLog,
+                                scoutItems: msg.data.scoutItems || []
+                              };
+                              onLogFood(foodToLog as FoodLog);
                               setLoggedMessageIds?.(prev => [...prev, msg.id]);
                             }
                           }}

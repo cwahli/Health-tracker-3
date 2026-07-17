@@ -603,7 +603,18 @@ ${logsText}`);
   const chatStorageKey = agentType ? `chat_messages_${userIdentifier}_${type}_${agentType}_${dataReviewBatchIdx ?? 'none'}` : `chat_messages_${userIdentifier}_${type}`;
 
   const [lastSentPayload, setLastSentPayload] = useState<any>(null);
-  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [messages, setMessagesInternal] = useState<ChatMessage[]>([]);
+  const hasUnsavedChangesRef = useRef<boolean>(false);
+
+  const setMessages = (
+    update: ChatMessage[] | ((prev: ChatMessage[]) => ChatMessage[]),
+    markAsUnsaved = true
+  ) => {
+    if (markAsUnsaved) {
+      hasUnsavedChangesRef.current = true;
+    }
+    setMessagesInternal(update);
+  };
   
   // Synchronized Multi-select Search Mode States for Bottom Action Bar
   const [isSelectingMode, setIsSelectingMode] = useState<boolean>(false);
@@ -631,8 +642,12 @@ ${logsText}`);
   const pendingSaveRef = useRef<(() => void) | null>(null);
 
   const debouncedSaveConversation = (id: string, msgs: ChatMessage[], payload: any) => {
+    if (!hasUnsavedChangesRef.current) return;
     if (saveTimeoutRef.current) clearTimeout(saveTimeoutRef.current);
-    pendingSaveRef.current = () => saveConversationToFirestore(id, msgs, payload);
+    pendingSaveRef.current = () => {
+      saveConversationToFirestore(id, msgs, payload);
+      hasUnsavedChangesRef.current = false;
+    };
     saveTimeoutRef.current = setTimeout(() => {
       if (pendingSaveRef.current) {
         pendingSaveRef.current();
@@ -751,7 +766,7 @@ ${logsText}`);
       const compressedPayload = await compressLargeImagesInObject(payload);
 
       const docRef = doc(db, 'users', userId, 'conversations', id);
-      trackApiCall('firebase_write', 'Firestore setDoc');
+      trackApiCall('firebase_write', `Firestore Write - Save Chat Session (${id}) [Type: ${type || 'medical'}${agentType ? `, Agent: ${agentType}` : ''}] (saves chat messages, title, and lastSentPayload dynamically in Real-Time as messages are sent)`);
       await setDoc(docRef, sanitizeForFirestore({
         id,
         userId,
@@ -792,13 +807,13 @@ ${logsText}`);
       if (saved) {
         try {
           const parsed = JSON.parse(saved);
-          setMessages(migrateMessages(parsed));
+          setMessages(migrateMessages(parsed), false);
           const savedPayload = sessionStorage.getItem(payloadStorageKey);
           setLastSentPayload(savedPayload ? JSON.parse(savedPayload) : null);
         } catch {}
       } else {
         const welcome = getWelcomeMessage();
-        setMessages([welcome]);
+        setMessages([welcome], false);
         setLastSentPayload(null);
       }
       return;
@@ -811,7 +826,7 @@ ${logsText}`);
         where('type', '==', type || 'medical'),
         where('agentType', '==', agentType || null)
       );
-      trackApiCall('firebase_read', 'Firestore getDocs');
+      trackApiCall('firebase_read', `Firestore Read - Load Chat Sessions List [Type: ${type || 'medical'}${agentType ? `, Agent: ${agentType}` : ''}] (downloads past chat session records to display in the conversation history side panel)`);
       const snapshot = await getDocs(q);
       const list: any[] = [];
       snapshot.forEach(docSnap => {
@@ -830,22 +845,22 @@ ${logsText}`);
         if (localSaved) {
           try {
             const parsed = JSON.parse(localSaved);
-            setMessages(migrateMessages(parsed));
+            setMessages(migrateMessages(parsed), false);
             const localPayload = localStorage.getItem(`${payloadStorageKey}_${userId}_${match.id}`);
             setLastSentPayload(localPayload ? JSON.parse(localPayload) : null);
           } catch {
-            setMessages(migrateMessages(match.messages || []));
+            setMessages(migrateMessages(match.messages || []), false);
             setLastSentPayload(match.lastSentPayload || null);
           }
         } else {
-          setMessages(migrateMessages(match.messages || []));
+          setMessages(migrateMessages(match.messages || []), false);
           setLastSentPayload(match.lastSentPayload || null);
         }
       } else {
         const newId = `session_${Date.now()}`;
         setActiveConversationId(newId);
         const welcome = getWelcomeMessage();
-        setMessages([welcome]);
+        setMessages([welcome], false);
         setLastSentPayload(null);
         setConversationsList([{
           id: newId,
@@ -867,7 +882,7 @@ ${logsText}`);
     const newId = `session_${Date.now()}`;
     setActiveConversationId(newId);
     const welcome = getWelcomeMessage();
-    setMessages([welcome]);
+    setMessages([welcome], false);
     setLastSentPayload(null);
     setConversationsList(prev => [
       {
@@ -887,7 +902,7 @@ ${logsText}`);
     if (!userId) return;
 
     try {
-      trackApiCall('firebase_delete', 'Firestore deleteDoc');
+      trackApiCall('firebase_delete', `Firestore Delete - Remove Chat Session (${sessId}) (permanently deletes specified chat history from Cloud Database)`);
       await deleteDoc(doc(db, 'users', userId, 'conversations', sessId));
       const updatedList = conversationsList.filter(c => c.id !== sessId);
       setConversationsList(updatedList);
@@ -896,7 +911,7 @@ ${logsText}`);
         if (updatedList.length > 0) {
           const nextSess = updatedList[0];
           setActiveConversationId(nextSess.id);
-          setMessages(migrateMessages(nextSess.messages || []));
+          setMessages(migrateMessages(nextSess.messages || []), false);
           setLastSentPayload(nextSess.lastSentPayload || null);
         } else {
           handleNewSession();
@@ -911,7 +926,7 @@ ${logsText}`);
     const found = conversationsList.find(c => c.id === sessId);
     if (found) {
       setActiveConversationId(sessId);
-      setMessages(migrateMessages(found.messages || []));
+      setMessages(migrateMessages(found.messages || []), false);
       setLastSentPayload(found.lastSentPayload || null);
     }
   };
@@ -928,7 +943,7 @@ ${logsText}`);
 
   useEffect(() => {
     if (isOpen && messages.length === 0) {
-      setMessages([getWelcomeMessage()]);
+      setMessages([getWelcomeMessage()], false);
     }
   }, [isOpen, messages.length]);
 

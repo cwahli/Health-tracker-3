@@ -168,7 +168,7 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
     setIsSyncing(true);
     setSyncStatusMsg('idle');
     try {
-      trackApiCall('firebase_write', 'Firestore sync batch');
+      trackApiCall('firebase_write', 'Firestore Write - Sync API Call Telemetry Batch (saves offline transaction logs to the cloud for system-wide auditing)');
       const batch = writeBatch(db);
       
       const unsynced = events.filter(e => e.syncStatus !== 'synced');

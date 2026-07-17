@@ -1,5 +1,6 @@
 import React from 'react';
 import { Camera, Search } from 'lucide-react';
+import { nutrientDefinitions } from '../../utils/nutrition';
 
 export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: any[] }) {
   if (!activeScoutItems?.length) return null;
@@ -44,7 +45,13 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                 ...(hasRaw ? Object.keys(item.rawNutritionLabel) : []),
                 ...(hasNut ? Object.keys(item.nutritionFacts) : []),
               ])
-            ).filter((k) => k !== 'servingSize' && k !== 'weight' && k !== 'servingsPerContainer');
+            ).filter((k) => {
+              if (k === 'servingSize' || k === 'weight' || k === 'servingsPerContainer') return false;
+              const val = item.rawNutritionLabel?.[k] !== undefined 
+                ? item.rawNutritionLabel?.[k] 
+                : item.nutritionFacts?.[k];
+              return val !== undefined && val !== null && val !== '' && val !== '-' && val !== '--';
+            });
 
             return (
               <div
@@ -79,7 +86,7 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                           Original Label
                         </th>
                         <th className="py-1.5 px-2 font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50 whitespace-nowrap">
-                          Total Nutrition Value {missingWeight ? '(N/A)' : `(${item.estimatedWeightGrams}g)`}
+                          Total value {missingWeight ? '(N/A)' : `(${item.estimatedWeightGrams}g)`}
                         </th>
                       </tr>
                     </thead>
@@ -112,8 +119,22 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                           }
                           
                           const total = (numVal * multiplier).toFixed(1).replace(/\.0$/, '');
-                          const unit = String(originalVal).replace(/[\d.\s]/g, '') || (k.toLowerCase().includes('calories') ? 'kcal' : 'g');
+                          const nutDef = nutrientDefinitions.find((n: any) => n.key.toLowerCase() === k.toLowerCase());
+                          const defaultUnit = k.toLowerCase().includes('calories') ? 'kcal' : (nutDef ? nutDef.unit : 'g');
+                          const unit = String(originalVal).replace(/[\d.\s]/g, '') || defaultUnit;
                           totalStr = `${total}${unit}`;
+                        }
+
+                        let originalDisplay = '-';
+                        if (originalVal !== undefined && originalVal !== null) {
+                          const hasUnit = /[a-zA-Z%]/.test(String(originalVal));
+                          if (hasUnit) {
+                            originalDisplay = String(originalVal);
+                          } else {
+                            const nutDef = nutrientDefinitions.find((n: any) => n.key.toLowerCase() === k.toLowerCase());
+                            const defaultUnit = k.toLowerCase().includes('calories') ? 'kcal' : (nutDef ? nutDef.unit : 'g');
+                            originalDisplay = `${originalVal}${defaultUnit}`;
+                          }
                         }
 
                         return (
@@ -122,7 +143,7 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                               {k.replace(/([A-Z])/g, ' $1').trim()}
                             </td>
                             <td className="py-1.5 px-2 text-slate-600 dark:text-slate-400">
-                              {originalVal !== undefined && originalVal !== null ? String(originalVal) : '-'}
+                              {originalDisplay}
                             </td>
                             <td className="py-1.5 px-2 text-indigo-600 dark:text-indigo-400 font-bold">
                               {totalStr}

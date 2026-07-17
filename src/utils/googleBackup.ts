@@ -310,7 +310,7 @@ export async function runBackupWorkflow(
   comment: string,
   password?: string
 ): Promise<{ fileId: string; filename: string; stats: any }> {
-  trackApiCall('firebase_read', 'Firestore getDocs');
+  trackApiCall('firebase_read', 'Firestore Read - Backup: Fetch all users (scans the entire database to aggregate accounts for backup creation)');
       const usersSnap = await getDocs(collection(db, 'users'));
   const allAccountsData: any[] = [];
 
@@ -327,12 +327,12 @@ export async function runBackupWorkflow(
     if (!profile.email) continue;
 
     // Fetch food logs
-    trackApiCall('firebase_read', 'Firestore getDocs');
+    trackApiCall('firebase_read', `Firestore Read - Backup: Fetch food logs (downloads user meal entries for backup ZIP generation)`);
       const foodLogsSnap = await getDocs(collection(db, 'users', uid, 'foodLogs'));
     const foodLogs = foodLogsSnap.docs.map(d => d.data());
 
     // Fetch biomarker history
-    trackApiCall('firebase_read', 'Firestore getDocs');
+    trackApiCall('firebase_read', `Firestore Read - Backup: Fetch biomarker history (downloads blood/body biomarker recordings for backup ZIP generation)`);
       const biomarkerHistorySnap = await getDocs(collection(db, 'users', uid, 'biomarkerHistory'));
     const biomarkerHistory = biomarkerHistorySnap.docs.map(d => d.data());
 
@@ -341,7 +341,7 @@ export async function runBackupWorkflow(
     let dailyBenefits: any[] = [];
     let foodIdeas: any[] = [];
     try {
-      trackApiCall('firebase_read', 'Firestore getDoc');
+      trackApiCall('firebase_read', `Firestore Read - Backup: Fetch dashboard (downloads dashboard action lists, goals, and diet guidelines for backup ZIP generation)`);
       const dashboardDoc = await getDoc(doc(db, 'users', uid, 'metadata', 'dashboard'));
       if (dashboardDoc.exists()) {
         const dData = dashboardDoc.data();
@@ -356,7 +356,7 @@ export async function runBackupWorkflow(
     // Fetch latest report
     let report: any = null;
     try {
-      trackApiCall('firebase_read', 'Firestore getDoc');
+      trackApiCall('firebase_read', `Firestore Read - Backup: Fetch latest report (downloads latest PDF baseline recommendation report for backup ZIP generation)`);
       const reportDoc = await getDoc(doc(db, 'users', uid, 'reports', 'latest'));
       if (reportDoc.exists()) {
         report = reportDoc.data();
@@ -368,7 +368,7 @@ export async function runBackupWorkflow(
     // Fetch agent analyses
     let agentAnalyses: any[] = [];
     try {
-      trackApiCall('firebase_read', 'Firestore getDocs');
+      trackApiCall('firebase_read', `Firestore Read - Backup: Fetch agent analyses (downloads all AI medical reviews and daily log audits for backup ZIP generation)`);
       const analysesSnap = await getDocs(collection(db, 'users', uid, 'agentAnalyses'));
       agentAnalyses = analysesSnap.docs.map(d => d.data());
     } catch (e) {

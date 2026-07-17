@@ -40,7 +40,7 @@ export const syncLogsWithTimeBuckets = async (
     const monthUnsyncedFoods = unsyncedFoods.filter(f => toYYYYMM(f.date) === monthBucket);
     const monthUnsyncedBiomarkers = unsyncedBiomarkers.filter(b => toYYYYMM(b.date) === monthBucket);
     try {
-      trackApiCall('firebase_read', 'Firestore getDoc');
+      trackApiCall('firebase_read', `Firestore Read - Fetch Consolidated Logs Bucket (${monthBucket}) (downloads monthly aggregated logs to resolve conflicts or sync remote changes)`);
       const bucketDoc = await getDoc(bucketRef);
       
       let serverData: any = { month: monthBucket, logs: {}, last_sync_timestamp: Date.now() };
@@ -83,7 +83,7 @@ export const syncLogsWithTimeBuckets = async (
       monthUnsyncedBiomarkers.forEach(b => processItem(b, 'biomarker'));
       if (changed) {
         serverData.last_sync_timestamp = Date.now();
-        trackApiCall('firebase_write', 'Firestore setDoc');
+        trackApiCall('firebase_write', `Firestore Write - Save Updated Logs to Bucket (${monthBucket}) (syncs new or edited food/biomarker entries to Cloud)`);
         await setDoc(bucketRef, sanitizeForFirestore(serverData));
       }
       
@@ -122,7 +122,7 @@ export const fetchAllConsolidatedLogs = async (
   deletedFoodLogIds: string[] = [], 
   deletedBiomarkerLogIds: string[] = []
 ) => {
-  trackApiCall('firebase_read', 'Firestore getDocs');
+  trackApiCall('firebase_read', 'Firestore Read - Fetch All Consolidated Logs Buckets (downloads historical food and biomarker logs from all months to build lists)');
       const bucketsSnap = await getDocs(collection(db, 'users', uid, 'consolidated_logs'));
   
   let serverFoods: FoodLog[] = [];

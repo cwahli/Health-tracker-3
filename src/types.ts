@@ -203,6 +203,7 @@ export interface FoodLog {
   imageUrl?: string;
   imageUrls?: string[];
   itemsBreakdown?: FoodItemBreakdown[];
+  scoutItems?: any[];
   chatTranscript?: { role: 'user' | 'assistant'; content: string; timestamp?: string }[];
   sync_state?: SyncState;
   updated_at?: number;

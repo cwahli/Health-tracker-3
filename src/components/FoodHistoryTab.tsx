@@ -11,6 +11,7 @@ import { getCurrentDateInTimezone } from '../utils/dateUtils';
 import ImageSlider from './ImageSlider';
 import { resolveFoodImage, resolveFoodImages } from '../utils/imageResolver';
 import { NutrientPieChart } from './NutrientPieChart';
+import { NutritionLabelTable } from './chat-cards/NutritionLabelTable';
 
 interface FoodHistoryTabProps {
   profile: UserProfile;
@@ -1358,29 +1359,7 @@ export default function FoodHistoryTab({
                             )}
                           </div>
 
-                          {log.chatTranscript && Array.isArray(log.chatTranscript) && log.chatTranscript.length > 0 && (
-                            <div className="bg-slate-50 dark:bg-slate-900/40 rounded-2xl p-4 border border-slate-200/50 dark:border-slate-800 text-left space-y-2">
-                              <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold flex items-center gap-1">
-                                <span>💬 Chat Context with Agent</span>
-                              </span>
-                              <div className="space-y-3 max-h-60 overflow-y-auto pr-1">
-                                {log.chatTranscript.map((chatMsg, chatIdx) => (
-                                  <div key={chatIdx} className={`space-y-1 text-xs ${chatMsg.role === 'user' ? 'text-right' : 'text-left'}`}>
-                                    <span className="text-[9px] text-slate-400 font-bold uppercase">
-                                      {chatMsg.role === 'user' ? 'You' : 'Agent'}
-                                    </span>
-                                    <div className={`p-2.5 rounded-2xl inline-block max-w-[90%] text-left font-medium ${
-                                      chatMsg.role === 'user' 
-                                        ? 'bg-indigo-600 text-white rounded-tr-none' 
-                                        : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-850 dark:text-slate-200 rounded-tl-none'
-                                    }`}>
-                                      <p className="whitespace-pre-wrap">{chatMsg.content}</p>
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
+
 
                           <div className="space-y-4 py-2 bg-slate-50 dark:bg-slate-900/40 rounded-2xl px-3.5">
                             <div>
@@ -1431,6 +1410,75 @@ export default function FoodHistoryTab({
                               </div>
                             </div>
                           </div>
+
+                          {/* Component Contribution & Nutrition Label Tables */}
+                          {((log.scoutItems && log.scoutItems.length > 0) || (log.itemsBreakdown && log.itemsBreakdown.length > 0)) && (
+                            <div className="space-y-4 pt-4 border-t border-slate-200/50 dark:border-slate-800/50">
+                              {log.scoutItems && log.scoutItems.length > 0 && (
+                                <div className="space-y-2 text-left">
+                                  <span className="text-[10px] font-mono uppercase tracking-wider text-slate-400 font-bold block mb-1">
+                                    📋 Nutrition Labels & Reference Data
+                                  </span>
+                                  <NutritionLabelTable activeScoutItems={log.scoutItems} />
+                                </div>
+                              )}
+
+                              {log.itemsBreakdown && log.itemsBreakdown.length > 0 && (
+                                <div className="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
+                                  <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
+                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                      📊 Component Contribution
+                                    </span>
+                                  </div>
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-left border-collapse text-[11px]">
+                                      <thead>
+                                        <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 text-slate-500 dark:text-slate-400 font-bold">
+                                          <th className="p-2">Item Name</th>
+                                          <th className="p-2 text-right">Weight</th>
+                                          <th className="p-2 text-right">Calories</th>
+                                          <th className="p-2 text-right">Sat Fat</th>
+                                          <th className="p-2 text-right">Sodium</th>
+                                        </tr>
+                                      </thead>
+                                      <tbody>
+                                        {log.itemsBreakdown.map((item: any, itemIdx: number) => {
+                                          const formatNutVal = (v: any, unit: string) => {
+                                            if (v === undefined || v === null) return '--';
+                                            const num = typeof v === 'string' ? parseFloat(v.replace(/[^\d.]/g, '')) : v;
+                                            if (isNaN(num)) return v;
+                                            return `${num.toFixed(1).replace(/\.0$/, '')}${unit}`;
+                                          };
+                                          return (
+                                            <tr 
+                                              key={itemIdx} 
+                                              className="border-b last:border-b-0 border-slate-100 dark:border-slate-800 text-slate-750 dark:text-slate-200 font-medium hover:bg-slate-50 dark:hover:bg-slate-800/20"
+                                            >
+                                              <td className="p-2 font-semibold text-xs leading-normal whitespace-normal break-words max-w-[180px]" title={item.name}>
+                                                {item.name}
+                                              </td>
+                                              <td className="p-2 text-right font-mono text-slate-500">
+                                                {formatNutVal(item.weightGrams, 'g')}
+                                              </td>
+                                              <td className="p-2 text-right font-mono text-orange-600 dark:text-orange-400 font-semibold">
+                                                {formatNutVal(item.calories, 'kcal')}
+                                              </td>
+                                              <td className="p-2 text-right font-mono text-amber-500 font-semibold">
+                                                {formatNutVal(item.saturatedFat, 'g')}
+                                              </td>
+                                              <td className="p-2 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                                                {formatNutVal(item.sodium, 'mg')}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       )}
                     </>
