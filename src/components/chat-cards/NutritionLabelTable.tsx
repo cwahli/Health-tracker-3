@@ -30,7 +30,7 @@ function normalizeNutritionKeys(obj: any) {
   return normalized;
 }
 
-export function NutritionLabelTable({ activeScoutItems, onConfirmItem }: { activeScoutItems: any[], onConfirmItem?: (idx: any) => void }) {
+export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOpen = true }: { activeScoutItems: any[], onConfirmItem?: (idx: any) => void, defaultOpen?: boolean }) {
   if (!activeScoutItems?.length) return null;
   // Only `rawNutritionLabel` is gated on "a real physical panel is visible" — `nutritionFacts`
   // is a general-purpose estimate field and must never be treated as evidence of a real label.
@@ -87,7 +87,7 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem }: { activ
 
   return (
     <div className="mt-2 text-left pt-1 font-sans">
-      <details className="group [&_summary::-webkit-details-marker]:hidden" open>
+      <details className="group [&_summary::-webkit-details-marker]:hidden" open={defaultOpen}>
         <summary className="flex items-center gap-1.5 cursor-pointer text-[10px] font-bold text-indigo-600 dark:text-indigo-400 select-none">
           <span>View Nutrition Labels</span>
           <svg

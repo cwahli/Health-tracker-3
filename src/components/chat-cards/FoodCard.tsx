@@ -987,7 +987,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                   }
                                     
                                   if (groupScoutItems.length > 0) {
-                                    return <NutritionLabelTable activeScoutItems={groupScoutItems} onConfirmItem={(idx) => setConfirmedScoutIndices(prev => new Set(prev).add(idx))} />;
+                                    return <NutritionLabelTable defaultOpen={false} activeScoutItems={groupScoutItems} onConfirmItem={(idx) => setConfirmedScoutIndices(prev => new Set(prev).add(idx))} />;
                                   }
 
                                   // No real scout items for this group (e.g. a text-only comparison with no
@@ -1727,7 +1727,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                  </div>
                                </div>
                              )}
-                             <NutritionLabelTable activeScoutItems={activeScoutItems} onConfirmItem={(idx) => setConfirmedScoutIndices(prev => new Set(prev).add(idx))} />
+                             <NutritionLabelTable defaultOpen={false} activeScoutItems={activeScoutItems} onConfirmItem={(idx) => setConfirmedScoutIndices(prev => new Set(prev).add(idx))} />
                           </div>
                         );
                       })()}
