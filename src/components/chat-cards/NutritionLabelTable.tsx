@@ -1,4 +1,5 @@
 import React from 'react';
+import { Camera, Search } from 'lucide-react';
 
 export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: any[] }) {
   if (!activeScoutItems?.length) return null;
@@ -30,13 +31,15 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
             const hasNut = item.nutritionFacts && Object.keys(item.nutritionFacts).length > 0;
             if (!hasRaw && !hasNut) return null;
 
+            const missingWeight = !item.estimatedWeightGrams || isNaN(Number(item.estimatedWeightGrams));
+
             // Merge keys for table
             const allKeys = Array.from(
               new Set([
                 ...(hasRaw ? Object.keys(item.rawNutritionLabel) : []),
                 ...(hasNut ? Object.keys(item.nutritionFacts) : []),
               ])
-            ).filter((k) => k !== 'servingSize' && k !== 'weight');
+            ).filter((k) => k !== 'servingSize' && k !== 'weight' && k !== 'servingsPerContainer');
 
             return (
               <div
@@ -48,12 +51,10 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                 </strong>
 
                 <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-[10px]">
-                  {(item.rawNutritionLabel?.weight || item.nutritionFacts?.weight) && (
-                    <div className="font-medium text-slate-700 dark:text-slate-300">
-                      <span className="text-slate-400 font-normal">Weight:</span>{' '}
-                      {item.rawNutritionLabel?.weight || item.nutritionFacts?.weight}
-                    </div>
-                  )}
+                  <div className="font-medium text-slate-700 dark:text-slate-300">
+                    <span className="text-slate-400 font-normal">Weight:</span>{' '}
+                    {missingWeight ? <span className="text-amber-500 font-bold">Unknown</span> : `${item.estimatedWeightGrams}g`}
+                  </div>
                   {(item.rawNutritionLabel?.servingSize || item.nutritionFacts?.servingSize) && (
                     <div className="font-medium text-slate-700 dark:text-slate-300">
                       <span className="text-slate-400 font-normal">Serving Size:</span>{' '}
@@ -62,6 +63,23 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                   )}
                 </div>
 
+                {missingWeight && (
+                  <div className="mb-3 flex items-center justify-between bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-200 dark:border-amber-800/50">
+                    <div className="flex items-center gap-1.5 text-amber-700 dark:text-amber-400">
+                      <svg className="w-3.5 h-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                      <span className="font-medium">Missing portion size to calculate total nutrients.</span>
+                    </div>
+                    <button 
+                      onClick={() => { document.getElementById('food-chat-input')?.focus(); }}
+                      className="flex items-center gap-1 font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1 px-2 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all"
+                    >
+                      <Camera className="w-3 h-3" />
+                      <Search className="w-3 h-3" />
+                      Update
+                    </button>
+                  </div>
+                )}
+
                 <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700/50">
                   <table className="w-full text-left border-collapse">
                     <thead>
@@ -69,40 +87,61 @@ export function NutritionLabelTable({ activeScoutItems }: { activeScoutItems: an
                         <th className="py-1.5 px-2 font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
                           Nutrient
                         </th>
-                        {hasRaw && (
-                          <th className="py-1.5 px-2 font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
-                            Raw Label
-                          </th>
-                        )}
-                        {hasNut && (
-                          <th className="py-1.5 px-2 font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
-                            Per 100g
-                          </th>
-                        )}
+                        <th className="py-1.5 px-2 font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
+                          Original Label
+                        </th>
+                        <th className="py-1.5 px-2 font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50 whitespace-nowrap">
+                          Total {missingWeight ? '(N/A)' : `(${item.estimatedWeightGrams}g)`}
+                        </th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                      {allKeys.map((k) => (
-                        <tr key={k} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                          <td className="py-1.5 px-2 font-medium text-slate-700 dark:text-slate-300 capitalize">
-                            {k.replace(/([A-Z])/g, ' $1').trim()}
-                          </td>
-                          {hasRaw && (
-                            <td className="py-1.5 px-2 text-slate-600 dark:text-slate-400">
-                              {item.rawNutritionLabel?.[k] !== undefined && item.rawNutritionLabel?.[k] !== null
-                                ? String(item.rawNutritionLabel?.[k])
-                                : '-'}
+                      {allKeys.map((k) => {
+                        const originalVal = item.rawNutritionLabel?.[k] !== undefined 
+                          ? item.rawNutritionLabel?.[k] 
+                          : item.nutritionFacts?.[k];
+                          
+                        let numVal = null;
+                        if (originalVal !== undefined && originalVal !== null) {
+                          const match = String(originalVal).match(/[\d.]+/);
+                          if (match) numVal = parseFloat(match[0]);
+                        }
+                        
+                        let totalStr = '-';
+                        if (numVal !== null && !missingWeight) {
+                          let multiplier = 1;
+                          const wasFromRaw = item.rawNutritionLabel?.[k] !== undefined;
+                          
+                          if (wasFromRaw && item.rawNutritionLabel?.servingSize) {
+                             const ssMatch = String(item.rawNutritionLabel.servingSize).match(/[\d.]+/);
+                             if (ssMatch) {
+                               multiplier = item.estimatedWeightGrams / parseFloat(ssMatch[0]);
+                             } else {
+                               multiplier = item.estimatedWeightGrams / 100;
+                             }
+                          } else {
+                             multiplier = item.estimatedWeightGrams / 100;
+                          }
+                          
+                          const total = (numVal * multiplier).toFixed(1).replace(/\.0$/, '');
+                          const unit = String(originalVal).replace(/[\d.\s]/g, '') || (k.toLowerCase().includes('calories') ? 'kcal' : 'g');
+                          totalStr = `${total}${unit}`;
+                        }
+
+                        return (
+                          <tr key={k} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                            <td className="py-1.5 px-2 font-medium text-slate-700 dark:text-slate-300 capitalize">
+                              {k.replace(/([A-Z])/g, ' $1').trim()}
                             </td>
-                          )}
-                          {hasNut && (
                             <td className="py-1.5 px-2 text-slate-600 dark:text-slate-400">
-                              {item.nutritionFacts?.[k] !== undefined && item.nutritionFacts?.[k] !== null
-                                ? String(item.nutritionFacts?.[k])
-                                : '-'}
+                              {originalVal !== undefined && originalVal !== null ? String(originalVal) : '-'}
                             </td>
-                          )}
-                        </tr>
-                      ))}
+                            <td className="py-1.5 px-2 text-indigo-600 dark:text-indigo-400 font-bold">
+                              {totalStr}
+                            </td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
