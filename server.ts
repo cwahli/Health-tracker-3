@@ -683,6 +683,7 @@ function addDebugLog(msg: string, explicitSessionId?: string) {
     globalDebugLogs.shift();
   }
 }
+const actualAddDebugLog = addDebugLog;
 
 // Defensive numeric guard for weight values coming from LLM output.
 // Number(x) alone is not safe here: an overlong digit string overflows to
@@ -695,10 +696,15 @@ function sanitizeMealWeight(value: any, fallback: number, maxGrams: number = 100
 }
 
 // Helper to retrieve the Google Maps Place ID from business name & location
-async function fetchGoogleMapsPlaceId(businessName: string, latitude: string | number, longitude: string | number): Promise<string> {
+async function fetchGoogleMapsPlaceId(
+  businessName: string,
+  latitude: string | number,
+  longitude: string | number,
+  explicitSessionId?: string
+): Promise<string> {
   const apiKey = process.env.GOOGLE_MAPS_API_KEY;
   if (!apiKey) {
-    addDebugLog(`[get_google_maps_place_id] API Key is missing in process.env`);
+    addDebugLog(`[get_google_maps_place_id] API Key is missing in process.env`, explicitSessionId);
     return "ERROR_API_FAILED";
   }
   
@@ -711,32 +717,32 @@ async function fetchGoogleMapsPlaceId(businessName: string, latitude: string | n
     const lngStr = String(longitude).trim();
     const url = `https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=${encodeURIComponent(businessName)}&inputtype=textquery&locationbias=point:${latStr},${lngStr}&fields=place_id&key=${apiKey}`;
     
-    addDebugLog(`[get_google_maps_place_id] Fetching place ID for "${businessName}" near (${latStr}, ${lngStr})`);
+    addDebugLog(`[get_google_maps_place_id] Fetching place ID for "${businessName}" near (${latStr}, ${lngStr})`, explicitSessionId);
     
     const res = await fetch(url, { signal: controller.signal });
     clearTimeout(timeoutId);
     
     if (!res.ok) {
-      addDebugLog(`[get_google_maps_place_id] Google Places API HTTP error: ${res.status}`);
+      addDebugLog(`[get_google_maps_place_id] Google Places API HTTP error: ${res.status}`, explicitSessionId);
       return "ERROR_API_FAILED";
     }
     const data = await res.json();
     if (data.status === "ZERO_RESULTS") {
-      addDebugLog(`[get_google_maps_place_id] No results found (ZERO_RESULTS) for "${businessName}"`);
+      addDebugLog(`[get_google_maps_place_id] No results found (ZERO_RESULTS) for "${businessName}"`, explicitSessionId);
       return "NOT_FOUND";
     }
     if (data.candidates && data.candidates.length > 0) {
       const pId = data.candidates[0].place_id || "NOT_FOUND";
-      addDebugLog(`[get_google_maps_place_id] Resolved successfully! Place ID: ${pId}`);
+      addDebugLog(`[get_google_maps_place_id] Resolved successfully! Place ID: ${pId}`, explicitSessionId);
       return pId;
     }
-    addDebugLog(`[get_google_maps_place_id] Status was ${data.status || 'unknown'}, candidates empty.`);
+    addDebugLog(`[get_google_maps_place_id] Status was ${data.status || 'unknown'}, candidates empty.`, explicitSessionId);
     return "NOT_FOUND";
   } catch (err: any) {
     clearTimeout(timeoutId);
     const isAbort = err.name === 'AbortError';
     const errorMsg = isAbort ? 'Request timed out after 2500ms' : (err.message || err);
-    addDebugLog(`[get_google_maps_place_id] Error: ${errorMsg}`);
+    addDebugLog(`[get_google_maps_place_id] Error: ${errorMsg}`, explicitSessionId);
     return "ERROR_API_FAILED";
   }
 }
@@ -783,6 +789,8 @@ async function callUnifiedLLM({
   enablePlaceIdTool?: boolean;
   maxOutputTokens?: number;
 }) {
+  const explicitSessionId = logSessionStorage.getStore();
+  const addDebugLog = (msg: string) => actualAddDebugLog(msg, explicitSessionId);
   try {
     const isJson = responseMimeType === "application/json";
     const normalizedModelId = (modelId || "gemini-3.5-flash").toLowerCase();
@@ -1069,7 +1077,7 @@ async function callUnifiedLLM({
           try {
             const { business_name, latitude, longitude } = call.args as any;
             addDebugLog(`[UnifiedLLM] Call args: business_name="${business_name}", lat="${latitude}", lng="${longitude}"`);
-            const pId = await fetchGoogleMapsPlaceId(business_name, latitude, longitude);
+            const pId = await fetchGoogleMapsPlaceId(business_name, latitude, longitude, explicitSessionId);
             if (pId === "ERROR_API_FAILED" || pId === "NOT_FOUND") {
               functionResponseData = { 
                 place_id: "NOT_FOUND", 
@@ -1198,7 +1206,7 @@ async function callUnifiedLLM({
               try {
                 const { business_name, latitude, longitude } = call.args as any;
                 addDebugLog(`[UnifiedLLM-Fallback] Call args: business_name="${business_name}", lat="${latitude}", lng="${longitude}"`);
-                const pId = await fetchGoogleMapsPlaceId(business_name, latitude, longitude);
+                const pId = await fetchGoogleMapsPlaceId(business_name, latitude, longitude, explicitSessionId);
                 if (pId === "ERROR_API_FAILED" || pId === "NOT_FOUND") {
                   functionResponseData = { 
                     place_id: "NOT_FOUND", 
