@@ -2067,7 +2067,14 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
             if (Array.isArray(parsedScout.items)) {
               visionScoutItems = parsedScout.items.map((item: any, idx: number) => {
                 let newItem = { ...item, scoutIndex: idx };
-                if (newItem.rawNutritionLabel && typeof newItem.rawNutritionLabel === 'object') {
+                const rawLabelHasRealData = newItem.rawNutritionLabel && typeof newItem.rawNutritionLabel === 'object'
+                  ? Object.keys(newItem.rawNutritionLabel).some((k: string) => {
+                      if (k === 'servingSize' || k === 'weight' || k === 'servingsPerContainer') return false;
+                      const v = newItem.rawNutritionLabel[k];
+                      return v !== undefined && v !== null && v !== '' && v !== '-' && v !== '--';
+                    })
+                  : false;
+                if (newItem.rawNutritionLabel && typeof newItem.rawNutritionLabel === 'object' && rawLabelHasRealData) {
                   const getVal = (key: string) => {
                     const val = newItem.rawNutritionLabel[key];
                     if (val === undefined || val === null) return 0;
