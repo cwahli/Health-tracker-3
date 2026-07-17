@@ -30,7 +30,7 @@ function normalizeNutritionKeys(obj: any) {
   return normalized;
 }
 
-export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOpen = true }: { activeScoutItems: any[], onConfirmItem?: (idx: any) => void, defaultOpen?: boolean }) {
+export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOpen = false }: { activeScoutItems: any[], onConfirmItem?: (idx: any) => void, defaultOpen?: boolean }) {
   if (!activeScoutItems?.length) return null;
   // Only `rawNutritionLabel` is gated on "a real physical panel is visible" — `nutritionFacts`
   // is a general-purpose estimate field and must never be treated as evidence of a real label.
@@ -71,11 +71,13 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
     };
   });
 
+  const NON_NUTRIENT_LABEL_KEYS = new Set(['servingSize', 'weight', 'servingsPerContainer']);
+
   const hasLabels = processedItems.some((item: any) => {
     if (!item || !item.rawNutritionLabel || typeof item.rawNutritionLabel !== 'object') {
       return false;
     }
-    const keys = Object.keys(item.rawNutritionLabel);
+    const keys = Object.keys(item.rawNutritionLabel).filter(k => !NON_NUTRIENT_LABEL_KEYS.has(k));
     if (keys.length === 0) return false;
     return keys.some(k => {
       const val = item.rawNutritionLabel[k];
@@ -101,7 +103,17 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
         </summary>
         <div className="mt-2 space-y-3 pl-2 border-l-2 border-indigo-100 dark:border-indigo-900/30">
           {processedItems.map((item: any, i: number) => {
-            const hasRaw = item.rawNutritionLabel && Object.keys(item.rawNutritionLabel).length > 0;
+            const meaningfulRawKeys = item.rawNutritionLabel
+              ? Object.keys(item.rawNutritionLabel).filter((k: string) =>
+                  !NON_NUTRIENT_LABEL_KEYS.has(k) &&
+                  item.rawNutritionLabel[k] !== undefined &&
+                  item.rawNutritionLabel[k] !== null &&
+                  item.rawNutritionLabel[k] !== '' &&
+                  item.rawNutritionLabel[k] !== '-' &&
+                  item.rawNutritionLabel[k] !== '--'
+                )
+              : [];
+            const hasRaw = meaningfulRawKeys.length > 0;
             const hasNut = item.nutritionFacts && Object.keys(item.nutritionFacts).length > 0;
             if (!hasRaw) return null;
 
