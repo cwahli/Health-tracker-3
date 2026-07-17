@@ -749,6 +749,38 @@ export const FoodCard: React.FC<AgentCardProps & {
                                );
                              })}
                            </div>
+
+                           {/* Uncertain Items Helper Button */}
+                           {activeScoutItems.some((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0)) && (
+                             <div className="mt-2 flex flex-col gap-1.5 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/50 rounded-lg p-2 font-sans">
+                               <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400">
+                                 <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
+                                 <div className="flex flex-col">
+                                   <span className="text-[11px] font-bold leading-tight">Items in Review:</span>
+                                   <span className="text-[10px] font-medium leading-tight">
+                                     {activeScoutItems
+                                        .filter((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0))
+                                        .map((i: any) => i.originalName || i.keyword || i.name)
+                                        .join(', ')}
+                                   </span>
+                                 </div>
+                               </div>
+                               <div className="flex gap-2">
+                                 <button 
+                                   onClick={() => { document.getElementById('food-chat-input')?.focus(); }} 
+                                   className="flex-1 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all text-center"
+                                 >
+                                   Correct Item
+                                 </button>
+                                 <button 
+                                   onClick={() => { document.getElementById('food-chat-input')?.focus(); }} 
+                                   className="flex-1 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all text-center"
+                                 >
+                                   Upload New Photo
+                                 </button>
+                               </div>
+                             </div>
+                           )}
                         </div>
                       )}
 
@@ -796,7 +828,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                   {(() => {
                                     const scoutItem = (group.scoutItemIndices && group.scoutItemIndices.length > 0 && activeScoutItems[group.scoutItemIndices[0]]) 
                                       ? activeScoutItems[group.scoutItemIndices[0]] 
-                                      : null;
+                                      : (activeScoutItems && activeScoutItems.length > 0 ? activeScoutItems[0] : null);
                                     
                                     if (scoutItem) {
                                       const imgIdx = typeof scoutItem.sourceImageIndex === 'number' ? scoutItem.sourceImageIndex : 0;
@@ -853,12 +885,20 @@ export const FoodCard: React.FC<AgentCardProps & {
                                       {(() => {
                                         const defaultTargets: { [key: string]: number } = { calories: 2000, saturatedFat: 15, sodium: 1200, addedSugar: 30, totalFat: 65, protein: 50, carbohydrates: 250, totalFibre: 30 };
                                         const nutrientColors: { [key: string]: string } = { calories: 'rgb(249, 115, 22)', saturatedFat: 'rgb(234, 179, 8)', sodium: 'rgb(34, 197, 94)', addedSugar: 'rgb(239, 68, 68)', totalFat: 'rgb(168, 85, 247)', protein: 'rgb(59, 130, 246)', carbohydrates: 'rgb(6, 182, 212)', totalFibre: 'rgb(16, 185, 129)' };
+                                        const nutrientLabels: { [key: string]: string } = { calories: 'Calories', saturatedFat: 'Sat Fat', sodium: 'Sodium', addedSugar: 'Added Sugar', totalFat: 'Total Fat', protein: 'Protein', carbohydrates: 'Carbs', totalFibre: 'Fiber' };
+                                        const nutrientUnits: { [key: string]: string } = { calories: 'kcal', saturatedFat: 'g', sodium: 'mg', addedSugar: 'g', totalFat: 'g', protein: 'g', carbohydrates: 'g', totalFibre: 'g' };
+                                        const formatNutrientValue = (v: number, u: string) => `${v.toFixed(1).replace(/\.0$/, '')}${u}`;
                                         
                                         const keysToRender = Object.keys(defaultTargets).filter(k => group.averageNutrients[k] !== undefined && group.averageNutrients[k] !== null);
                                         return keysToRender.map(key => {
                                           const val = group.averageNutrients[key];
                                           const parsedVal = typeof val === 'string' ? parseFloat(val.replace(/[^\d.]/g, '')) : val;
                                           if (isNaN(parsedVal)) return null;
+                                          
+                                          const color = nutrientColors[key] || 'rgb(100, 116, 139)';
+                                          const label = nutrientLabels[key] || (key.replace(/([A-Z])/g, ' $1').trim());
+                                          const unit = nutrientUnits[key] || 'g';
+
                                           return (
                                             <div key={key} className="flex items-center gap-1.5">
                                               <NutrientPieChart
@@ -868,6 +908,9 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                 nutrientKey={key as any}
                                                 size="sm"
                                               />
+                                              <span className={key === 'calories' ? "text-[11px] font-extrabold" : "text-[11px] font-bold"} style={{ color }}>
+                                                {key === 'calories' ? '' : `${label}: `}{formatNutrientValue(parsedVal, unit)}
+                                              </span>
                                             </div>
                                           );
                                         });

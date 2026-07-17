@@ -23,7 +23,8 @@ export const OnlineFoodImage: React.FC<{
       return;
     }
     
-    const cacheKey = `${searchMode}_${foodName}`;
+    const baseFoodName = foodName.replace(/\s*\(.*?\)\s*/g, '').trim();
+    const cacheKey = `${searchMode}_${baseFoodName}`;
     if (onlineImageCache.has(cacheKey)) {
       setSrc(onlineImageCache.get(cacheKey)!);
       setLoading(false);
