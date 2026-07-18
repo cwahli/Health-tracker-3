@@ -495,15 +495,14 @@ Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing snac
   3. BIOMARKER STRATEGY & INGREDIENT QUALITY (CHRONIC THREATS): Does the biochemical nature of the food OR its specific ingredients trigger any of the "PATIENT BIOMARKER WARNINGS"? If an 'ingredientsList' is provided, you MUST analyze it. Highly processed or inflammatory ingredients (e.g., refined flours like 'Tepung Terigu', shortening/'lemak reroti', 'margarin') must actively penalize the item's ranking, especially for patients with liver (ALT), cholesterol, or diabetes risks. If 'ingredientsList' is null, base your assessment strictly on the macro payload.
   4. TARGET ACQUISITION (POSITIVE IMPACT): Does the item significantly contribute to the "Nutrient target to reach today" (e.g., high Protein, Potassium, Soluble Fibre, or Unsaturated Fat) without grossly violating steps 1-3?
 
-- GROUPING STRATEGY (RANKED TIERS + THREAT CLUSTERING - MANDATORY):
-  You must structure the 'comparison.groups' array in a strict tiered order. EVEN IF ALL ITEMS ARE UNHEALTHY, you MUST forcibly rank them to find the "least harmful" choices to mitigate damage. DO NOT group all items into a single bucket.
-  * NO "INDEX" NAMES: You are STRICTLY FORBIDDEN from using non-meaningful words like "Index 0" or "Index 1". You MUST use descriptive visual or product names (e.g., "Blue packaging bread", "Brand X Cookies") when referring to items.
-  * TIER 1 (The Winner / Least Harmful): The first group MUST contain EXACTLY ONE item: the absolute best (or least harmful) choice for the patient. Set "groupName" to a descriptive reason without any prefixes or emojis (e.g., "Lowest in all harmful nutrients"). 
-  * TIER 2 (The Runner-Up / Second Least Harmful): The second group MUST contain EXACTLY ONE item: the second-best (or second least harmful) choice. Set "groupName" to a descriptive reason without any prefixes or emojis (e.g., "Good balance of protein and calories").
-  * TIER 3 (The Rest - Threat Clusters): Group all remaining items (if any) based STRICTLY on their differences in clinical threats. Set "groupName" to a descriptive reason without any prefixes like 'Tier' or 'Option' (e.g., "Critical Sodium Warning").
-     - NO GENERIC BUCKETS: You are strictly FORBIDDEN from using generic categories like "High Risk" or "Avoid".
-     - THE DIVERGENCE RULE: Separate remaining items by their SINGLE worst offending nutrient. If specific nutrient labels are missing, you MUST cluster items by their base ingredient matrix (e.g., 'Deep-Fried Cassava/Root Veg', 'Extruded Corn Snacks', 'Whole Grains') to determine the differing clinical threats.
-     - THE CONVERGENCE RULE: You may only group remaining items together if their worst offending nutrient is EXACTLY the same.
+- GROUPING STRATEGY (RANKED TIERS + THREAT CLUSTERING - MANDATORY & STRICTLY ENFORCED):
+  You MUST ALWAYS structure the 'comparison.groups' array in a strict tiered order with AT LEAST THREE distinct groups. EVEN IF ALL ITEMS ARE UNHEALTHY (like a shelf of deep-fried chips), you are STRICTLY FORBIDDEN from putting all items in a single bucket or ignoring the ranking requirement. You MUST forcibly rank them to find the "least harmful" choices to mitigate damage:
+  * TIER 1 (The Winner / Least Harmful Group) [MANDATORY]: This group MUST contain EXACTLY ONE item: the absolute best (or least harmful) choice for the patient (e.g. "Oishi Popcorn" as popcorn is a whole grain and has fiber). Set "groupName" to a descriptive reason without any prefixes or emojis (e.g., "Lowest in all harmful nutrients" or "Whole Grain Fiber Matrix"). 
+  * TIER 2 (The Runner-Up Group) [MANDATORY]: This group MUST contain EXACTLY ONE item: the second-best (or second least harmful) choice (e.g. "Taro Net" or "Chitato Lite" as they are baked/thinner). Set "groupName" to a descriptive reason without any prefixes or emojis (e.g., "Good balance of protein and calories" or "Baked Extruded Snack").
+  * TIER 3 (The Rest - Threat Clusters) [MANDATORY]: Group all remaining items into multiple descriptive threat groups based STRICTLY on their differences in clinical threats and ingredient matrices.
+     - NO GENERIC BUCKETS: You are strictly FORBIDDEN from using generic categories like "High Risk", "Avoid", "Items with high risk of Trans Fats and Sodium", or putting all Tier 3 items into a single giant bucket.
+     - THE DIVERGENCE RULE: Separate remaining items by their SINGLE worst offending nutrient. If specific nutrient labels are missing, you MUST cluster items by their base ingredient matrix (e.g., 'Critical Calorie & Saturated Fat Threat (Cassava/Root Veg)', 'High Saturated Fat Warning (Traditional Potato Chips)', 'High Glycemic Index & Sodium Risk (Corn & Extruded Snacks)') to determine the differing clinical threats.
+     - THE CONVERGENCE RULE: You may only group remaining items together if their worst offending nutrient and base ingredient matrix are EXACTLY the same.
   *(Note: If there are only 2 items total, output only Tier 1 and Tier 2).*
   * CRITICAL MATH REQUIREMENT: You MUST use the provided 'TRUE TOTAL NUTRITIONAL PAYLOAD' values for 'averageNutrients'. Do not re-calculate or apply serving size math yourself.
 
@@ -1515,7 +1514,7 @@ app.get("/api/gemini/instruction-preview", async (req, res) => {
 // Gemini Food Analyze Endpoint
 app.post("/api/gemini/food-analyze", async (req, res) => {
   try {
-    const { message, image, images, imageDates, history, userProfile, engine, biomarkersNeedingImprovement, remainingAllowance, userId, activeMeal, customSystemInstruction, customVariableData } = req.body;
+    const { message, image, images, imageDates, history, userProfile, engine, biomarkersNeedingImprovement, remainingAllowance, userId, activeMeal, customSystemInstruction, customVariableData, foodLogs } = req.body;
 
     const STANDARD_FOOD_FACTORS: {[key: string]: {calories: number, saturatedFat: number, sodium: number, protein: number, carbohydrates: number, totalFat: number}} = {
       steak: { calories: 2.5, saturatedFat: 0.05, sodium: 1.8, protein: 0.26, carbohydrates: 0.0, totalFat: 0.18 },
@@ -2175,6 +2174,21 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
                 }
                 return newItem;
               });
+              addDebugLog(`[Vision Scout] Exploded high density rows into ${visionScoutItems.length} individual item(s) to process:`);
+              visionScoutItems.forEach((item: any) => {
+                const rawLabelHasRealData = item.rawNutritionLabel && typeof item.rawNutritionLabel === 'object'
+                  ? Object.keys(item.rawNutritionLabel).some((k: string) => {
+                      if (k === 'servingSize' || k === 'weight' || k === 'servingsPerContainer') return false;
+                      const v = item.rawNutritionLabel[k];
+                      return v !== undefined && v !== null && v !== '' && v !== '-' && v !== '--';
+                    })
+                  : false;
+                const flagStr = (item.anomalyFlags && item.anomalyFlags.length > 0) ? ` | Flags: [${item.anomalyFlags.join(', ')}]` : '';
+                const confStr = item.itemConfidence ? ` | Confidence: ${item.itemConfidence}` : '';
+                const labelStr = rawLabelHasRealData ? ` | Nutrition Label: ${JSON.stringify(item.rawNutritionLabel)}` : '';
+                addDebugLog(`[Vision Scout] - Index: ${item.scoutIndex} | Name: "${item.originalName || item.keyword}" | Keyword: "${item.keyword}"${labelStr}${flagStr}${confStr}`);
+              });
+
               for (const item of visionScoutItems) {
                 if (item.keyword) {
                   queriesToSearch.push(item.keyword);
@@ -2333,6 +2347,74 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
     if (history && Array.isArray(history) && history.length > 0) {
       historyContext = "PAST DISCUSSIONS & MEALS CHAT HISTORY:\n" +
         history.slice(-10).map((h: any) => `${h.role.toUpperCase()}: ${h.content}`).join("\n") + "\n\n";
+    }
+
+    let pastMealsCtx = "";
+    if (foodLogs && Array.isArray(foodLogs) && foodLogs.length > 0) {
+      try {
+        const pastMeals: any[] = [];
+        foodLogs.forEach((f: any) => {
+          if (f) {
+            pastMeals.push({
+              name: f.name,
+              date: f.date || "",
+              calories: f.nutrients?.calories || f.calories || 0,
+              protein: f.nutrients?.protein || f.protein || 0,
+              saturatedFat: f.nutrients?.saturatedFat || f.saturatedFat || 0,
+              sodium: f.nutrients?.sodium || f.sodium || 0,
+              carbohydrates: f.nutrients?.carbohydrates || f.carbohydrates || 0
+            });
+          }
+        });
+        if (pastMeals.length > 0) {
+          pastMeals.sort((a: any, b: any) => b.date.localeCompare(a.date));
+          const recent = pastMeals.slice(0, 10);
+          pastMealsCtx = "PATIENT'S RECENT LOGGED MEALS HISTORY (from client state):\n" +
+            recent.map((m, idx) => `- Meal ${idx + 1}: "${m.name}" on ${m.date} | Calories: ${m.calories}kcal, Protein: ${m.protein}g, Saturated Fat: ${m.saturatedFat}g, Sodium: ${m.sodium}mg, Carbs: ${m.carbohydrates}g`).join("\n") + "\n\n";
+          addDebugLog(`[Client Context] Successfully loaded ${pastMeals.length} past meal(s) from client payload, included recent ${recent.length} meals in prompt context.`);
+        }
+      } catch (err: any) {
+        addDebugLog(`[Client Context Error] Failed to process client foodLogs: ${err.message}`);
+      }
+    }
+
+    if (!pastMealsCtx && db && userId) {
+      try {
+        const collRef = db.collection("users").doc(userId).collection("consolidated_logs");
+        const snapshot = await collRef.get();
+        const pastMeals: any[] = [];
+        snapshot.forEach((doc: any) => {
+          const data = doc.data();
+          if (data && data.logs) {
+            Object.values(data.logs).forEach((logInfo: any) => {
+              if (logInfo.type === 'food' && logInfo.data) {
+                const food = logInfo.data;
+                pastMeals.push({
+                  name: food.name,
+                  date: food.date,
+                  calories: food.nutrients?.calories || food.calories || 0,
+                  protein: food.nutrients?.protein || food.protein || 0,
+                  saturatedFat: food.nutrients?.saturatedFat || food.saturatedFat || 0,
+                  sodium: food.nutrients?.sodium || food.sodium || 0,
+                  carbohydrates: food.nutrients?.carbohydrates || food.carbohydrates || 0,
+                  timestamp: food.updated_at || 0
+                });
+              }
+            });
+          }
+        });
+        if (pastMeals.length > 0) {
+          pastMeals.sort((a: any, b: any) => b.date.localeCompare(a.date) || b.timestamp - a.timestamp);
+          const recent = pastMeals.slice(0, 10);
+          pastMealsCtx = "PATIENT'S RECENT LOGGED MEALS HISTORY (from database):\n" +
+            recent.map((m, idx) => `- Meal ${idx + 1}: "${m.name}" on ${m.date} | Calories: ${m.calories}kcal, Protein: ${m.protein}g, Saturated Fat: ${m.saturatedFat}g, Sodium: ${m.sodium}mg, Carbs: ${m.carbohydrates}g`).join("\n") + "\n\n";
+          addDebugLog(`[Database Context] Successfully loaded ${pastMeals.length} past meal(s) from database, included recent ${recent.length} meals in prompt context.`);
+        } else {
+          addDebugLog(`[Database Context] No past meals found in consolidated_logs database for user ${userId}.`);
+        }
+      } catch (err: any) {
+        addDebugLog(`[Database Context Error] Failed to retrieve past meals: ${err.message}`);
+      }
     }
 
     // 2. Prepend active state to Master System Instructions
@@ -2620,7 +2702,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
     const finalSystemInstruction = customSystemInstruction || systemInstruction;
     const promptText = customVariableData 
       ? `${customVariableData}\n${biomarkersCtx}\n${visionScoutCtx}\n${databaseMatchesCtx}\nCurrent User Input: "${message}"`
-      : `${historyContext}Analyze this current food request.
+      : `${historyContext}${pastMealsCtx}Analyze this current food request.
 ${userCtx}
 ${biomarkersCtx}
 ${timeCtx}

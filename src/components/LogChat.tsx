@@ -1379,7 +1379,7 @@ ${logsText}`);
         image: tempAnalysisImages[0] || tempImages[0] || undefined,
         images: tempAnalysisImages.length > 0 ? tempAnalysisImages : (tempImages.length > 0 ? tempImages : undefined),
         imageDates: tempDates.length > 0 ? tempDates : undefined,
-        history: messages.slice(activeSessionIdx).filter(m => !m.id.startsWith('welcome_')).slice(-10).map(m => {
+        history: messages.slice(activeSessionIdx).filter(m => !m.id.startsWith('welcome_')).map(m => {
           let extra = "";
           if (m.role === 'assistant') {
             if (m.data?.pendingBiomarkers) extra += `
@@ -1421,6 +1421,7 @@ ${logsText}`);
           bodyData.activeScoutItems = lastScoutMsg.data.scoutItems;
         }
         
+        bodyData.foodLogs = (activeFoodLogs || []).map(f => ({ name: f.name, date: f.date, nutrients: f.nutrients }));
         bodyData.biomarkersNeedingImprovement = outOfRangeBiomarkers.map(b => `${b.name} is ${getBiomarkerStatusLabel(b.key, b.status, profile?.customBiomarkers?.[b.key], b.value, profile).toUpperCase()} (${b.value} ${b.unit}, normal range: ${b.normalRange})`);
         bodyData.remainingAllowance = {
           calories: remainingAllowance.calories,
