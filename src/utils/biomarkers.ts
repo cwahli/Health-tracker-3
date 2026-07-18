@@ -497,14 +497,19 @@ export const getBiomarkerStatus = (key: string, val: number | string, normalRang
   const num = typeof val === 'string' ? parseFloat(val) : val;
   if (isNaN(num)) return 'unknown';
 
+  let valueToEvaluate = num;
+  if (key === 'hematocrit' && valueToEvaluate < 1) {
+    valueToEvaluate *= 100;
+  }
+
   if (key === 'bmi' && profile) {
     const isAsian = profile.ethnicity ? isAsianEthnicity(profile.ethnicity) : false;
     const minNormal = 18.5;
     const maxNormal = isAsian ? 22.9 : 24.9;
     const criticalThreshold = isAsian ? 27.5 : 30.0;
-    if (num < minNormal) return 'low';
-    if (num > maxNormal) {
-      if (num >= criticalThreshold) return 'critical';
+    if (valueToEvaluate < minNormal) return 'low';
+    if (valueToEvaluate > maxNormal) {
+      if (valueToEvaluate >= criticalThreshold) return 'critical';
       return 'high';
     }
     return 'normal';
@@ -538,10 +543,10 @@ export const getBiomarkerStatus = (key: string, val: number | string, normalRang
       // Evaluate value constraints
       let valMatch = true;
       if (r.min !== undefined && r.min !== '') {
-        if (num < Number(r.min)) valMatch = false;
+        if (valueToEvaluate < Number(r.min)) valMatch = false;
       }
       if (r.max !== undefined && r.max !== '') {
-        if (num >= Number(r.max)) valMatch = false;
+        if (valueToEvaluate >= Number(r.max)) valMatch = false;
       }
       
       if (valMatch) {
@@ -552,12 +557,6 @@ export const getBiomarkerStatus = (key: string, val: number | string, normalRang
 
     if (matchedRange) {
       if (matchedRange.isNormal) return 'normal';
-      // If not normal, guess based on value? 
-      // A simple heuristic: if it has a max but no min, it's likely "low". If min but no max, "high". 
-      // But actually, we don't have isNormal flag working perfectly yet unless we set it.
-      // We added isNormal: false in the UI. 
-      // If it's Obese (high), we can return 'high' or 'critical'. 
-      // Let's just return 'high' for anything not normal for now, to ensure it shows as out of range.
       return 'high';
     }
   }
@@ -577,33 +576,37 @@ export const getBiomarkerStatus = (key: string, val: number | string, normalRang
 
   if (!isMmol) {
     if (key === 'ldl') {
-      if (num > 130) return 'critical';
-      if (num > 100) return 'high';
+      if (valueToEvaluate > 130) return 'critical';
+      if (valueToEvaluate > 100) return 'high';
       return 'normal';
     }
+    if (key === 'mpv') {
+        if (valueToEvaluate > 13.0) return 'high';
+        return 'normal';
+    }
     if (key === 'apob') {
-      if (num > 110) return 'critical';
-      if (num > 90) return 'high';
+      if (valueToEvaluate > 110) return 'critical';
+      if (valueToEvaluate > 90) return 'high';
       return 'normal';
     }
     if (key === 'hba1c') {
-      if (num >= 6.5) return 'critical';
-      if (num >= 5.7) return 'high';
+      if (valueToEvaluate >= 6.5) return 'critical';
+      if (valueToEvaluate >= 5.7) return 'high';
       return 'normal';
     }
     if (key === 'egfr') {
-      if (num < 60) return 'critical';
-      if (num < 90) return 'low';
+      if (valueToEvaluate < 60) return 'critical';
+      if (valueToEvaluate < 90) return 'low';
       return 'normal';
     }
     if (key === 'hscrp') {
-      if (num >= 3.0) return 'critical';
-      if (num >= 1.0) return 'high';
+      if (valueToEvaluate >= 3.0) return 'critical';
+      if (valueToEvaluate >= 1.0) return 'high';
       return 'normal';
     }
     if (key === 'vitamin_d') {
-      if (num < 20) return 'critical';
-      if (num < 30) return 'low';
+      if (valueToEvaluate < 20) return 'critical';
+      if (valueToEvaluate < 30) return 'low';
       return 'normal';
     }
   }
@@ -615,8 +618,8 @@ export const getBiomarkerStatus = (key: string, val: number | string, normalRang
   if (match) {
     const min = parseFloat(match[1]);
     const max = parseFloat(match[2]);
-    if (num < min) return 'low';
-    if (num > max) return 'high';
+    if (valueToEvaluate < min) return 'low';
+    if (valueToEvaluate > max) return 'high';
     return 'normal';
   }
 
@@ -625,8 +628,8 @@ export const getBiomarkerStatus = (key: string, val: number | string, normalRang
     const valMatch = rangeStr.match(/[\d.]+/);
     if (valMatch) {
       const threshold = parseFloat(valMatch[0]);
-      if (num > threshold) {
-        if (num >= threshold * 1.3) return 'critical';
+      if (valueToEvaluate > threshold) {
+        if (valueToEvaluate >= threshold * 1.3) return 'critical';
         return 'high';
       }
       return 'normal';
@@ -636,8 +639,8 @@ export const getBiomarkerStatus = (key: string, val: number | string, normalRang
     const valMatch = rangeStr.match(/[\d.]+/);
     if (valMatch) {
       const threshold = parseFloat(valMatch[0]);
-      if (num < threshold) {
-        if (num <= threshold * 0.7) return 'critical';
+      if (valueToEvaluate < threshold) {
+        if (valueToEvaluate <= threshold * 0.7) return 'critical';
         return 'low';
       }
       return 'normal';

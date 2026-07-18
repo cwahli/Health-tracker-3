@@ -19,8 +19,8 @@ export const syncLogsWithTimeBuckets = async (
   uid: string, 
   localFoods: FoodLog[], 
   localBiomarkers: BiomarkerLog[],
-  deletedFoodLogIds: string[],
-  deletedBiomarkerLogIds: string[],
+  deletedFoodLogIds: Record<string, number>,
+  deletedBiomarkerLogIds: Record<string, number>,
   onSyncComplete: (syncedFoods: FoodLog[], syncedBiomarkers: BiomarkerLog[]) => void
 ) => {
   const unsyncedFoods = localFoods.filter(f => f.sync_state && f.sync_state !== 'synced');
@@ -111,16 +111,16 @@ export const syncLogsWithTimeBuckets = async (
   }
   
   onSyncComplete(
-    updatedLocalFoods.filter(f => f.sync_state !== 'delete' && !deletedFoodLogIds.includes(f.id)), 
-    updatedLocalBiomarkers.filter(b => b.sync_state !== 'delete' && !deletedBiomarkerLogIds.includes(b.id))
+    updatedLocalFoods.filter(f => f.sync_state !== 'delete' && (!deletedFoodLogIds[f.id] || (f.updated_at || 0) > deletedFoodLogIds[f.id])), 
+    updatedLocalBiomarkers.filter(b => b.sync_state !== 'delete' && (!deletedBiomarkerLogIds[b.id] || (b.updated_at || 0) > deletedBiomarkerLogIds[b.id]))
   );
 };
 
 export const fetchAllConsolidatedLogs = async (
   db: Firestore, 
   uid: string, 
-  deletedFoodLogIds: string[] = [], 
-  deletedBiomarkerLogIds: string[] = []
+  deletedFoodLogIds: Record<string, number> = {}, 
+  deletedBiomarkerLogIds: Record<string, number> = {}
 ) => {
   trackApiCall('firebase_read', 'Firestore Read - Fetch All Consolidated Logs Buckets (downloads historical food and biomarker logs from all months to build lists)');
       const bucketsSnap = await getDocs(collection(db, 'users', uid, 'consolidated_logs'));
@@ -133,11 +133,13 @@ export const fetchAllConsolidatedLogs = async (
     if (data && data.logs) {
       Object.values(data.logs).forEach((logInfo: any) => {
         if (logInfo.type === 'food') {
-          if (!deletedFoodLogIds.includes(logInfo.data.id)) {
+          const t = deletedFoodLogIds[logInfo.data.id];
+          if (!t || (logInfo.data.updated_at || 0) > t) {
             serverFoods.push({ ...logInfo.data, sync_state: 'synced' });
           }
         } else if (logInfo.type === 'biomarker') {
-          if (!deletedBiomarkerLogIds.includes(logInfo.data.id)) {
+          const t = deletedBiomarkerLogIds[logInfo.data.id];
+          if (!t || (logInfo.data.updated_at || 0) > t) {
             serverBiomarkers.push({ ...logInfo.data, sync_state: 'synced' });
           }
         }

@@ -728,7 +728,7 @@ export default function App() {
           ...log.biomarkers,
           steps: stepsVal
         };
-        if (!log.note || !log.note.includes('Google Fit')) {
+        if (!log.note || !log.note.includes('Auto-synced from Google Fit')) {
           log.note = log.note ? `${log.note} | Auto-synced from Google Fit` : 'Auto-synced from Google Fit';
         }
         log.sync_state = 'update';
@@ -748,7 +748,7 @@ export default function App() {
       }
 
       const recomputedBiomarkers: { [key: string]: number | string } = {};
-      [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+      [...updatedHistory].filter(b => b.sync_state !== 'delete' && !(profile?.deletedBiomarkerLogIds?.[b.id] && (profile?.deletedBiomarkerLogIds?.[b.id] || 0) >= (b.updated_at || 0))).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
         Object.entries(log.biomarkers).forEach(([k, v]) => {
           recomputedBiomarkers[k] = v as string | number;
         });
@@ -898,19 +898,17 @@ export default function App() {
         let mergedActions: HealthAction[] = [];
         let mergedBenefits: DailyBenefit[] = [];
 
-        // Pre-compute deleted sets for robust merging
-        const deletedFoods = new Set<string>([
-          ...(cloudProfile?.deletedFoodLogIds || []),
-          ...(localProfile?.deletedFoodLogIds || [])
-        ]);
-        const deletedBioLogs = new Set<string>([
-          ...(cloudProfile?.deletedBiomarkerLogIds || []),
-          ...(localProfile?.deletedBiomarkerLogIds || [])
-        ]);
-        const deletedCustomKeys = new Set<string>([
-          ...(cloudProfile?.deletedCustomBiomarkerKeys || []),
-          ...(localProfile?.deletedCustomBiomarkerKeys || [])
-        ]);
+        // Pre-compute deleted maps with LWW for robust merging
+        const mergeDeletes = (cloud: any = {}, local: any = {}) => {
+          const merged = { ...cloud };
+          for (const [k, v] of Object.entries(local)) {
+            if (!merged[k] || (v as number) > merged[k]) merged[k] = v;
+          }
+          return merged;
+        };
+        const deletedFoods = mergeDeletes(cloudProfile?.deletedFoodLogIds, localProfile?.deletedFoodLogIds);
+        const deletedBioLogs = mergeDeletes(cloudProfile?.deletedBiomarkerLogIds, localProfile?.deletedBiomarkerLogIds);
+        const deletedCustomKeys = mergeDeletes(cloudProfile?.deletedCustomBiomarkerKeys, localProfile?.deletedCustomBiomarkerKeys);
 
         // Pre-compute merged custom biomarkers
         const mergedCustomBiomarkers = {
@@ -940,7 +938,7 @@ export default function App() {
             let logChanged = false;
             Object.keys(cleanedBiomarkers).forEach(k => {
               const val = cleanedBiomarkers[k];
-              const isDeleted = deletedCustomKeys.has(k);
+              const isDeleted = !!deletedCustomKeys[k];
               const isEmpty = val === undefined || val === null || val === '' || Number.isNaN(val) || (typeof val === 'string' && val.trim() === '');
               if (isDeleted || isEmpty) {
                 delete cleanedBiomarkers[k];
@@ -949,7 +947,7 @@ export default function App() {
             });
             if (logChanged) {
               if (Object.keys(cleanedBiomarkers).length === 0 && !log.note) {
-                deletedBioLogs.add(log.id);
+                deletedBioLogs[log.id] = Date.now();
               }
               return { ...log, biomarkers: cleanedBiomarkers };
             }
@@ -963,16 +961,16 @@ export default function App() {
             ...(localTime >= cloudTime ? cloudProfile : localProfile),
             ...(localTime >= cloudTime ? localProfile : cloudProfile),
             customBiomarkers: mergedCustomBiomarkers,
-            deletedFoodLogIds: Array.from(deletedFoods),
-            deletedBiomarkerLogIds: Array.from(deletedBioLogs),
-            deletedCustomBiomarkerKeys: Array.from(deletedCustomKeys),
+            deletedFoodLogIds: deletedFoods,
+            deletedBiomarkerLogIds: deletedBioLogs,
+            deletedCustomBiomarkerKeys: deletedCustomKeys,
           } as UserProfile;
 
           if (localProfile?.agentAnalyses) {
             mergedProfile.agentAnalyses = localProfile.agentAnalyses;
           }
           foods = localFoods;
-          const sanitizedLocal = sanitizeAndCleanLogs(localBioHistory).filter(b => !deletedBioLogs.has(b.id));
+          const sanitizedLocal = sanitizeAndCleanLogs(localBioHistory).filter(b => !deletedBioLogs[b.id] || (b.updated_at || 0) > deletedBioLogs[b.id]);
           bioHistory = sanitizedLocal;
           acts = localActions;
           bens = localBenefits;
@@ -1009,8 +1007,8 @@ export default function App() {
               const { serverFoods, serverBiomarkers } = await fetchAllConsolidatedLogs(
                 db, 
                 uid, 
-                cloudProfile?.deletedFoodLogIds || localProfile?.deletedFoodLogIds || [], 
-                cloudProfile?.deletedBiomarkerLogIds || localProfile?.deletedBiomarkerLogIds || []
+                cloudProfile?.deletedFoodLogIds || localProfile?.deletedFoodLogIds || {}, 
+                cloudProfile?.deletedBiomarkerLogIds || localProfile?.deletedBiomarkerLogIds || {}
               );
               v2Foods = serverFoods;
               v2Logs = serverBiomarkers;
@@ -1194,79 +1192,84 @@ export default function App() {
             }
             completeInteraction(tBioId, false, 0, bioErr.message || String(bioErr));
           }
-          // 2. Fetch dashboard metadata robustly
-          try {
-            if (checkQuotaFlag()) {
-              abortWithLocalFallback();
-              return;
-            }
-            const dashboardDoc = await getDoc(doc(db, 'users', uid, 'metadata', 'dashboard'));
-            if (dashboardDoc.exists()) {
-              const data = dashboardDoc.data();
-              acts = (data.actions || []) as HealthAction[];
-              bens = (data.dailyBenefits || []) as DailyBenefit[];
-              setFoodIdeas((data.foodIdeas || []) as FoodIdea[]);
-            } else {
+          const pDashboard = (async () => {
+            try {
+              if (checkQuotaFlag()) {
+                abortWithLocalFallback();
+                return;
+              }
+              const dashboardDoc = await getDoc(doc(db, 'users', uid, 'metadata', 'dashboard'));
+              if (dashboardDoc.exists()) {
+                const data = dashboardDoc.data();
+                acts = (data.actions || []) as HealthAction[];
+                bens = (data.dailyBenefits || []) as DailyBenefit[];
+                setFoodIdeas((data.foodIdeas || []) as FoodIdea[]);
+              } else {
+                acts = localActions;
+                bens = localBenefits;
+              }
+              completeInteraction(tActsId, true, JSON.stringify(acts).length);
+              completeInteraction(tBensId, true, JSON.stringify(bens).length);
+            } catch (dashErr: any) {
+              console.warn("Failed to fetch dashboard metadata:", dashErr);
+              handleFirestoreError(dashErr);
+              if (checkQuotaFlag()) {
+                abortWithLocalFallback();
+                return;
+              }
               acts = localActions;
               bens = localBenefits;
+              completeInteraction(tActsId, false, 0, dashErr.message || String(dashErr));
+              completeInteraction(tBensId, false, 0, dashErr.message || String(dashErr));
             }
-            completeInteraction(tActsId, true, JSON.stringify(acts).length);
-            completeInteraction(tBensId, true, JSON.stringify(bens).length);
-          } catch (dashErr: any) {
-            console.warn("Failed to fetch dashboard metadata:", dashErr);
-            handleFirestoreError(dashErr);
-            if (checkQuotaFlag()) {
-              abortWithLocalFallback();
-              return;
+          })();
+          const pReports = (async () => {
+            try {
+              if (checkQuotaFlag()) {
+                abortWithLocalFallback();
+                return;
+              }
+              const latestReportDoc = await getDoc(doc(db, 'users', uid, 'reports', 'latest'));
+              cloudReport = latestReportDoc.exists() ? (latestReportDoc.data() as RecommendationReport) : null;
+              completeInteraction(tRepId, true, latestReportDoc.exists() ? JSON.stringify(latestReportDoc.data()).length : 0);
+            } catch (repErr: any) {
+              console.warn("Failed to fetch reports:", repErr);
+              handleFirestoreError(repErr);
+              if (checkQuotaFlag()) {
+                abortWithLocalFallback();
+                return;
+              }
+              cloudReport = localReport;
+              completeInteraction(tRepId, false, 0, repErr.message || String(repErr));
             }
-            acts = localActions;
-            bens = localBenefits;
-            completeInteraction(tActsId, false, 0, dashErr.message || String(dashErr));
-            completeInteraction(tBensId, false, 0, dashErr.message || String(dashErr));
-          }
-          // 3. Fetch reports robustly
-          try {
-            if (checkQuotaFlag()) {
-              abortWithLocalFallback();
-              return;
+          })();
+          const pAgentAnalyses = (async () => {
+            try {
+              if (checkQuotaFlag()) {
+                abortWithLocalFallback();
+                return;
+              }
+              const analysesSnap = await getDocs(collection(db, 'users', uid, 'agentAnalyses'));
+              const analyses = analysesSnap.docs.map(d => d.data());
+              if (analyses.length > 0) {
+                cloudProfile.agentAnalyses = analyses as any;
+              } else if (localProfile?.agentAnalyses) {
+                cloudProfile.agentAnalyses = localProfile.agentAnalyses;
+              }
+            } catch (err) {
+              console.warn("Failed to fetch agentAnalyses:", err);
+              handleFirestoreError(err);
+              if (checkQuotaFlag()) {
+                abortWithLocalFallback();
+                return;
+              }
+              if (localProfile?.agentAnalyses) {
+                cloudProfile.agentAnalyses = localProfile.agentAnalyses;
+              }
             }
-            const latestReportDoc = await getDoc(doc(db, 'users', uid, 'reports', 'latest'));
-            cloudReport = latestReportDoc.exists() ? (latestReportDoc.data() as RecommendationReport) : null;
-            completeInteraction(tRepId, true, latestReportDoc.exists() ? JSON.stringify(latestReportDoc.data()).length : 0);
-          } catch (repErr: any) {
-            console.warn("Failed to fetch reports:", repErr);
-            handleFirestoreError(repErr);
-            if (checkQuotaFlag()) {
-              abortWithLocalFallback();
-              return;
-            }
-            cloudReport = localReport;
-            completeInteraction(tRepId, false, 0, repErr.message || String(repErr));
-          }
-          // 4. Fetch agentAnalyses
-          try {
-            if (checkQuotaFlag()) {
-              abortWithLocalFallback();
-              return;
-            }
-            const analysesSnap = await getDocs(collection(db, 'users', uid, 'agentAnalyses'));
-            const analyses = analysesSnap.docs.map(d => d.data());
-            if (analyses.length > 0) {
-              cloudProfile.agentAnalyses = analyses as any;
-            } else if (localProfile?.agentAnalyses) {
-              cloudProfile.agentAnalyses = localProfile.agentAnalyses;
-            }
-          } catch (err) {
-            console.warn("Failed to fetch agentAnalyses:", err);
-            handleFirestoreError(err);
-            if (checkQuotaFlag()) {
-              abortWithLocalFallback();
-              return;
-            }
-            if (localProfile?.agentAnalyses) {
-              cloudProfile.agentAnalyses = localProfile.agentAnalyses;
-            }
-          }
+          })();
+          
+          await Promise.allSettled([pDashboard, pReports, pAgentAnalyses]);
 
           // Sanitize both cloud and local histories
           const sanitizedBioHistory = sanitizeAndCleanLogs(bioHistory);
@@ -1353,8 +1356,8 @@ export default function App() {
             mergedProfile = {
               ...cloudProfile,
               customBiomarkers: mergedCustomBiomarkers,
-              deletedFoodLogIds: Array.from(deletedFoods),
-              deletedBiomarkerLogIds: Array.from(deletedBioLogs),
+              deletedFoodLogIds: deletedFoods,
+              deletedBiomarkerLogIds: deletedBioLogs,
               deletedCustomBiomarkerKeys: Array.from(deletedCustomKeys)
             } as UserProfile;
             
@@ -1387,8 +1390,8 @@ export default function App() {
                 ...cloudProfile,
                 ...localProfile,
                 customBiomarkers: mergedCustomBiomarkers,
-                deletedFoodLogIds: Array.from(deletedFoods),
-                deletedBiomarkerLogIds: Array.from(deletedBioLogs),
+                deletedFoodLogIds: deletedFoods,
+                deletedBiomarkerLogIds: deletedBioLogs,
                 deletedCustomBiomarkerKeys: Array.from(deletedCustomKeys)
               } as UserProfile;
             } else {
@@ -1396,8 +1399,8 @@ export default function App() {
                 ...localProfile,
                 ...cloudProfile,
                 customBiomarkers: mergedCustomBiomarkers,
-                deletedFoodLogIds: Array.from(deletedFoods),
-                deletedBiomarkerLogIds: Array.from(deletedBioLogs),
+                deletedFoodLogIds: deletedFoods,
+                deletedBiomarkerLogIds: deletedBioLogs,
                 deletedCustomBiomarkerKeys: Array.from(deletedCustomKeys)
               } as UserProfile;
             }
@@ -1497,7 +1500,7 @@ export default function App() {
         // Save merged profile to Firestore (profile doc only, not food logs)
         if (forcePull && hasUnsynced) {
           const tempBiomarkers: { [key: string]: number | string } = {};
-          [...mergedBioHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+          [...mergedBioHistory].filter(b => b.sync_state !== 'delete' && !(profile?.deletedBiomarkerLogIds?.[b.id] && (profile?.deletedBiomarkerLogIds?.[b.id] || 0) >= (b.updated_at || 0))).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
             Object.entries(log.biomarkers).forEach(([k, v]) => {
               tempBiomarkers[k] = v as string | number;
             });
@@ -1513,7 +1516,7 @@ export default function App() {
         setReport(cloudReport);
         // Recompute active biomarkers (sorted ascending so that newer logs overwrite older values)
         const computedBiomarkers: { [key: string]: number | string } = {};
-        [...mergedBioHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+        [...mergedBioHistory].filter(b => b.sync_state !== 'delete' && !(profile?.deletedBiomarkerLogIds?.[b.id] && (profile?.deletedBiomarkerLogIds?.[b.id] || 0) >= (b.updated_at || 0))).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
           Object.entries(log.biomarkers).forEach(([k, v]) => {
             computedBiomarkers[k] = v as string | number;
           });
@@ -1547,7 +1550,7 @@ export default function App() {
         
         // Recompute active biomarkers (sorted ascending so that newer logs overwrite older values)
         const computedBiomarkers: { [key: string]: number | string } = {};
-        [...localBioHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach((log: BiomarkerLog) => {
+        [...localBioHistory].filter(b => b.sync_state !== 'delete' && !(profile?.deletedBiomarkerLogIds?.[b.id] && (profile?.deletedBiomarkerLogIds?.[b.id] || 0) >= (b.updated_at || 0))).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach((log: BiomarkerLog) => {
           Object.entries(log.biomarkers).forEach(([k, v]) => {
             computedBiomarkers[k] = v as string | number;
           });
@@ -1830,8 +1833,8 @@ export default function App() {
                 // source of truth for deletions and must be respected during migration,
                 // otherwise re-running this migration (e.g. after a failed completion
                 // write) brings deleted entries back from the old subcollections.
-                const migrationDeletedFoodIds = new Set<string>(loadedProfile?.deletedFoodLogIds || []);
-                const migrationDeletedBioIds = new Set<string>(loadedProfile?.deletedBiomarkerLogIds || []);
+                const migrationDeletedFoodIds = new Set<string>(Object.keys(loadedProfile?.deletedFoodLogIds || {}));
+                const migrationDeletedBioIds = new Set<string>(Object.keys(loadedProfile?.deletedBiomarkerLogIds || {}));
 
                 const filteredLegacyFoods = legacyFoods.filter(lf => !migrationDeletedFoodIds.has(lf.id));
                 const filteredLegacyHistory = legacyHistory.filter(lh => !migrationDeletedBioIds.has(lh.id));
@@ -1929,7 +1932,7 @@ export default function App() {
                       map.set(f.id, f);
                     }
                   });
-                  const list = Array.from(map.values()).filter(f => f.sync_state !== 'delete' && !((profile || {}).deletedFoodLogIds || []).includes(f.id));
+                  const list = Array.from(map.values()).filter(f => f.sync_state !== 'delete' && !(profile?.deletedFoodLogIds?.[f.id] && (profile?.deletedFoodLogIds?.[f.id] || 0) >= (f.updated_at || 0)));
                   list.sort((a, b) => b.date.localeCompare(a.date));
                   return list;
                 });
@@ -2253,8 +2256,8 @@ export default function App() {
         // ALWAYS touch profile timestamp and push deleted IDs tracking so other devices pull correctly
         setDoc(doc(db, 'users', uid), {
           lastUpdatedAt: now,
-          deletedFoodLogIds: updatedProfile?.deletedFoodLogIds || [],
-          deletedBiomarkerLogIds: updatedProfile?.deletedBiomarkerLogIds || [],
+          deletedFoodLogIds: updatedProfile?.deletedFoodLogIds || {},
+          deletedBiomarkerLogIds: updatedProfile?.deletedBiomarkerLogIds || {},
           deletedCustomBiomarkerKeys: updatedProfile?.deletedCustomBiomarkerKeys || []
         }, { merge: true }).catch(err => {
           console.warn("Failed to touch lastUpdatedAt timestamp in cloud:", err);
@@ -2290,8 +2293,8 @@ export default function App() {
             'Profile write'
           );
         } else if (specificUpdate.type === 'foodLog' && specificUpdate.targetId) {
-          const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || [];
-          const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || [];
+          const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
+          const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {};
           await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
             setFoodLogs(sf);
             setBiomarkerHistory(sb);
@@ -2304,14 +2307,14 @@ export default function App() {
             }).catch(err => console.error(err));
           }
         } else if (specificUpdate.type === 'biomarkerLog' && specificUpdate.targetId) {
-          const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || [];
-          const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || [];
+          const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
+          const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {};
           await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
             setFoodLogs(sf); setBiomarkerHistory(sb);
           });
         } else if (specificUpdate.type === 'biomarkerLogsBatch' && (specificUpdate.targetIds || specificUpdate.deletedIds)) {
-          const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || [];
-          const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || [];
+          const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
+          const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {};
           await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
             setFoodLogs(sf); setBiomarkerHistory(sb);
           });
@@ -2364,15 +2367,15 @@ export default function App() {
             'Dashboard report sync'
           );
         } else if (specificUpdate.type === 'deleteFood' && specificUpdate.targetId) {
-          const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || [];
-          const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || [];
+          const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
+          const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {};
           await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
             setFoodLogs(sf); setBiomarkerHistory(sb);
           });
           deleteDoc(doc(db, 'users', uid, 'foodLogs', specificUpdate.targetId)).catch(() => {});
         } else if (specificUpdate.type === 'deleteBiomarker' && specificUpdate.targetId) {
-          const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || [];
-          const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || [];
+          const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
+          const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {};
           await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
             setFoodLogs(sf); setBiomarkerHistory(sb);
           });
@@ -2389,8 +2392,8 @@ export default function App() {
         const cloudBioHistory = (specificUpdate as any).cloudBioHistory || [];
 
         // V2 bulk sync
-        const deletedFoods = currProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || [];
-        const deletedBioLogs = currProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || [];
+        const deletedFoods = currProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
+        const deletedBioLogs = currProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {};
         await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
           setFoodLogs(sf); setBiomarkerHistory(sb);
         });
@@ -2462,8 +2465,8 @@ export default function App() {
         }
         
         // V2 bulk sync
-        const deletedFoods = currProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || [];
-        const deletedBioLogs = currProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || [];
+        const deletedFoods = currProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
+        const deletedBioLogs = currProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {};
         await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
           setFoodLogs(sf); setBiomarkerHistory(sb);
         });
@@ -2561,7 +2564,7 @@ export default function App() {
 
     // 3. Compute active biomarkers
     const computedBiomarkers: { [key: string]: number | string } = {};
-    [...resolvedBioHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+    [...resolvedBioHistory].filter(b => b.sync_state !== 'delete' && !(profile?.deletedBiomarkerLogIds?.[b.id] && (profile?.deletedBiomarkerLogIds?.[b.id] || 0) >= (b.updated_at || 0))).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
       Object.entries(log.biomarkers).forEach(([k, v]) => {
         computedBiomarkers[k] = v as string | number;
       });
@@ -2725,7 +2728,7 @@ export default function App() {
     
     let updatedProfile = profile ? {
       ...profile,
-      deletedFoodLogIds: [...(profile.deletedFoodLogIds || []), id]
+      deletedFoodLogIds: { ...(profile.deletedFoodLogIds || {}), [id]: Date.now() }
     } : null;
     if (updatedProfile) {
       setProfile(updatedProfile);
@@ -3106,7 +3109,7 @@ export default function App() {
       setBiomarkerHistory(updatedHistory);
       // Recompute the latest biomarkers from history so they reflect the latest dates (sorted ascending)
       const recomputedBiomarkers: { [key: string]: number | string } = {};
-      [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+      [...updatedHistory].filter(b => b.sync_state !== 'delete' && !(profile?.deletedBiomarkerLogIds?.[b.id] && (profile?.deletedBiomarkerLogIds?.[b.id] || 0) >= (b.updated_at || 0))).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
         Object.entries(log.biomarkers).forEach(([k, v]) => {
           recomputedBiomarkers[k] = v as string | number;
         });
@@ -3305,7 +3308,7 @@ export default function App() {
 
     // 4. Recompute the biomarkers state
     const recomputedBiomarkers: { [key: string]: number | string } = {};
-    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !(profile?.deletedBiomarkerLogIds?.[b.id] && (profile?.deletedBiomarkerLogIds?.[b.id] || 0) >= (b.updated_at || 0))).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
       Object.entries(log.biomarkers).forEach(([k, v]) => {
         recomputedBiomarkers[k] = v as string | number;
       });
@@ -3350,7 +3353,7 @@ export default function App() {
     
     // We filter it out for the recomputed local state map
     const recomputedBiomarkers: { [key: string]: number | string } = {};
-    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !(profile?.deletedBiomarkerLogIds?.[b.id] && (profile?.deletedBiomarkerLogIds?.[b.id] || 0) >= (b.updated_at || 0))).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
       Object.entries(log.biomarkers).forEach(([k, v]) => {
         recomputedBiomarkers[k] = v as string | number;
       });
@@ -3359,7 +3362,7 @@ export default function App() {
     
     let updatedProfile = profile ? {
       ...profile,
-      deletedBiomarkerLogIds: [...(profile.deletedBiomarkerLogIds || []), id]
+      deletedBiomarkerLogIds: { ...(profile.deletedBiomarkerLogIds || {}), [id]: Date.now() }
     } : null;
     if (updatedProfile) {
       setProfile(updatedProfile);
@@ -3389,7 +3392,7 @@ export default function App() {
       setBiomarkerHistory(updatedHistory);
       
       const recomputedBiomarkers: { [key: string]: number | string } = {};
-      [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+      [...updatedHistory].filter(b => b.sync_state !== 'delete' && !(profile?.deletedBiomarkerLogIds?.[b.id] && (profile?.deletedBiomarkerLogIds?.[b.id] || 0) >= (b.updated_at || 0))).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
         Object.entries(log.biomarkers).forEach(([k, v]) => {
           recomputedBiomarkers[k] = v as string | number;
         });
@@ -3421,7 +3424,7 @@ export default function App() {
     updatedHistory.sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
     setBiomarkerHistory(updatedHistory);
     const recomputedBiomarkers: { [key: string]: number | string } = {};
-    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !(profile?.deletedBiomarkerLogIds?.[b.id] && (profile?.deletedBiomarkerLogIds?.[b.id] || 0) >= (b.updated_at || 0))).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
       Object.entries(log.biomarkers).forEach(([k, v]) => {
         recomputedBiomarkers[k] = v as string | number;
       });
@@ -3536,7 +3539,7 @@ export default function App() {
     };
 
     const recomputedBiomarkers: { [key: string]: number | string } = {};
-    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !(profile?.deletedBiomarkerLogIds?.[b.id] && (profile?.deletedBiomarkerLogIds?.[b.id] || 0) >= (b.updated_at || 0))).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
       Object.entries(log.biomarkers).forEach(([k, v]) => {
         recomputedBiomarkers[k] = v as string | number;
       });
@@ -3626,7 +3629,7 @@ export default function App() {
     updatedHistory.sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
     // 3. Recompute latest biomarkers
     const recomputedBiomarkers: { [key: string]: number | string } = {};
-    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !(profile?.deletedBiomarkerLogIds?.[b.id] && (profile?.deletedBiomarkerLogIds?.[b.id] || 0) >= (b.updated_at || 0))).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
       Object.entries(log.biomarkers).forEach(([k, v]) => {
         recomputedBiomarkers[k] = v as string | number;
       });
@@ -3757,7 +3760,7 @@ export default function App() {
     updatedHistory.sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
 
     const recomputedBiomarkers: { [key: string]: number | string } = {};
-    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+    [...updatedHistory].filter(b => b.sync_state !== 'delete' && !(profile?.deletedBiomarkerLogIds?.[b.id] && (profile?.deletedBiomarkerLogIds?.[b.id] || 0) >= (b.updated_at || 0))).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
       Object.entries(log.biomarkers).forEach(([k, v]) => {
         recomputedBiomarkers[k] = v as string | number;
       });
@@ -4509,7 +4512,7 @@ export default function App() {
 
               // Recompute biomarkers list
               const recomputedBiomarkers: { [key: string]: number | string } = {};
-              [...hHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+              [...hHistory].filter(b => b.sync_state !== 'delete' && !(profile?.deletedBiomarkerLogIds?.[b.id] && (profile?.deletedBiomarkerLogIds?.[b.id] || 0) >= (b.updated_at || 0))).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
                 Object.entries(log.biomarkers).forEach(([k, v]) => {
                   recomputedBiomarkers[k] = v as string | number;
                 });
@@ -4641,7 +4644,7 @@ export default function App() {
                 setBiomarkerHistory(currentHistory);
                 
                 const recomputedBiomarkers: { [key: string]: number | string } = {};
-                [...currentHistory].filter(b => b.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || []).includes(b.id)).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
+                [...currentHistory].filter(b => b.sync_state !== 'delete' && !(profile?.deletedBiomarkerLogIds?.[b.id] && (profile?.deletedBiomarkerLogIds?.[b.id] || 0) >= (b.updated_at || 0))).sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date))).forEach(log => {
                   Object.entries(log.biomarkers).forEach(([k, v]) => {
                     recomputedBiomarkers[k] = v as string | number;
                   });

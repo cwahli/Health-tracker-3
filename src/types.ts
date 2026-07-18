@@ -129,9 +129,9 @@ export interface UserProfile {
   };
   agent2GapTasks?: string[];
   agent4Projections?: string[];
-  deletedFoodLogIds?: string[];
-  deletedBiomarkerLogIds?: string[];
-  deletedCustomBiomarkerKeys?: string[];
+  deletedFoodLogIds?: Record<string, number>;
+  deletedBiomarkerLogIds?: Record<string, number>;
+  deletedCustomBiomarkerKeys?: Record<string, number>;
   bmiAutoLogged?: boolean;
   approved_agent1_batches?: { [key: string]: boolean };
   approved_data_review_batches?: { [key: string]: boolean };

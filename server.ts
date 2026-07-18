@@ -1,3 +1,5 @@
+import sharp from 'sharp';
+import { getMappedBiomarkerKey } from './src/utils/biomarkers';
 import * as cheerio from "cheerio";
 import { getApps, initializeApp } from 'firebase-admin/app';
 if (getApps().length === 0) {
@@ -68,7 +70,7 @@ function jsToYaml(val: any, indent: number = 0): string {
   }
   return String(val);
 }
-import { Firestore } from "@google-cloud/firestore";
+import { getFirestore, Firestore } from "firebase-admin/firestore";
 
 // Helper functions for nutritional data lookup
 async function searchUSDA(query: string, maxResults: number = 5): Promise<any[]> {
@@ -121,10 +123,7 @@ try {
   const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
   if (fs.existsSync(firebaseConfigPath)) {
     const firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
-    db = new Firestore({
-      projectId: firebaseConfig.projectId,
-      databaseId: firebaseConfig.firestoreDatabaseId,
-    });
+    db = getFirestore(firebaseConfig.firestoreDatabaseId ? getApps()[0] : undefined, firebaseConfig.firestoreDatabaseId);
     console.log("[Firebase] Backend Firestore (Admin Node.js SDK) successfully initialized.");
   } else {
     console.warn("[Firebase] No firebase-applet-config.json found at server boot.");
@@ -3396,8 +3395,7 @@ You MUST output ONLY a valid JSON object containing:
 critical_extraction_rules:
   zero_math_verbatim_extraction: "You are strictly forbidden from performing any calculations, normalizations, or unit conversions. Extract the exact numerical value and the exact unit provided in the text."
   verbatim_qualitative_data: "Qualitative results (e.g., 'Negative', 'Trace', 'High') must be extracted exactly as written."
-  dictionary_mapping: "You MUST attempt to map the extracted biomarker name to an existing key within the === EXISTING DATABASE KEYS === list. If a direct synonym or clear clinical equivalent exists, use that exact existing key (e.g. use 'hba1c' instead of 'hemoglobin_a1c')."
-  fallback_keys: "If completely absent from existing keys, generate a clean, lowercase snake_case key."
+  dictionary_mapping: "When extracting biomarkers, you MUST map the extracted name to the standard canonical aliases provided. If a match is found, use the canonical ID. Do not invent new keys if a synonym exists. If completely absent from existing keys, generate a clean, lowercase snake_case key."
   unit_standardization: "Standardize 'µg/L' and 'ug/L' to always return as 'ug/L' (they are equivalent)."
 mode_routing:
   priority: "Always prioritize structured data extraction over conversational text when raw medical data/text/photos are present."
@@ -3410,15 +3408,16 @@ chunked_processing:
     - "In the 'text' response, kindly inform the user you have completed this chunk and ask to continue."
     - "If total biomarkers <= ${itemsPerBatch}, set 'hasMoreMarkers' to false and 'remainingText' to empty string."
 required_output_format:
-  json_schema:
+  response_schema:
+    extractedYaml: "string (Flat YAML array containing extracted biomarkers. MUST use the standard canonical ID if a match is found. Do not invent new keys if a synonym exists. MUST include updated_at for each entry.)"
     text: "string (Friendly clinical conversational message)"
-    extractedYaml: "string (Flat YAML array containing extracted biomarkers)"
     hasMoreMarkers: "boolean"
     remainingText: "string"
     estimatedTotalMarkers: "number (Total estimated biomarker readings in original text)"
 extracted_yaml_schema:
-  - biomarker: "string (standardized name/key from existing keys if possible)"
+  - biomarker: "string (MUST use the standard canonical ID if a match is found. Do not invent new keys if a synonym exists)"
     date: "YYYY-MM-DD"
+    updated_at: "number (Unix timestamp of extraction)"
     value: "number or string (qualitative)"
     unit: "string (verbatim from text)"
     explanation: "string (why/how it was mapped or created)"
@@ -3438,7 +3437,7 @@ Your primary objective is to parse raw health reports, standardize clinical term
 1. Extraction & Standardization: Parse the incoming raw data. Convert every raw biomarker name into its most widely accepted standard clinical terminology (e.g., "Serum alt level" maps to "Alanine Aminotransferase (ALT)").
 2. Lossless Math & Units (CRITICAL): You are strictly forbidden from performing calculations, unit conversions, or inferring missing units. Extract the exact numerical value and the exact unit provided in the text.
 3. Qualitative Data (CRITICAL): If a result is qualitative (e.g., "Negative", "Trace", "High"), extract it exactly as written.
-4. Dictionary Mapping (MANDATORY): You MUST attempt to map the extracted biomarker name to an existing key within the === EXISTING DATABASE KEYS === list. If a direct synonym or clear clinical equivalent exists in the database keys, use that existing key. ONLY if absent, you may generate a clean snake_case key.
+4. Dictionary Mapping (MANDATORY): When extracting biomarkers, you MUST map the extracted name to the standard canonical aliases provided. If a match is found, use the canonical ID. Do not invent new keys if a synonym exists. ONLY if absent, you may generate a clean snake_case key.
 5. Clinical Mapping: For each biomarker, map it to:
    - riskCategories: Physiological risk categories (e.g., 'Cardiovascular', 'Kidney & hydration', 'Metabolic & glycemic', 'Liver & hepatitis stress', 'Hematology', 'Biometrics', 'Other').
    - standardMedicalGrouping: Main clinical division ('Metabolic', 'Hepatic', 'Renal', 'Hematology', 'Biometrics', 'Other').
@@ -3457,6 +3456,7 @@ The flat YAML structure for each item MUST be:
   metric: 'U/L'
   value: 45
   date: '2026-06-01'
+  updated_at: 1720000000
   riskCategories:
     - 'Liver & hepatitis stress'
   standardMedicalGrouping: 'Hepatic'
@@ -6431,6 +6431,88 @@ app.post('/api/health-connect/steps', async (req, res) => {
   }
 });
 
+app.get('/admin/migrate', async (req, res) => {
+  try {
+    const commit = req.query.commit === 'true';
+    if (!db) {
+      return res.status(500).json({ error: 'Firestore is not initialized.' });
+    }
+
+    const report = {
+      scannedUsers: 0,
+      updatedUsers: 0,
+      updatedDocs: 0,
+      imagesCompressed: 0,
+      biomarkerRenames: [] as any[],
+      arrayToMapConversions: 0,
+      dryRun: !commit
+    };
+
+    const usersSnap = await db.collection('users').get();
+    report.scannedUsers = usersSnap.size;
+
+    for (const userDoc of usersSnap.docs) {
+      const uid = userDoc.id;
+      const profile = userDoc.data();
+      let profileChanged = false;
+      
+      const arrayFields = ['deletedFoodLogIds', 'deletedBiomarkerLogIds', 'deletedCustomBiomarkerKeys'];
+      for (const field of arrayFields) {
+        if (Array.isArray(profile[field])) {
+          const newMap: any = {};
+          for (const id of profile[field]) {
+            newMap[id] = Date.now();
+          }
+          profile[field] = newMap;
+          profileChanged = true;
+          report.arrayToMapConversions++;
+        }
+      }
+
+      if (renameBiomarkersInObject(profile, report, `users/${uid}/Profile`)) {
+        profileChanged = true;
+      }
+      
+      if (await compressImagesInObject(profile, report)) {
+        profileChanged = true;
+      }
+
+      if (profileChanged) {
+        if (commit) await userDoc.ref.set(profile, { merge: true });
+        report.updatedUsers++;
+      }
+
+      // Iterate subcollections
+      const collections = await userDoc.ref.listCollections();
+      for (const col of collections) {
+        const docs = await col.get();
+        for (const docSnap of docs.docs) {
+          const data = docSnap.data();
+          let docChanged = false;
+
+          if (renameBiomarkersInObject(data, report, `users/${uid}/${col.id}/${docSnap.id}`)) {
+            docChanged = true;
+          }
+
+          if (await compressImagesInObject(data, report)) {
+            docChanged = true;
+          }
+
+          if (docChanged) {
+            if (commit) await docSnap.ref.set(data, { merge: true });
+            report.updatedDocs++;
+          }
+        }
+      }
+    }
+
+    res.json(report);
+  } catch (error: any) {
+    console.error('Migration error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
   if (process.env.NODE_ENV !== "production") {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
@@ -6445,6 +6527,93 @@ app.post('/api/health-connect/steps', async (req, res) => {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
+
+
+
+function renameBiomarkersInObject(obj: any, report: any, locationStr: string): boolean {
+  let changed = false;
+  if (obj && typeof obj === 'object') {
+    if (obj.biomarkers && typeof obj.biomarkers === 'object') {
+      const newB: any = {};
+      let bChanged = false;
+      for (const [k, v] of Object.entries(obj.biomarkers)) {
+        const mapped = getMappedBiomarkerKey(k);
+        if (mapped !== k) {
+          bChanged = true;
+          report.biomarkerRenames.push({ location: locationStr, from: k, to: mapped });
+          newB[mapped] = v;
+        } else {
+          newB[k] = v;
+        }
+      }
+      if (bChanged) {
+        obj.biomarkers = newB;
+        changed = true;
+      }
+    }
+    // Check customBiomarkers in user profile
+    if (locationStr.endsWith('Profile') && obj.customBiomarkers && typeof obj.customBiomarkers === 'object') {
+      const newCustom: any = {};
+      let cChanged = false;
+      for (const [k, v] of Object.entries(obj.customBiomarkers)) {
+        const mapped = getMappedBiomarkerKey(k);
+        if (mapped !== k) {
+          cChanged = true;
+          report.biomarkerRenames.push({ location: locationStr + ' (customBiomarkers)', from: k, to: mapped });
+          newCustom[mapped] = v;
+        } else {
+          newCustom[k] = v;
+        }
+      }
+      if (cChanged) {
+        obj.customBiomarkers = newCustom;
+        changed = true;
+      }
+    }
+    for (const [k, v] of Object.entries(obj)) {
+      if (k !== 'biomarkers' && k !== 'customBiomarkers' && typeof v === 'object' && v !== null) {
+        if (renameBiomarkersInObject(v, report, `${locationStr}.${k}`)) {
+          changed = true;
+        }
+      }
+    }
+  }
+  return changed;
+}
+
+async function compressImagesInObject(obj: any, report: any): Promise<boolean> {
+  let changed = false;
+  if (obj && typeof obj === 'object') {
+    for (const [k, v] of Object.entries(obj)) {
+      if (typeof v === 'string' && v.startsWith('data:image/') && v.length > 25000) {
+        try {
+          const matches = v.match(/^data:image\/([A-Za-z-+\/]+);base64,(.+)$/);
+          if (matches && matches.length === 3) {
+            const buffer = Buffer.from(matches[2], 'base64');
+            const resized = await sharp(buffer)
+              .resize(400, 400, { fit: 'inside', withoutEnlargement: true })
+              .jpeg({ quality: 50 })
+              .toBuffer();
+            const newBase64 = `data:image/jpeg;base64,${resized.toString('base64')}`;
+            if (newBase64.length < v.length) {
+              obj[k] = newBase64;
+              changed = true;
+              report.imagesCompressed++;
+            }
+          }
+        } catch (e) {
+          console.error('Image compression failed', e);
+        }
+      } else if (typeof v === 'object' && v !== null) {
+        if (await compressImagesInObject(v, report)) {
+          changed = true;
+        }
+      }
+    }
+  }
+  return changed;
+}
+
 
   app.listen(PORT, "0.0.0.0", () => {
     console.log(`[Health Cockpit App] Full-Stack server running on port ${PORT}`);
