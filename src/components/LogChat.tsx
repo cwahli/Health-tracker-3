@@ -23,6 +23,7 @@ import { auth, db } from '../firebase';
 import { getAgentCalibration, getAllAgentCalibrations } from '../utils/agentCalibration';
 import { collection, query, where, getDocs, setDoc, doc, deleteDoc, getDoc } from 'firebase/firestore';
 import { sanitizeForFirestore, checkQuotaFlag } from '../utils/firestoreUtils';
+import { get as idbGet, set as idbSet } from 'idb-keyval';
 
 
 import { resolveFoodImage } from '../utils/imageResolver';
@@ -719,6 +720,16 @@ ${logsText}`);
       return;
     }
 
+    // Always preserve full, complete messages with images in IndexedDB to prevent image loss on reload
+    try {
+      await idbSet(`${chatStorageKey}_${userId}_${id}`, msgs);
+      if (payload) {
+        await idbSet(`${payloadStorageKey}_${userId}_${id}`, payload);
+      }
+    } catch (e) {
+      console.warn("Failed to save to IndexedDB:", e);
+    }
+
     const isManualSyncOnly = localStorage.getItem('auto_sync_disabled') === 'true';
     if (isManualSyncOnly || checkQuotaFlag() || isFirestoreQuotaExceeded) {
       try {
@@ -844,14 +855,36 @@ ${logsText}`);
         const match = list.find(c => c.id === activeConversationId) || list[0];
         setActiveConversationId(match.id);
         
-        // Check if there is a newer local version in manual sync / local-first mode
-        const localSaved = localStorage.getItem(`${chatStorageKey}_${userId}_${match.id}`);
+        // Check if there is a newer local version in IndexedDB (has full images) or fallback to localStorage (stripped)
+        let localSaved = null;
+        let localPayload = null;
+        try {
+          const idbSaved = await idbGet(`${chatStorageKey}_${userId}_${match.id}`);
+          if (idbSaved) {
+            localSaved = idbSaved;
+            localPayload = await idbGet(`${payloadStorageKey}_${userId}_${match.id}`);
+          }
+        } catch (e) {
+          console.warn("Failed to load from IndexedDB:", e);
+        }
+
+        if (!localSaved) {
+          const lsSaved = localStorage.getItem(`${chatStorageKey}_${userId}_${match.id}`);
+          if (lsSaved) {
+            try {
+              localSaved = JSON.parse(lsSaved);
+              const lsPayload = localStorage.getItem(`${payloadStorageKey}_${userId}_${match.id}`);
+              if (lsPayload) {
+                localPayload = JSON.parse(lsPayload);
+              }
+            } catch {}
+          }
+        }
+
         if (localSaved) {
           try {
-            const parsed = JSON.parse(localSaved);
-            setMessages(migrateMessages(parsed), false);
-            const localPayload = localStorage.getItem(`${payloadStorageKey}_${userId}_${match.id}`);
-            setLastSentPayload(localPayload ? JSON.parse(localPayload) : null);
+            setMessages(migrateMessages(localSaved), false);
+            setLastSentPayload(localPayload || null);
           } catch {
             setMessages(migrateMessages(match.messages || []), false);
             setLastSentPayload(match.lastSentPayload || null);
@@ -1816,13 +1849,17 @@ ${logsText}`);
 
           if (resData.data) {
             // Check if this food was already saved to database history
-            const wasLogged = prev.some(m => m.data?.pendingFoodLog && m.data?.pendingFoodLog.id === resData.data.id && loggedMessageIds.includes(m.id));
-            if (wasLogged) {
+            const targetMsg = [...prev].reverse().find(m => m.data?.pendingFoodLog);
+            const wasLogged = targetMsg ? loggedMessageIds.includes(targetMsg.id) : false;
+            if (wasLogged && targetMsg?.data?.pendingFoodLog) {
               // Automatically mark the modified card message as logged too
               setLoggedMessageIds(prevIds => [...prevIds, migratedAssistantMsg.id]);
               // Automatically trigger the log update handler to push modifications to database
               if (onLogFood) {
-                onLogFood(resData.data as FoodLog);
+                onLogFood({
+                  ...targetMsg.data.pendingFoodLog,
+                  ...resData.data
+                } as FoodLog);
               }
             }
 

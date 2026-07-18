@@ -28,6 +28,34 @@ import { biomarkerDefinitions, isAsianEthnicity, hasBmiPendingAlert, getProfileF
 import { standardizeUnit, CONVERSION_FACTORS } from './utils/unitConversion';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 
+const pruneLocalStorageToFreeSpace = () => {
+  console.warn("Pruning localStorage to free up space...");
+  try {
+    // 1. Remove large, non-critical batch and diagnostic results
+    localStorage.removeItem('agent1_batch_results');
+    localStorage.removeItem('batch_analysis_results');
+    localStorage.removeItem('agent_request_logs');
+    
+    // 2. Remove or truncate telemetry logs
+    localStorage.removeItem('local_api_events');
+    
+    // 3. Truncate snapshots to keep only the single most recent one per user
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('health_cockpit_snapshots_')) {
+        try {
+          const snaps = JSON.parse(localStorage.getItem(key) || '[]');
+          if (snaps.length > 1) {
+            localStorage.setItem(key, JSON.stringify(snaps.slice(0, 1)));
+          }
+        } catch {}
+      }
+    }
+  } catch (e) {
+    console.error("Failed to prune localStorage:", e);
+  }
+};
+
 const get = async (key: string): Promise<any> => {
   try {
     return await Promise.race([
@@ -35,21 +63,51 @@ const get = async (key: string): Promise<any> => {
       new Promise((_, reject) => setTimeout(() => reject(new Error("IndexedDB timeout")), 1500))
     ]);
   } catch (e) {
-    console.warn("get timeout/error:", e);
-    const val = localStorage.getItem(key);
-    return val ? JSON.parse(val) : undefined;
+    console.warn("get timeout/error (falling back to localStorage):", e);
+    try {
+      const val = localStorage.getItem(key);
+      return val ? JSON.parse(val) : undefined;
+    } catch {
+      return undefined;
+    }
   }
 };
 
 const set = async (key: string, val: any): Promise<void> => {
+  // 1. Try writing to localStorage with proactive pruning on failure
   try {
     localStorage.setItem(key, JSON.stringify(val));
+  } catch (localStorageError: any) {
+    console.warn("localStorage setItem failed. Attempting to prune and retry:", localStorageError);
+    pruneLocalStorageToFreeSpace();
+    try {
+      localStorage.setItem(key, JSON.stringify(val));
+    } catch (retryError) {
+      console.warn("Even after pruning, localStorage write failed. Saving a lightweight fallback:", retryError);
+      try {
+        if (val && typeof val === 'object') {
+          const lightVal = { ...val };
+          if (lightVal.foodLogs) lightVal.foodLogs = [];
+          if (lightVal.report) lightVal.report = null;
+          if (lightVal.biomarkerHistory && lightVal.biomarkerHistory.length > 50) {
+            lightVal.biomarkerHistory = lightVal.biomarkerHistory.slice(0, 10);
+          }
+          localStorage.setItem(key, JSON.stringify(lightVal));
+        }
+      } catch (fallbackError) {
+        console.error("Failed to write even lightweight fallback to localStorage:", fallbackError);
+      }
+    }
+  }
+
+  // 2. Always write the full data to IndexedDB to ensure no data is lost
+  try {
     await Promise.race([
       idbSet(key, val),
       new Promise((_, reject) => setTimeout(() => reject(new Error("IndexedDB timeout")), 1500))
     ]);
-  } catch (e) {
-    console.warn("set timeout/error:", e);
+  } catch (idbError) {
+    console.error("IndexedDB set failed:", idbError);
   }
 };
 
@@ -69,8 +127,8 @@ const getSnapshotKey = (email?: string | null) => {
   return `health_cockpit_snapshots_${norm}`;
 };
 
-/** Save a named snapshot of all current data to localStorage. */
-const saveLocalSnapshot = (
+/** Save a named snapshot of all current data to IndexedDB. */
+const saveLocalSnapshot = async (
   label: string,
   email: string | null | undefined,
   bundle: {
@@ -85,9 +143,10 @@ const saveLocalSnapshot = (
 ) => {
   try {
     const key = getSnapshotKey(email);
-    const existing: any[] = (() => {
-      try { return JSON.parse(localStorage.getItem(key) || '[]'); } catch { return []; }
-    })();
+    let existing: any[] = [];
+    try {
+      existing = (await get(key)) || [];
+    } catch {}
 
     // Strip base64 images from food logs to keep snapshot small
     const lightFoodLogs = (bundle.foodLogs || []).map((f: any) => {
@@ -111,7 +170,7 @@ const saveLocalSnapshot = (
     };
 
     const updated = [snapshot, ...existing].slice(0, MAX_SNAPSHOTS);
-    localStorage.setItem(key, JSON.stringify(updated));
+    await set(key, updated);
     return true;
   } catch (e) {
     console.warn('[Snapshot] Could not save snapshot:', e);
@@ -120,18 +179,18 @@ const saveLocalSnapshot = (
 };
 
 /** Load all snapshots for the current user. */
-const loadLocalSnapshots = (email?: string | null): any[] => {
+const loadLocalSnapshots = async (email?: string | null): Promise<any[]> => {
   try {
-    return JSON.parse(localStorage.getItem(getSnapshotKey(email)) || '[]');
+    return (await get(getSnapshotKey(email))) || [];
   } catch { return []; }
 };
 
 /** Delete a specific snapshot by id. */
-const deleteLocalSnapshot = (email: string | null | undefined, id: string) => {
+const deleteLocalSnapshot = async (email: string | null | undefined, id: string) => {
   try {
     const key = getSnapshotKey(email);
-    const existing = loadLocalSnapshots(email);
-    localStorage.setItem(key, JSON.stringify(existing.filter((s: any) => s.id !== id)));
+    const existing = await loadLocalSnapshots(email);
+    await set(key, existing.filter((s: any) => s.id !== id));
   } catch (e) {}
 };
 const QUOTA_STORAGE_KEY = 'health_cockpit_quota_data';
@@ -472,7 +531,7 @@ export default function App() {
 
   useEffect(() => {
     if (profile?.email) {
-      setSnapshots(loadLocalSnapshots(profile.email));
+      loadLocalSnapshots(profile.email).then(s => setSnapshots(s));
     }
   }, [profile?.email]);
 
@@ -1714,6 +1773,33 @@ export default function App() {
   useEffect(() => {
     let unsubs: (() => void)[] = [];
     
+    // Cleanup legacy storage from localStorage to IndexedDB
+    try {
+      (async () => {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.startsWith('health_cockpit_snapshots_') || key.startsWith('health_cockpit_app_data_'))) {
+            try {
+              const val = localStorage.getItem(key);
+              if (val) {
+                const parsed = JSON.parse(val);
+                await set(key, parsed);
+              }
+              if (key.startsWith('health_cockpit_snapshots_')) {
+                keysToRemove.push(key);
+              }
+            } catch (e) {
+              console.error('Error migrating storage key', key, e);
+            }
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+      })();
+    } catch (e) {
+      console.error('Error scanning localStorage for legacy data', e);
+    }
+
     // Safety fallback: If Firebase auth takes too long to initialize (e.g. offline and indexedDB locked),
     // we stop the spinner so the user can interact with the app.
     const fallbackTimeout = setTimeout(async () => {
@@ -1734,7 +1820,7 @@ export default function App() {
       }
       setSyncState('local');
       setIsAuthChecking(false);
-    }, 4000);
+    }, 10000);
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       clearTimeout(fallbackTimeout);
@@ -4370,7 +4456,7 @@ export default function App() {
         onAgentFinish={async (agentType, agentResult) => {
           // ─── SNAPSHOT BEFORE ANY CHANGE (FIX-8) ──────────────────────────
           const snapLabel = `Before ${agentType} approval (${new Date().toLocaleTimeString()})`;
-          saveLocalSnapshot(snapLabel, profile?.email, {
+          await saveLocalSnapshot(snapLabel, profile?.email, {
             profile,
             foodLogs,
             biomarkers,
@@ -4380,7 +4466,7 @@ export default function App() {
             report
           });
           if (profile?.email) {
-            setSnapshots(loadLocalSnapshots(profile.email));
+            setSnapshots(await loadLocalSnapshots(profile.email));
           }
           setLastSnapshotLabel(snapLabel);
           // ───────────────────────────────────────────────────────────────
@@ -5028,9 +5114,9 @@ export default function App() {
                         Restore
                       </button>
                       <button
-                        onClick={() => {
-                          deleteLocalSnapshot(profile?.email, snap.id);
-                          setSnapshots(loadLocalSnapshots(profile?.email));
+                        onClick={async () => {
+                          await deleteLocalSnapshot(profile?.email, snap.id);
+                          setSnapshots(await loadLocalSnapshots(profile?.email));
                         }}
                         className="px-3 py-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/30 text-red-600 dark:text-red-400 text-xs font-bold rounded-lg transition-colors cursor-pointer"
                       >

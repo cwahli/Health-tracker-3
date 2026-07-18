@@ -25,7 +25,8 @@ import {
 import { getAvailableCredits } from '../utils/creditManager';
 
 export default function UserManagementTab() {
-  const [users, setUsers] = useState<ReturnType<typeof getAllLocalUsers>>([]);
+  // Use Awaited<ReturnType<...>> if you have strict TS config, but here any works too since it's just state.
+  const [users, setUsers] = useState<any[]>([]);
   const [adminSettings, setAdminSettings] = useState<AdminSettings>(getAdminSettings());
   const [selectedUserEmail, setSelectedUserEmail] = useState<string>('');
   
@@ -46,8 +47,9 @@ export default function UserManagementTab() {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState<'all' | 'Admin' | 'Demo' | 'Standard'>('all');
 
-  const loadData = () => {
-    setUsers(getAllLocalUsers());
+  const loadData = async () => {
+    const fetchedUsers = await getAllLocalUsers();
+    setUsers(fetchedUsers);
     const settings = getAdminSettings();
     setAdminSettings(settings);
   };
@@ -56,7 +58,7 @@ export default function UserManagementTab() {
     loadData();
   }, []);
 
-  const handleSaveSettings = (e: React.FormEvent) => {
+  const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
     const updated: AdminSettings = {
       flashLiteCost: Number(editFlashLiteCost),
@@ -68,12 +70,12 @@ export default function UserManagementTab() {
     saveAdminSettings(updated);
     setAdminSettings(updated);
     setIsEditingSettings(false);
-    loadData();
+    await loadData();
     // Dispatch storage event to update other states immediately
     window.dispatchEvent(new Event('storage'));
   };
 
-  const handleGrantCredits = (e: React.FormEvent) => {
+  const handleGrantCredits = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedUserEmail) return;
 
@@ -102,13 +104,13 @@ export default function UserManagementTab() {
       expiresAt
     });
 
-    updateUserProfile(matchedUser.email, updatedProfile);
+    await updateUserProfile(matchedUser.email, updatedProfile);
     setGrantSuccessMsg(`Successfully granted ${grantAmount} credits to ${matchedUser.nickname}!`);
     setTimeout(() => setGrantSuccessMsg(''), 4000);
-    loadData();
+    await loadData();
   };
 
-  const handleResetDailyUsage = (email: string) => {
+  const handleResetDailyUsage = async (email: string) => {
     const matchedUser = users.find(u => u.email === email);
     if (!matchedUser) return;
 
@@ -119,11 +121,11 @@ export default function UserManagementTab() {
         : (updatedProfile.userType === 'Demo' ? adminSettings.quotaDemo : adminSettings.quotaStandard);
       updatedProfile.agentCredits.lastResetTime = new Date().toISOString();
     }
-    updateUserProfile(email, updatedProfile);
-    loadData();
+    await updateUserProfile(email, updatedProfile);
+    await loadData();
   };
 
-  const handleChangeUserType = (email: string, newType: 'Standard' | 'Admin' | 'Demo') => {
+  const handleChangeUserType = async (email: string, newType: 'Standard' | 'Admin' | 'Demo') => {
     const matchedUser = users.find(u => u.email === email);
     if (!matchedUser) return;
 
@@ -149,8 +151,8 @@ export default function UserManagementTab() {
       };
     }
 
-    updateUserProfile(email, updatedProfile);
-    loadData();
+    await updateUserProfile(email, updatedProfile);
+    await loadData();
   };
 
   const filteredUsers = users.filter(u => {
@@ -511,7 +513,7 @@ export default function UserManagementTab() {
                               <div className="flex flex-wrap gap-1 justify-center max-w-[160px]">
                                 {Object.entries(usage).map(([model, count]) => (
                                   <span key={model} className="text-[9px] px-1 bg-slate-100 dark:bg-slate-900 text-slate-500 rounded font-mono" title={model}>
-                                    {model.replace('gemini-', '')}: {count}
+                                    {model.replace('gemini-', '')}: {count as React.ReactNode}
                                   </span>
                                 ))}
                               </div>

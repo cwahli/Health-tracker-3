@@ -1,4 +1,5 @@
 import { UserProfile } from '../types';
+import { get, set, keys } from 'idb-keyval';
 
 export interface AdminSettings {
   flashLiteCost: number;
@@ -36,23 +37,23 @@ export function saveAdminSettings(settings: AdminSettings) {
   }
 }
 
-export function getAllLocalUsers(): { 
+export async function getAllLocalUsers(): Promise<{ 
   email: string; 
   userType: 'Standard' | 'Admin' | 'Demo'; 
   nickname: string; 
   lastLogin: string; 
   creditUsage: number; 
   profile: UserProfile; 
-}[] {
+}[]> {
   const users: any[] = [];
   try {
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key && key.startsWith('health_cockpit_app_data_')) {
+    const idbKeys = await keys();
+    for (const key of idbKeys) {
+      if (typeof key === 'string' && key.startsWith('health_cockpit_app_data_')) {
         const email = key.replace('health_cockpit_app_data_', '').trim();
-        const value = localStorage.getItem(key);
-        if (value) {
-          const parsed = JSON.parse(value);
+        const value = await get(key);
+        if (value && typeof value === 'object') {
+          const parsed = value;
           if (parsed && parsed.profile) {
             const prof = parsed.profile;
             users.push({
@@ -105,14 +106,14 @@ export function getAllLocalUsers(): {
   return users;
 }
 
-export function updateUserProfile(email: string, updatedProfile: UserProfile) {
+export async function updateUserProfile(email: string, updatedProfile: UserProfile) {
   try {
     const storageKey = `health_cockpit_app_data_${email.toLowerCase().trim()}`;
-    const value = localStorage.getItem(storageKey);
-    if (value) {
-      const parsed = JSON.parse(value);
+    const value = await get(storageKey);
+    if (value && typeof value === 'object') {
+      const parsed = value;
       parsed.profile = updatedProfile;
-      localStorage.setItem(storageKey, JSON.stringify(parsed));
+      await set(storageKey, parsed);
     } else {
       const bundle = {
         profile: updatedProfile,
@@ -123,7 +124,7 @@ export function updateUserProfile(email: string, updatedProfile: UserProfile) {
         dailyBenefits: [],
         report: null
       };
-      localStorage.setItem(storageKey, JSON.stringify(bundle));
+      await set(storageKey, bundle);
     }
     // Fire event to let other windows / states update if needed
     window.dispatchEvent(new Event('storage'));

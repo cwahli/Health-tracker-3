@@ -298,7 +298,7 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
                         onClick={() => { document.getElementById('food-chat-input')?.focus(); }} 
                         className="flex-1 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all text-center"
                       >
-                        Correct Item
+                        Edit Item
                       </button>
                       <button 
                         onClick={() => { 

@@ -22,7 +22,7 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
 
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
   const [selectedUserType, setSelectedUserType] = useState<'all' | 'Admin' | 'Demo' | 'Standard'>('all');
-  const localUsers = useMemo(() => getAllLocalUsers(), [isOpen]);
+  const [localUsers, setLocalUsers] = useState<any[]>([]);
 
   const getUserType = (email: string): 'Admin' | 'Demo' | 'Standard' => {
     const matched = localUsers.find(u => u.email.toLowerCase().trim() === email.toLowerCase().trim());
@@ -46,6 +46,7 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
     if (isOpen) {
       loadEvents();
       setSyncStatusMsg('idle');
+      getAllLocalUsers().then(users => setLocalUsers(users));
     }
   }, [isOpen]);
 

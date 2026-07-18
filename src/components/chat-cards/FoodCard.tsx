@@ -332,6 +332,29 @@ export const FoodCard: React.FC<AgentCardProps & {
     return items;
   }, [msg.data, messages, confirmedScoutIndices]);
 
+  const displayedScoutItems = React.useMemo(() => {
+    const breakdown = msg.data?.pendingFoodLog?.itemsBreakdown;
+    if (!breakdown || !Array.isArray(breakdown) || breakdown.length === 0) {
+      return activeScoutItems;
+    }
+    return activeScoutItems.filter(s => {
+      return breakdown.some(b => {
+        const cleanB = (b.name || '').toLowerCase().trim();
+        const cleanKeyword = (s.keyword || '').toLowerCase().trim();
+        const cleanOrig = (s.originalName || '').toLowerCase().trim();
+        const cleanName = (s.name || '').toLowerCase().trim();
+        return (
+          cleanB === cleanKeyword ||
+          cleanB === cleanOrig ||
+          cleanB === cleanName ||
+          cleanB.includes(cleanKeyword) ||
+          cleanKeyword.includes(cleanB) ||
+          (cleanOrig && (cleanB.includes(cleanOrig) || cleanOrig.includes(cleanB)))
+        );
+      });
+    });
+  }, [activeScoutItems, msg.data?.pendingFoodLog?.itemsBreakdown]);
+
   // Selection hooks for Card-Wide Multi-Select
   const [_isSelectingMode, _setIsSelectingMode] = React.useState<boolean>(false);
   const [_selectedItemKeys, _setSelectedItemKeys] = React.useState<string[]>([]); // stores "groupIdx-itemIdx"
@@ -812,7 +835,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                    onClick={() => { document.getElementById('food-chat-input')?.focus(); }} 
                                    className="flex-1 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all text-center"
                                  >
-                                   Correct Item
+                                   Edit Item
                                  </button>
                                  <button 
                                    onClick={() => { 
@@ -1582,7 +1605,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                         const isVisualOrPosted = scoutType === 'visual_or_posted';
                         const displayAsMenu = isMenuOrPoster && !isVisualOrPosted;
 
-                        if (activeScoutItems.length === 0) return null;
+                        if (displayedScoutItems.length === 0) return null;
                         return (
                           <div className="mb-6 text-left">
                             <div className="flex items-center justify-between mb-3 border-b border-slate-100 dark:border-slate-800/50 pb-2 font-sans">
@@ -1590,7 +1613,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                 <span className="text-[10.5px] font-bold text-indigo-500 dark:text-indigo-400">
                                   🔍 Meal composition
                                 </span>
-                                {activeScoutItems.some((i: any) => i.originalName && i.originalName.toLowerCase() !== (i.keyword || "").toLowerCase()) && (
+                                {displayedScoutItems.some((i: any) => i.originalName && i.originalName.toLowerCase() !== (i.keyword || "").toLowerCase()) && (
                                  <button
                                    type="button"
                                    onClick={() => setShowTranslations(prev => ({ ...prev, scout: !prev.scout }))}
@@ -1614,7 +1637,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                               )}
                             </div>
                              <div className={displayAsMenu ? "flex flex-wrap gap-2 pt-1 font-sans" : "flex gap-3 overflow-x-auto pt-2 pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full font-sans"}>
-                               {activeScoutItems.map((item: any, i: number) => {
+                               {displayedScoutItems.map((item: any, i: number) => {
                                  if (displayAsMenu) {
                                    return (
                                      <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 text-slate-700 dark:text-slate-300">
@@ -1689,7 +1712,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                              </div>
                              
                              {/* Uncertain Items Helper Button */}
-                             {reviewsOpen && activeScoutItems.some((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0)) && (
+                             {reviewsOpen && displayedScoutItems.some((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0)) && (
                                <div className="mt-2 flex flex-col gap-1.5 bg-amber-50/50 dark:bg-amber-900/10 border border-amber-200/50 dark:border-amber-800/50 rounded-lg p-2 font-sans relative">
                                  <button 
                                    onClick={() => setReviewsOpen(false)}
@@ -1702,7 +1725,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                    <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                    <div className="flex flex-col gap-0.5">
                                      <span className="text-[11px] font-bold leading-tight">Low confidence identification</span>
-                                     {activeScoutItems
+                                     {displayedScoutItems
                                         .filter((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0))
                                         .map((i: any, reviewIdx: number) => (
                                           <span key={reviewIdx} className="text-[10px] font-medium leading-tight">
@@ -1714,18 +1737,18 @@ export const FoodCard: React.FC<AgentCardProps & {
                                  <div className="flex gap-2">
                                    <button 
                                      onClick={() => {
-                                       const flaggedItem = activeScoutItems.find((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0));
+                                       const flaggedItem = displayedScoutItems.find((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0));
                                        const targetName = flaggedItem?.originalName || flaggedItem?.keyword || flaggedItem?.name || 'this item';
                                        if (setInputText) setInputText(`Correct ${targetName} to `);
                                        setTimeout(() => document.getElementById('food-chat-input')?.focus(), 50);
                                      }} 
                                      className="flex-1 text-[10px] font-bold bg-white dark:bg-slate-800 border border-amber-200 dark:border-amber-700 text-amber-700 dark:text-amber-400 py-1.5 px-3 rounded-md shadow-sm hover:bg-amber-50 dark:hover:bg-amber-900/40 active:scale-95 transition-all text-center"
                                    >
-                                     Correct Item
+                                     Edit Item
                                    </button>
                                    <button 
                                      onClick={() => { 
-                                       const flaggedIndices = activeScoutItems
+                                       const flaggedIndices = displayedScoutItems
                                          .map((i: any, idx: number) => ({ i, idx }))
                                          .filter(({ i }: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0))
                                          .map(({ i, idx }: any) => i.scoutIndex ?? idx);
@@ -1738,7 +1761,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                  </div>
                                </div>
                              )}
-                             <NutritionLabelTable defaultOpen={false} activeScoutItems={activeScoutItems} onConfirmItem={(idx) => setConfirmedScoutIndices(prev => new Set(prev).add(idx))} />
+                             <NutritionLabelTable defaultOpen={false} activeScoutItems={displayedScoutItems} onConfirmItem={(idx) => setConfirmedScoutIndices(prev => new Set(prev).add(idx))} />
                           </div>
                         );
                       })()}
@@ -1882,10 +1905,22 @@ export const FoodCard: React.FC<AgentCardProps & {
                               {/* A. Components breakdown table */}
                               {msg.data?.pendingFoodLog.itemsBreakdown && msg.data?.pendingFoodLog.itemsBreakdown.length > 0 && (
                                 <div className="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
-                                  <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
-                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                  <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider font-sans">
                                       📊 Component Contribution
                                     </span>
+                                    {displayedScoutItems.some((i: any) => i.originalName && i.originalName.toLowerCase() !== (i.keyword || "").toLowerCase()) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => setShowTranslations(prev => ({ ...prev, scout: !prev.scout }))}
+                                        className={`p-0.5 hover:bg-slate-100 dark:hover:bg-slate-850 rounded-md transition-all cursor-pointer ${
+                                          showTranslations.scout ? 'text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40' : 'text-slate-400'
+                                        }`}
+                                        title="Toggle Language"
+                                      >
+                                        <span className="text-[9px] font-bold leading-none block px-1 py-0.5">{showTranslations.scout ? "English" : "Local"}</span>
+                                      </button>
+                                    )}
                                   </div>
                                   <div className="overflow-x-auto">
                                     <table className="w-full text-left border-collapse text-[11px]">
@@ -1899,28 +1934,51 @@ export const FoodCard: React.FC<AgentCardProps & {
                                         </tr>
                                       </thead>
                                       <tbody>
-                                        {msg.data?.pendingFoodLog.itemsBreakdown.map((item: any, itemIdx: number) => (
-                                          <tr 
-                                            key={itemIdx} 
-                                            className="border-b last:border-b-0 border-slate-100 dark:border-slate-850 text-slate-750 dark:text-slate-200 font-medium hover:bg-slate-50 dark:hover:bg-slate-850/20"
-                                          >
-                                            <td className="p-2 font-semibold text-xs leading-normal whitespace-normal break-words max-w-[180px]" title={item.name}>
-                                              {item.name}
-                                            </td>
-                                            <td className="p-2 text-right font-mono text-slate-500">
-                                              {formatNutrientValue(item.weightGrams, 'g')}
-                                            </td>
-                                            <td className="p-2 text-right font-mono text-orange-600 dark:text-orange-400 font-semibold">
-                                              {formatNutrientValue(item.calories, 'kcal')}
-                                            </td>
-                                            <td className="p-2 text-right font-mono text-amber-500 font-semibold">
-                                              {formatNutrientValue(item.saturatedFat, 'g')}
-                                            </td>
-                                            <td className="p-2 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
-                                              {formatNutrientValue(item.sodium, 'mg')}
-                                            </td>
-                                          </tr>
-                                        ))}
+                                        {msg.data?.pendingFoodLog.itemsBreakdown.map((item: any, itemIdx: number) => {
+                                          const cleanItemName = (item.name || '').toLowerCase().trim();
+                                          const matchingScout = displayedScoutItems.find((s: any) => {
+                                            const cleanKeyword = (s.keyword || '').toLowerCase().trim();
+                                            const cleanOrig = (s.originalName || '').toLowerCase().trim();
+                                            const cleanName = (s.name || '').toLowerCase().trim();
+                                            return (
+                                              cleanItemName === cleanKeyword ||
+                                              cleanItemName === cleanOrig ||
+                                              cleanItemName === cleanName ||
+                                              cleanItemName.includes(cleanKeyword) ||
+                                              cleanKeyword.includes(cleanItemName) ||
+                                              (cleanOrig && (cleanItemName.includes(cleanOrig) || cleanOrig.includes(cleanItemName)))
+                                            );
+                                          });
+
+                                          const displayName = matchingScout 
+                                            ? (showTranslations.scout 
+                                                ? (matchingScout.keyword || matchingScout.originalName || item.name)
+                                                : (matchingScout.originalName || matchingScout.keyword || item.name))
+                                            : item.name;
+
+                                          return (
+                                            <tr 
+                                              key={itemIdx} 
+                                              className="border-b last:border-b-0 border-slate-100 dark:border-slate-850 text-slate-750 dark:text-slate-200 font-medium hover:bg-slate-50 dark:hover:bg-slate-850/20"
+                                            >
+                                              <td className="p-2 font-semibold text-xs leading-normal whitespace-normal break-words max-w-[180px]" title={displayName}>
+                                                {displayName}
+                                              </td>
+                                              <td className="p-2 text-right font-mono text-slate-500">
+                                                {formatNutrientValue(item.weightGrams, 'g')}
+                                              </td>
+                                              <td className="p-2 text-right font-mono text-orange-600 dark:text-orange-400 font-semibold">
+                                                {formatNutrientValue(item.calories, 'kcal')}
+                                              </td>
+                                              <td className="p-2 text-right font-mono text-amber-500 font-semibold">
+                                                {formatNutrientValue(item.saturatedFat, 'g')}
+                                              </td>
+                                              <td className="p-2 text-right font-mono text-emerald-600 dark:text-emerald-400 font-semibold">
+                                                {formatNutrientValue(item.sodium, 'mg')}
+                                              </td>
+                                            </tr>
+                                          );
+                                        })}
                                       </tbody>
                                     </table>
                                   </div>
@@ -2002,7 +2060,11 @@ export const FoodCard: React.FC<AgentCardProps & {
                             if (msg.data?.pendingFoodLog && onLogFood) {
                               const foodToLog = {
                                 ...msg.data.pendingFoodLog,
-                                scoutItems: msg.data.scoutItems || []
+                                scoutItems: msg.data.scoutItems || [],
+                                imageUrl: msg.data.pendingFoodLog?.imageUrl || (messageImages.length > 0 ? messageImages[0] : undefined),
+                                imageUrls: (msg.data.pendingFoodLog?.imageUrls && msg.data.pendingFoodLog.imageUrls.length > 0)
+                                  ? msg.data.pendingFoodLog.imageUrls
+                                  : (messageImages.length > 0 ? messageImages : undefined)
                               };
                               onLogFood(foodToLog as FoodLog);
                               setLoggedMessageIds?.(prev => [...prev, msg.id]);
