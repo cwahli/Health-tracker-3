@@ -1777,6 +1777,23 @@ export default function App() {
           if (loadedProfile) {
             if (!loadedProfile.metadata) loadedProfile.metadata = {};
             if (!loadedProfile.metadata.legacyMigrated) {
+              // Cheap check: verify against the cloud flag before doing an expensive
+              // full collection scan. Local IndexedDB may be empty (new browser,
+              // incognito, cleared cache, new device) even though the migration
+              // already completed in the cloud for this account.
+              let cloudAlreadyMigrated = false;
+              try {
+                const cloudProfileSnap = await getDoc(doc(db, 'users', uid));
+                if (cloudProfileSnap.exists() && cloudProfileSnap.data()?.metadata?.legacyMigrated) {
+                  cloudAlreadyMigrated = true;
+                }
+              } catch (checkErr) {
+                console.warn("[Migration] Cloud flag check failed, proceeding with caution:", checkErr);
+              }
+
+              if (cloudAlreadyMigrated) {
+                loadedProfile.metadata.legacyMigrated = true;
+              } else {
               console.log("[Migration] Initiating one-time legacy migration to V2 consolidated bucket logs");
               try {
                 const legacyFoodsSnap = await getDocs(collection(db, 'users', uid, 'foodLogs'));
@@ -1832,6 +1849,7 @@ export default function App() {
                 setProfile({ ...loadedProfile });
               } catch (migErr) {
                 console.warn("[Migration] Failed to complete legacy migration:", migErr);
+              }
               }
             }
           }
