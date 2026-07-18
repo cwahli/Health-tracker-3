@@ -842,11 +842,13 @@ export default function HomeTab({
               </button>
             </div>
 
-            {showAllTargets && (
-              <div className="mt-3 grid grid-cols-2 gap-2 text-xs py-2 animation-slide-down">
-                {Object.entries(report?.dailyNutrientTargets || {}).map(([key, val]) => {
-                  if (['calories', 'saturatedFat', 'sodium', 'steps'].includes(key)) return null;
-                  
+            {showAllTargets && (() => {
+              const remainingEntries = Object.entries(report?.dailyNutrientTargets || {}).filter(([key]) => !['calories', 'saturatedFat', 'sodium', 'steps'].includes(key));
+              const CORE_KEYS = ['protein', 'carbohydrates', 'sugar', 'addedSugar', 'solubleFibre', 'fibre', 'potassium', 'unsaturatedFat', 'calcium', 'iron', 'cholesterol'];
+              const coreTargets = remainingEntries.filter(([key]) => CORE_KEYS.includes(key));
+              const additionalTargets = remainingEntries.filter(([key]) => !CORE_KEYS.includes(key));
+
+              const renderTarget = ([key, val]: [string, any]) => {
                   const baseTarget = parseTarget(val, 0);
                   const unit = parseUnit(val, fallbackUnits[key] || 'g');
                   const actual = Number(timeframeTotals[key] || 0);
@@ -854,9 +856,7 @@ export default function HomeTab({
                   
                   const pct = adjustedTarget > 0 ? (actual / adjustedTarget) * 100 : 0;
                   
-                  // Decide if this nutrient is a limit or a requirement
-                  // Limits: addedSugar, saturatedFat, sodium, totalFat
-                  const isLimit = ['addedSugar', 'saturatedFat', 'sodium', 'totalFat'].includes(key);
+                  const isLimit = ['addedSugar', 'saturatedFat', 'sodium', 'totalFat', 'cholesterol'].includes(key);
                   const isOver = actual > adjustedTarget;
                   
                   let barColor = 'bg-indigo-600';
@@ -886,9 +886,29 @@ export default function HomeTab({
                       </div>
                     </div>
                   );
-                })}
-              </div>
-            )}
+              };
+
+              return (
+                <div className="mt-4 space-y-4 animation-slide-down">
+                  {coreTargets.length > 0 && (
+                    <div>
+                      <h4 className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mb-1 border-b border-slate-100 dark:border-slate-800/50 pb-1">Core Nutrients</h4>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {coreTargets.map(renderTarget)}
+                      </div>
+                    </div>
+                  )}
+                  {additionalTargets.length > 0 && (
+                    <div>
+                      <h4 className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mb-1 border-b border-slate-100 dark:border-slate-800/50 pb-1">Additional Nutrients</h4>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        {additionalTargets.map(renderTarget)}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>

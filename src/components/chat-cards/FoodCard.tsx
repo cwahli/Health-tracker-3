@@ -499,14 +499,18 @@ export const FoodCard: React.FC<AgentCardProps & {
     // Sort logic helper
     const getSuitabilityScore = (suitability: string): number => {
       const s = suitability.toLowerCase();
+      const isNegatedPositive = /not\s+(recommended|safe|good|best|low|least|safest|perfect)/i.test(s);
+      const isNegativeLeast = /least\s+(suitable|recommended|safe|good|healthy|beneficial|ideal)/i.test(s);
+      
+      if (s.includes('bad') || s.includes('avoid') || s.includes('high risk') || s.includes('severe') || s.includes('red') || s.includes('strongly discouraged') || s.includes('extremely harmful') || isNegatedPositive || s.includes('worst')) return 0;
       if (s.includes('best') || s.includes('safest') || s.includes('recommended') || s.includes('perfect')) return 3;
       if (s.includes('good') || s.includes('safe') || s.includes('low risk') || s.includes('limit')) return 2;
       if (s.includes('moderate') || s.includes('medium') || s.includes('caution') || s.includes('amber')) return 1;
       return 0;
     };
     
-    // Sort evaluation groups: most recommended/safest first
-    rawGroups.sort((a, b) => getSuitabilityScore(b.suitability || '') - getSuitabilityScore(a.suitability || ''));
+    // The backend LLM is strictly instructed to return groups in tiered order (Tier 1, Tier 2, Tier 3).
+    // Do NOT resort them here, as string-based scoring is fragile.
     
     // Enrich each group's items with boundingBox2D and sourceImageIndex from scoutItems
     const groups = rawGroups.map((g: any) => {
@@ -873,17 +877,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                         {group.suitability.toUpperCase()}
                                       </div>
                                     )}
-                                    {group.topConcernNutrient && (
-                                      <div className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 uppercase tracking-wider text-[10px] font-bold px-2 py-0.5 rounded-md inline-block w-fit">
-                                        ⚠️ {group.topConcernNutrient}
-                                      </div>
-                                    )}
                                   </div>
-                                  {group.keyDifferentiator && (
-                                    <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-snug italic border-l-2 border-slate-200 dark:border-slate-700 pl-2">
-                                      {group.keyDifferentiator}
-                                    </p>
-                                  )}
                                 </div>
                                 {/* Group Hero Image: Use first associated item crop/image, otherwise fallback to online search */}
                                 <div className="w-full h-32 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 shadow-sm relative shrink-0">
@@ -1021,9 +1015,36 @@ export const FoodCard: React.FC<AgentCardProps & {
                                         const keysToRender = activeKeys.filter(k => group.averageNutrients[k] !== undefined && group.averageNutrients[k] !== null);
 
                                         return keysToRender.map(key => {
-                                          const val = group.averageNutrients[key];
-                                          const parsedVal = typeof val === 'string' ? parseFloat(val.replace(/[^\d.]/g, '')) : val;
+                                          let val = group.averageNutrients[key];
+                                          let parsedVal = typeof val === 'string' ? parseFloat(val.replace(/[^\d.]/g, '')) : val;
                                           if (isNaN(parsedVal)) return null;
+                                          
+                                          // Fallback for past messages where agent might have output 0 because of localized keys (e.g. Lemak Jenuh)
+                                          if (parsedVal === 0 && group.scoutItemIndices && group.scoutItemIndices.length === 1) {
+                                            const scoutItem = activeScoutItems[group.scoutItemIndices[0]];
+                                            if (scoutItem && scoutItem.rawNutritionLabel) {
+                                              const rawK = Object.keys(scoutItem.rawNutritionLabel).find(k => 
+                                                k.toLowerCase().includes(key.toLowerCase()) || 
+                                                (key === 'saturatedFat' && (k.toLowerCase().includes('sat') || k.toLowerCase().includes('jenuh'))) ||
+                                                (key === 'sodium' && (k.toLowerCase().includes('garam') || k.toLowerCase().includes('natrium')))
+                                              );
+                                              if (rawK) {
+                                                const match = String(scoutItem.rawNutritionLabel[rawK]).match(/[\d.]+/);
+                                                if (match) {
+                                                  let multiplier = 1;
+                                                  const estimatedWeight = scoutItem.estimatedWeightGrams || 100;
+                                                  if (scoutItem.rawNutritionLabel.servingSize || scoutItem.rawNutritionLabel.takaranSaji) {
+                                                    const ssMatch = String(scoutItem.rawNutritionLabel.servingSize || scoutItem.rawNutritionLabel.takaranSaji).match(/[\d.]+/);
+                                                    if (ssMatch) multiplier = estimatedWeight / parseFloat(ssMatch[0]);
+                                                    else multiplier = estimatedWeight / 100;
+                                                  } else {
+                                                    multiplier = estimatedWeight / 100;
+                                                  }
+                                                  parsedVal = parseFloat(match[0]) * multiplier;
+                                                }
+                                              }
+                                            }
+                                          }
                                           
                                           // group.averageNutrients already holds the group's real/average total
                                           // nutrient values (not a per-100g figure) — no weight-based scaling here.
@@ -1053,21 +1074,11 @@ export const FoodCard: React.FC<AgentCardProps & {
                                   </div>
                                 )}
                                 
-                                {/* Pros and Cons */}
+                                {/* Recommendation */}
                                 <div className="space-y-1.5 pt-1">
-                                  {group.pros && (
-                                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-tight">
-                                      <span className="font-semibold text-emerald-600 dark:text-emerald-400">✓ Pros:</span> {group.pros}
-                                    </p>
-                                  )}
-                                  {group.cons && (
-                                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-tight">
-                                      <span className="font-semibold text-rose-600 dark:text-rose-400">✗ Cons:</span> {group.cons}
-                                    </p>
-                                  )}
-                                  {group.keyDifferentiator && (
-                                    <p className="text-xs text-indigo-600 dark:text-indigo-400 leading-tight italic pt-0.5">
-                                      ↔ {group.keyDifferentiator}
+                                  {group.recommendation && (
+                                    <p className="text-[13px] text-slate-700 dark:text-slate-300 leading-snug bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-md border border-slate-100 dark:border-slate-800">
+                                      {group.recommendation}
                                     </p>
                                   )}
                                 </div>

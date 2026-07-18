@@ -1164,15 +1164,39 @@ ${logsText}`);
       satFatTarget: report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.saturatedFat, 15) : 15,
       sodium: Number(todaysTotals.sodium || 0),
       sodiumTarget: report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.sodium, 1200) : 1200,
+      addedSugar: Number(todaysTotals.addedSugar || 0),
+      addedSugarTarget: report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.addedSugar, 50) : 50,
+      carbohydrates: Number(todaysTotals.carbohydrates || 0),
+      carbohydratesTarget: report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.carbohydrates, 250) : 250,
+      solubleFibre: Number(todaysTotals.solubleFibre || 0),
+      solubleFibreTarget: report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.solubleFibre, 15) : 15,
+      protein: Number(todaysTotals.protein || 0),
+      proteinTarget: report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.protein, 50) : 50,
+      potassium: Number(todaysTotals.potassium || 0),
+      potassiumTarget: report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.potassium, 3500) : 3500,
+      unsaturatedFat: Number(todaysTotals.unsaturatedFat || 0),
+      unsaturatedFatTarget: report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.unsaturatedFat, 40) : 40,
     };
 
     return {
       calories: Math.max(0, activeTargets.caloriesTarget - activeTargets.calories),
       saturatedFat: Math.max(0, activeTargets.satFatTarget - activeTargets.satFat),
       sodium: Math.max(0, activeTargets.sodiumTarget - activeTargets.sodium),
+      addedSugar: Math.max(0, activeTargets.addedSugarTarget - activeTargets.addedSugar),
+      carbohydrates: Math.max(0, activeTargets.carbohydratesTarget - activeTargets.carbohydrates),
+      solubleFibre: Math.max(0, activeTargets.solubleFibreTarget - activeTargets.solubleFibre),
+      protein: Math.max(0, activeTargets.proteinTarget - activeTargets.protein),
+      potassium: Math.max(0, activeTargets.potassiumTarget - activeTargets.potassium),
+      unsaturatedFat: Math.max(0, activeTargets.unsaturatedFatTarget - activeTargets.unsaturatedFat),
       caloriesTarget: activeTargets.caloriesTarget,
       saturatedFatTarget: activeTargets.satFatTarget,
       sodiumTarget: activeTargets.sodiumTarget,
+      addedSugarTarget: activeTargets.addedSugarTarget,
+      carbohydratesTarget: activeTargets.carbohydratesTarget,
+      solubleFibreTarget: activeTargets.solubleFibreTarget,
+      proteinTarget: activeTargets.proteinTarget,
+      potassiumTarget: activeTargets.potassiumTarget,
+      unsaturatedFatTarget: activeTargets.unsaturatedFatTarget,
     };
   }, [foodLogs, report, profile?.timezone]);
 
@@ -1405,6 +1429,18 @@ ${logsText}`);
           saturatedFatTarget: remainingAllowance.saturatedFatTarget,
           sodium: remainingAllowance.sodium,
           sodiumTarget: remainingAllowance.sodiumTarget,
+          addedSugar: remainingAllowance.addedSugar,
+          addedSugarTarget: remainingAllowance.addedSugarTarget,
+          carbohydrates: remainingAllowance.carbohydrates,
+          carbohydratesTarget: remainingAllowance.carbohydratesTarget,
+          solubleFibre: remainingAllowance.solubleFibre,
+          solubleFibreTarget: remainingAllowance.solubleFibreTarget,
+          protein: remainingAllowance.protein,
+          proteinTarget: remainingAllowance.proteinTarget,
+          potassium: remainingAllowance.potassium,
+          potassiumTarget: remainingAllowance.potassiumTarget,
+          unsaturatedFat: remainingAllowance.unsaturatedFat,
+          unsaturatedFatTarget: remainingAllowance.unsaturatedFatTarget,
         };
       } else if (isAgent('daily_recommendation')) {
         const now = new Date();

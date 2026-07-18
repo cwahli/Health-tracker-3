@@ -183,62 +183,13 @@ function mergeScoutItems(visionItems: any[], llmItems: any[] | null | undefined)
 // bounding boxes, and image indices — the LLM never has to regurgitate this data, which was
 // the root cause of silent item drops and incorrect targetDbId hallucination in MODE D groups.
 function resolveComparisonGroups(rawGroups: any[], scoutItems: any[]): any[] {
-  // Dense-menu category blocks pack multiple dish names into one comma-separated
-  // originalName (see Vision Scout BRANCH B rule 1). Explode those into individual
-  // dish items so each dish appears as its own entry in the UI instead of one
-  // giant merged chip containing the whole category's food list.
-  const explodeScoutItemIntoDishItems = (s: any): any[] => {
-    const rawOriginal = s.originalName || s.keyword || "";
-    const dishNames = rawOriginal.includes(",")
-      ? rawOriginal.split(",").map((n: string) => n.trim()).filter((n: string) => n.length > 0)
-      : [rawOriginal];
-    return dishNames.map((dishName: string) => ({
-      name: dishName || s.keyword,
-      keyword: s.keyword || null,
-      originalName: dishName || null,
-      boundingBox2D: s.boundingBox2D || null,
-      sourceImageIndex: typeof s.sourceImageIndex === "number" ? s.sourceImageIndex : 0
-    }));
-  };
-
   const usedIndices = new Set<number>();
 
   const resolvedGroups = (Array.isArray(rawGroups) ? rawGroups : []).map((g: any) => {
     const items: any[] = [];
     let indices: number[] = Array.isArray(g.scoutItemIndices) ? g.scoutItemIndices : [];
 
-    // Clean up topConcernNutrient to be a single clean word representing primary risk
-    if (typeof g.topConcernNutrient === "string") {
-      // Defensive repair for LLM format leak where scoutItemIndices was appended to topConcernNutrient
-      if (g.topConcernNutrient.includes("scoutItemIndices")) {
-        const match = g.topConcernNutrient.match(/scoutItemIndices:\s*\[([\d\s,]+)\]/i);
-        if (match) {
-          const parsedIdxs = match[1].split(',').map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n));
-          if (parsedIdxs.length > 0 && indices.length === 0) {
-            indices = parsedIdxs;
-          }
-        }
-      }
-
-      let cleanedTop = g.topConcernNutrient.trim();
-      if (cleanedTop.includes("(")) {
-        cleanedTop = cleanedTop.split("(")[0].trim();
-      }
-      if (cleanedTop.includes(",")) {
-        cleanedTop = cleanedTop.split(",")[0].trim();
-      }
-      if (cleanedTop.includes(" ")) {
-        cleanedTop = cleanedTop.split(" ")[0].trim();
-      }
-      // Strip any non-alphanumeric trailing characters
-      cleanedTop = cleanedTop.replace(/[^a-zA-Z0-9]/g, "");
-      if (cleanedTop.length === 0 || cleanedTop.length > 20) {
-        cleanedTop = "saturatedFat"; // default fallback
-      }
-      g.topConcernNutrient = cleanedTop;
-    }
-
-const resolvedIndices = new Set<number>();
+    const resolvedIndices = new Set<number>();
     indices.forEach((rawIdx: any) => {
       // 1. Try to parse as integer (0-based)
       let i = typeof rawIdx === "number" ? rawIdx : parseInt(String(rawIdx).trim(), 10);
@@ -260,7 +211,7 @@ const resolvedIndices = new Set<number>();
           const foundIdx = scoutItems.findIndex((item: any) => {
             const kw = (item.keyword || "").toLowerCase();
             const orig = (item.originalName || "").toLowerCase();
-            return cleanRaw.includes(kw) || kw.includes(cleanRaw) || cleanRaw.includes(orig) || orig.includes(cleanRaw);
+            return cleanRaw === orig || cleanRaw === kw || cleanRaw.includes(kw) || kw.includes(cleanRaw) || cleanRaw.includes(orig) || orig.includes(cleanRaw);
           });
           if (foundIdx !== -1) {
             s = scoutItems[foundIdx];
@@ -273,7 +224,13 @@ const resolvedIndices = new Set<number>();
       if (s && i >= 0 && i < scoutItems.length) {
         usedIndices.add(i);
         resolvedIndices.add(i);
-        items.push(...explodeScoutItemIntoDishItems(s));
+        items.push({
+          name: s.name || s.originalName || s.keyword,
+          keyword: s.keyword || null,
+          originalName: s.originalName || null,
+          boundingBox2D: s.boundingBox2D || null,
+          sourceImageIndex: typeof s.sourceImageIndex === "number" ? s.sourceImageIndex : 0
+        });
       }
     });
 
@@ -287,8 +244,27 @@ const resolvedIndices = new Set<number>();
     const resolvedThreats: Record<string, string> = {};
     const threatEntries: [string, any][] = Array.isArray(g.itemClinicalThreats)
       ? g.itemClinicalThreats
-          .filter((t: any) => t && (typeof t.scoutIndex !== "undefined"))
-          .map((t: any) => [String(t.scoutIndex), t.threat])
+          .filter((t: any) => t && (typeof t.scoutIndex !== "undefined" || typeof t.scoutIdentifier !== "undefined" || typeof t.scoutIndices !== "undefined"))
+          .flatMap((t: any) => {
+            if (Array.isArray(t.scoutIndices)) {
+               return t.scoutIndices.map((idx: number) => [String(idx), t.threat]);
+            }
+            
+            const rawId = typeof t.scoutIdentifier !== "undefined" ? t.scoutIdentifier : t.scoutIndex;
+            let resolvedIdx = -1;
+            if (typeof rawId === "number") {
+              resolvedIdx = rawId;
+            } else if (typeof rawId === "string") {
+              const cleanRaw = rawId.trim().toLowerCase();
+              const foundIdx = scoutItems.findIndex((item: any) => {
+                const kw = (item.keyword || "").toLowerCase();
+                const orig = (item.originalName || "").toLowerCase();
+                return cleanRaw === orig || cleanRaw === kw || cleanRaw.includes(kw) || kw.includes(cleanRaw) || cleanRaw.includes(orig) || orig.includes(cleanRaw);
+              });
+              if (foundIdx !== -1) resolvedIdx = foundIdx;
+            }
+            return [[String(resolvedIdx !== -1 ? resolvedIdx : rawId), t.threat]];
+          })
       : (g.itemClinicalThreats && typeof g.itemClinicalThreats === "object")
           ? Object.entries(g.itemClinicalThreats) // legacy fallback for any old-format responses still in flight
           : [];
@@ -331,10 +307,7 @@ const resolvedIndices = new Set<number>();
     return {
       groupName: g.groupName,
       suitability: g.suitability,
-      pros: g.pros,
-      cons: g.cons,
-      topConcernNutrient: g.topConcernNutrient || null,
-      keyDifferentiator: g.keyDifferentiator || null,
+      recommendation: g.recommendation,
       averageNutrients: g.averageNutrients || null,
       scoutItemIndices: Array.from(resolvedIndices),
       itemClinicalThreats: resolvedThreats,
@@ -350,14 +323,17 @@ const resolvedIndices = new Set<number>();
       resolvedGroups.push({
         groupName: "Other Identified Items",
         suitability: "Uncategorized",
-        pros: "",
-        cons: "These items were detected but not placed into a comparison group by the AI.",
-        topConcernNutrient: null,
-        keyDifferentiator: null,
+        recommendation: "These items were detected but not placed into a comparison group by the AI.",
         averageNutrients: null,
         scoutItemIndices: scoutItems.map((_, i) => i).filter(i => !usedIndices.has(i)),
         itemClinicalThreats: {},
-        items: missing.flatMap((s: any) => explodeScoutItemIntoDishItems(s))
+        items: missing.map((s: any) => ({
+          name: s.name || s.originalName || s.keyword,
+          keyword: s.keyword || null,
+          originalName: s.originalName || null,
+          boundingBox2D: s.boundingBox2D || null,
+          sourceImageIndex: typeof s.sourceImageIndex === "number" ? s.sourceImageIndex : 0
+        }))
       });
     }
   }
@@ -367,16 +343,11 @@ const resolvedIndices = new Set<number>();
 
 export function buildFoodAnalyzeInstruction(context: {
   biomarkersNeedingImprovement?: any[];
-  remainingAllowance?: {
-    calories?: number | string;
-    saturatedFat?: number | string;
-    sodium?: number | string;
-  } | null;
+  remainingAllowance?: any | null;
   activeMeal?: any;
   compareItemCount?: number;
 }): string {
   const { biomarkersNeedingImprovement, remainingAllowance, activeMeal, compareItemCount = 0 } = context;
-  const PRIMARY_NUTRIENTS = ["calories", "saturatedFat", "sodium"];
 
   const formattedBiomarkers = Array.isArray(biomarkersNeedingImprovement) && biomarkersNeedingImprovement.length > 0
     ? biomarkersNeedingImprovement.map((b: any) => {
@@ -400,9 +371,32 @@ export function buildFoodAnalyzeInstruction(context: {
     if (isNaN(num)) return String(val);
     return String(Math.round(num * 100) / 100);
   };
+  
   const targetLimits = remainingAllowance
-    ? `• Calories: ${formatLimitVal(remainingAllowance.calories)} kcal remaining | Saturated Fat: ${formatLimitVal(remainingAllowance.saturatedFat)}g remaining | Sodium: ${formatLimitVal(remainingAllowance.sodium)}mg remaining`
-    : "• Calories: 1651 kcal remaining | Saturated Fat: 15g remaining | Sodium: 1200mg remaining";
+    ? `TODAY'S NUTRITIONAL TARGET LIMIT:
+- Calorie: ${formatLimitVal(remainingAllowance.calories)}kcal
+- Sat: ${formatLimitVal(remainingAllowance.saturatedFat)}g
+- Sodium: ${formatLimitVal(remainingAllowance.sodium)}mg
+- Added sugar: ${formatLimitVal(remainingAllowance.addedSugar)}g
+- Carb: ${formatLimitVal(remainingAllowance.carbohydrates)}g
+
+Nutrient target to reach today:
+- Soluble fibre: ${formatLimitVal(remainingAllowance.solubleFibre)}g
+- Protein: ${formatLimitVal(remainingAllowance.protein)}g
+- Potassium: ${formatLimitVal(remainingAllowance.potassium)}mg
+- Unsaturated fat: ${formatLimitVal(remainingAllowance.unsaturatedFat)}g`
+    : `TODAY'S NUTRITIONAL TARGET LIMIT:
+- Calorie: 1651kcal
+- Sat: 15g
+- Sodium: 1200mg
+- Added sugar: 50g
+- Carb: 250g
+
+Nutrient target to reach today:
+- Soluble fibre: 15g
+- Protein: 50g
+- Potassium: 3500mg
+- Unsaturated fat: 40g`;
 
   // Clean activeMeal by replacing huge base64 strings
   let sanitizedActiveMeal = null;
@@ -435,7 +429,6 @@ ${biomarkersList}
 - If LDL-C/cholesterol is HIGH, any food high in saturated fat is EXTREMELY harmful. Rate as "bad" and warn in "risks".
 - If Blood Pressure/Sodium is HIGH, any food high in sodium is EXTREMELY harmful. Rate as "bad".
 
-TODAY'S REMAINING NUTRITIONAL TARGET LIMITS:
 ${targetLimits}
 
 === UNIVERSAL HEALTH DIRECTIVE (STRICT) ===
@@ -496,26 +489,31 @@ Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing snac
 
 - COVERAGE REQUIREMENT: Every single Index provided in the === VISUAL FOOD SCOUT IDENTIFIED ITEMS === list MUST appear in at least one nutritional group.
 
-- THE EVALUATION HIERARCHY (CRITICAL): Before grouping, you MUST evaluate the TOTAL package payload of every item against this strict 3-step hierarchy:
+- THE EVALUATION HIERARCHY (CRITICAL): Before grouping, you MUST evaluate the TOTAL package payload of every item against this strict 4-step hierarchy:
   1. UNIVERSAL THREATS: Does it contain universally harmful ingredients (e.g., trans fats)?
-  2. THE DAILY BUDGET (ACUTE THREATS): Does the TOTAL package payload consume more than 50% of ANY "REMAINING NUTRITIONAL TARGET LIMIT" (e.g., Sodium, Calories, Saturated Fat)? If yes, it is an acute dietary threat.
-  3. BIOMARKER STRATEGY (CHRONIC THREATS): Does the biochemical nature of the food trigger any of the specific "PATIENT BIOMARKER WARNINGS"?
+  2. THE DAILY BUDGET (ACUTE THREATS): Does the TOTAL package payload consume more than 50% of ANY "REMAINING NUTRITIONAL TARGET LIMIT" (e.g., Sodium, Calories, Saturated Fat, Added Sugar)? If yes, it is an acute dietary threat.
+  3. BIOMARKER STRATEGY & INGREDIENT QUALITY (CHRONIC THREATS): Does the biochemical nature of the food OR its specific ingredients trigger any of the "PATIENT BIOMARKER WARNINGS"? If an 'ingredientsList' is provided, you MUST analyze it. Highly processed or inflammatory ingredients (e.g., refined flours like 'Tepung Terigu', shortening/'lemak reroti', 'margarin') must actively penalize the item's ranking, especially for patients with liver (ALT), cholesterol, or diabetes risks. If 'ingredientsList' is null, base your assessment strictly on the macro payload.
+  4. TARGET ACQUISITION (POSITIVE IMPACT): Does the item significantly contribute to the "Nutrient target to reach today" (e.g., high Protein, Potassium, Soluble Fibre, or Unsaturated Fat) without grossly violating steps 1-3?
 
-- GROUPING STRATEGY (SMART-ADAPTIVE):
-  * INDIVIDUAL MODE (<= 5 items): If there are 5 or fewer items, DO NOT group them into multi-item buckets. Instead, create a separate group object inside the 'comparison.groups' array for EVERY individual item (so if there are 4 items, 'comparison.groups' must contain exactly 4 separate objects). For each object: Set "groupName" to the specific product name (e.g., "Mr. Bread Whole Wheat"), set "scoutItemIndices" to an array containing only that single item's index (e.g., [2]), and use "pros" and "cons" to analyze that specific item alone.
-  * BUCKET MODE (> 5 items): Only trigger multi-item "Bucket Mode" when there are 6 or more items. In Bucket Mode, group items strictly by clinical threat or benefit, using the Evaluation Hierarchy rules defined above. Set "groupName" to a descriptive title targeting the specific threat or benefit (e.g., "Critical Sodium Warning (Acute)", "Safe for Lipid Profile").
-  * Set "scoutItemIndices" to an array of all shelf indices that contain those specific types of food.
-  * CRITICAL MATH REQUIREMENT: When evaluating items that provide a 'rawNutritionLabel', you MUST multiply the per-serving nutrients by the total package 'estimatedWeightGrams' (divided by serving size) to determine the TOTAL nutritional payload. Your 'averageNutrients', 'pros', and 'cons' MUST reflect the TOTAL values for the whole package.
-
-  * NO AVERAGING EXTREMES: When grouping multiple items, you MUST use absolute ranges (e.g., '12g - 38g of sugar') rather than averages if there is a wide variance. Never use an average that masks a dangerous outlier. 
-  * Set "topConcernNutrient" to the single nutrient defining that group's clinical threat or benefit.
-  * Set "keyDifferentiator" to a short sentence contrasting this group against the others in the context of the patient's hierarchy threats.
+- GROUPING STRATEGY (RANKED TIERS + THREAT CLUSTERING - MANDATORY):
+  You must structure the 'comparison.groups' array in a strict tiered order. EVEN IF ALL ITEMS ARE UNHEALTHY, you MUST forcibly rank them to find the "least harmful" choices to mitigate damage. DO NOT group all items into a single bucket.
+  * NO "INDEX" NAMES: You are STRICTLY FORBIDDEN from using non-meaningful words like "Index 0" or "Index 1". You MUST use descriptive visual or product names (e.g., "Blue packaging bread", "Brand X Cookies") when referring to items.
+  * TIER 1 (The Winner / Least Harmful): The first group MUST contain EXACTLY ONE item: the absolute best (or least harmful) choice for the patient. Set "groupName" to a descriptive reason without any prefixes or emojis (e.g., "Lowest in all harmful nutrients"). 
+  * TIER 2 (The Runner-Up / Second Least Harmful): The second group MUST contain EXACTLY ONE item: the second-best (or second least harmful) choice. Set "groupName" to a descriptive reason without any prefixes or emojis (e.g., "Good balance of protein and calories").
+  * TIER 3 (The Rest - Threat Clusters): Group all remaining items (if any) based STRICTLY on their differences in clinical threats. Set "groupName" to a descriptive reason without any prefixes like 'Tier' or 'Option' (e.g., "Critical Sodium Warning").
+     - NO GENERIC BUCKETS: You are strictly FORBIDDEN from using generic categories like "High Risk" or "Avoid".
+     - THE DIVERGENCE RULE: Separate remaining items by their SINGLE worst offending nutrient. If specific nutrient labels are missing, you MUST cluster items by their base ingredient matrix (e.g., 'Deep-Fried Cassava/Root Veg', 'Extruded Corn Snacks', 'Whole Grains') to determine the differing clinical threats.
+     - THE CONVERGENCE RULE: You may only group remaining items together if their worst offending nutrient is EXACTLY the same.
+  *(Note: If there are only 2 items total, output only Tier 1 and Tier 2).*
+  * CRITICAL MATH REQUIREMENT: You MUST use the provided 'TRUE TOTAL NUTRITIONAL PAYLOAD' values for 'averageNutrients'. Do not re-calculate or apply serving size math yourself.
 
 - SCHEMA DETAILS:
-  * Output the specific groups in comparison.groups. Rank the groups best-to-worst for this patient's specific biomarker and budget profile.
+  * Output the specific groups in comparison.groups. 
   * CRITICAL SYNTAX: Each element inside the comparison.groups array MUST be a complete JSON object enclosed in curly braces '{' and '}'. Never output bare keys or skip curly braces. The first property of each group object inside the curly braces MUST be "groupName".
-  * For each group object, provide groupName, suitability, pros (MUST contain numeric macro values/ranges), cons (MUST contain numeric macro values/ranges), topConcernNutrient, keyDifferentiator, averageNutrients, and scoutItemIndices (or itemNames for text-only comparisons). OMIT the comparisonTable entirely.
-  * Inside each group, add an "itemClinicalThreats" array. Each entry MUST be an object {"scoutIndex": <number>, "threat": "<short label>"} covering every scoutItemIndex in that group (e.g., [{"scoutIndex": 0, "threat": "None"}, {"scoutIndex": 1, "threat": "High Sugar"}]). This allows the UI to display specific warnings even when items are grouped together.
+  * For each group object, provide groupName, suitability, recommendation (MUST contain numeric macro values/ranges for both positive targets and limits), averageNutrients, and scoutItemIndices. OMIT the comparisonTable entirely.
+  * The 'recommendation' MUST be highly instructional. It must state the specific benefit for this person eating this food, but ALSO the specific risk and how best to mitigate it (e.g., "This bread offers a quick energy source perfect for post-workout, but it can also create rapid blood sugar spikes. Considering your high diabetes profile (hb1ac 40), you should consider eating it in portions of half a slice across the day.").
+  * Inside each group, add an "itemClinicalThreats" array. Each entry MUST be an object {"scoutIndices": [<numbers>], "threat": "<short label>"} covering every scout item in that group. You MUST group indices that share the EXACT same threat label together into the array to save space. For Tier 1 and 2, this might be "None" or a minor warning. For Tier 3, it must explicitly name the threat (e.g., "Excessive Sodium").
+  * CRITICAL NAMING RULE: NEVER use the word "Index" or "Option X" in your 'groupName', 'message', or 'recommendation' text fields. You must seamlessly weave the actual food names (e.g., "Happy Tos", "Mr. Bread") into your prose. The "Index" number is ONLY for the 'scoutItemIndices' and 'scoutIndex' JSON structure fields.
 
 - RESOLVING VISUAL WARNINGS:
   If the user provides a text correction for a previously unclear visual item (e.g. they say "the unclear fish is ikan bandoneng"), you MUST update that specific item in the \`scoutItems\` array schema field. You must update its keyword, completely clear its anomaly flags, and upgrade its confidence to High. You must return the ENTIRE array including the unaffected items.
@@ -570,19 +568,15 @@ Respond ONLY with a structured JSON format matching this schema exactly.
     "recommendation": "Short, contextual tag indicating core health property."
   },
   "comparison": {
-    "keyNutrientConcern": "Comma-separated list of 2-3 most critical nutrients to monitor for this patient (e.g., 'Sodium, Saturated Fat, Calories')",
     "comparisonTitle": "A short 2-4 word title for this comparison (e.g., 'Nutrients of Concern')", 
     "auditChecklist": "CRITICAL: List all scoutItemIndices from the prompt (e.g., 0, 1, 2, 3...) here before grouping to ensure 100% extraction coverage.",
     "groups": [
       {
-        "groupName": "Specific Item Name (if 8 or fewer items)",
+        "groupName": "Descriptive reason (e.g., 'Lowest in all harmful nutrients')",
         "scoutItemIndices": [0],
         "itemNames": null,
         "suitability": "Safest option",
-        "topConcernNutrient": "saturatedFat (CRITICAL: MUST BE EXACTLY ONE WORD. NO EXCEPTIONS.)",
-        "keyDifferentiator": "One short sentence contrasting this group vs the others. (CRITICAL: DO NOT OMIT THIS FIELD).",
-        "pros": "Good for heart health (include numeric averages).",
-        "cons": "May be less flavorful (include numeric averages).",
+        "recommendation": "Considering what the user asked, target limits, targets to reach, and clinical biomarkers, give advice on this food.",
         "averageNutrients": {
           "calories": 0,
           "protein": 0,
@@ -1052,7 +1046,7 @@ async function callUnifiedLLM({
   let finalResponseText = "{}";
   addDebugLog(`[UnifiedLLM] Dispatching prompt to model: "${targetGeminiModel}". Contents turns: ${contents.length}.`);
   addDebugLog(`[UnifiedLLM] Attaching ${imagePayloads?.length || (imagePayload ? 1 : 0)} image part(s) to model "${targetGeminiModel}".`);
-  addDebugLog(`[UnifiedLLM-Prompt] System Instruction: (${resolvedInstruction.length} chars — static per-mode prompt, full text omitted from log)`);
+  addDebugLog(`[UnifiedLLM-Prompt] System Instruction:\n${resolvedInstruction}`);
   addDebugLog(`[UnifiedLLM-Prompt] User Prompt:\n${promptText}`);
   try {
     let response = await ai.models.generateContent({
@@ -1953,7 +1947,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
       "boundingBox2D": "[ymin, xmin, ymax, xmax] (CRITICAL: a real, specific box for this item, category block, or cluster — never the default full-image box unless the item truly fills the frame)",
       "sourceImageIndex": 0,
       "ingredientsList": "string | null (Extract all visible ingredients/Komposisi. If the text is partially cut off by the camera, extract what you can see and add '...' at the end. If totally invisible, use null)",
-      "rawNutritionLabel": "{ 'servingSize': string, 'calories': number, 'protein': string, ... } (Exact printed macros ONLY if a physical nutrition panel is visible for this item. Otherwise {}. Never estimate.)",
+      "rawNutritionLabel": "{ 'servingSize': string, 'calories': number, 'protein': string, 'totalFat': string, 'saturatedFat': string, 'totalCarbohydrate': string, 'sugar': string, 'sodium': string } (Exact printed macros ONLY if a physical nutrition panel is visible for this item. Otherwise {}. Never estimate.)",
       "nutritionFacts": "{} (Always leave this exactly empty. Reserved for downstream use — do not populate.)",
       "anomalyFlags": [
         "string (List issues e.g. 'abbreviation used', 'glare'. Leave empty [] if perfect)"
@@ -2073,7 +2067,29 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
             }
 
             if (Array.isArray(parsedScout.items)) {
-              visionScoutItems = parsedScout.items.map((item: any, idx: number) => {
+              let explodedItems: any[] = [];
+              parsedScout.items.forEach((item: any) => {
+                const rawOriginal = item.originalName || item.keyword || "";
+                const hasPrintedMacros = item.rawNutritionLabel && 
+                           (item.rawNutritionLabel.calories || item.rawNutritionLabel.protein || item.rawNutritionLabel.totalFat);
+                const hasMultipleCommas = (rawOriginal.match(/,/g) || []).length >= 2;
+
+                if (!hasPrintedMacros && hasMultipleCommas) {
+                  const dishNames = rawOriginal.split(",").map((n: string) => n.trim()).filter((n: string) => n.length > 0);
+                  dishNames.forEach((dishName: string) => {
+                    explodedItems.push({
+                      ...item,
+                      originalName: dishName,
+                      keyword: item.keyword,
+                      name: dishName
+                    });
+                  });
+                } else {
+                  explodedItems.push(item);
+                }
+              });
+
+              visionScoutItems = explodedItems.map((item: any, idx: number) => {
                 let newItem = { ...item, scoutIndex: idx };
                 const rawLabelHasRealData = newItem.rawNutritionLabel && typeof newItem.rawNutritionLabel === 'object'
                   ? Object.keys(newItem.rawNutritionLabel).some((k: string) => {
@@ -2333,6 +2349,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
         let flagStr = (item.anomalyFlags && item.anomalyFlags.length > 0) ? ` | Flags: [${item.anomalyFlags.join(', ')}]` : '';
         let confStr = item.itemConfidence ? ` | Confidence: ${item.itemConfidence}` : '';
         let scaledNutrientsStr = "";
+        let ingredientsStr = item.ingredientsList ? ` | Ingredients: ${item.ingredientsList}` : "";
         const raw = item.rawNutritionLabel;
         const facts = item.nutritionFacts;
         
@@ -2350,9 +2367,25 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
               multiplier = estimatedWeight / 100;
            }
            
+           const standardizeKey = (key: string) => {
+              const k = key.toLowerCase();
+              if (k.includes('calories') || k.includes('energi') || k.includes('energy')) return 'calories';
+              if (k.includes('saturated') || k.includes('jenuh') || k.includes('sat fat') || k.includes('satfat')) return 'saturatedFat';
+              if (k.includes('trans')) return 'transFat';
+              if (k.includes('total fat') || k.includes('lemak total') || k === 'fat' || k === 'lemak') return 'totalFat';
+              if (k.includes('carbohydrate') || k.includes('karbohidrat') || k.includes('carbs')) return 'carbohydrates';
+              if (k.includes('sugar') || k.includes('gula')) return 'addedSugar';
+              if (k.includes('protein')) return 'protein';
+              if (k.includes('sodium') || k.includes('garam') || k.includes('natrium')) return 'sodium';
+              if (k.includes('fiber') || k.includes('fibre') || k.includes('serat')) return 'totalFibre';
+              if (k.includes('serving')) return 'servingSize';
+              return key;
+           };
+
            const scaledRaw: any = {};
-           for (const [k, v] of Object.entries(raw)) {
-              if (k.toLowerCase().includes('serving')) {
+           for (const [rawK, v] of Object.entries(raw)) {
+              const k = standardizeKey(rawK);
+              if (k === 'servingSize') {
                  scaledRaw[k] = v;
               } else {
                  const match = String(v).match(/[\d.]+/);
@@ -2370,7 +2403,11 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
            scaledNutrientsStr = ` | NutritionFacts: ${JSON.stringify(facts)}`;
         }
         
-        return `- Index: ${idx} | Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName}" | Source: ${item.source} | BoundingBox: ${JSON.stringify(item.boundingBox2D)} | ImageIndex: ${item.sourceImageIndex}${scaledNutrientsStr}${flagStr}${confStr}`;
+        if (visionScoutItems.length > 15) {
+           return `- Index: ${idx} | Name: "${item.originalName || item.keyword}"${scaledNutrientsStr}${ingredientsStr}`;
+        }
+        
+        return `- Index: ${idx} | Scout Item: "${item.keyword}" | Weight: ${item.estimatedWeightGrams}g | Observed/Local Context: "${item.originalName}" | Source: ${item.source} | BoundingBox: ${JSON.stringify(item.boundingBox2D)} | ImageIndex: ${item.sourceImageIndex}${scaledNutrientsStr}${ingredientsStr}${flagStr}${confStr}`;
       }).join('\n');
       visionScoutCtx = `\n=== VISUAL FOOD SCOUT IDENTIFIED ITEMS ===\n${itemsList}\n` +
         `Content Type: ${visionScoutContentType} (${visionScoutItems.length} items identified)\n` +
@@ -2378,7 +2415,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
         `Visual Scout Confidence Rating: ${scoutConfidenceRating}\n` +
         (scoutConfidenceComment ? `Visual Scout Confidence Comment: ${scoutConfidenceComment}\n` : "") +
         `Identified Cooking Method & Preparation/Seasonings: ${scoutCookingMethod}\n` +
-        `Use the observed local name, confidence levels, cooking method, seasonings, and preparation context above to guide your understanding of how the food was cooked, prepared, or structured (e.g., deep frying or pan frying with oil adds significant fat calories, boiling does not add nutrients, seasonings/sauces might add considerable sodium or sugar). Use this context to estimate more accurate core-11 nutrients. Adjust the final nutrients based on these preparation methods.\n`;
+        `Use the observed local name, ingredients, confidence levels, cooking method, seasonings, and preparation context above to guide your understanding of how the food was cooked, prepared, or structured (e.g., deep frying or pan frying with oil adds significant fat calories, boiling does not add nutrients, seasonings/sauces might add considerable sodium or sugar). Pay special attention to the Ingredients list if available to identify hidden sugars, unhealthy fats, or specific allergens. Use this context to estimate more accurate core-11 nutrients and provide better recommendations.\n`;
     }
 
     let databaseMatchesCtx = "";
@@ -2499,7 +2536,6 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
         comparison: {
           type: Type.OBJECT,
           properties: {
-            keyNutrientConcern: { type: Type.STRING, description: "Comma-separated list of 2-3 most critical nutrients to monitor for this patient (e.g., 'Sodium, Saturated Fat, Calories')" },
             comparisonTitle: { type: Type.STRING },
             auditChecklist: { type: Type.STRING, description: "CRITICAL: List all scoutItemIndices from the prompt here before grouping to ensure 100% extraction coverage." },
             groups: {
@@ -2509,8 +2545,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
                 properties: {
                   groupName: { type: Type.STRING, description: "Name of the group or individual food option" },
                   suitability: { type: Type.STRING },
-                  pros: { type: Type.STRING },
-                  cons: { type: Type.STRING },
+                  recommendation: { type: Type.STRING, description: "Considering what the user asked, target limits, and clinical biomarkers, give advice on this food." },
                   averageNutrients: {
                     type: Type.OBJECT, required: ["calories", "saturatedFat", "sodium"],
                     properties: { 
@@ -2537,35 +2572,25 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
                     nullable: true,
                     description: "Plain food names being compared (text-only fallbacks)."
                   },
-                  topConcernNutrient: {
-                    type: Type.STRING,
-                    nullable: true,
-                    description: "CRITICAL: Single word representing the nutrient driving risk (e.g., 'saturatedFat', 'sodium'). MAX 15 characters."
-                  },
-                  keyDifferentiator: {
-                    type: Type.STRING,
-                    nullable: true,
-                    description: "One short sentence contrasting this group against the other group(s)."
-                  },
                   itemClinicalThreats: {
                     type: Type.ARRAY,
                     nullable: true,
-                    description: "One entry per scout item in this group, describing its specific clinical threat.",
+                    description: "Describe specific clinical threats. You MUST group multiple indices that share the exact same threat into a single object.",
                     items: {
                       type: Type.OBJECT,
                       properties: {
-                        scoutIndex: { type: Type.INTEGER, description: "The scoutItemIndex this threat applies to." },
+                        scoutIndices: { type: Type.ARRAY, items: { type: Type.INTEGER }, description: "The array of scoutItemIndices this threat applies to." },
                         threat: { type: Type.STRING, description: "Short clinical threat label, e.g. 'High Sugar', 'None'." }
                       },
-                      required: ["scoutIndex", "threat"]
+                      required: ["scoutIndices", "threat"]
                     }
                   }
                 },
-                required: ["groupName", "scoutItemIndices", "suitability", "topConcernNutrient", "keyDifferentiator", "pros", "cons", "averageNutrients"]
+                required: ["groupName", "scoutItemIndices", "suitability", "recommendation", "averageNutrients"]
               }
             }
           },
-          required: ["keyNutrientConcern", "comparisonTitle", "auditChecklist", "groups"],
+          required: ["comparisonTitle", "auditChecklist", "groups"],
           nullable: true
         },
 
@@ -2729,7 +2754,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
     // CASE D: evaluation mode
     if (mode === "evaluation") {
       addDebugLog(`[Mode Routing] EVALUATION mode triggered.`);
-      const comparisonData = rawParsed.comparison || { keyNutrientConcern: "Nutrients", groups: [] };
+      const comparisonData = rawParsed.comparison || { groups: [] };
       const resolvedGroups = resolveComparisonGroups(comparisonData.groups, visionScoutItems);
       addDebugLog(`[Comparison Resolve] ${visionScoutItems.length} scout item(s) -> ${resolvedGroups.length} group(s), covering ${resolvedGroups.reduce((sum: number, g: any) => sum + (g.items?.length || 0), 0)} item(s).`);
       comparisonData.groups = resolvedGroups;
