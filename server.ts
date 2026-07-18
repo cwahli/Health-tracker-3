@@ -3333,6 +3333,7 @@ app.post("/api/gemini/medical-analyze", async (req, res) => {
       biomarkerHistory, 
       biomarkers, 
       recentMeals,
+      foodLogs,
       customSystemInstruction,
       customVariableData
     } = req.body;
@@ -3993,7 +3994,7 @@ reviewedBiomarkers: []`;
           systemInstruction = customSystemInstruction;
         }
 
-        let promptText = `Chat History:\n${historyText}\n${imageCtx}\nUser message: "${message}"${dataContext}`;
+        let promptText = `Chat History:\n${historyText}${foodLogs ? `PATIENT'S RECENT LOGGED MEALS HISTORY:\n${foodLogs.map((m: any, idx: number) => `- Meal ${idx + 1}: "${m.name}" on ${m.date}`).join("\n")}\n\n` : ""}${imageCtx}\nUser message: "${message}"${dataContext}`;
         fullPromptSent = `System Instruction:\n${systemInstruction}\n\n${promptText}`;
 
         let isYaml = (agentType === "agent1");

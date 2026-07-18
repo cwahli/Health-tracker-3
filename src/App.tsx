@@ -1769,6 +1769,7 @@ export default function App() {
           // Load only from local cache on initial load/session load to prevent automatic Firebase calls.
           // Firestore checks will happen ONLY when the user manually clicks "Sync Now" in the header.
           setSyncState('local');
+          setIsAuthChecking(false);
 
           // One-Time Legacy Migration & Real-Time onSnapshot setup
           const uid = user.uid;

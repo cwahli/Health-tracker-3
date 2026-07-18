@@ -1537,6 +1537,7 @@ ${logsText}`);
           }
         }
       } else if (isAgent('medical')) {
+        bodyData.foodLogs = (activeFoodLogs || []).map(f => ({ name: f.name, date: f.date, nutrients: f.nutrients }));
         bodyData.existingBiomarkers = Array.from(new Set([...(biomarkers ? Object.keys(biomarkers) : []), ...Object.keys(profile?.customBiomarkers || {})]));
         bodyData.numberOfBatches = numberOfBatches;
         const lastMsg = [...messages].reverse().find(m => m.lastProcessedItem !== undefined);
