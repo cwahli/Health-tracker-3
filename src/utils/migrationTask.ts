@@ -4,6 +4,11 @@ import { db } from '../firebase';
 import { BiomarkerLog, UserProfile } from '../types';
 
 export const runCleanupMigration = async (uid: string, email?: string) => {
+  // TEMPORARILY DISABLED (see AI_HANDOVER.md): this migration incorrectly
+  // treats 'wbc' and 'creatinine' as legacy duplicate keys and deletes them,
+  // but they are the current canonical biomarker keys in biomarkers.ts.
+  // Do not re-enable until the deletion list is corrected and reviewed.
+  return;
   const norm = uid;
   const migrationKey = `migration_july05_cleanup_done_${uid}`;
   if (localStorage.getItem(migrationKey) === 'true') {
