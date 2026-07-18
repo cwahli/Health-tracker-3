@@ -1569,8 +1569,8 @@ ${logsText}`);
             currentStep = agentType;
           }
           bodyData.agentType = currentStep;
-          const deletedIds = profile?.deletedBiomarkerLogIds || [];
-          bodyData.biomarkerHistory = (biomarkerHistory || []).filter(h => h.sync_state !== 'delete' && !deletedIds.includes(h.id));
+          const deletedIds = profile?.deletedBiomarkerLogIds || {};
+          bodyData.biomarkerHistory = (biomarkerHistory || []).filter(h => h.sync_state !== 'delete' && !deletedIds[h.id]);
           bodyData.biomarkers = biomarkers || {};
           bodyData.recentMeals = activeFoodLogs ? (activeFoodLogs || []).slice(-20).map(f => f.name) : [];
           bodyData.agentDiagnosticSummary = profile?.agentDiagnosticSummary || '';

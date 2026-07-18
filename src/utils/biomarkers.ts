@@ -574,6 +574,13 @@ export const getBiomarkerStatus = (key: string, val: number | string, normalRang
 
   const isMmol = rangeStr && rangeStr.toLowerCase().includes('mmol');
 
+  if (isMmol) {
+    if (key === 'triglycerides') {
+      if (valueToEvaluate > 5.6) return 'critical';
+      if (valueToEvaluate >= 1.7) return 'high';
+      return 'normal';
+    }
+  }
   if (!isMmol) {
     if (key === 'ldl') {
       if (valueToEvaluate > 130) return 'critical';
@@ -587,6 +594,11 @@ export const getBiomarkerStatus = (key: string, val: number | string, normalRang
     if (key === 'apob') {
       if (valueToEvaluate > 110) return 'critical';
       if (valueToEvaluate > 90) return 'high';
+      return 'normal';
+    }
+    if (key === 'triglycerides') {
+      if (valueToEvaluate >= 500) return 'critical';
+      if (valueToEvaluate >= 150) return 'high';
       return 'normal';
     }
     if (key === 'hba1c') {
