@@ -15,6 +15,8 @@ import { translations } from './utils/translations';
 import { AVAILABLE_LLMS } from './utils/llm';
 import { PRIMARY_NUTRIENTS } from './utils/nutrients';
 import { getLocalFallbackReport } from './utils/fallbackReport';
+import { getDemoProfile, getDemoBiomarkerHistory, getDemoFoodLogs, getDemoReport } from './utils/demoData';
+import { getAvailableCredits, deductAgentCredits } from './utils/creditManager';
 import { Plus, HeartHandshake, RefreshCw, Sparkles, Stethoscope, Utensils, Loader, CloudLightning, AlertTriangle } from 'lucide-react';
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut as fbSignOut } from 'firebase/auth';
@@ -1775,6 +1777,17 @@ export default function App() {
             loadedReport = parsedLocal.report || null;
           }
 
+          const isDemoUser = newEmail === 'demo@healthcockpit.com';
+          if (isDemoUser && (!loadedProfile || loadedHistory.length === 0)) {
+            loadedProfile = getDemoProfile();
+            loadedFoods = getDemoFoodLogs();
+            loadedHistory = getDemoBiomarkerHistory();
+            loadedBiomarkers = { fasting_glucose: 91, hba1c: 5.3, total_cholesterol: 208, ldl: 132, hdl: 46, triglycerides: 155, egfr: 94, vitamin_d: 22, wbc: 6.2, hemoglobin: 14.6, bmi: 23.4 };
+            loadedReport = getDemoReport();
+            loadedActions = loadedReport.actions || [];
+            loadedBenefits = loadedReport.dailyBenefits || [];
+          }
+
           if (!loadedProfile) {
             loadedProfile = {
               nickname: user.displayName || '',
@@ -1795,6 +1808,7 @@ export default function App() {
               loadedProfile.topNutrientsToMonitor = PRIMARY_NUTRIENTS;
             }
           }
+          loadedProfile.lastLogin = new Date().toISOString();
 
           // Save the loaded state to local storage immediately
           const bundle = {
@@ -4297,6 +4311,10 @@ export default function App() {
         foodLogs={foodLogs}
         report={report}
         isFirestoreQuotaExceeded={isFirestoreQuotaExceeded}
+        onSaveProfile={async (updatedP) => {
+          setProfile(updatedP);
+          await saveAndSync(updatedP, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'profile' });
+        }}
         onGoToManualEdit={(errorMsg) => {
           setIsFoodChatOpen(false);
           setActiveTab('food');
@@ -4325,6 +4343,10 @@ export default function App() {
         foodLogs={foodLogs}
         report={report}
         isFirestoreQuotaExceeded={isFirestoreQuotaExceeded}
+        onSaveProfile={async (updatedP) => {
+          setProfile(updatedP);
+          await saveAndSync(updatedP, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'profile' });
+        }}
         agentType={activeAgentType}
         dataReviewBatchIdx={activeDataReviewBatchIdx}
         dataReviewBatchKeys={activeDataReviewBatchKeys}

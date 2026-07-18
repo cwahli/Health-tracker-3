@@ -22,7 +22,8 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user && user.emailVerified) {
+      const isDemo = user?.email?.toLowerCase().trim() === 'demo@healthcockpit.com';
+      if (user && (user.emailVerified || isDemo)) {
         handleSuccessfulLogin(user);
       } else if (user && !user.emailVerified) {
         setStatus('pending_verification');
@@ -32,18 +33,69 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
   }, [nickname]);
 
   const handleSuccessfulLogin = (user: User) => {
-    const resolvedNickname = nickname || user.displayName || user.email?.split('@')[0] || 'User';
+    const isDemo = user.email?.toLowerCase().trim() === 'demo@healthcockpit.com';
+    const resolvedNickname = isDemo ? 'Alex (Demo)' : (nickname || user.displayName || user.email?.split('@')[0] || 'User');
     const profile: UserProfile = {
       nickname: resolvedNickname,
-      photoUrl: user.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120",
+      photoUrl: isDemo 
+        ? "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=120"
+        : (user.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120"),
       email: user.email || '',
-      age: '' as unknown as number,
-      ethnicity: 'Unknown',
-      weight: '' as unknown as number,
-      height: '' as unknown as number,
-      language
+      age: isDemo ? 28 : ('' as unknown as number),
+      ethnicity: isDemo ? 'Caucasian' : 'Unknown',
+      weight: isDemo ? 74 : ('' as unknown as number),
+      height: isDemo ? 178 : ('' as unknown as number),
+      gender: isDemo ? 'Male' : 'Unknown',
+      language,
+      userType: isDemo ? 'Demo' : (user.email?.toLowerCase().trim() === 'cwah.liu@gmail.com' ? 'Admin' : 'Standard')
     };
     onLogin(profile);
+  };
+
+  const triggerLocalDemoLogin = () => {
+    const profile: UserProfile = {
+      nickname: 'Alex (Demo)',
+      photoUrl: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=120",
+      email: 'demo@healthcockpit.com',
+      age: 28,
+      ethnicity: 'Caucasian',
+      weight: 74,
+      height: 178,
+      gender: 'Male',
+      language,
+      userType: 'Demo'
+    };
+    onLogin(profile);
+  };
+
+  const handleDemoLogin = async () => {
+    setErrorMsg('');
+    setStatus('sending');
+    const demoEmail = 'demo@healthcockpit.com';
+    const demoPassword = 'DemoAccount123!';
+    try {
+      let userCredential;
+      try {
+        userCredential = await signInWithEmailAndPassword(auth, demoEmail, demoPassword);
+        handleSuccessfulLogin(userCredential.user);
+      } catch (err: any) {
+        if (err.code === 'auth/user-not-found' || err.message?.includes('user-not-found') || err.code === 'auth/invalid-credential' || err.code === 'auth/wrong-password') {
+          try {
+            userCredential = await createUserWithEmailAndPassword(auth, demoEmail, demoPassword);
+            handleSuccessfulLogin(userCredential.user);
+          } catch (e2: any) {
+            console.warn("Failed to create demo user on Firebase auth, falling back to local simulation:", e2);
+            triggerLocalDemoLogin();
+          }
+        } else {
+          console.warn("Firebase sign in failed, falling back to local simulation:", err);
+          triggerLocalDemoLogin();
+        }
+      }
+    } catch (err: any) {
+      console.error("Demo login error:", err);
+      triggerLocalDemoLogin();
+    }
   };
 
   const handleManualAuth = async (e: React.FormEvent) => {
@@ -188,8 +240,37 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
             </button>
           </div>
         ) : (
-          /* Standard Sign In Form */
-          <form onSubmit={handleManualAuth} className="space-y-4">
+          <div>
+            {/* Demo Account Access Card */}
+            <div className="bg-gradient-to-br from-indigo-50/80 to-purple-50/80 dark:from-indigo-950/20 dark:to-purple-950/20 border border-indigo-100/50 dark:border-indigo-900/30 rounded-2xl p-4 mb-4 text-center">
+              <span className="inline-block px-2 py-0.5 text-[10px] font-bold text-indigo-600 bg-indigo-100/60 dark:text-indigo-400 dark:bg-indigo-950/40 rounded-full uppercase tracking-wider mb-2">
+                Sandbox Mode
+              </span>
+              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                Explore as a mostly healthy 28-yo with standard medical issues
+              </h3>
+              <p className="text-[11px] text-slate-500 mt-1 max-w-xs mx-auto leading-relaxed">
+                Browse pre-filled biomarkers (lipid spikes, low Vitamin D) and monitor a daily limit of 20 agent credits.
+              </p>
+              <button
+                type="button"
+                id="demo-login-btn"
+                onClick={handleDemoLogin}
+                className="w-full mt-3 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-100 dark:shadow-none transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.01]"
+              >
+                <span>🚀 Launch Demo Account</span>
+              </button>
+            </div>
+
+            <div className="relative flex items-center justify-center my-4">
+              <div className="border-t border-slate-200 dark:border-slate-800 w-full"></div>
+              <span className="absolute bg-white dark:bg-slate-900 px-3 text-[10px] uppercase font-bold tracking-widest text-slate-400">
+                or use email
+              </span>
+            </div>
+
+            /* Standard Sign In Form */
+            <form onSubmit={handleManualAuth} className="space-y-4">
             <div className="space-y-3">
               <div>
                 <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">{t.emailLabel}</label>
@@ -292,6 +373,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
               </button>
             </div>
           </form>
+          </div>
         )}
       </div>
     </div>

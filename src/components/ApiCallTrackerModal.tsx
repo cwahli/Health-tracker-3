@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Cloud, RefreshCw, Trash2, Clock, Check, AlertTriangle, ShieldCheck, Activity } from 'lucide-react';
+import { X, Cloud, RefreshCw, Trash2, Clock, Check, AlertTriangle, ShieldCheck, Activity, Coins } from 'lucide-react';
 import { collection, writeBatch, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ApiCallEvent, trackApiCall } from '../utils/apiTracker';
+import { getAllLocalUsers } from '../utils/userManagement';
 interface ApiCallTrackerModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -20,6 +21,13 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
   const [endTime, setEndTime] = useState('');
 
   const [selectedMetric, setSelectedMetric] = useState<string | null>(null);
+  const [selectedUserType, setSelectedUserType] = useState<'all' | 'Admin' | 'Demo' | 'Standard'>('all');
+  const localUsers = useMemo(() => getAllLocalUsers(), [isOpen]);
+
+  const getUserType = (email: string): 'Admin' | 'Demo' | 'Standard' => {
+    const matched = localUsers.find(u => u.email.toLowerCase().trim() === email.toLowerCase().trim());
+    return (matched?.userType as any) || 'Standard';
+  };
 
   const loadEvents = () => {
     try {
@@ -81,6 +89,11 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
     });
   }, [events, startDate, endDate, startTime, endTime]);
 
+  const filteredEvents = useMemo(() => {
+    if (selectedUserType === 'all') return filteredEventsByDate;
+    return filteredEventsByDate.filter(e => getUserType(e.userEmail) === selectedUserType);
+  }, [filteredEventsByDate, selectedUserType, localUsers]);
+
   const filteredTotals = useMemo(() => {
     const totals = {
       gemini: 0,
@@ -92,23 +105,23 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
       firebase_write: 0,
       firebase_delete: 0
     };
-    filteredEventsByDate.forEach(e => {
+    filteredEvents.forEach(e => {
       if (e.type in totals) {
         totals[e.type as keyof typeof totals]++;
       }
     });
     return totals;
-  }, [filteredEventsByDate]);
+  }, [filteredEvents]);
 
   const finalFilteredEvents = useMemo(() => {
-     if (!selectedMetric) return filteredEventsByDate;
+     if (!selectedMetric) return filteredEvents;
      if (selectedMetric === 'unsplash_wiki') {
-       return filteredEventsByDate.filter(e => e.type === 'unsplash' || e.type === 'wikipedia');
+       return filteredEvents.filter(e => e.type === 'unsplash' || e.type === 'wikipedia');
      } else if (selectedMetric === 'firebase_all') {
-       return filteredEventsByDate.filter(e => e.type.startsWith('firebase_'));
+       return filteredEvents.filter(e => e.type.startsWith('firebase_'));
      }
-     return filteredEventsByDate.filter(e => e.type === selectedMetric);
-  }, [filteredEventsByDate, selectedMetric]);
+     return filteredEvents.filter(e => e.type === selectedMetric);
+  }, [filteredEvents, selectedMetric]);
 
   const groupedQueries = useMemo(() => {
     const groups: Record<string, ApiCallEvent[]> = {};
@@ -243,6 +256,19 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-white outline-none focus:border-indigo-500 transition-colors" />
                    <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-white ml-2 outline-none focus:border-indigo-500 transition-colors" />
                 </div>
+                <div>
+                   <label className="block text-[10px] text-slate-400 font-bold mb-1">User Type Filter</label>
+                   <select 
+                     value={selectedUserType} 
+                     onChange={e => setSelectedUserType(e.target.value as any)} 
+                     className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1.5 text-xs text-white outline-none focus:border-indigo-500 transition-colors cursor-pointer"
+                   >
+                     <option value="all">All Users</option>
+                     <option value="Admin">Admins</option>
+                     <option value="Demo">Demo Accounts</option>
+                     <option value="Standard">Standard Users</option>
+                   </select>
+                </div>
               </div>
               <div className="flex items-center gap-2">
                 <button
@@ -365,6 +391,22 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
                         <span>•</span>
                         <span>Duration: {group.duration}</span>
                       </p>
+                      {(() => {
+                        const email = group.events[0]?.userEmail || 'anonymous';
+                        const uType = getUserType(email);
+                        return (
+                          <div className="flex items-center gap-1.5 mt-1 text-[10px] font-medium text-slate-400">
+                            <span className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase tracking-wider ${
+                              uType === 'Admin' ? 'bg-rose-950/45 text-rose-400 border border-rose-900/30' :
+                              uType === 'Demo' ? 'bg-indigo-950/45 text-indigo-400 border border-indigo-900/30' :
+                              'bg-slate-900 text-slate-400 border border-slate-850'
+                            }`}>
+                              {uType}
+                            </span>
+                            <span className="font-mono text-slate-500">{email}</span>
+                          </div>
+                        );
+                      })()}
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
                       {group.counts.gemini > 0 && <span className="text-[9.5px] font-bold px-2 py-0.5 bg-indigo-950/50 text-indigo-400 border border-indigo-900/25 rounded-md">Gemini: {group.counts.gemini}</span>}

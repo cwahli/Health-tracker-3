@@ -3,16 +3,18 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { UserProfile, DbInteraction, QuotaData, FoodLog } from '../types';
 import { translations } from '../utils/translations';
+import { getAvailableCredits } from '../utils/creditManager';
 import {
   Eye, EyeOff, CloudLightning, CloudCheck, RefreshCw, LogOut, Check, ShieldCheck,
   Archive, FileSpreadsheet, KeyRound, Lock, Unlock, FileDown, FileUp, AlertTriangle,
-  CloudUpload, CloudDownload, HelpCircle, Terminal, User, Cloud
+  CloudUpload, CloudDownload, HelpCircle, Terminal, User, Cloud, Coins, Users
 } from 'lucide-react';
 import { db, auth } from '../firebase';
 import { doc, setDoc, getDoc, deleteDoc } from 'firebase/firestore';
 import GoogleHealthIntegration from './GoogleHealthIntegration';
 import FullScreenLogViewer from './FullScreenLogViewer';
 import ApiCallTrackerModal from './ApiCallTrackerModal';
+import UserManagementTab from './UserManagementTab';
 import { Activity } from 'lucide-react';
 import {
   getGoogleAccessToken,
@@ -126,6 +128,7 @@ export default function Header({
     if (saved) return saved as 'admin' | 'user';
     return 'admin';
   });
+  const [activeAdminTab, setActiveAdminTab] = useState<'sync' | 'users'>('sync');
   const [showAgentLogs, setShowAgentLogs] = useState(false);
   const [showApiTracker, setShowApiTracker] = useState(false);
   const [isTrackerOpen, setIsTrackerOpen] = useState(false);
@@ -429,9 +432,20 @@ export default function Header({
           
           <div className="min-w-0 flex-1">
             <div className="flex flex-col justify-center">
-              <span id="user-nickname-text" className="font-semibold text-slate-950 dark:text-slate-100 truncate text-base leading-tight">
-                {profile.nickname || 'Healthy User'}
-              </span>
+              <div className="flex items-center gap-1.5">
+                <span id="user-nickname-text" className="font-semibold text-slate-950 dark:text-slate-100 truncate text-base leading-tight">
+                  {profile.nickname || 'Healthy User'}
+                </span>
+                {(() => {
+                  const info = getAvailableCredits(profile);
+                  return (
+                    <span className="text-[9px] bg-indigo-50 dark:bg-indigo-950/45 text-indigo-600 dark:text-indigo-400 border border-indigo-100/30 dark:border-indigo-900/30 px-1.5 py-0.5 rounded-full font-bold flex items-center gap-0.5" title={`${info.total} agent credits left`}>
+                      <Coins className="w-2.5 h-2.5" />
+                      {info.total}
+                    </span>
+                  );
+                })()}
+              </div>
               <span className="text-[10px] text-slate-400 capitalize font-medium mt-0.5 block tracking-wide">
                 {activeTab === 'home' ? 'Home' : activeTab === 'insights' ? 'Health insights' : activeTab === 'food' ? 'Food & Nutrition Logs' : activeTab === 'medical' ? 'Medical History' : activeTab === 'trends' ? 'Health Trends' : activeTab}
               </span>
@@ -603,6 +617,50 @@ export default function Header({
               />
             </div>
           </div>
+
+          {/* Agent Credit Status Panel */}
+          {(() => {
+            const creditInfo = getAvailableCredits(profile);
+            return (
+              <div className="bg-gradient-to-br from-indigo-50/60 to-purple-50/60 dark:from-indigo-950/20 dark:to-purple-950/20 border border-indigo-100/60 dark:border-indigo-900/40 rounded-2xl p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Coins className="w-4 h-4 text-indigo-500" />
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-200">AI Agent Credits</span>
+                  </div>
+                  <span className="text-[10px] bg-indigo-100/80 dark:bg-indigo-950/65 text-indigo-700 dark:text-indigo-450 font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                    {creditInfo.userType} Account
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 text-center">
+                  <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/85 rounded-xl p-2">
+                    <span className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Available</span>
+                    <span className="text-lg font-black text-slate-800 dark:text-slate-100">{creditInfo.total}</span>
+                    <span className="block text-[8px] text-slate-500">Credits left</span>
+                  </div>
+                  <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800/85 rounded-xl p-2">
+                    <span className="block text-[10px] font-semibold text-slate-400 uppercase tracking-wide">Daily Quota</span>
+                    <span className="text-lg font-black text-slate-800 dark:text-slate-100">{creditInfo.daily}</span>
+                    <span className="block text-[8px] text-slate-500">resets in {creditInfo.nextResetStr}</span>
+                  </div>
+                </div>
+
+                {/* Granted Credits / Duration info */}
+                {creditInfo.grantedDetails.length > 0 && (
+                  <div className="bg-white/80 dark:bg-slate-900/60 border border-slate-100/50 dark:border-slate-800/45 rounded-xl p-2.5 space-y-1.5 text-left">
+                    <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider">Granted Credits (active)</span>
+                    {creditInfo.grantedDetails.map((gc, idx) => (
+                      <div key={idx} className="flex justify-between items-center text-[10px] text-slate-650 dark:text-slate-350">
+                        <span className="font-semibold text-indigo-600 dark:text-indigo-400">+{gc.amount} credits</span>
+                        <span className="text-[9px] font-mono text-slate-400">Expires: {new Date(gc.expiresAt).toLocaleDateString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           <div className="grid grid-cols-2 gap-3">
             <div>
@@ -1169,8 +1227,40 @@ export default function Header({
             {/* Content area */}
             <div className="p-6 overflow-y-auto space-y-6 text-left flex-1">
               
-              {/* Cloud Sync Mode Strategy Select Card */}
-              <div className="p-5 bg-indigo-50/30 dark:bg-slate-800/40 border border-indigo-100/40 dark:border-slate-800 rounded-2xl space-y-3.5">
+              {dbOverlayViewMode === 'admin' && (
+                <div className="flex border-b border-slate-200 dark:border-slate-800 pb-px gap-6 mb-4">
+                  <button
+                    type="button"
+                    onClick={() => setActiveAdminTab('sync')}
+                    className={`pb-3 text-xs font-bold transition-all border-b-2 relative cursor-pointer ${
+                      activeAdminTab === 'sync'
+                        ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                        : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    Sync, Telemetry & Backup
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveAdminTab('users')}
+                    className={`pb-3 text-xs font-bold transition-all border-b-2 relative cursor-pointer flex items-center gap-1.5 ${
+                      activeAdminTab === 'users'
+                        ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                        : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    <Users className="w-4 h-4" />
+                    User Management & Quotas
+                  </button>
+                </div>
+              )}
+
+              {dbOverlayViewMode === 'admin' && activeAdminTab === 'users' ? (
+                <UserManagementTab />
+              ) : (
+                <>
+                  {/* Cloud Sync Mode Strategy Select Card */}
+                  <div className="p-5 bg-indigo-50/30 dark:bg-slate-800/40 border border-indigo-100/40 dark:border-slate-800 rounded-2xl space-y-3.5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
                     <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
@@ -1476,6 +1566,8 @@ export default function Header({
                   </div>
                 )}
               </div>
+                </>
+              )}
             </div>
 
             {/* Footer */}

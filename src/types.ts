@@ -135,10 +135,26 @@ export interface UserProfile {
   bmiAutoLogged?: boolean;
   approved_agent1_batches?: { [key: string]: boolean };
   approved_data_review_batches?: { [key: string]: boolean };
+  userType?: 'Admin' | 'Demo' | 'Standard';
+  agentCredits?: {
+    totalUsed: number;
+    dailyQuota: number;
+    remaining: number;
+    lastResetTime: string; // ISO String
+    grantedCredits?: {
+      amount: number;
+      expiresAt: string; // ISO String duration
+      grantedAt: string; // ISO String
+    }[];
+    modelUsage?: {
+      [modelId: string]: number;
+    };
+  };
   metadata?: {
     legacyMigrated?: boolean;
     [key: string]: any;
   };
+  lastLogin?: string;
 }
 
 export interface NutrientBreakdown {

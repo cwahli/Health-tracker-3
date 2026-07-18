@@ -28,6 +28,7 @@ import { sanitizeForFirestore, checkQuotaFlag } from '../utils/firestoreUtils';
 import { resolveFoodImage } from '../utils/imageResolver';
 
 import { AgentType, AGENT_REGISTRY, getAgentRolloutStatus } from '../utils/agentConfig';
+import { getAvailableCredits, deductAgentCredits } from '../utils/creditManager';
 const isValidValue = (v: unknown): boolean =>
   v !== null && v !== undefined && v !== '' && v !== 'N/A' && v !== 'null';
 
@@ -376,6 +377,7 @@ interface LogChatProps {
   onAgentFinish?: (agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent7' | 'data_review' | 'health_baseline', agentResult:  any) => Promise<void>;
   onAgentAnalysisSaved?: (agentType: string, agentResult:  any) => Promise<void>;
   onGoToManualEdit?: (errorMsg?: string) => void;
+  onSaveProfile?: (profile: UserProfile) => Promise<void>;
   autoSendMessage?: string | null;
   dataReviewBatchIdx?: number | string | null;
   dataReviewBatchKeys?: string[];
@@ -413,6 +415,7 @@ export default function LogChat({
   onAgentFinish,
   onAgentAnalysisSaved,
   onGoToManualEdit,
+  onSaveProfile,
   autoSendMessage = null,
   dataReviewBatchIdx = null,
   dataReviewBatchKeys = [],
@@ -1282,6 +1285,25 @@ ${logsText}`);
   };
 
   const handleSend = async (overrideText?: string | any) => {
+    // Check credit limits before proceeding
+    if (profile) {
+      const creditInfo = getAvailableCredits(profile);
+      const isFlashLite = selectedModelId === 'gemini-3.1-flash-lite' || selectedModelId === 'gemini-2.5-flash-lite';
+      const cost = isFlashLite ? 1 : 20;
+      if (creditInfo.total < cost) {
+        const errorMsg: ChatMessage = {
+          id: `msg_err_${Date.now()}`,
+          role: 'assistant',
+          content: `⚠️ **Credit Quota Exceeded**\n\nYou have insufficient AI Agent credits to make this request!\n\n* **Required**: \`${cost}\` credits (for model \`${selectedModelId}\`)\n* **Available**: \`${creditInfo.total}\` credits (Daily quota: \`${creditInfo.daily}\`)\n* **Reset Time**: Resets in **${creditInfo.nextResetStr}**.\n\n*Admins can grant additional credits with duration in the User Management tab under Admin Settings.*`,
+          timestamp: new Date().toISOString(),
+          isError: true
+        };
+        setMessages(prev => [...prev, errorMsg]);
+        setIsAnalyzing(false);
+        return;
+      }
+    }
+
     const currentReqId = generateQueryId();
     setActiveQueryId(currentReqId);
     let textToSend = typeof overrideText === 'string' ? overrideText : (overrideText?.text || inputText);
@@ -1679,6 +1701,14 @@ ${logsText}`);
 
       const resData = await response.json();
       if (resData.error) throw new Error(resData.error);
+
+      // Deduct agent credits upon successful response
+      if (profile) {
+        const updatedProfile = deductAgentCredits(profile, selectedModelId);
+        if (onSaveProfile) {
+          await onSaveProfile(updatedProfile);
+        }
+      }
 
       if (bodyData.batchBiomarkers && !resData.batchBiomarkers) {
         resData.batchBiomarkers = bodyData.batchBiomarkers;
