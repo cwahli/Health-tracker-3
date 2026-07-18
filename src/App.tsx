@@ -1683,7 +1683,30 @@ export default function App() {
   useEffect(() => {
     let unsubs: (() => void)[] = [];
     
+    // Safety fallback: If Firebase auth takes too long to initialize (e.g. offline and indexedDB locked),
+    // we stop the spinner so the user can interact with the app.
+    const fallbackTimeout = setTimeout(async () => {
+      console.warn("Auth check timed out. Falling back to local state.");
+      
+      const storageKey = getStorageKey('guest');
+      const parsedLocal = await get(storageKey);
+      if (parsedLocal) {
+        try {
+          if (parsedLocal.profile) setProfile(parsedLocal.profile);
+          if (parsedLocal.foodLogs) setFoodLogs(parsedLocal.foodLogs);
+          if (parsedLocal.biomarkers) setBiomarkers(parsedLocal.biomarkers);
+          if (parsedLocal.biomarkerHistory) setBiomarkerHistory(parsedLocal.biomarkerHistory);
+          if (parsedLocal.actions) setActions(parsedLocal.actions);
+          if (parsedLocal.dailyBenefits) setDailyBenefits(parsedLocal.dailyBenefits);
+          if (parsedLocal.report) setReport(parsedLocal.report);
+        } catch (e) {}
+      }
+      setSyncState('local');
+      setIsAuthChecking(false);
+    }, 4000);
+
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      clearTimeout(fallbackTimeout);
       if (user && user.email) { runCleanupMigration(user.uid, user.email).catch(console.error); }
       unsubs.forEach(u => u());
       unsubs = [];

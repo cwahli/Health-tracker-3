@@ -105,4 +105,5 @@ async function testConnection() {
     }
   }
 }
-testConnection();
+// Delay testConnection so it doesn't block offline startup
+setTimeout(testConnection, 5000);
