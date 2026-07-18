@@ -2889,7 +2889,7 @@ ${JSON.stringify(profile, null, 2)}`);
                   </button>
                 </>
               ) : (
-                !isAgent('food_idea') && !isAgent('daily_recommendation') && (
+                !isAgent('food_idea') && !isAgent('daily_recommendation') && !isAgent('medical') && (
                   <button
                     type="button"
                     onClick={() => {
