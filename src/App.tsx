@@ -2403,6 +2403,18 @@ export default function App() {
         })(),
         lastUpdatedAt: isAutoLog ? (currProfile.lastUpdatedAt || now) : now
       };
+      
+      // Sanitize customBiomarkers to filter out any falsy, empty, null, or "undefined" keys
+      if (updatedProfile.customBiomarkers) {
+        const cleanedCustoms: { [key: string]: any } = {};
+        for (const [k, v] of Object.entries(updatedProfile.customBiomarkers)) {
+          if (k && k !== 'undefined' && k !== 'null' && k.trim() !== '') {
+            cleanedCustoms[k] = v;
+          }
+        }
+        updatedProfile.customBiomarkers = cleanedCustoms;
+      }
+      
       // Keep local state in sync immediately with the timestamped profile
       setProfile(updatedProfile);
     }
@@ -3658,6 +3670,10 @@ export default function App() {
         riskCategories: val.riskCategories !== undefined ? val.riskCategories : oldCustom.riskCategories,
         potentialMedicalConditions: val.potentialMedicalConditions !== undefined ? val.potentialMedicalConditions : oldCustom.potentialMedicalConditions
       } as any;
+      
+      // Delete needsApproval since they are now approved via unit standardization
+      delete updatedProfile.customBiomarkers[key].needsApproval;
+      
       hasChanges = true;
     }
 

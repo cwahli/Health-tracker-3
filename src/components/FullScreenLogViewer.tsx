@@ -42,7 +42,7 @@ export default function FullScreenLogViewer({
   const [selectedSessionId, setSelectedSessionId] = useState(activeConversationId || '');
   const [sessionLogs, setSessionLogs] = useState<string[]>(logsArray || []);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedAgent, setSelectedAgent] = useState<'all' | 'scout' | 'dietitian'>('all');
+  const [selectedAgent, setSelectedAgent] = useState<'all' | 'scout' | 'dietitian' | 'standardize' | 'categorise' | 'consolidation' | 'accuracy'>('all');
   
   const [requestLogs, setRequestLogs] = useState<AgentRequestLog[]>([]);
   const isDiagnostic = title.includes('Diagnostic');
@@ -119,9 +119,13 @@ export default function FullScreenLogViewer({
     // based on log order. This avoids silently dropping them, and avoids the
     // old unreliable fallback that only matched by coincidence when prior
     // chat history happened to contain certain phrases.
-    let currentPhase: 'scout' | 'dietitian' | null = null;
+    let currentPhase: 'scout' | 'dietitian' | 'standardize' | 'categorise' | 'consolidation' | 'accuracy' | null = null;
     const scoutChunks: string[] = [];
     const dietitianChunks: string[] = [];
+    const standardizeChunks: string[] = [];
+    const categoriseChunks: string[] = [];
+    const consolidationChunks: string[] = [];
+    const accuracyChunks: string[] = [];
 
     currentChunks.forEach(chunk => {
       const lower = chunk.toLowerCase();
@@ -134,9 +138,22 @@ export default function FullScreenLogViewer({
           scoutChunks.push(chunk);
         } else if (currentPhase === 'dietitian') {
           dietitianChunks.push(chunk);
+        } else if (currentPhase === 'standardize') {
+          standardizeChunks.push(chunk);
+        } else if (currentPhase === 'categorise') {
+          categoriseChunks.push(chunk);
+        } else if (currentPhase === 'consolidation') {
+          consolidationChunks.push(chunk);
+        } else if (currentPhase === 'accuracy') {
+          accuracyChunks.push(chunk);
         }
         return;
       }
+      
+      const isStandardizeTag = lower.includes('standardize units agent');
+      const isCategoriseTag = lower.includes('medical categorisation agent');
+      const isConsolidationTag = lower.includes('name consolidation agent');
+      const isAccuracyTag = lower.includes('data accuracy agent');
       const isScoutTag = lower.includes('vision scout') || lower.includes('image payload');
       const isDietitianTag = lower.includes('routeagent') ||
                               lower.includes('modify math') ||
@@ -149,6 +166,27 @@ export default function FullScreenLogViewer({
                               lower.includes('json parse') ||
                               lower.includes('fallback') ||
                               lower.includes('comparison resolve');
+                              
+      if (isStandardizeTag) {
+        currentPhase = 'standardize';
+        standardizeChunks.push(chunk);
+        return;
+      }
+      if (isCategoriseTag) {
+        currentPhase = 'categorise';
+        categoriseChunks.push(chunk);
+        return;
+      }
+      if (isConsolidationTag) {
+        currentPhase = 'consolidation';
+        consolidationChunks.push(chunk);
+        return;
+      }
+      if (isAccuracyTag) {
+        currentPhase = 'accuracy';
+        accuracyChunks.push(chunk);
+        return;
+      }
       if (isScoutTag) {
         currentPhase = 'scout';
         scoutChunks.push(chunk);
@@ -161,7 +199,13 @@ export default function FullScreenLogViewer({
       }
     });
 
-    return selectedAgent === 'scout' ? scoutChunks : dietitianChunks;
+    if (selectedAgent === 'scout') return scoutChunks;
+    if (selectedAgent === 'dietitian') return dietitianChunks;
+    if (selectedAgent === 'standardize') return standardizeChunks;
+    if (selectedAgent === 'categorise') return categoriseChunks;
+    if (selectedAgent === 'consolidation') return consolidationChunks;
+    if (selectedAgent === 'accuracy') return accuracyChunks;
+    return currentChunks;
   }, [chunks, selectedAgent]);
 
   const filteredChunks = useMemo(() => {
@@ -380,6 +424,10 @@ export default function FullScreenLogViewer({
               <option value="all">All Agents / Process Steps</option>
               <option value="scout">Visual Food Scout (Image Classifier)</option>
               <option value="dietitian">Clinical Dietitian AI</option>
+              <option value="standardize">Clinical Unit Standardization Agent</option>
+              <option value="categorise">Clinical Categorisation Agent</option>
+              <option value="consolidation">Clinical Name Consolidation Agent</option>
+              <option value="accuracy">Clinical Data Accuracy Agent</option>
             </select>
           </div>
 

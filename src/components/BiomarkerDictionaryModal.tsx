@@ -547,7 +547,7 @@ const DictionaryItem = ({
                   {initialGrouping && (
                     <span 
                       onClick={() => onTagClick && onTagClick(initialGrouping.trim())}
-                      className={`text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded flex items-center gap-1 ${onTagClick ? 'cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700' : ''}`}
+                      className={`text-[10px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 px-1.5 py-0.5 rounded flex items-center gap-1 ${onTagClick ? 'cursor-pointer hover:bg-emerald-100 dark:hover:bg-emerald-900/30' : ''}`}
                     >
                       <span className="text-[8px] uppercase tracking-wider opacity-70">Medical Practice:</span>
                       {initialGrouping}
@@ -639,7 +639,7 @@ const DictionaryItem = ({
                       <span 
                         key={i} 
                         onClick={() => onTagClick && onTagClick(r.trim())}
-                        className={`text-[9px] font-bold px-1.5 py-0.5 bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400 rounded-full border border-rose-100 dark:border-rose-900/30 flex items-center gap-1 ${onTagClick ? 'cursor-pointer hover:bg-rose-100 dark:hover:bg-rose-900/40' : ''}`}
+                        className={`text-[9px] font-bold px-1.5 py-0.5 bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 rounded-full border border-red-100 dark:border-red-900/30 flex items-center gap-1 ${onTagClick ? 'cursor-pointer hover:bg-red-100 dark:hover:bg-red-900/40' : ''}`}
                       >
                         <span className="text-[7.5px] uppercase tracking-wider opacity-60">Risk:</span>
                         {r.trim()}
@@ -649,7 +649,7 @@ const DictionaryItem = ({
                       <span 
                         key={i} 
                         onClick={() => onTagClick && onTagClick(c.trim())}
-                        className={`text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400 rounded-full border border-amber-100 dark:border-amber-900/30 flex items-center gap-1 ${onTagClick ? 'cursor-pointer hover:bg-amber-100 dark:hover:bg-amber-900/40' : ''}`}
+                        className={`text-[9px] font-bold px-1.5 py-0.5 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 rounded-full border border-blue-100 dark:border-blue-900/30 flex items-center gap-1 ${onTagClick ? 'cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/40' : ''}`}
                       >
                         <span className="text-[7.5px] uppercase tracking-wider opacity-60">Condition:</span>
                         {c.trim()}
@@ -968,16 +968,37 @@ export default function BiomarkerDictionaryModal({
   };
 
   const allApprovedKeysUnfiltered = useMemo(() => {
-    const keys = new Set([...builtInKeys]);
-    customKeys.forEach(k => {
+    const keys = new Set<string>();
+    
+    // Check all known keys (both built-in and custom)
+    const allKnown = new Set([...builtInKeys, ...customKeys]);
+    
+    allKnown.forEach(k => {
       // If it explicitly needs approval (e.g. extracted from Medical Chat), exclude it from approved list
       if (profile.customBiomarkers?.[k]?.needsApproval) {
          return;
       }
-      const cb = profile.customBiomarkers?.[k];
-      const hasAllMedicalTags = !!cb?.standardMedicalGrouping
-        && Array.isArray(cb?.riskCategories) && cb.riskCategories.length > 0
-        && Array.isArray(cb?.potentialMedicalConditions);
+      
+      const meta = getBiomarkerMetadata(k, profile.customBiomarkers?.[k]);
+      
+      // A biomarker has all medical tags if:
+      // 1. It has a standardMedicalGrouping that is not empty/falsy, and NOT 'By Medical Practice' (Even 'Other' counts)
+      // 2. It has riskCategories that is a non-empty array and does not just contain 'Uncategorized'
+      // 3. It has potentialMedicalConditions that is a non-empty array
+      const hasPractice = !!meta.standardMedicalGrouping && 
+        meta.standardMedicalGrouping.trim() !== '' && 
+        meta.standardMedicalGrouping !== 'By Medical Practice';
+        
+      const hasRisk = Array.isArray(meta.riskCategories) && 
+        meta.riskCategories.length > 0 && 
+        meta.riskCategories.some((r: string) => r.trim() !== '' && r !== 'Uncategorized');
+        
+      const hasConditions = Array.isArray(meta.potentialMedicalConditions) && 
+        meta.potentialMedicalConditions.length > 0 && 
+        meta.potentialMedicalConditions.some((c: string) => c.trim() !== '');
+        
+      const hasAllMedicalTags = hasPractice && hasRisk && hasConditions;
+        
       if (hasAllMedicalTags) {
         keys.add(k);
       }
@@ -1593,6 +1614,19 @@ I can analyze these, compare them with our database keys, and find standard mapp
         key: item.originalKey || item.key,
         unit: item.standardizedUnit !== undefined ? item.standardizedUnit : item.unit
       }));
+
+      if (!isMedicalCategorisationMode) {
+        // Filter out items where the proposed unit matches the existing unit
+        parsed = parsed.filter((item: any) => {
+          const key = item.key;
+          if (!key) return true;
+          const customDef = profile.customBiomarkers?.[key] || biomarkerDefinitions.find((b: any) => b.key === key);
+          const currentUnit = customDef?.unit || '';
+          const normProposed = (item.unit || '').trim().toLowerCase();
+          const normCurrent = (currentUnit).trim().toLowerCase();
+          return normProposed !== normCurrent;
+        });
+      }
 
       setStandardizationSummary(parsed);
 
@@ -2988,12 +3022,12 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                         return (
                                           <div className="flex flex-wrap gap-1">
                                             {rTags.map((r: string, i: number) => (
-                                              <span key={i} className="text-[9px] font-bold px-1.5 py-0.5 bg-rose-50 text-rose-600 dark:bg-rose-900/20 dark:text-rose-400 rounded-full border border-rose-100 dark:border-rose-900/30 whitespace-nowrap">
+                                              <span key={i} className="text-[9px] font-bold px-1.5 py-0.5 bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 rounded-full border border-red-100 dark:border-red-900/30 whitespace-nowrap">
                                                 {r}
                                               </span>
                                             ))}
                                             {cTags.map((c: string, i: number) => (
-                                              <span key={i} className="text-[9px] font-bold px-1.5 py-0.5 bg-amber-50 text-amber-600 dark:bg-amber-900/20 dark:text-amber-400 rounded-full border border-amber-100 dark:border-amber-900/30 whitespace-nowrap">
+                                              <span key={i} className="text-[9px] font-bold px-1.5 py-0.5 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 rounded-full border border-blue-100 dark:border-blue-900/30 whitespace-nowrap">
                                                 {c}
                                               </span>
                                             ))}
@@ -3329,111 +3363,135 @@ I can analyze these, compare them with our database keys, and find standard mapp
                         </p>
                       </div>
 
-                      <div className="border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden">
-                        <table className="w-full text-left border-collapse text-xs">
-                          <thead>
-                            <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-200 font-semibold">
-                              <th className="p-3">Biomarker</th>
-                              {isMedicalCategorisationMode ? (
-                                <>
-                                  <th className="p-3">Medical Practice</th>
-                                  <th className="p-3">Risk Categories</th>
-                                  <th className="p-3">Conditions</th>
-                                </>
-                              ) : (
-                                <th className="p-3">Proposed Unit</th>
-                              )}
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50 text-slate-600 dark:text-slate-300">
-                            {standardizationSummary.map((item: any, idx: number) => {
-                              const originalDef = profile.customBiomarkers?.[item.key] || biomarkerDefinitions.find((b: any) => b.key === item.key);
-                              
-                              let parsedRisks = item.riskCategories;
-                              if (typeof parsedRisks === 'string') {
-                                try { parsedRisks = JSON.parse(parsedRisks); } catch (e) { parsedRisks = parsedRisks.split(',').map((s: string) => s.trim()); }
-                              }
-                              let parsedConds = item.potentialMedicalConditions;
-                              if (typeof parsedConds === 'string') {
-                                try { parsedConds = JSON.parse(parsedConds); } catch (e) { parsedConds = parsedConds.split(',').map((s: string) => s.trim()); }
-                              }
-                              
-                              return (
-                                <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
-                                  <td className="p-3 font-medium min-w-[120px]">
-                                    <div className="font-bold text-slate-800 dark:text-slate-100">{item.name || item.key}</div>
-                                    <div className="text-[10px] text-slate-400 font-mono">{item.key}</div>
-                                  </td>
+                      {standardizationSummary.length === 0 ? (
+                        <div className="p-8 text-center bg-emerald-50/50 dark:bg-emerald-950/20 border border-dashed border-emerald-200 dark:border-emerald-800/60 rounded-xl space-y-3">
+                          <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto" />
+                          <p className="text-sm font-bold text-slate-800 dark:text-slate-100">All Selected Biomarkers are Already Standardized!</p>
+                          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                            The clinical unit standardization agent confirmed that all selected biomarkers are already using the recommended standardized units. No adjustments are needed.
+                          </p>
+                          <div className="pt-2 flex justify-center">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setStandardizationYaml(null);
+                                setStandardizationSummary(null);
+                              }}
+                              className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                            >
+                              Reset & Go Back
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden">
+                            <table className="w-full text-left border-collapse text-xs">
+                              <thead>
+                                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-200 font-semibold">
+                                  <th className="p-3">Biomarker</th>
                                   {isMedicalCategorisationMode ? (
                                     <>
-                                      <td className="p-3">
-                                        <div className="flex flex-col gap-1">
-                                          {originalDef?.standardMedicalGrouping && originalDef.standardMedicalGrouping !== item.standardMedicalGrouping && (
-                                            <span className="text-slate-400 line-through text-[10px]">{originalDef.standardMedicalGrouping}</span>
-                                          )}
-                                          <span className="text-emerald-600 dark:text-emerald-400 font-bold">{item.standardMedicalGrouping || 'N/A'}</span>
-                                        </div>
-                                      </td>
-                                      <td className="p-3">
-                                        <div className="flex flex-wrap gap-1">
-                                          {/* Show deleted risk categories */}
-                                          {(originalDef?.riskCategories || []).filter((r: string) => !(Array.isArray(parsedRisks) ? parsedRisks : []).includes(r)).map((r: string, i: number) => (
-                                            <span key={"del-"+i} className="px-1.5 py-0.5 border border-rose-200 dark:border-rose-900/30 text-slate-400 line-through rounded text-[10px]">{r}</span>
-                                          ))}
-                                          {(Array.isArray(parsedRisks) ? parsedRisks : []).map((r: string, i: number) => (
-                                            <span key={i} className="px-1.5 py-0.5 bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400 rounded text-[10px]">{r}</span>
-                                          ))}
-                                        </div>
-                                      </td>
-                                      <td className="p-3">
-                                        <div className="flex flex-wrap gap-1">
-                                          {/* Show deleted conditions */}
-                                          {(originalDef?.potentialMedicalConditions || []).filter((c: string) => !(Array.isArray(parsedConds) ? parsedConds : []).includes(c)).map((c: string, i: number) => (
-                                            <span key={"del-"+i} className="px-1.5 py-0.5 border border-indigo-200 dark:border-indigo-900/30 text-slate-400 line-through rounded text-[10px]">{c}</span>
-                                          ))}
-                                          {(Array.isArray(parsedConds) ? parsedConds : []).map((c: string, i: number) => (
-                                            <span key={i} className="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded text-[10px]">{c}</span>
-                                          ))}
-                                        </div>
-                                      </td>
+                                      <th className="p-3">Medical Practice</th>
+                                      <th className="p-3">Risk Categories</th>
+                                      <th className="p-3">Conditions</th>
                                     </>
                                   ) : (
-                                    <td className="p-3 font-mono">
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-slate-400 line-through text-[10px]">{originalDef?.unit || "none"}</span>
-                                        <span className="text-slate-500">→</span>
-                                        <span className="text-emerald-600 dark:text-emerald-400 font-bold">{item.unit}</span>
-                                      </div>
-                                    </td>
+                                    <th className="p-3">Proposed Unit</th>
                                   )}
                                 </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
+                              </thead>
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50 text-slate-600 dark:text-slate-300">
+                                {standardizationSummary.map((item: any, idx: number) => {
+                                  const originalDef = profile.customBiomarkers?.[item.key] || biomarkerDefinitions.find((b: any) => b.key === item.key);
+                                  
+                                  let parsedRisks = item.riskCategories;
+                                  if (typeof parsedRisks === 'string') {
+                                    try { parsedRisks = JSON.parse(parsedRisks); } catch (e) { parsedRisks = parsedRisks.split(',').map((s: string) => s.trim()); }
+                                  }
+                                  let parsedConds = item.potentialMedicalConditions;
+                                  if (typeof parsedConds === 'string') {
+                                    try { parsedConds = JSON.parse(parsedConds); } catch (e) { parsedConds = parsedConds.split(',').map((s: string) => s.trim()); }
+                                  }
+                                  
+                                  return (
+                                    <tr key={idx} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/20">
+                                      <td className="p-3 font-medium min-w-[120px]">
+                                        <div className="font-bold text-slate-800 dark:text-slate-100">{item.name || item.key}</div>
+                                        <div className="text-[10px] text-slate-400 font-mono">{item.key}</div>
+                                      </td>
+                                      {isMedicalCategorisationMode ? (
+                                        <>
+                                          <td className="p-3">
+                                            <div className="flex flex-col gap-1">
+                                              {originalDef?.standardMedicalGrouping && originalDef.standardMedicalGrouping !== item.standardMedicalGrouping && (
+                                                <span className="text-slate-400 line-through text-[10px]">{originalDef.standardMedicalGrouping}</span>
+                                              )}
+                                              <span className="text-emerald-600 dark:text-emerald-400 font-bold">{item.standardMedicalGrouping || 'N/A'}</span>
+                                            </div>
+                                          </td>
+                                          <td className="p-3">
+                                            <div className="flex flex-wrap gap-1">
+                                              {/* Show deleted risk categories */}
+                                              {(originalDef?.riskCategories || []).filter((r: string) => !(Array.isArray(parsedRisks) ? parsedRisks : []).includes(r)).map((r: string, i: number) => (
+                                                <span key={"del-"+i} className="px-1.5 py-0.5 border border-red-200 dark:border-red-900/30 text-slate-400 line-through rounded text-[10px]">{r}</span>
+                                              ))}
+                                              {(Array.isArray(parsedRisks) ? parsedRisks : []).map((r: string, i: number) => (
+                                                <span key={i} className="px-1.5 py-0.5 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded text-[10px]">{r}</span>
+                                              ))}
+                                            </div>
+                                          </td>
+                                          <td className="p-3">
+                                            <div className="flex flex-wrap gap-1">
+                                              {/* Show deleted conditions */}
+                                              {(originalDef?.potentialMedicalConditions || []).filter((c: string) => !(Array.isArray(parsedConds) ? parsedConds : []).includes(c)).map((c: string, i: number) => (
+                                                <span key={"del-"+i} className="px-1.5 py-0.5 border border-blue-200 dark:border-blue-900/30 text-slate-400 line-through rounded text-[10px]">{c}</span>
+                                              ))}
+                                              {(Array.isArray(parsedConds) ? parsedConds : []).map((c: string, i: number) => (
+                                                <span key={i} className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-[10px]">{c}</span>
+                                              ))}
+                                            </div>
+                                          </td>
+                                        </>
+                                      ) : (
+                                        <td className="p-3 font-mono">
+                                          <div className="flex items-center gap-1.5">
+                                            <span className="text-slate-400 line-through text-[10px]">{originalDef?.unit || "none"}</span>
+                                            <span className="text-slate-500">→</span>
+                                            <span className="text-emerald-600 dark:text-emerald-400 font-bold">{item.unit}</span>
+                                          </div>
+                                        </td>
+                                      )}
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
 
-                      {/* Approval and application controls */}
-                      <div className="flex gap-3 pt-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setStandardizationYaml(null);
-                            setStandardizationSummary(null);
-                          }}
-                          className="flex-1 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
-                        >
-                          Reset Configuration
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleApplyStandardization}
-                          className="flex-1 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/10"
-                        >
-                          <CheckCircle className="w-4 h-4" />
-                          {isMedicalCategorisationMode ? "Approve & Apply Categorisation" : "Approve & Apply Unit Standardization"}
-                        </button>
-                      </div>
+                          {/* Approval and application controls */}
+                          <div className="flex gap-3 pt-2">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setStandardizationYaml(null);
+                                setStandardizationSummary(null);
+                              }}
+                              className="flex-1 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                            >
+                              Reset Configuration
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleApplyStandardization}
+                              className="flex-1 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/10"
+                            >
+                              <CheckCircle className="w-4 h-4" />
+                              {isMedicalCategorisationMode ? "Approve & Apply Categorisation" : "Approve & Apply Unit Standardization"}
+                            </button>
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
@@ -3937,26 +3995,31 @@ I can analyze these, compare them with our database keys, and find standard mapp
                   </p>
                   <div className="space-y-2">
                     {toApproveKeys.map(key => {
-                      const def = profile.customBiomarkers?.[key];
+                      const builtIn = biomarkerDefinitions.find((b: any) => b.key === key);
+                      const custom = profile.customBiomarkers?.[key];
+                      const combined = { ...builtIn, ...custom };
                       const isSelected = selectedKeys.includes(key);
                       const itemLogs = biomarkerHistory
                         .filter(h => h.biomarkers && h.biomarkers[key] !== undefined)
                         .map(h => ({ date: h.date, value: h.biomarkers[key] }))
                         .sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
                       const logsCount = itemLogs.length;
+                      const missingParts = [
+                        !combined.name && 'standard dictionary definition',
+                        (!combined.unit || combined.unit.trim() === '') && 'unit',
+                        (!combined.normalRange || combined.normalRange.trim() === '') && 'normal range',
+                        (!combined.standardMedicalGrouping || combined.standardMedicalGrouping.trim() === '' || combined.standardMedicalGrouping === 'By Medical Practice') && 'medical practice',
+                        (!(Array.isArray(combined.riskCategories) && combined.riskCategories.length > 0) || combined.riskCategories.includes('Uncategorized')) && 'risk categories',
+                        (!(Array.isArray(combined.potentialMedicalConditions) && combined.potentialMedicalConditions.length > 0)) && 'medical condition'
+                      ].filter(Boolean);
+                      const computedReason = missingParts.length > 0 ? `missing ${missingParts.join(', ')}` : undefined;
                       return (
                         <DictionaryItem
-                          approvalReason={`Found in uploaded logs but missing: ${[
-                            !def && 'standard dictionary definition',
-                            (def && !def.unit) && 'unit',
-                            (def && !def.normalRange) && 'normal range',
-                            (def && !def.standardMedicalGrouping) && 'medical practice grouping',
-                            (def && !(Array.isArray(def.riskCategories) && def.riskCategories.length > 0)) && 'risk categories',
-                            (def && !Array.isArray(def.potentialMedicalConditions)) && 'medical conditions'
-                          ].filter(Boolean).join(', ')}. Please review, standardize, or approve it manually.`}
+                          approvalReason={computedReason}
                           key={key}
                           itemKey={key}
-                          customDef={def}
+                          builtInDef={builtIn}
+                          customDef={custom}
                           logsCount={logsCount}
                           isSelected={isSelected}
                           onTagClick={setFilterTag}
@@ -3972,7 +4035,8 @@ I can analyze these, compare them with our database keys, and find standard mapp
 
                             if (newKey && newKey !== key) {
                                // Key was renamed
-                               newCustomBiomarkers[newKey] = { ...def, ...restUpdates, name: restUpdates.name || newKey };
+                               newCustomBiomarkers[newKey] = { ...combined, ...restUpdates, name: restUpdates.name || newKey };
+                               delete newCustomBiomarkers[newKey].needsApproval;
                                delete newCustomBiomarkers[key];
                                
                                // Need to update history directly via combining or propagating
@@ -3989,7 +4053,8 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                 );
                                return; // combineBiomarkers saves the profile
                             } else {
-                               newCustomBiomarkers[key] = { ...def, ...restUpdates };
+                               newCustomBiomarkers[key] = { ...combined, ...restUpdates };
+                               delete newCustomBiomarkers[key].needsApproval;
                             }
 
                             onUpdateProfile({
@@ -4058,6 +4123,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                               
                             if (newKey && newKey !== key) {
                                newCustomBiomarkers[newKey] = { ...combined, ...restUpdates, name: restUpdates.name || newKey };
+                               delete newCustomBiomarkers[newKey].needsApproval;
                                if (!builtIn) { delete newCustomBiomarkers[key]; }
                                  
                                let updatedHistory = [...biomarkerHistory];
@@ -4075,6 +4141,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                return;
                             } else {
                                newCustomBiomarkers[key] = { ...combined, ...restUpdates };
+                               delete newCustomBiomarkers[key].needsApproval;
                             }
 
                             onUpdateProfile({

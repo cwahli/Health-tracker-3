@@ -876,28 +876,25 @@ export function getBiomarkerMetadata(key: string, customDef?: any) {
   const k = key.toLowerCase();
   const centralDef = biomarkerDefinitions.find(d => d.key === k);
   
-  // 1. Prioritize CENTRAL definition's categories to enforce UI logic
-  let risks = centralDef?.riskCategories ? [...centralDef.riskCategories] : [];
-  let group = centralDef?.standardMedicalGrouping || '';
-  let conditions = centralDef?.potentialMedicalConditions ? [...centralDef.potentialMedicalConditions] : [];
-
-  // 2. Only use customDef fallbacks if the biomarker is completely UNKNOWN
-  if (!centralDef) {
-    if (customDef && customDef.riskCategories && customDef.riskCategories.length > 0) {
-      risks = customDef.riskCategories;
-    } else {
-      risks = ['Uncategorized'];
-    }
+  // Prioritize custom definitions if they exist, fallback to central/built-in definitions, and finally to defaults
+  let risks = customDef?.riskCategories && customDef.riskCategories.length > 0 
+    ? [...customDef.riskCategories] 
+    : (centralDef?.riskCategories ? [...centralDef.riskCategories] : []);
     
-    if (customDef && customDef.standardMedicalGrouping && customDef.standardMedicalGrouping.trim() !== '') {
-      group = customDef.standardMedicalGrouping;
-    } else {
-      group = 'Other';
-    }
+  let group = customDef?.standardMedicalGrouping && customDef.standardMedicalGrouping.trim() !== '' 
+    ? customDef.standardMedicalGrouping 
+    : (centralDef?.standardMedicalGrouping || '');
+    
+  let conditions = customDef?.potentialMedicalConditions && customDef.potentialMedicalConditions.length > 0 
+    ? [...customDef.potentialMedicalConditions] 
+    : (centralDef?.potentialMedicalConditions ? [...centralDef.potentialMedicalConditions] : []);
 
-    if (customDef && customDef.potentialMedicalConditions && customDef.potentialMedicalConditions.length > 0) {
-      conditions = customDef.potentialMedicalConditions;
-    }
+  // If both are completely missing values, set defaults
+  if (risks.length === 0) {
+    risks = ['Uncategorized'];
+  }
+  if (group.trim() === '') {
+    group = 'Other';
   }
 
   return {
