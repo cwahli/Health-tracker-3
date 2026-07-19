@@ -761,6 +761,10 @@ export default function App() {
   const [activeAgentType, setActiveAgentType] = useState<'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'health_baseline' | 'agent7' | 'data_review' | null>(null);
   const [activeDataReviewBatchIdx, setActiveDataReviewBatchIdx] = useState<number | string | null>(null);
   const [activeDataReviewBatchKeys, setActiveDataReviewBatchKeys] = useState<string[]>([]);
+  const [activeDataReviewRemainingText, setActiveDataReviewRemainingText] = useState<string>('');
+  const [activeDataReviewExtractedYaml, setActiveDataReviewExtractedYaml] = useState<any[]>([]);
+  const [activeDataReviewCurrentBatch, setActiveDataReviewCurrentBatch] = useState<number>(1);
+  const [activeDataReviewEstimatedTotalMarkers, setActiveDataReviewEstimatedTotalMarkers] = useState<number | null>(null);
   const [calibratingBatchIdx, setCalibratingBatchIdx] = useState<number | null>(null);
   const [calibratingAgentType, setCalibratingAgentType] = useState<string | null>(null);
   const [batchSize, setBatchSize] = useState<number>(() => {
@@ -4298,11 +4302,23 @@ export default function App() {
                 localStorage.setItem('biomarker_batch_size', size.toString());
               } catch (e) {}
             }}
-            onOpenAgentChat={(agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'health_baseline' | 'agent7' | 'data_review', options?: { prefillMessage?: string; dataReviewBatchIdx?: number | string; dataReviewBatchKeys?: string[] }) => {
+            onOpenAgentChat={(agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'health_baseline' | 'agent7' | 'data_review', options?: { 
+              prefillMessage?: string; 
+              dataReviewBatchIdx?: number | string; 
+              dataReviewBatchKeys?: string[];
+              remainingText?: string;
+              extractedYaml?: any[];
+              currentBatch?: number;
+              estimatedTotalMarkers?: number | null;
+            }) => {
               setActiveAgentType(agentType);
               setPrefillMessage(options?.prefillMessage || null);
               setActiveDataReviewBatchIdx(options?.dataReviewBatchIdx !== undefined ? options.dataReviewBatchIdx : null);
               setActiveDataReviewBatchKeys(options?.dataReviewBatchKeys || []);
+              setActiveDataReviewRemainingText(options?.remainingText || '');
+              setActiveDataReviewExtractedYaml(options?.extractedYaml || []);
+              setActiveDataReviewCurrentBatch(options?.currentBatch || 1);
+              setActiveDataReviewEstimatedTotalMarkers(options?.estimatedTotalMarkers !== undefined ? options.estimatedTotalMarkers : null);
               setIsMedicalChatOpen(true);
             }}
             onDeleteAnalysis={handleDeleteAnalysis}
@@ -4465,6 +4481,10 @@ export default function App() {
         agentType={activeAgentType}
         dataReviewBatchIdx={activeDataReviewBatchIdx}
         dataReviewBatchKeys={activeDataReviewBatchKeys}
+        remainingText={activeDataReviewRemainingText}
+        extractedYaml={activeDataReviewExtractedYaml}
+        currentBatch={activeDataReviewCurrentBatch}
+        estimatedTotalMarkers={activeDataReviewEstimatedTotalMarkers}
         batchSize={batchSize}
         onAgentAnalysisSaved={async (agentType, agentResult) => {
           const newId = `analysis_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;

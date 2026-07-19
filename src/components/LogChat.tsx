@@ -382,6 +382,10 @@ interface LogChatProps {
   autoSendMessage?: string | null;
   dataReviewBatchIdx?: number | string | null;
   dataReviewBatchKeys?: string[];
+  remainingText?: string;
+  extractedYaml?: any[];
+  currentBatch?: number;
+  estimatedTotalMarkers?: number | null;
   batchSize?: number;
   isFirestoreQuotaExceeded?: boolean;
 }
@@ -420,6 +424,10 @@ export default function LogChat({
   autoSendMessage = null,
   dataReviewBatchIdx = null,
   dataReviewBatchKeys = [],
+  remainingText = '',
+  extractedYaml = [],
+  currentBatch = 1,
+  estimatedTotalMarkers = null,
   batchSize = 20,
   isFirestoreQuotaExceeded = false
 }: LogChatProps) {
@@ -1736,7 +1744,25 @@ ${logsText}`);
             const yamlMsg = [...messages].reverse().find(m => m.data?.agentResult?.extractedYaml || m.extractedYaml);
             if (yamlMsg) {
               bodyData.extractedYaml = yamlMsg.agentResult?.extractedYaml || yamlMsg.extractedYaml;
+            } else if (extractedYaml && extractedYaml.length > 0) {
+              bodyData.extractedYaml = extractedYaml;
             }
+            
+            if (remainingText) {
+              bodyData.remainingText = remainingText;
+            }
+            if (currentBatch > 1) {
+              bodyData.currentBatch = currentBatch;
+            }
+            if (estimatedTotalMarkers !== null) {
+              bodyData.estimatedTotalMarkers = estimatedTotalMarkers;
+            }
+            
+            const allUserText = messages.filter(m => m.role === 'user').map(m => m.content).join('\n\n');
+            if (allUserText) {
+              bodyData.originalReportText = allUserText;
+            }
+            
             const mapMsg = [...messages].reverse().find(m => m.data?.agentResult?.bucketMapping || m.data?.bucketMapping);
             if (mapMsg) {
               bodyData.bucketMapping = typeof (mapMsg.agentResult?.bucketMapping || mapMsg.bucketMapping) === 'string'

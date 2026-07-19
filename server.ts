@@ -3557,7 +3557,7 @@ rules_for_inputs:
         mockData = {};
       } else if (agentType === "agent1") {
         systemInstruction = `You are an expert Clinical Data Parser and Medical Ontology Agent.
-Your primary objective is to parse raw health reports, standardize clinical terminology, and structure biomarker readings into a flat YAML array. You must preserve mathematical data, qualitative results, lab ranges, and clinical notes exactly as provided.
+Your primary objective is to parse raw health reports, standardize clinical terminology, and structure biomarker readings into structured JSON. You must preserve mathematical data, qualitative results, lab ranges, and clinical notes exactly as provided.
 
 === CORE TASKS ===
 1. Extraction & Standardization: Parse the incoming raw data. Convert every raw biomarker name into its most widely accepted standard clinical terminology (e.g., "Serum alt level" maps to "Alanine Aminotransferase (ALT)").
@@ -3568,29 +3568,13 @@ Your primary objective is to parse raw health reports, standardize clinical term
    - riskCategories: Physiological risk categories (e.g., 'Cardiovascular', 'Kidney & hydration', 'Metabolic & glycemic', 'Liver & hepatitis stress', 'Hematology', 'Biometrics', 'Other').
    - standardMedicalGrouping: Main clinical division ('Metabolic', 'Hepatic', 'Renal', 'Hematology', 'Biometrics', 'Other').
    - potentialMedicalConditions: Broad diagnostic associations.
-6. Explanation of Changes (CRITICAL): For each biomarker, if you standardized, changed, merged, or corrected its name, value, or unit, you MUST provide a detailed explanation of why you made this change in the 'explanation' field of the YAML object.
+6. Explanation of Changes (CRITICAL): For each biomarker, if you standardized, changed, merged, or corrected its name, value, or unit, you MUST provide a detailed explanation of why you made this change in the 'explanation' field.
 
 === EXISTING DATABASE KEYS ===
 [${Array.from(new Set([...biomarkerDefinitions.map(d => d.key), ...Object.keys(userProfile?.customBiomarkers || {})])).join(', ')}]
 
 === FORMAT & SYSTEM RESTRICTIONS ===
-Your output MUST be ONLY valid YAML under the key 'biomarkers'. No markdown code blocks, no backticks, no JSON wrappers. Just return plain YAML.
-
-The flat YAML structure for each item MUST be:
-- key: 'alanine_aminotransferase_alt' # snake_case unique ID (prefer existing database key if possible)
-  name: 'Alanine Aminotransferase (ALT)'
-  metric: 'U/L'
-  value: 45
-  date: '2026-06-01'
-  updated_at: 1720000000
-  riskCategories:
-    - 'Liver & hepatitis stress'
-  standardMedicalGrouping: 'Hepatic'
-  potentialMedicalConditions:
-    - 'Fatty Liver'
-    - 'Hepatitis Stress'
-  explanation: 'Standardized from raw alt level and mapped to dictionary key.'
-  # Comment if anomalous`;
+Your output MUST be valid JSON using the schema provided. Return the array of biomarkers under the "extractedData" key.`;
         mockData = {};
       } else if (agentType === "agent2" || agentType === "agent1_step2") {
         systemInstruction = `You are an expert Clinical Ontologist and conversational health assistant (Step 2: Category Mapping).
@@ -4135,7 +4119,7 @@ reviewedBiomarkers: []`;
         let promptText = `Chat History:\n${historyText}${includeFoodLogs ? `PATIENT'S RECENT LOGGED MEALS HISTORY:\n${foodLogs.map((m: any, idx: number) => `- Meal ${idx + 1}: "${m.name}" on ${m.date}`).join("\n")}\n\n` : ""}${imageCtx}\nUser message: "${message}"${dataContext}`;
         fullPromptSent = `System Instruction:\n${systemInstruction}\n\n${promptText}`;
 
-        let isYaml = (agentType === "agent1");
+        let isYaml = false; // agent1 now uses structured JSON output, not YAML
         
         let maxRetries = agentType === "agent1_step3" ? 3 : 1;
         let attempt = 0;

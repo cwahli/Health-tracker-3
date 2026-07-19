@@ -31,7 +31,15 @@ interface InsightsTabProps {
   onOpenMedicalChat?: () => void;
   onOpenAgentChat?: (
     agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'health_baseline' | 'agent7' | 'data_review',
-    options?: { prefillMessage?: string; dataReviewBatchIdx?: number | string; dataReviewBatchKeys?: string[] }
+    options?: { 
+      prefillMessage?: string; 
+      dataReviewBatchIdx?: number | string; 
+      dataReviewBatchKeys?: string[];
+      remainingText?: string;
+      extractedYaml?: any[];
+      currentBatch?: number;
+      estimatedTotalMarkers?: number | null;
+    }
   ) => void;
   onDeleteAnalysis?: (id: string) => Promise<void>;
   onArchiveAnalysis?: (id: string) => Promise<void>;
@@ -349,6 +357,8 @@ export default function InsightsTab({
       return {};
     }
   });
+  
+  const [agent1RemainingText, setAgent1RemainingText] = useState<string>('');
 
   const [expandedAgent1Batches, setExpandedAgent1Batches] = useState<Record<string, boolean>>({});
 
@@ -839,7 +849,7 @@ export default function InsightsTab({
     });
   };
 
-  const handleApproveBatchStep2 = async (bIdx: number, result: any) => {
+  const handleApproveBatchStep2 = async (bIdx: number, result: any, unselectedKeys?: string[]) => {
     // Save customBiomarkers to user profile
     const updatedCustoms = { ...(profile.customBiomarkers || {}) };
     const currentHistory = JSON.parse(JSON.stringify(biomarkerHistory || []));
@@ -850,6 +860,7 @@ export default function InsightsTab({
     const biomarkersByDate: Record<string, Record<string, any>> = {};
 
     result.reviewedBiomarkers?.forEach((bm: any) => {
+      if (unselectedKeys && unselectedKeys.includes(bm.key)) return; // Skip deselected
       const existing: any = updatedCustoms[bm.key] || {};
       updatedCustoms[bm.key] = {
         ...existing,
@@ -870,9 +881,14 @@ export default function InsightsTab({
       if (!biomarkersByDate[bmDate]) {
         biomarkersByDate[bmDate] = {};
       }
-      if (bm.userValue !== undefined && bm.userValue !== null && bm.userValue !== '') {
-        const valNum = Number(bm.userValue);
-        biomarkersByDate[bmDate][bm.key] = isNaN(valNum) ? bm.userValue : valNum;
+      
+      // Prefer explicit userValue, else fall back to the existing stored value for this key/date
+      const valueToSave = bm.userValue !== undefined && bm.userValue !== null && bm.userValue !== ''
+        ? bm.userValue
+        : (bm.value !== undefined ? bm.value : undefined);
+      if (valueToSave !== undefined) {
+        const valNum = Number(valueToSave);
+        biomarkersByDate[bmDate][bm.key] = isNaN(valNum) ? valueToSave : valNum;
       }
     });
 
@@ -1913,8 +1929,23 @@ export default function InsightsTab({
                                                 profile={profile}
                                                 biomarkerHistory={activeHistory}
                                                 initialRawText={""}
-                                                onApplyChanges={async () => {
+                                                onApplyChanges={async (unselectedKeys?: string[]) => {
                                                   await handleApproveBatchStep1(bIdx, result);
+                                                  
+                                                  // If there are more markers to extract, trigger the next batch automatically
+                                                  const hasMore = result?.hasMoreMarkers || false;
+                                                  if (hasMore && onOpenAgentChat) {
+                                                    // Increment the batch counter and re-call the extraction agent
+                                                    onOpenAgentChat('agent1', {
+                                                      dataReviewBatchIdx: typeof bIdx === 'string' && !isNaN(parseInt(bIdx)) ? parseInt(bIdx) + 1 : bIdx,
+                                                      dataReviewBatchKeys: batchKeys,
+                                                      prefillMessage: 'continue',   // Signal agent to continue from remainingText
+                                                      remainingText: result?.remainingText || '',
+                                                      extractedYaml: result?.extractedYaml || [],
+                                                      currentBatch: (result?.currentBatch || 1) + 1,
+                                                      estimatedTotalMarkers: result?.estimatedTotalMarkers || null,
+                                                    });
+                                                  }
                                                 }}
                                               />
                                             </div>
@@ -2443,8 +2474,8 @@ export default function InsightsTab({
                                                 biomarkerHistory={activeHistory}
                                                 selectedMissingKeys={selectedMissingKeysToMove[bIdx] || STABLE_EMPTY_ARRAY}
                                                 onChangeSelectedMissingKeys={(keys) => setSelectedMissingKeysToMove(prev => ({ ...prev, [bIdx]: keys }))}
-                                                onApplyChanges={async () => {
-                                                  await handleApproveBatchStep2(bIdx, result);
+                                                onApplyChanges={async (unselectedKeys?: string[]) => {
+                                                  await handleApproveBatchStep2(bIdx, result, unselectedKeys);
                                                 }}
                                               />
                                             </div>
@@ -3010,8 +3041,8 @@ export default function InsightsTab({
                 biomarkerHistory={activeHistory}
                 selectedMissingKeys={selectedMissingKeysToMove[fullscreenBatchIndex] || STABLE_EMPTY_ARRAY}
                 onChangeSelectedMissingKeys={(keys) => setSelectedMissingKeysToMove(prev => ({ ...prev, [fullscreenBatchIndex]: keys }))}
-                onApplyChanges={async () => {
-                  await handleApproveBatchStep2(fullscreenBatchIndex, batchAnalysisResults[fullscreenBatchIndex]);
+                onApplyChanges={async (unselectedKeys?: string[]) => {
+                  await handleApproveBatchStep2(fullscreenBatchIndex, batchAnalysisResults[fullscreenBatchIndex], unselectedKeys);
                   setFullscreenBatchIndex(null);
                 }}
               />
