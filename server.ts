@@ -1,9 +1,24 @@
 import sharp from 'sharp';
 import { getMappedBiomarkerKey } from './src/utils/biomarkers';
 import * as cheerio from "cheerio";
+import fs from "fs";
+import path from "path";
 import { getApps, initializeApp } from 'firebase-admin/app';
+
+let firebaseConfig: any = null;
+try {
+  const firebaseConfigPath = path.join(process.cwd(), "firebase-applet-config.json");
+  if (fs.existsSync(firebaseConfigPath)) {
+    firebaseConfig = JSON.parse(fs.readFileSync(firebaseConfigPath, "utf-8"));
+  }
+} catch (e) {
+  console.error("Failed to load firebase-applet-config.json:", e);
+}
+
 if (getApps().length === 0) {
-  initializeApp();
+  initializeApp({
+    projectId: firebaseConfig?.projectId
+  });
 }
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 const adminAuth = getAdminAuth();
@@ -52,8 +67,6 @@ function sanitizeUnitText(rawUnit: any): string {
     .trim();
 }
 
-import path from "path";
-import fs from "fs";
 import { GoogleGenAI, Type } from "@google/genai";
 import { getTraceNutrientsForFoodType } from "./server_food_db";
 import dotenv from "dotenv";

@@ -4172,40 +4172,6 @@ export default function App() {
         autoSyncDisabled={autoSyncDisabled}
         onChangeAutoSyncDisabled={handleToggleAutoSyncDisabled}
       />
-      {isFirestoreQuotaExceeded && (
-        <div className="bg-amber-500 text-white py-2 px-4 shadow-md transition-all duration-300 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left z-20 border-b border-amber-600/20">
-          <div className="flex items-center gap-3">
-            <div className="bg-white/20 p-1.5 rounded-lg shrink-0">
-              <CloudLightning className="w-4 h-4 text-white" />
-            </div>
-            <div>
-              <p className="text-xs font-bold leading-normal text-left">
-                Cloud Sync Limit Exceeded (Offline Mode Active)
-              </p>
-              <p className="text-[10px] text-white/90 text-left">
-                You reached your daily free Firestore write limit. Don't worry! Your clinical data, logs, and preferences are fully saved locally in your browser.
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => handleRetryQuota()}
-              className="px-3 py-1 bg-white hover:bg-slate-100 text-amber-700 font-bold text-[10px] rounded-lg transition-all shadow-sm shrink-0 cursor-pointer"
-            >
-              Retry Sync
-            </button>
-            <button
-              onClick={() => {
-                setIsFirestoreQuotaExceeded(false);
-              }}
-              className="px-2 py-1 bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] rounded-lg transition-all shrink-0 cursor-pointer"
-              title="Dismiss warning bar"
-            >
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
       {syncState === 'conflict' && conflictData && (
         <div className="bg-indigo-600 text-white py-2 px-4 shadow-md transition-all duration-300 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left z-20 border-b border-indigo-700/30">
           <div className="flex items-center gap-3">
