@@ -1958,6 +1958,10 @@ ${logsText}`);
           assistantMsg.agentResult = resData;
           if (activeAgentType === 'agent1' || activeAgentType === 'agent1_step1') {
             assistantMsg.agentTypeStep = resData.agentType || 'agent1_step1';
+          const originalReport = bodyData.originalReportText || bodyData.message;
+          if (originalReport) {
+            localStorage.setItem('agent1_original_report_text', originalReport);
+          }
           }
           if (onAgentAnalysisSaved && agentType) {
             await onAgentAnalysisSaved(agentType, resData);

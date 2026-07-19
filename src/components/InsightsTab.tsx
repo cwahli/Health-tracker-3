@@ -970,6 +970,7 @@ export default function InsightsTab({
     // 3. Clear agent 1 batch results
     setAgent1BatchResults({});
     localStorage.removeItem('agent1_batch_results');
+    localStorage.removeItem('agent1_original_report_text');
 
     // 4. Clear session storage chat messages & payloads for all agent1 batches
     try {
@@ -1964,15 +1965,20 @@ export default function InsightsTab({
                                                         delete lightProfile.agentContextualizerSummary;
                                                         delete lightProfile.stripeSubscriptionId;
                                                       }
-                                                      const allExtracted = [
-                                                        ...(result?.extractedYaml || [])
-                                                      ];
+                                                      const accumulatedExtracted: any[] = [];
+                                                      const maxIdx = typeof bIdx === 'number' ? bIdx : parseInt(String(bIdx), 10);
+                                                      for (let i = 0; i <= maxIdx; i++) {
+                                                        const batchRes = i === maxIdx ? result : agent1BatchResults[i];
+                                                        if (batchRes && Array.isArray(batchRes.extractedYaml)) {
+                                                          accumulatedExtracted.push(...batchRes.extractedYaml);
+                                                        }
+                                                      }
                                                       const deletedIds = profile?.deletedBiomarkerLogIds || {};
                                                       const bodyData: any = {
                                                         agentType: 'agent1_step1',
                                                         message: 'continue',
-                                                        originalReportText: '',
-                                                        extractedYaml: allExtracted,
+                                                        originalReportText: localStorage.getItem('agent1_original_report_text') || '',
+                                                        extractedYaml: accumulatedExtracted,
                                                         remainingText: nextRemainingText,
                                                         currentBatch: (result?.currentBatch || 1) + 1,
                                                         estimatedTotalMarkers: result?.estimatedTotalMarkers ?? null,
