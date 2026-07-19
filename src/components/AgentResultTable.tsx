@@ -876,8 +876,27 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
             const dictUnit = customDef?.unit || '';
             const numMatchVal = parseFloat(matchVal);
             const numRowVal = parseFloat(row.value);
-            const isValueMatch = (!isNaN(numMatchVal) && !isNaN(numRowVal) && numMatchVal === numRowVal) || String(matchVal).toLowerCase().trim() === String(row.value).toLowerCase().trim();
+            let isValueMatch = (!isNaN(numMatchVal) && !isNaN(numRowVal) && numMatchVal === numRowVal) || String(matchVal).toLowerCase().trim() === String(row.value).toLowerCase().trim();
             
+            // Check for known unit conversions (e.g. Hematocrit 0.48 L/L vs 48 %)
+            if (!isValueMatch && !isNaN(numMatchVal) && !isNaN(numRowVal)) {
+              if (key === "hematocrit") {
+                if (Math.abs(numMatchVal * 100 - numRowVal) < 0.01 || Math.abs(numRowVal * 100 - numMatchVal) < 0.01) {
+                  isValueMatch = true;
+                }
+              } else if (key === "total_cholesterol" || key === "cholesterol" || key.includes("cholesterol") || key === "hdl_cholesterol" || key === "ldl_cholesterol") {
+                const ratio = numMatchVal / numRowVal;
+                if (Math.abs(ratio - 0.02586) < 0.001 || Math.abs(ratio - (1 / 0.02586)) < 0.05) {
+                  isValueMatch = true;
+                }
+              } else if (key === "triglycerides") {
+                const ratio = numMatchVal / numRowVal;
+                if (Math.abs(ratio - 0.0113) < 0.001 || Math.abs(ratio - (1 / 0.0113)) < 0.05) {
+                  isValueMatch = true;
+                }
+              }
+            }
+
             if (isValueMatch && (!dictUnit || isSameUnit(rowUnit, dictUnit))) {
               isSynced = true;
               changeReason = "Already logged";
@@ -1055,8 +1074,27 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
             const dictUnit = customDef?.unit || '';
             const numMatchVal = parseFloat(matchVal);
             const numRowVal = parseFloat(row.value);
-            const isValueMatch = (!isNaN(numMatchVal) && !isNaN(numRowVal) && numMatchVal === numRowVal) || String(matchVal).toLowerCase().trim() === String(row.value).toLowerCase().trim();
+            let isValueMatch = (!isNaN(numMatchVal) && !isNaN(numRowVal) && numMatchVal === numRowVal) || String(matchVal).toLowerCase().trim() === String(row.value).toLowerCase().trim();
             
+            // Check for known unit conversions (e.g. Hematocrit 0.48 L/L vs 48 %)
+            if (!isValueMatch && !isNaN(numMatchVal) && !isNaN(numRowVal)) {
+              if (key === "hematocrit") {
+                if (Math.abs(numMatchVal * 100 - numRowVal) < 0.01 || Math.abs(numRowVal * 100 - numMatchVal) < 0.01) {
+                  isValueMatch = true;
+                }
+              } else if (key === "total_cholesterol" || key === "cholesterol" || key.includes("cholesterol") || key === "hdl_cholesterol" || key === "ldl_cholesterol") {
+                const ratio = numMatchVal / numRowVal;
+                if (Math.abs(ratio - 0.02586) < 0.001 || Math.abs(ratio - (1 / 0.02586)) < 0.05) {
+                  isValueMatch = true;
+                }
+              } else if (key === "triglycerides") {
+                const ratio = numMatchVal / numRowVal;
+                if (Math.abs(ratio - 0.0113) < 0.001 || Math.abs(ratio - (1 / 0.0113)) < 0.05) {
+                  isValueMatch = true;
+                }
+              }
+            }
+
             if (isValueMatch && (!dictUnit || isSameUnit(rowUnit, dictUnit))) {
               isSynced = true;
               changeReason = "Already logged";

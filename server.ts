@@ -3521,25 +3521,26 @@ chunked_processing:
     - "If total biomarkers <= ${itemsPerBatch}, set 'hasMoreMarkers' to false and 'remainingText' to empty string."
 required_output_format:
   response_schema:
-    extractedYaml: "string (Flat YAML array containing extracted biomarkers. MUST use the standard canonical ID if a match is found. Do not invent new keys if a synonym exists. MUST include updated_at for each entry.)"
+    extractedData: "A JSON array of objects, containing the newly extracted biomarker entries. If the user message is 'continue', parse the next batch from the 'REMAINING UNPARSED TEXT' and do NOT repeat or duplicate the entries from 'PREVIOUSLY EXTRACTED YAML'."
     text: "string (Friendly clinical conversational message)"
     hasMoreMarkers: "boolean"
     remainingText: "string"
     estimatedTotalMarkers: "number (Total estimated biomarker readings in original text)"
-extracted_yaml_schema:
+extracted_data_schema:
   - biomarker: "string (MUST use the standard canonical ID if a match is found. Do not invent new keys if a synonym exists)"
     date: "YYYY-MM-DD"
     updated_at: "number (Unix timestamp of extraction)"
-    value: "number or string (qualitative)"
+    numeric_value: "number or null"
+    qualitative_value: "string or null"
     unit: "string (verbatim from text)"
     explanation: "string (why/how it was mapped or created)"
 rules_for_inputs:
   raw_data_extraction: "Extract only from raw text/report. Do NOT extract from pre-existing logs."
-  continue_extracting: "Append next chunk of up to ${itemsPerBatch} biomarkers. Combine and return complete combined flat YAML."
-  update_data: "Support editing, adding, or deleting biomarkers in the YAML array."
+  continue_extracting: "If the user message is 'continue', parse the next batch of up to ${itemsPerBatch} biomarkers from the 'REMAINING UNPARSED TEXT' only. Do NOT repeat or include the entries from the 'PREVIOUSLY EXTRACTED YAML' inside 'extractedData'. Combine and return the new ones."
+  update_data: "Support editing, adding, or deleting biomarkers in the array."
 
 === EXISTING DATABASE KEYS ===
-[${Array.from(new Set([...Object.keys(biomarkerDefinitions), ...Object.keys(userProfile?.customBiomarkers || {})])).join(', ')}]`;
+[${Array.from(new Set([...biomarkerDefinitions.map(d => d.key), ...Object.keys(userProfile?.customBiomarkers || {})])).join(', ')}]`;
         mockData = {};
       } else if (agentType === "agent1") {
         systemInstruction = `You are an expert Clinical Data Parser and Medical Ontology Agent.
@@ -3557,7 +3558,7 @@ Your primary objective is to parse raw health reports, standardize clinical term
 6. Explanation of Changes (CRITICAL): For each biomarker, if you standardized, changed, merged, or corrected its name, value, or unit, you MUST provide a detailed explanation of why you made this change in the 'explanation' field of the YAML object.
 
 === EXISTING DATABASE KEYS ===
-[${Array.from(new Set([...Object.keys(biomarkerDefinitions), ...Object.keys(userProfile?.customBiomarkers || {})])).join(', ')}]
+[${Array.from(new Set([...biomarkerDefinitions.map(d => d.key), ...Object.keys(userProfile?.customBiomarkers || {})])).join(', ')}]
 
 === FORMAT & SYSTEM RESTRICTIONS ===
 Your output MUST be ONLY valid YAML under the key 'biomarkers'. No markdown code blocks, no backticks, no JSON wrappers. Just return plain YAML.
@@ -5087,7 +5088,7 @@ app.post("/api/gemini/medical-categorise", async (req, res) => {
 === OBJECTIVE ===
 For each provided biomarker, determine:
 1. Standard Medical Grouping. Allowed values ONLY: 'Metabolic', 'Hepatic', 'Renal', 'Hematology', 'Biometrics', 'Other'
-2. Risk Categories. A JSON array of string tags representing associated risks. YOU MUST ONLY CHOOSE FROM THESE EXACT CATEGORIES: "Cardiovascular", "Kidney", "Metabolic", "Liver", "Hematology", "Wellness", "Screenings". Do NOT invent new ones. If none apply, you MUST return an empty array [].
+2. Risk Categories. A JSON array of string tags representing associated risks. YOU MUST ONLY CHOOSE FROM THESE EXACT CATEGORIES: "Cardiovascular", "Kidney", "Metabolic", "Liver", "Hematology", "Wellness", "Screenings". Do NOT invent new ones. CRITICAL: You MUST assign AT LEAST ONE category to EVERY biomarker. If no specific pathological risk applies, you MUST use "Wellness" or "Screenings" as a default. Never return an empty array [].
 3. Potential Medical Conditions. A JSON array of string tags (e.g. ["Fatty Liver", "Obesity"]) representing associated conditions. If none apply, you MUST return an empty array [].
 
 CRITICAL: You MUST include all fields (standardMedicalGrouping, riskCategories, potentialMedicalConditions) for every biomarker in your JSON output.
