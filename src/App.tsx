@@ -4548,9 +4548,15 @@ export default function App() {
           let currentDailyBenefits = [...dailyBenefits];
           
           if (agentType === 'agent1') {
+            // A flat Step-1 extraction result always carries its own extractedYaml.
+            // Only defer to the (unrelated) Standardize Biomarkers global batch state
+            // when this result clearly isn't a flat extraction — otherwise a stale
+            // activeDataReviewBatchIdx from that other feature can hijack a normal
+            // extraction commit and silently drop the data.
+            const isFlatExtractionResult = !!(agentResult && agentResult.extractedYaml !== undefined && agentResult.extractedYaml !== null);
             const batchIdx = agentResult.batchIdx !== undefined && agentResult.batchIdx !== null 
               ? agentResult.batchIdx 
-              : activeDataReviewBatchIdx;
+              : (isFlatExtractionResult ? null : activeDataReviewBatchIdx);
             if (batchIdx !== undefined && batchIdx !== null) {
               // This is the batch-by-batch Data Cleaning!
               // Store the raw YAML/JSON returned under agent1_batch_results
