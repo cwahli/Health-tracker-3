@@ -4776,8 +4776,12 @@ export default function App() {
                       if (item && typeof item === 'object') {
                         const bName = item.biomarker || item.name || item.key;
                         const bDate = item.date || item.timestamp;
-                        const bVal = item.value !== undefined ? item.value : item.val;
-                        if (bName && bDate) {
+                        const bVal = (item.numeric_value !== undefined && item.numeric_value !== null)
+                          ? item.numeric_value
+                          : (item.qualitative_value !== undefined && item.qualitative_value !== null)
+                            ? item.qualitative_value
+                            : (item.value !== undefined ? item.value : item.val);
+                        if (bName && bDate && bVal !== undefined && bVal !== null && bVal !== '') {
                           entries.push({
                             biomarker: String(bName),
                             date: String(bDate),
