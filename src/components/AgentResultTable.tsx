@@ -2246,10 +2246,12 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
             ) : onApplyChanges ? (
               <button
                 type="button"
-                onClick={() => onApplyChanges(unselectedRowKeys)}
-                className="mt-1 px-4 py-1.5 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/40 dark:hover:bg-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-bold rounded-lg text-[11px] transition-colors cursor-pointer"
+                disabled={isApplying}
+                onClick={() => onApplyChanges && onApplyChanges(unselectedRowKeys)}
+                className="mt-1 px-4 py-1.5 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-900/40 dark:hover:bg-indigo-800/60 text-indigo-700 dark:text-indigo-300 font-bold rounded-lg text-[11px] transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
               >
-                Mark as Reviewed
+                {isApplying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                {isApplying ? 'Processing...' : 'Mark as Reviewed'}
               </button>
             ) : null}
           </div>

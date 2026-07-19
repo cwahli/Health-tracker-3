@@ -2,7 +2,7 @@
 *Last updated: 2026-07-17 (part 2) | Always check GitHub commits before starting any session*
 
 ## 1. Source of Truth
-- **Live codebase:** https://github.com/cwahli/Health-tracker-2
+- **Live codebase:** https://github.com/cwahli/Health-tracker-3
 - **Always read the latest commits** before working. The AI Studio agent is self-directed and may have progressed since this doc was last written.
 - **This document lives in the repo root** as `AI_HANDOVER.md` and must be updated after each significant session.
 
@@ -36,6 +36,18 @@ There is NO gemini-2.5-flash. Always default to Flash Lite.
 - Never delete user data (biomarkers, food logs, targets).
 - Never add extra Firebase reads/writes — free tier has limits.
 - Never change agent model IDs without explicit instruction.
+- Before starting a task, state which file(s) you expect to touch. If your
+  actual diff touches a file outside that list, stop and flag it instead of
+  committing.
+- Never split text on a literal `\n` string — use a real newline character or
+  `/\r?\n|\\n/`, or confirm the actual encoding first. (This exact bug has
+  recurred twice in unrelated files.)
+- Never divide by a field that can legitimately be 0 without a guard.
+- When changing a field's shape (renaming/removing/retyping a key), grep every
+  usage of that field name across the whole repo before committing — not just
+  the file you're editing.
+- Run `npm run lint` before marking a task complete, and `npm run test` too
+  once it exists (see P0 task queue). Paste the output in the session log.
 
 ## 5. Key Components
 ### Server (server.ts)
