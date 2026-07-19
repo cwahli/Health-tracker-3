@@ -2091,10 +2091,13 @@ ${logsText}`);
     try {
       const msgIndex = messages.findIndex(m => m.id === msg.id);
       const allUserText = messages.slice(0, msgIndex).filter(m => m.role === 'user').map(m => m.content).join('\n\n');
+      const nextBatch = (msg.data?.agentResult?.currentBatch || 1) + 1;
 
       const bodyData: any = {
         agentType: 'agent1_step1',
         message: `continue`,
+        originalReportText: allUserText,
+        currentBatch: nextBatch,
         extractedYaml: msg.data?.agentResult?.extractedYaml || msg.extractedYaml,
         remainingText: msg.data?.agentResult?.remainingText || '',
         estimatedTotalMarkers: msg.data?.agentResult?.estimatedTotalMarkers,
@@ -2191,12 +2194,13 @@ ${logsText}`);
             ...m,
             content: resData.text || m.content,
             agentResult: {
-              ...m.data?.agentResult,
-              text: resData.text || m.data?.agentResult?.text,
-              extractedYaml: combinedYamlStr,
-              hasMoreMarkers: resData.hasMoreMarkers,
-              remainingText: resData.remainingText || '',
-              estimatedTotalMarkers: resData.estimatedTotalMarkers !== undefined ? resData.estimatedTotalMarkers : m.data?.agentResult?.estimatedTotalMarkers
+               ...m.data?.agentResult,
+               text: resData.text || m.data?.agentResult?.text,
+               extractedYaml: combinedYamlStr,
+               hasMoreMarkers: resData.hasMoreMarkers,
+               remainingText: resData.remainingText || '',
+               currentBatch: resData.currentBatch || nextBatch,
+               estimatedTotalMarkers: resData.estimatedTotalMarkers !== undefined ? resData.estimatedTotalMarkers : m.data?.agentResult?.estimatedTotalMarkers
             }
           };
           return migrateMessages([updatedMsg])[0];

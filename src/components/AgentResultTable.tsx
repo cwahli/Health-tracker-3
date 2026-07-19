@@ -2147,7 +2147,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           <div className="flex items-center gap-1.5 pb-1 border-b border-slate-200/40 dark:border-slate-800/40">
             <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 font-bold rounded-md text-[9px] uppercase tracking-wider font-mono">
               {isMultiphaseActive 
-                ? `Extraction In Progress ${totalEstimated > 0 ? `(Batch ${Math.floor(Math.max(0, verification.generatedCount - 1) / 50) + 1} of ${Math.ceil(totalEstimated / 50)})` : ''}` 
+                ? `Extraction In Progress ${totalEstimated > 0 ? `(Batch ${agentResult?.currentBatch || 1} of ${Math.ceil(totalEstimated / 50)})` : ''}` 
                 : "Extraction Complete"}
             </span>
           </div>
@@ -2321,7 +2321,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
                   <div className="pb-1">
                     <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-400 font-bold rounded-md text-[9px] uppercase tracking-wider font-mono">
                       {isMultiphaseActive 
-                        ? `Extraction In Progress ${totalEstimated > 0 ? `(Batch ${Math.floor(Math.max(0, verification.generatedCount - 1) / 50) + 1} of ${Math.ceil(totalEstimated / 50)})` : ''}` 
+                        ? `Extraction In Progress ${totalEstimated > 0 ? `(Batch ${agentResult?.currentBatch || 1} of ${Math.ceil(totalEstimated / 50)})` : ''}` 
                         : "Extraction Complete"}
                     </span>
                   </div>

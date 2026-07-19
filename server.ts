@@ -3516,16 +3516,16 @@ chunked_processing:
   behavior:
     - "Extract ONLY the first ${itemsPerBatch} biomarker entries in this chunk."
     - "If you reach the limit of ${itemsPerBatch} extracted biomarkers, set 'hasMoreMarkers' to true in your JSON response."
-    - "Copy any remaining unparsed report text/context into 'remainingText'."
+    - "Copy ALL remaining unparsed report text/context verbatim from the very next character after the last extracted entry to the absolute end of the input raw medical data into 'remainingText'. Do NOT truncate, summarize, or skip this text. It is critical that all remaining lines are kept in 'remainingText' so they can be parsed in the next chunk."
     - "In the 'text' response, kindly inform the user you have completed this chunk and ask to continue."
-    - "If total biomarkers <= ${itemsPerBatch}, set 'hasMoreMarkers' to false and 'remainingText' to empty string."
+    - "If total remaining biomarkers <= ${itemsPerBatch}, set 'hasMoreMarkers' to false and 'remainingText' to empty string."
 required_output_format:
   response_schema:
     extractedData: "A JSON array of objects, containing the newly extracted biomarker entries. If the user message is 'continue', parse the next batch from the 'REMAINING UNPARSED TEXT' and do NOT repeat or duplicate the entries from 'PREVIOUSLY EXTRACTED YAML'."
     text: "string (Friendly clinical conversational message)"
     hasMoreMarkers: "boolean"
     remainingText: "string"
-    estimatedTotalMarkers: "number (Total estimated biomarker readings in original text)"
+    estimatedTotalMarkers: "number (Realistic, non-hallucinated estimate of total distinct biomarker readings present in original report text. e.g. count lines of tests.)"
 extracted_data_schema:
   - biomarker: "string (MUST use the standard canonical ID if a match is found. Do not invent new keys if a synonym exists)"
     date: "YYYY-MM-DD"
@@ -3536,7 +3536,7 @@ extracted_data_schema:
     explanation: "string (why/how it was mapped or created)"
 rules_for_inputs:
   raw_data_extraction: "Extract only from raw text/report. Do NOT extract from pre-existing logs."
-  continue_extracting: "If the user message is 'continue', parse the next batch of up to ${itemsPerBatch} biomarkers from the 'REMAINING UNPARSED TEXT' only. Do NOT repeat or include the entries from the 'PREVIOUSLY EXTRACTED YAML' inside 'extractedData'. Combine and return the new ones."
+  continue_extracting: "If the user message is 'continue', you MUST find the position of the last extracted entry from 'PREVIOUSLY EXTRACTED YAML' inside the 'USER RAW DATA' or 'REMAINING UNPARSED TEXT'. Then, parse the NEXT batch of up to ${itemsPerBatch} biomarkers starting EXACTLY from that point. You MUST NOT repeat, duplicate, or include ANY entries that are already present in the 'PREVIOUSLY EXTRACTED YAML' or already extracted in previous batches. Make sure 'hasMoreMarkers' is true if there is still more unparsed raw report text remaining."
   update_data: "Support editing, adding, or deleting biomarkers in the array."
 
 === EXISTING DATABASE KEYS ===
@@ -4078,11 +4078,20 @@ reviewedBiomarkers: []`;
 
         let dataContext = "";
         if (agentType === "agent1_step1") {
-          const prevYaml = req.body.extractedYaml ? `\n\nPREVIOUSLY EXTRACTED YAML:\n${req.body.extractedYaml}` : "";
+          let yamlStr = "";
+          if (req.body.extractedYaml) {
+            if (typeof req.body.extractedYaml === 'string') {
+              yamlStr = req.body.extractedYaml;
+            } else {
+              yamlStr = jsToYaml(req.body.extractedYaml);
+            }
+          }
+          const prevYaml = yamlStr ? `\n\nPREVIOUSLY EXTRACTED YAML:\n${yamlStr}` : "";
           const remText = req.body.remainingText ? `\n\nREMAINING UNPARSED TEXT:\n${req.body.remainingText}` : "";
           const prevTotal = req.body.estimatedTotalMarkers ? `\n\nPREVIOUSLY ESTIMATED TOTAL MARKERS:\n${req.body.estimatedTotalMarkers}` : "";
           const baseData = customVariableData ? `\n\n${customVariableData}\n` : `\n\nUSER PROFILE:\n${JSON.stringify(cleanProfile, null, 2)}\n`;
-          dataContext = `\n\nUSER RAW DATA:\n${message}${prevYaml}${remText}${prevTotal}${baseData}`;
+          const reportSource = req.body.originalReportText || message;
+          dataContext = `\n\nUSER RAW DATA:\n${reportSource}${prevYaml}${remText}${prevTotal}${baseData}`;
         } else if (agentType === "agent1_step2") {
           const baseData = customVariableData ? `\n\n${customVariableData}\n` : "";
           dataContext = `${baseData}\n\nEXTRACTED YAML DATA:\n${req.body.extractedYaml}\n`;
@@ -4248,6 +4257,7 @@ reviewedBiomarkers: []`;
           hasMoreMarkers,
           remainingText,
           estimatedTotalMarkers,
+          currentBatch: req.body.currentBatch || 1,
           agentPrompt: fullPromptSent,
           apiCalls: [{ type: 'gemini', label: `Medical History Agent (${engine || 'gemini-3.1-flash-lite'})` }]
         });
