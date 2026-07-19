@@ -24,4 +24,5 @@ export interface AgentCardProps {
   onDeleteMessage?: (id: string) => void;
   setInputText?: (val: string) => void;
   fileInputRef?: React.MutableRefObject<HTMLInputElement | null>;
+  isAnalyzing?: boolean;
 }

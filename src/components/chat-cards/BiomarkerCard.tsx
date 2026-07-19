@@ -11,7 +11,7 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
   msg, messages, idx, profile, biomarkerHistory,
   handleAgent1Step, handleContinueExtractionChunk, setLoggedMessageIds,
   loggedMessageIds, onAgentFinish, handleSend, setActiveInstructionAgentType,
-  setActiveInstructionPrompt, onLogMedical
+  setActiveInstructionPrompt, onLogMedical, isAnalyzing
 }) => {
   // We assume msg.agentType starts with 'agent' or is 'data_review' or 'medical'
   return (
@@ -51,6 +51,7 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                           agentResult={msg.data?.agentResult}
                           profile={profile}
                           biomarkerHistory={biomarkerHistory || []}
+                          isApplying={!!isAnalyzing}
                           initialRawText={(() => {
                             const precedingUserMsg = messages
                               .slice(0, idx)

@@ -2193,14 +2193,17 @@ ${logsText}`);
           const updatedMsg = {
             ...m,
             content: resData.text || m.content,
-            agentResult: {
-               ...m.data?.agentResult,
-               text: resData.text || m.data?.agentResult?.text,
-               extractedYaml: combinedYamlStr,
-               hasMoreMarkers: resData.hasMoreMarkers,
-               remainingText: resData.remainingText || '',
-               currentBatch: resData.currentBatch || nextBatch,
-               estimatedTotalMarkers: resData.estimatedTotalMarkers !== undefined ? resData.estimatedTotalMarkers : m.data?.agentResult?.estimatedTotalMarkers
+            data: {
+              ...m.data,
+              agentResult: {
+                ...m.data?.agentResult,
+                text: resData.text || m.data?.agentResult?.text,
+                extractedYaml: combinedYamlStr,
+                hasMoreMarkers: resData.hasMoreMarkers,
+                remainingText: resData.remainingText || '',
+                currentBatch: resData.currentBatch || nextBatch,
+                estimatedTotalMarkers: resData.estimatedTotalMarkers !== undefined ? resData.estimatedTotalMarkers : m.data?.agentResult?.estimatedTotalMarkers
+              }
             }
           };
           return migrateMessages([updatedMsg])[0];
