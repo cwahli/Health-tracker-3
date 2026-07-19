@@ -25,6 +25,44 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
   const [stagedBio, setStagedBio] = useState<BiomarkerLog[]>([]);
   const [selectedFoods, setSelectedFoods] = useState<Set<string>>(new Set());
   const [selectedBio, setSelectedBio] = useState<Set<string>>(new Set());
+  const [resolutions, setResolutions] = useState<Record<string, {
+    resolution: 'keep_existing' | 'keep_backup' | 'keep_both';
+    editData: FoodLog;
+  }>>({});
+
+  const updateResolutionEdit = (stagedId: string, fields: Partial<FoodLog>) => {
+    setResolutions(prev => {
+      const current = prev[stagedId] || { resolution: 'keep_both', editData: stagedFoods.find(sf => sf.id === stagedId)! };
+      return {
+        ...prev,
+        [stagedId]: {
+          ...current,
+          editData: {
+            ...current.editData,
+            ...fields
+          }
+        }
+      };
+    });
+  };
+
+  const handleSetResolution = (stagedId: string, resolution: 'keep_existing' | 'keep_backup' | 'keep_both', stagedItem?: any) => {
+    const f = stagedItem || stagedFoods.find(sf => sf.id === stagedId);
+    if (!f) return;
+    
+    let baseData = { ...f };
+    if (resolution === 'keep_existing') {
+      baseData = { ...f.similarTo };
+    }
+    
+    setResolutions(prev => ({
+      ...prev,
+      [stagedId]: {
+        resolution,
+        editData: baseData
+      }
+    }));
+  };
 
   // Function to serialize state into CSVs and images into a zip
   const handleExport = async () => {
@@ -178,20 +216,37 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
       const existingPhotoMap = new Map();
       foodLogs.forEach(f => {
         if (f.imageUrl && f.imageUrl.length > 100) {
-          // Just use the first 100 chars as a rough hash, or the whole thing
-          // The whole thing might be big, let's use the whole thing for exact match
           existingPhotoMap.set(f.imageUrl, f);
         }
       });
 
+      const zipPhotoMap = new Map();
+      const nextResolutions: Record<string, {
+        resolution: 'keep_existing' | 'keep_backup' | 'keep_both';
+        editData: FoodLog;
+      }> = {};
+
       importedFoods.forEach(f => {
          const existing = existingFoodMap.get(f.id);
-         const existingByPhoto = f.imageUrl ? existingPhotoMap.get(f.imageUrl) : null;
+         let existingByPhoto = f.imageUrl ? existingPhotoMap.get(f.imageUrl) : null;
+         let similarSource: 'existing' | 'backup' = 'existing';
+         
+         if (!existingByPhoto && f.imageUrl && f.imageUrl.length > 100) {
+           if (zipPhotoMap.has(f.imageUrl)) {
+             existingByPhoto = zipPhotoMap.get(f.imageUrl);
+             similarSource = 'backup';
+           }
+         }
          
          if (!existing) {
              if (existingByPhoto) {
                  (f as any).sync_state = 'similar_photo';
                  (f as any).similarTo = existingByPhoto;
+                 (f as any).similarSource = similarSource;
+                 nextResolutions[f.id] = {
+                   resolution: 'keep_both',
+                   editData: { ...f }
+                 };
              } else {
                  f.sync_state = 'new';
              }
@@ -205,7 +260,12 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
                  newFoods.push(f);
              }
          }
+
+         if (f.imageUrl && f.imageUrl.length > 100) {
+           zipPhotoMap.set(f.imageUrl, f);
+         }
       });
+      setResolutions(nextResolutions);
 
       importedBio.forEach(b => {
          const existing = existingBioMap.get(b.id);
@@ -244,13 +304,44 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
   };
 
   const handleApplyImport = () => {
-     const foodsToImport = stagedFoods.filter(f => selectedFoods.has(f.id));
-     if (foodsToImport.length > 0) {
-         const mergedFoods = [...foodLogs];
-         const map = new Map(mergedFoods.map(f => [f.id, f]));
-         foodsToImport.forEach(f => map.set(f.id, f));
-         setFoodLogs(Array.from(map.values()));
-     }
+     const mergedFoods = [...foodLogs];
+     const existingMap = new Map(mergedFoods.map(f => [f.id, f]));
+     
+     stagedFoods.forEach(f => {
+       if ((f.sync_state as string) === 'similar_photo') {
+         const resInfo = resolutions[f.id];
+         if (resInfo) {
+           const { resolution, editData } = resInfo;
+           if (resolution === 'keep_existing') {
+             // If they edited the existing item, update it in the map
+             const simId = f.similarTo?.id;
+             if (simId) {
+               existingMap.set(simId, editData);
+             }
+           } else if (resolution === 'keep_backup') {
+             // Overwrite existing with backup
+             const simId = f.similarTo?.id;
+             if (simId) {
+               existingMap.delete(simId);
+             }
+             existingMap.set(editData.id, editData);
+           } else if (resolution === 'keep_both') {
+             // Keep both!
+             existingMap.set(editData.id, editData);
+           }
+         } else {
+           if (selectedFoods.has(f.id)) {
+             existingMap.set(f.id, f);
+           }
+         }
+       } else {
+         if (selectedFoods.has(f.id)) {
+           existingMap.set(f.id, f);
+         }
+       }
+     });
+     
+     setFoodLogs(Array.from(existingMap.values()));
      
      const bioToImport = stagedBio.filter(b => selectedBio.has(b.id));
      if (bioToImport.length > 0) {
@@ -314,7 +405,7 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
 
       {showConflicts && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]">
+          <div className="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]">
             <div className="p-4 border-b border-slate-800 bg-slate-800/50 flex items-center gap-3">
               <AlertCircle className="w-6 h-6 text-amber-500" />
               <h2 className="text-lg font-bold text-white">Review Data to Restore</h2>
@@ -328,43 +419,236 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
                {stagedFoods.length > 0 && (
                  <div className="bg-slate-800 rounded-lg p-3">
                    <h4 className="text-sm font-semibold text-slate-200 mb-2 border-b border-slate-700 pb-2">Food Logs ({stagedFoods.length})</h4>
-                   <div className="max-h-64 overflow-y-auto space-y-2">
-                     {stagedFoods.map(f => (
-                       <div key={f.id} className="text-xs text-slate-300 flex flex-col gap-2 hover:bg-slate-700/50 p-2 rounded">
-                         <label className="flex items-center gap-2 cursor-pointer">
-                           <input type="checkbox" checked={selectedFoods.has(f.id)} onChange={(e) => {
-                               const next = new Set(selectedFoods);
-                               if (e.target.checked) next.add(f.id); else next.delete(f.id);
-                               setSelectedFoods(next);
-                           }} className="rounded bg-slate-900 border-slate-600 text-indigo-500 focus:ring-indigo-500" />
-                           {f.imageUrl ? <img src={f.imageUrl} className="w-8 h-8 rounded object-cover" /> : <div className="w-8 h-8 rounded bg-slate-600 flex items-center justify-center"><ImageIcon className="w-4 h-4 text-slate-400" /></div>}
-                           <span className="truncate flex-1 font-medium">{f.name}</span>
-                           <span className="text-slate-500 w-24 text-right">{f.date?.slice(0,10)}</span>
-                           <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded ${(f.sync_state as string) === 'similar_photo' ? 'bg-amber-500/20 text-amber-400' : 'bg-indigo-500/20 text-indigo-400'}`}>
-                             {f.sync_state === 'new' ? 'New' : (f.sync_state as string) === 'similar_photo' ? 'Similar Photo' : 'Differs'}
-                           </span>
-                         </label>
-                         {(f.sync_state as string) === 'similar_photo' && (
-                             <div className="pl-6 flex flex-col gap-1 text-[10px] text-amber-400">
-                               <div>⚠️ Identical photo found in existing log: "{f.similarTo?.name}". Selecting this will add the backup as a new entry.</div>
-                               <input 
-                                   type="text" 
-                                   value={f.name} 
-                                   onChange={(e) => {
-                                       const nextStaged = [...stagedFoods];
-                                       const idx = nextStaged.findIndex(sf => sf.id === f.id);
-                                       if (idx >= 0) {
-                                           nextStaged[idx] = { ...nextStaged[idx], name: e.target.value };
-                                           setStagedFoods(nextStaged);
-                                       }
-                                   }} 
-                                   className="mt-1 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-slate-200 w-full focus:outline-none focus:border-indigo-500"
-                                   placeholder="Edit name for the new entry..."
-                               />
-                             </div>
-                         )}
-                       </div>
-                     ))}
+                   <div className="max-h-96 overflow-y-auto space-y-3 pr-1">
+                     {stagedFoods.map(f => {
+                        const isSimilarPhoto = (f.sync_state as string) === 'similar_photo';
+                        const res = resolutions[f.id] || { resolution: 'keep_both', editData: f };
+                        const sim = f.similarTo;
+                        const simSource = (f as any).similarSource || 'existing';
+                        
+                        return (
+                          <div key={f.id} className="text-xs text-slate-300 flex flex-col gap-3 bg-slate-850/50 p-3 rounded-xl border border-slate-700/60 hover:border-slate-600 transition-all">
+                            {!isSimilarPhoto ? (
+                              <label className="flex items-center gap-2 cursor-pointer">
+                                <input type="checkbox" checked={selectedFoods.has(f.id)} onChange={(e) => {
+                                    const next = new Set(selectedFoods);
+                                    if (e.target.checked) next.add(f.id); else next.delete(f.id);
+                                    setSelectedFoods(next);
+                                }} className="rounded bg-slate-900 border-slate-600 text-indigo-500 focus:ring-indigo-500" />
+                                {f.imageUrl ? <img src={f.imageUrl} className="w-8 h-8 rounded object-cover" /> : <div className="w-8 h-8 rounded bg-slate-600 flex items-center justify-center"><ImageIcon className="w-4 h-4 text-slate-400" /></div>}
+                                <span className="truncate flex-1 font-medium">{f.name}</span>
+                                <span className="text-slate-500 w-24 text-right">{f.date?.slice(0,10)}</span>
+                                <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400">
+                                  {f.sync_state === 'new' ? 'New' : 'Differs'}
+                                </span>
+                              </label>
+                            ) : (
+                              <div className="space-y-3">
+                                {/* Similar photo header */}
+                                <div className="flex items-center justify-between border-b border-amber-500/20 pb-2">
+                                  <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs">
+                                    <AlertCircle className="w-4 h-4 animate-pulse" />
+                                    <span>Identical Photo Found in {simSource === 'existing' ? 'Database' : 'ZIP'}</span>
+                                  </div>
+                                  <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-amber-500/20 text-amber-400 font-bold">
+                                    Similar Photo
+                                  </span>
+                                </div>
+
+                                {/* Common Image preview */}
+                                {f.imageUrl && (
+                                  <div className="flex justify-center">
+                                    <img src={f.imageUrl} className="w-48 h-32 rounded-lg object-cover border border-slate-700 shadow-md" />
+                                  </div>
+                                )}
+
+                                {/* Comparison columns */}
+                                <div className="grid grid-cols-2 gap-3 text-xs">
+                                  {/* Left: Existing or Zip Duplicate 1 */}
+                                  <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-850 space-y-1.5">
+                                    <div className="font-bold text-slate-400 uppercase tracking-wider text-[9px] border-b border-slate-800 pb-1">
+                                      {simSource === 'existing' ? 'Current Database Log' : 'First Backup Log'}
+                                    </div>
+                                    <div className="font-semibold text-slate-200 truncate">{sim?.name || 'Unnamed Food'}</div>
+                                    <div className="text-slate-400 text-[10px]">{sim?.date?.slice(0, 10) || 'No Date'}</div>
+                                    <div className="flex flex-wrap gap-2 pt-1 text-[10px]">
+                                      <span className="bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded">
+                                        🔥 {sim?.nutrients?.calories ?? 0} kcal
+                                      </span>
+                                      <span className="bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded">
+                                        🧈 Fat: {sim?.nutrients?.saturatedFat ?? 0}g
+                                      </span>
+                                      <span className="bg-slate-800 text-slate-300 px-1.5 py-0.5 rounded">
+                                        🧂 Sod: {sim?.nutrients?.sodium ?? 0}mg
+                                      </span>
+                                    </div>
+                                    {sim?.composition && (
+                                      <div className="text-[10px] text-slate-500 italic pt-1 line-clamp-2">
+                                        "{sim.composition}"
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Right: Restoring Backup or Zip Duplicate 2 */}
+                                  <div className="bg-slate-900/60 p-2.5 rounded-lg border border-slate-850 space-y-1.5">
+                                    <div className="font-bold text-indigo-400 uppercase tracking-wider text-[9px] border-b border-slate-800 pb-1">
+                                      Restoring Backup Log
+                                    </div>
+                                    <div className="font-semibold text-slate-200 truncate">{f.name || 'Unnamed Food'}</div>
+                                    <div className="text-slate-400 text-[10px]">{f.date?.slice(0, 10) || 'No Date'}</div>
+                                    <div className="flex flex-wrap gap-2 pt-1 text-[10px]">
+                                      <span className="bg-indigo-950/40 text-indigo-300 px-1.5 py-0.5 rounded">
+                                        🔥 {f.nutrients?.calories ?? 0} kcal
+                                      </span>
+                                      <span className="bg-indigo-950/40 text-indigo-300 px-1.5 py-0.5 rounded">
+                                        🧈 Fat: {f.nutrients?.saturatedFat ?? 0}g
+                                      </span>
+                                      <span className="bg-indigo-950/40 text-indigo-300 px-1.5 py-0.5 rounded">
+                                        🧂 Sod: {f.nutrients?.sodium ?? 0}mg
+                                      </span>
+                                    </div>
+                                    {f.composition && (
+                                      <div className="text-[10px] text-slate-500 italic pt-1 line-clamp-2">
+                                        "{f.composition}"
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+
+                                {/* Choice selection buttons */}
+                                <div className="space-y-1.5">
+                                  <div className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Choose which log to keep:</div>
+                                  <div className="grid grid-cols-3 gap-2">
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSetResolution(f.id, 'keep_existing', f)}
+                                      className={`py-2 px-2 rounded-lg text-center font-medium border text-[10px] transition-all flex flex-col items-center justify-center gap-1 leading-tight ${
+                                        res.resolution === 'keep_existing'
+                                          ? 'bg-slate-800 border-slate-500 text-white shadow-md'
+                                          : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:text-slate-300 hover:bg-slate-800/20'
+                                      }`}
+                                    >
+                                      <span>Keep Left Log Only</span>
+                                      <span className="text-[9px] text-slate-500 font-normal">Discard backup entry</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSetResolution(f.id, 'keep_backup', f)}
+                                      className={`py-2 px-2 rounded-lg text-center font-medium border text-[10px] transition-all flex flex-col items-center justify-center gap-1 leading-tight ${
+                                        res.resolution === 'keep_backup'
+                                          ? 'bg-indigo-900/60 border-indigo-500 text-indigo-200 shadow-md shadow-indigo-950/40'
+                                          : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:text-slate-300 hover:bg-slate-800/20'
+                                      }`}
+                                    >
+                                      <span>Keep Right Log Only</span>
+                                      <span className="text-[9px] text-slate-500 font-normal">Replace {simSource === 'existing' ? 'existing' : 'first'} record</span>
+                                    </button>
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleSetResolution(f.id, 'keep_both', f)}
+                                      className={`py-2 px-2 rounded-lg text-center font-medium border text-[10px] transition-all flex flex-col items-center justify-center gap-1 leading-tight ${
+                                        res.resolution === 'keep_both'
+                                          ? 'bg-amber-900/40 border-amber-600 text-amber-200 shadow-md'
+                                          : 'bg-slate-900/40 border-slate-800 text-slate-400 hover:text-slate-300 hover:bg-slate-800/20'
+                                      }`}
+                                    >
+                                      <span>Keep Both (Add New)</span>
+                                      <span className="text-[9px] text-slate-500 font-normal">Save as separate entry</span>
+                                    </button>
+                                  </div>
+                                </div>
+
+                                {/* Inline editor for Kept record details */}
+                                <div className="p-3 bg-slate-900/65 rounded-xl border border-slate-800/85 space-y-3">
+                                  <div className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider flex items-center justify-between">
+                                    <span>✏️ Edit Chosen Record details to merge info</span>
+                                    <span className="text-slate-500 font-normal normal-case text-[9px]">
+                                      Editing: {res.resolution === 'keep_existing' ? 'Left Log' : 'Right/New Log'}
+                                    </span>
+                                  </div>
+                                  
+                                  <div className="grid grid-cols-2 gap-2">
+                                    <div className="col-span-2">
+                                      <label className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Food Name</label>
+                                      <input 
+                                        type="text" 
+                                        value={res.editData.name || ''} 
+                                        onChange={(e) => updateResolutionEdit(f.id, { name: e.target.value })}
+                                        className="w-full px-2.5 py-1 bg-slate-950 border border-slate-850 rounded text-xs text-slate-200 focus:outline-none focus:border-indigo-500/60"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Logged Date</label>
+                                      <input 
+                                        type="text" 
+                                        value={res.editData.date || ''} 
+                                        onChange={(e) => updateResolutionEdit(f.id, { date: e.target.value })}
+                                        className="w-full px-2.5 py-1 bg-slate-950 border border-slate-850 rounded text-xs text-slate-200 focus:outline-none focus:border-indigo-500/60"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Calories (kcal)</label>
+                                      <input 
+                                        type="number" 
+                                        step="any"
+                                        value={res.editData.nutrients?.calories ?? ''} 
+                                        onChange={(e) => {
+                                          const val = parseFloat(e.target.value) || 0;
+                                          updateResolutionEdit(f.id, { 
+                                            nutrients: { ...(res.editData.nutrients || {}), calories: val } as any
+                                          });
+                                        }}
+                                        className="w-full px-2.5 py-1 bg-slate-950 border border-slate-850 rounded text-xs text-slate-200 focus:outline-none focus:border-indigo-500/60"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Saturated Fat (g)</label>
+                                      <input 
+                                        type="number" 
+                                        step="any"
+                                        value={res.editData.nutrients?.saturatedFat ?? ''} 
+                                        onChange={(e) => {
+                                          const val = parseFloat(e.target.value) || 0;
+                                          updateResolutionEdit(f.id, { 
+                                            nutrients: { ...(res.editData.nutrients || {}), saturatedFat: val } as any
+                                          });
+                                        }}
+                                        className="w-full px-2.5 py-1 bg-slate-950 border border-slate-850 rounded text-xs text-slate-200 focus:outline-none focus:border-indigo-500/60"
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Sodium (mg)</label>
+                                      <input 
+                                        type="number" 
+                                        step="any"
+                                        value={res.editData.nutrients?.sodium ?? ''} 
+                                        onChange={(e) => {
+                                          const val = parseFloat(e.target.value) || 0;
+                                          updateResolutionEdit(f.id, { 
+                                            nutrients: { ...(res.editData.nutrients || {}), sodium: val } as any
+                                          });
+                                        }}
+                                        className="w-full px-2.5 py-1 bg-slate-950 border border-slate-850 rounded text-xs text-slate-200 focus:outline-none focus:border-indigo-500/60"
+                                      />
+                                    </div>
+                                    <div className="col-span-2">
+                                      <label className="text-[9px] text-slate-500 uppercase tracking-wider font-semibold">Composition / Notes</label>
+                                      <textarea 
+                                        value={res.editData.composition || ''} 
+                                        onChange={(e) => updateResolutionEdit(f.id, { composition: e.target.value })}
+                                        className="w-full px-2.5 py-1 bg-slate-950 border border-slate-850 rounded text-xs text-slate-200 focus:outline-none focus:border-indigo-500/60 h-12 resize-none"
+                                        placeholder="Add descriptive info here..."
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        );
+                     })}
                    </div>
                  </div>
                )}
