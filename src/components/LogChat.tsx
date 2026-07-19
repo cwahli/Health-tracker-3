@@ -1100,7 +1100,7 @@ ${logsText}`);
     } else {
       setActiveQueryId(null);
     }
-  }, [auth.currentUser, type, agentType, isOpen]);
+  }, [auth.currentUser?.uid, type, agentType, isOpen]);
 
   useEffect(() => {
     if (isOpen && messages.length === 0) {

@@ -4183,7 +4183,7 @@ reviewedBiomarkers: []`;
       }
 
       if (agentType === "agent1_step1") {
-        let cleanYaml = textOutput;
+        let cleanYaml: any = textOutput;
         let text = "I have extracted the biomarkers. Please review the output.";
         let hasMoreMarkers = false;
         let remainingText = "";
@@ -6578,6 +6578,9 @@ app.post('/api/health-connect/steps', async (req, res) => {
 
 app.get('/admin/migrate', async (req, res) => {
   try {
+    if (!process.env.ADMIN_MIGRATION_SECRET || req.query.secret !== process.env.ADMIN_MIGRATION_SECRET) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
     const commit = req.query.commit === 'true';
     if (!db) {
       return res.status(500).json({ error: 'Firestore is not initialized.' });
