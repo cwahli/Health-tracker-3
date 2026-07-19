@@ -3462,6 +3462,66 @@ let {
       },
       required: ["extractedData", "text", "hasMoreMarkers", "remainingText", "estimatedTotalMarkers"]
     };
+    const dataReviewSchema = {
+      type: Type.OBJECT,
+      properties: {
+        message: { type: Type.STRING, description: "Conversational summary of clinical range adjustments and review findings for this batch. If there are extreme divergences, highlight them here." },
+        extremeDivergences: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              key: { type: Type.STRING, enum: allBiomarkerKeys.length > 0 ? allBiomarkerKeys : ["unknown_biomarker"] },
+              originalValue: { type: Type.NUMBER },
+              unit: { type: Type.STRING },
+              reason: { type: Type.STRING, description: "Explain why it seems anomalous or unit mismatched" },
+              suggestedAction: { type: Type.STRING, description: "Suggestion (e.g. 'Update value' or 'Change metric unit')" }
+            },
+            required: ["key", "originalValue", "unit", "reason", "suggestedAction"]
+          }
+        },
+        reviewedBiomarkers: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              key: { type: Type.STRING, enum: allBiomarkerKeys.length > 0 ? allBiomarkerKeys : ["unknown_biomarker"] },
+              name: { type: Type.STRING, description: "Standard clinical name of the biomarker" },
+              userValue: { type: Type.NUMBER, description: "Exact value from the input data" },
+              unit: { type: Type.STRING, description: "Exact unit from the input data" },
+              _demographicAudit: {
+                type: Type.OBJECT,
+                properties: {
+                  standardWesternBaseline: { type: Type.STRING, description: "The textbook global/Western range" },
+                  knownEthnicOrRegionalVariances: { type: Type.STRING, description: "State the exact regional variant and the society it comes from. If absolutely none exist, state 'None'" },
+                  ageAndGenderShifts: { type: Type.STRING, description: "How age and gender naturally alter the baseline" },
+                  finalAppliedAdjustments: { type: Type.STRING, description: "The synthesis of how you are modifying the bounds for this specific user" }
+                },
+                required: ["standardWesternBaseline", "knownEthnicOrRegionalVariances", "ageAndGenderShifts", "finalAppliedAdjustments"]
+              },
+              profileAdjustedNormalRange: { type: Type.STRING, description: "The final range, appending the demographic reason in parentheses if altered from global baseline" },
+              rangeBrackets: {
+                type: Type.ARRAY,
+                items: {
+                  type: Type.OBJECT,
+                  properties: {
+                    name: { type: Type.STRING, description: "Bracket name (e.g., Optimal, Elevated, Mildly Decreased)" },
+                    range: { type: Type.STRING, description: "Mathematical bounds (e.g., >= 90, 60-89). Must be continuous with no gaps." }
+                  },
+                  required: ["name", "range"]
+                }
+              },
+              description: { type: Type.STRING, description: "2-sentence physiological role" },
+              _statusReasoning: { type: Type.STRING, description: "1-sentence mathematical evaluation comparing userValue to profileAdjustedNormalRange bounds" },
+              status: { type: Type.STRING, description: "Strictly 'Healthy' or 'At Risk' based on _statusReasoning" },
+              specificRiskContext: { type: Type.STRING, description: "3-4 sentence personalized clinical context based on the final status" }
+            },
+            required: ["key", "name", "userValue", "unit", "_demographicAudit", "profileAdjustedNormalRange", "rangeBrackets", "description", "_statusReasoning", "status", "specificRiskContext"]
+          }
+        }
+      },
+      required: ["message", "reviewedBiomarkers"]
+    };
     if (agentType === "agent4") {
       recentMeals = [];
       biomarkerHistory = [];
@@ -3986,35 +4046,8 @@ For each biomarker, follow a strict logical funnel to determine the correct rang
 "specificRiskContext": If 'At Risk', explain why this value matters for this demographic or provide reassurance if only mildly out of range. If 'Healthy', describe why this signifies optimal homeostasis.
 === CRITICAL REQUIREMENTS ===
 You MUST include an analysis for EVERY biomarker in the input list.
-Ensure output is STRICTLY valid YAML matching the exact abstract structure and placeholder instructions below. Do not wrap the output in markdown code blocks if unsupported by the pipeline.
-
-message: <string: Conversational summary of clinical range adjustments and review findings for this batch. If there are extreme divergences, highlight them here.>
-extremeDivergences: <list: Only include this array if you find extreme value or unit divergences (e.g., physiologically impossible values, clear US vs SI metric mixups). Otherwise omit it or leave empty.>
-  - key: <string: Exact key>
-    originalValue: <number>
-    unit: <string>
-    reason: <string: Explain why it seems anomalous or unit mismatched>
-    suggestedAction: <string: Suggestion (e.g. 'Update value' or 'Change metric unit')>
-reviewedBiomarkers:
-  - key: <string: Exact key from the input data>
-    name: <string: Standard clinical name of the biomarker>
-    userValue: <number: Exact value from the input data>
-    unit: <string: Exact unit from the input data>
-    _demographicAudit:
-      standardWesternBaseline: <string: The textbook global/Western range>
-      knownEthnicOrRegionalVariances: <string: CRITICAL STEP. You MUST actively prioritize local national medical board guidelines (e.g., Chinese/Japanese Societies of Nephrology) or ethnic-modified formulas over global/race-free standards. State the exact regional variant and the society it comes from. If absolutely none exist, state 'None'>
-      ageAndGenderShifts: <string: How age and gender naturally alter the baseline>
-      finalAppliedAdjustments: <string: The synthesis of how you are modifying the bounds for this specific user>
-    profileAdjustedNormalRange: <string: The final range, appending the demographic reason in parentheses if altered from global baseline>
-    rangeBrackets:
-      - name: <string: Bracket name (e.g., Optimal, Elevated, Mildly Decreased)>
-        range: <string: Mathematical bounds (e.g., >= 90, 60-89). Must be continuous with no gaps.>
-    description: <string: 2-sentence physiological role>
-    _statusReasoning: <string: 1-sentence mathematical evaluation comparing userValue to profileAdjustedNormalRange bounds>
-    status: <string: Strictly 'Healthy' or 'At Risk' based on _statusReasoning>
-    specificRiskContext: <string: 3-4 sentence personalized clinical context based on the final status>`;
-        mockData = `message: Completed clinical review.
-reviewedBiomarkers: []`;
+Your output MUST be a valid JSON object matching the schema provided.`;
+        mockData = { message: "Completed clinical review.", reviewedBiomarkers: [] };
       }
 
       let textOutput = "";
@@ -4137,7 +4170,11 @@ reviewedBiomarkers: []`;
             imagePayload,
             imagePayloads: imagesPayload,
             responseMimeType: isYaml ? "text/plain" : "application/json",
-            responseSchema: (agentType === "agent1_step1" || agentType === "agent1") ? agent1Step1Schema : undefined
+            responseSchema: (agentType === "agent1_step1" || agentType === "agent1") 
+              ? agent1Step1Schema 
+              : (agentType === "data_review") 
+                ? dataReviewSchema 
+                : undefined
           });
           
           addDebugLog(`[Medical Analyze Agent] Response Received:\n${textOutput}`, explicitSessionId);
@@ -4259,6 +4296,32 @@ reviewedBiomarkers: []`;
           currentBatch: req.body.currentBatch || 1,
           agentPrompt: fullPromptSent,
           apiCalls: [{ type: 'gemini', label: `Medical History Agent (${engine || 'gemini-3.1-flash-lite'})` }]
+        });
+      }
+
+      if (agentType === "data_review") {
+        let reviewedBiomarkers: any[] = [];
+        let message = "";
+        let extremeDivergences: any[] = [];
+        try {
+          const cleanJson = textOutput.replace(/```(?:json)?/gi, "").trim();
+          const parsed = JSON.parse(cleanJson);
+          if (parsed) {
+            message = parsed.message || "";
+            extremeDivergences = Array.isArray(parsed.extremeDivergences) ? parsed.extremeDivergences : [];
+            reviewedBiomarkers = Array.isArray(parsed.reviewedBiomarkers) ? parsed.reviewedBiomarkers : [];
+          }
+        } catch (e) {
+          console.error("data_review JSON parse error", e);
+        }
+        return res.json({
+          message,
+          reviewedBiomarkers,
+          extremeDivergences,
+          batchIdx: req.body.batchIdx !== undefined ? req.body.batchIdx : null,
+          agentType,
+          agentPrompt: fullPromptSent,
+          apiCalls: [{ type: 'gemini', label: `Clinical Calibration Agent (${engine || 'gemini-3.1-flash-lite'})` }]
         });
       }
 

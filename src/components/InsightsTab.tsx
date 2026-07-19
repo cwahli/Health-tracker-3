@@ -13,6 +13,7 @@ import { AgentResultTable } from './AgentResultTable';
 import { parse } from 'yaml';
 import { biomarkerDefinitions, getBiomarkerMetadata, getPhysiologicalBucket, BIOMARKER_GROUPING_OPTIONS, getMappedBiomarkerKey } from '../utils/biomarkers';
 import BiomarkerDictionaryModal from './BiomarkerDictionaryModal';
+import { auth } from '../firebase';
 
 interface InsightsTabProps {
   profile: UserProfile;
@@ -1932,19 +1933,79 @@ export default function InsightsTab({
                                                 onApplyChanges={async (unselectedKeys?: string[]) => {
                                                   await handleApproveBatchStep1(bIdx, result);
                                                   
-                                                  // If there are more markers to extract, trigger the next batch automatically
+                                                  // If there are more markers to extract, trigger the next batch automatically in the background
                                                   const hasMore = result?.hasMoreMarkers || false;
-                                                  if (hasMore && onOpenAgentChat) {
-                                                    // Increment the batch counter and re-call the extraction agent
-                                                    onOpenAgentChat('agent1', {
-                                                      dataReviewBatchIdx: typeof bIdx === 'string' && !isNaN(parseInt(bIdx)) ? parseInt(bIdx) + 1 : bIdx,
-                                                      dataReviewBatchKeys: batchKeys,
-                                                      prefillMessage: 'continue',   // Signal agent to continue from remainingText
-                                                      remainingText: result?.remainingText || '',
-                                                      extractedYaml: result?.extractedYaml || [],
-                                                      currentBatch: (result?.currentBatch || 1) + 1,
-                                                      estimatedTotalMarkers: result?.estimatedTotalMarkers || null,
-                                                    });
+                                                  const nextRemainingText = result?.remainingText || '';
+                                                  if (hasMore && nextRemainingText) {
+                                                    const nextBatchIdx = typeof bIdx === 'number' ? bIdx + 1 : (parseInt(String(bIdx)) + 1);
+                                                    setIsAnalyzingAgent1Batch(prev => ({ ...prev, [nextBatchIdx]: true }));
+                                                    try {
+                                                      const user = auth.currentUser;
+                                                      const idToken = user ? await user.getIdToken() : '';
+                                                      const lightProfile = profile ? { ...profile } as any : null;
+                                                      if (lightProfile) {
+                                                        delete lightProfile.fontSizeTitle;
+                                                        delete lightProfile.fontSizeSubtitle;
+                                                        delete lightProfile.fontSizeSubtitleSmall;
+                                                        delete lightProfile.fontSizeBodySmall;
+                                                        delete lightProfile.fontSizeXS;
+                                                        delete lightProfile.fontSizeKeyMetric;
+                                                        delete lightProfile.fontSizeDescription;
+                                                        delete lightProfile.photoUrl;
+                                                        delete lightProfile.timezone;
+                                                        delete lightProfile.language;
+                                                        delete lightProfile.deletedBiomarkerLogIds;
+                                                        delete lightProfile.deletedFoodLogIds;
+                                                        delete lightProfile.deletedCustomBiomarkerKeys;
+                                                        delete lightProfile.agentTriageSummary;
+                                                        delete lightProfile.approved_agent1_batches;
+                                                        delete lightProfile.approved_data_review_batches;
+                                                        delete lightProfile.agentAnalyses;
+                                                        delete lightProfile.agentContextualizerSummary;
+                                                        delete lightProfile.stripeSubscriptionId;
+                                                      }
+                                                      const allExtracted = [
+                                                        ...(result?.extractedYaml || [])
+                                                      ];
+                                                      const deletedIds = profile?.deletedBiomarkerLogIds || {};
+                                                      const bodyData: any = {
+                                                        agentType: 'agent1_step1',
+                                                        message: 'continue',
+                                                        originalReportText: '',
+                                                        extractedYaml: allExtracted,
+                                                        remainingText: nextRemainingText,
+                                                        currentBatch: (result?.currentBatch || 1) + 1,
+                                                        estimatedTotalMarkers: result?.estimatedTotalMarkers ?? null,
+                                                        userProfile: lightProfile,
+                                                        biomarkerHistory: (biomarkerHistory || []).filter(h => h.sync_state !== 'delete' && !deletedIds[h.id]),
+                                                        biomarkers: biomarkers || {},
+                                                        engine: selectedModelId
+                                                      };
+                                                      
+                                                      const headers: any = { 
+                                                        'Content-Type': 'application/json'
+                                                      };
+                                                      if (idToken) {
+                                                        headers['Authorization'] = `Bearer ${idToken}`;
+                                                      }
+                                                      const resp = await fetch('/api/gemini/medical-analyze', {
+                                                        method: 'POST',
+                                                        headers,
+                                                        body: JSON.stringify(bodyData)
+                                                      });
+                                                      if (resp.ok) {
+                                                        const nextResult = await resp.json();
+                                                        setAgent1BatchResults(prev => {
+                                                          const updated = { ...prev, [nextBatchIdx]: nextResult };
+                                                          localStorage.setItem('agent1_batch_results', JSON.stringify(updated));
+                                                          return updated;
+                                                        });
+                                                      }
+                                                    } catch (err) {
+                                                      console.error('[InsightsTab] Next batch auto-trigger failed:', err);
+                                                    } finally {
+                                                      setIsAnalyzingAgent1Batch(prev => ({ ...prev, [nextBatchIdx]: false }));
+                                                    }
                                                   }
                                                 }}
                                               />
