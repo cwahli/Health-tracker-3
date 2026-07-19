@@ -66,20 +66,11 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                               .find(m => m.agentTypeStep === 'agent1_step1' || m.agentType === 'agent1');
                             return precedingStep1Msg?.agentResult;
                           })()}
-                          onContinueToNextStep={
-                            (msg.data?.agentResult?.hasMoreMarkers || msg.data?.agentResult?.hasMore || msg.data?.agentResult?.needsContinuation || msg.data?.agentResult?.status === 'needs_continuation') ? undefined :
-                            msg.agentTypeStep === 'agent1_step1' ? async (filteredKeys, filteredRows) => {
-                               if (filteredKeys && msg.data?.agentResult) {
-                                  msg.data.agentResult.unselectedRowKeys = filteredKeys;
-                                  if (filteredRows && filteredRows.length > 0) {
-                                     msg.data.agentResult.extractedYaml = filteredRows;
-                                  }
-                               }
-                               await handleAgent1Step('agent1_step2', msg); 
-                            } :
-                            msg.agentTypeStep === 'agent1_step2' ? async () => { await handleAgent1Step('agent1_step3', msg); } :
-                            undefined
-                          }
+                          // Step 2/3 (category mapping + assembly) are intentionally skipped for now:
+                          // their output shape isn't consumed by the Medical History commit step yet,
+                          // so routing through them silently drops data. Step 1 now commits directly
+                          // via onApplyChanges below. Revisit this once Step 2/3 persistence is built.
+                          onContinueToNextStep={undefined}
                           onApplyChanges={async (filteredKeys) => {
                             if (onAgentFinish) {
                               const isContinuation = !!(msg.data?.agentResult?.hasMoreMarkers || msg.data?.agentResult?.hasMore || msg.data?.agentResult?.needsContinuation || msg.data?.agentResult?.status === 'needs_continuation');
