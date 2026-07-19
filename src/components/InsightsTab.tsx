@@ -986,9 +986,10 @@ export default function InsightsTab({
       console.warn("Failed to clear session storage during refine:", e);
     }
     
-    // Also clear custom batch
+    // Also clear custom batch and report text cache
     setCustomBatchKeys([]);
     localStorage.removeItem(`agent1_custom_batch_keys_${userIdentifier}`);
+    localStorage.removeItem('agent1_original_report_text');
   };
 
   const renderAgentHistory = (agentType: string) => {
@@ -2628,46 +2629,7 @@ export default function InsightsTab({
                                                   <button
                                                     type="button"
                                                     onClick={async () => {
-                                                      // Save customBiomarkers to user profile
-                                                      const updatedCustoms = { ...(profile.customBiomarkers || {}) };
-                                                      result.reviewedBiomarkers?.forEach((bm: any) => {
-                                                        const existing: any = updatedCustoms[bm.key] || {};
-                                                        updatedCustoms[bm.key] = {
-                                                          ...existing,
-                                                          name: bm.name || existing.name,
-                                                          unit: bm.unit || existing.unit,
-                                                          normalRange: bm.profileAdjustedNormalRange || existing.normalRange || '',
-                                                          description: bm.description || existing.description || '',
-                                                          riskCategories: (existing.riskCategories && existing.riskCategories.length > 0) ? existing.riskCategories : (bm.riskCategories || []),
-                                                          standardMedicalGrouping: (existing.standardMedicalGrouping && existing.standardMedicalGrouping !== 'Other') ? existing.standardMedicalGrouping : (bm.standardMedicalGrouping || 'Other'),
-                                                          potentialMedicalConditions: bm.potentialMedicalConditions || existing.potentialMedicalConditions || [],
-                                                          specificRiskContext: bm.specificRiskContext || existing.specificRiskContext || '',
-                                                          status: bm.status || existing.status || 'Healthy',
-                                                          rangeBrackets: bm.rangeBrackets || existing.rangeBrackets || []
-                                                        } as any;
-                                                      });
-
-                                                      const updatedProfile = {
-                                                        ...profile,
-                                                        customBiomarkers: updatedCustoms
-                                                      };
-
-                                                      if (onUpdateProfile) {
-                                                        await onUpdateProfile(updatedProfile);
-                                                      }
-
-                                                      // Move missing biomarkers to future batches if selected
-                                                      const keysToMove = selectedMissingKeysToMove[bIdx] || [];
-                                                      if (keysToMove.length > 0) {
-                                                        handleMoveMissingBiomarkers(bIdx, keysToMove);
-                                                      }
-
-                                                      // Mark as approved
-                                                      setApprovedBatches(prev => {
-                                                        const updated = { ...prev, [bIdx]: true };
-                                                        localStorage.setItem('approved_data_review_batches', JSON.stringify(updated));
-                                                        return updated;
-                                                      });
+                                                      await handleApproveBatchStep2(bIdx, result);
                                                     }}
                                                     className="py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer shadow-md shadow-emerald-600/10"
                                                   >
