@@ -1128,6 +1128,13 @@ export default function InsightsTab({
       valueProposition: 'Demographics and core biomarkers checklist calibration.'
     },
     {
+      id: 'agent1',
+      title: 'Standardize biomarkers',
+      agentType: 'agent1',
+      description: 'Extracts and standardizes raw lab report text to standardized clinical nomenclature.',
+      valueProposition: 'Standardizes raw lab report data into structured clinical variables.'
+    },
+    {
       id: 'data_review',
       title: 'Data review',
       agentType: 'data_review',
@@ -1190,6 +1197,14 @@ export default function InsightsTab({
         }
       }
     }
+    if (step.id === 'agent1') {
+      if (batches.length === 0) return 'To do';
+      const allApproved = batches.every((_, bIdx) => approvedAgent1Batches[bIdx]);
+      if (allApproved) return 'Done';
+      const hasSomeAnalysis = Object.keys(agent1BatchResults).length > 0;
+      return hasSomeAnalysis ? 'To review' : 'To do';
+    }
+
     if (step.id === 'data_review') {
       if (batches.length === 0) return 'To do';
       const allApproved = batches.every((_, bIdx) => approvedBatches[bIdx]);
@@ -1219,6 +1234,13 @@ export default function InsightsTab({
     }
 
     const step = steps[index];
+    if (step.id === 'agent1') {
+      const total = markerKeys.length;
+      if (total === 0) return 'No biomarkers logged';
+      const approvedCount = batches.filter((_, bIdx) => approvedAgent1Batches[bIdx]).length;
+      return `${approvedCount} of ${batches.length} batches standardized`;
+    }
+
     if (step.id === 'data_review') {
       const total = markerKeys.length;
       if (total === 0) return 'No biomarkers logged';
@@ -1259,7 +1281,14 @@ export default function InsightsTab({
 
   const handleApproveStep = (index: number) => {
     const step = steps[index];
-    if (step.id === 'data_review') {
+    if (step.id === 'agent1') {
+      const updatedApproved = { ...approvedAgent1Batches };
+      batches.forEach((_, bIdx) => {
+        updatedApproved[bIdx] = true;
+      });
+      setApprovedAgent1Batches(updatedApproved);
+      localStorage.setItem('approved_agent1_batches', JSON.stringify(updatedApproved));
+    } else if (step.id === 'data_review') {
       const updatedApproved = { ...approvedBatches };
       batches.forEach((_, bIdx) => {
         updatedApproved[bIdx] = true;
