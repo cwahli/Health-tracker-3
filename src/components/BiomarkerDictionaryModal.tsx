@@ -974,7 +974,11 @@ export default function BiomarkerDictionaryModal({
       if (profile.customBiomarkers?.[k]?.needsApproval) {
          return;
       }
-      if (profile.customBiomarkers?.[k]?.standardMedicalGrouping || profile.customBiomarkers?.[k]?.unit) {
+      const cb = profile.customBiomarkers?.[k];
+      const hasAllMedicalTags = !!cb?.standardMedicalGrouping
+        && Array.isArray(cb?.riskCategories) && cb.riskCategories.length > 0
+        && Array.isArray(cb?.potentialMedicalConditions);
+      if (hasAllMedicalTags) {
         keys.add(k);
       }
     });
@@ -1533,47 +1537,6 @@ I can analyze these, compare them with our database keys, and find standard mapp
     }
   };
 
-  // Automated Clinical Unit Standardization YAML Parser
-  const parseStandardizationYaml = (yamlText: string): any[] => {
-    const items: any[] = [];
-    const lines = yamlText.split('\n');
-    let currentItem: any = null;
-
-    for (const rawLine of lines) {
-      let trimmed = rawLine.trim();
-      if (!trimmed) continue;
-
-      // Detect new item in the list
-      if (trimmed.startsWith('-')) {
-        if (currentItem && currentItem.key) {
-          items.push(currentItem);
-        }
-        currentItem = {};
-        trimmed = trimmed.substring(1).trim(); // process rest of line
-      }
-
-      if (currentItem && trimmed) {
-        // Look for key-value pairs like key: "value" or key: value
-        const match = trimmed.match(/^["']?([a-zA-Z0-9_]+)["']?\s*:\s*(.*)$/);
-        if (match) {
-          const key = match[1].trim();
-          let value = match[2].trim();
-          // Remove surrounding quotes if any
-          if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-            value = value.substring(1, value.length - 1);
-          }
-          currentItem[key] = value;
-        }
-      }
-    }
-
-    if (currentItem && currentItem.key) {
-      items.push(currentItem);
-    }
-
-    return items;
-  };
-
   // Run Clinical Unit Standardization Agent
   const handleRunStandardizationAgent = async () => {
     if (selectedKeys.length === 0) return;
@@ -1624,13 +1587,35 @@ I can analyze these, compare them with our database keys, and find standard mapp
       } else {
         parsed = jsonData.mappedBiomarkers || jsonData.categorisedBiomarkers || [];
       }
-      // Normalize key
+      // Normalize key + unit field name (backend returns "standardizedUnit", UI expects "unit")
       parsed = parsed.map((item: any) => ({
         ...item,
-        key: item.originalKey || item.key
+        key: item.originalKey || item.key,
+        unit: item.standardizedUnit !== undefined ? item.standardizedUnit : item.unit
       }));
 
       setStandardizationSummary(parsed);
+
+      // Persist the agent call/result so it survives modal close and appears in agent history,
+      // matching the pattern already used by Data Accuracy and Name Consolidation agents.
+      const agentTypeForLog = isMedicalCategorisationMode ? 'medical_categorise' : 'standardize_units';
+      const newAnalysis = {
+        id: `analysis_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+        agentType: agentTypeForLog,
+        date: new Date().toISOString(),
+        result: {
+          selectedBiomarkers: selectedBiomarkerDetails,
+          mappedBiomarkers: parsed
+        }
+      };
+      if (onAgentAnalysisSaved) {
+        await onAgentAnalysisSaved(agentTypeForLog, newAnalysis.result);
+      } else {
+        const currentAnalyses = profile.agentAnalyses || [];
+        onUpdateProfile({
+          agentAnalyses: [...currentAnalyses, newAnalysis]
+        });
+      }
     } catch (error: any) {
       console.error(error);
       alert("Error running standardization agent: " + error.message);
@@ -3274,12 +3259,12 @@ I can analyze these, compare them with our database keys, and find standard mapp
                     {agentLoading ? (
                       <>
                         <Loader className="w-4 h-4 animate-spin" />
-                        {isMedicalCategorisationMode ? 'Agent Working in YAML to Add Categorisations...' : 'Agent Working in YAML to Add Standardized Units...'}
+                        {isMedicalCategorisationMode ? 'Agent Working in JSON to Add Categorisations...' : 'Agent Working in JSON to Add Standardized Units...'}
                       </>
                     ) : (
                       <>
                         <ArrowRight className="w-4 h-4" />
-                        {isMedicalCategorisationMode ? 'Run Clinical Categorisation Agent (YAML)' : 'Run Clinical Unit Standardization Agent (YAML)'}
+                        {isMedicalCategorisationMode ? 'Run Clinical Categorisation Agent' : 'Run Clinical Unit Standardization Agent'}
                       </>
                     )}
                   </button>
@@ -3296,8 +3281,8 @@ I can analyze these, compare them with our database keys, and find standard mapp
                     </h4>
                     <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md">
                       {isMedicalCategorisationMode
-                        ? 'The clinical AI agent is analyzing the biomarkers to assign medical groupings and risk categories, outputting validated YAML configuration objects.'
-                        : `The clinical AI agent is parsing the selected biomarkers, researching reference units for ${targetMetric.toUpperCase()}, and outputting clean, validated YAML configuration objects with suggested ranges.`}
+                        ? 'The clinical AI agent is analyzing the biomarkers to assign medical groupings and risk categories, outputting validated JSON configuration objects.'
+                        : `The clinical AI agent is parsing the selected biomarkers, researching reference units for ${targetMetric.toUpperCase()}, and outputting clean, validated JSON configuration objects with suggested ranges.`}
                     </p>
                   </div>
                 </div>
@@ -3311,17 +3296,17 @@ I can analyze these, compare them with our database keys, and find standard mapp
                     <div className="flex items-center justify-between">
                       <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono flex items-center gap-1.5">
                         <FileCode className="w-4 h-4 text-violet-500" />
-                        AGENT_METADATA_SPECIFICATION.YAML
+                        AGENT_METADATA_SPECIFICATION.JSON
                       </h4>
                       <button
                         type="button"
                         onClick={() => {
                           navigator.clipboard.writeText(standardizationYaml || "");
-                          alert("YAML code copied to clipboard!");
+                          alert("JSON code copied to clipboard!");
                         }}
                         className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
                       >
-                        <Copy className="w-3 h-3" /> Copy YAML
+                        <Copy className="w-3 h-3" /> Copy JSON
                       </button>
                     </div>
                     <pre className="p-4 bg-slate-950 text-slate-100 rounded-xl text-[11px] font-mono leading-relaxed overflow-x-auto max-h-48 border border-slate-800 select-text">
@@ -3965,7 +3950,9 @@ I can analyze these, compare them with our database keys, and find standard mapp
                             !def && 'standard dictionary definition',
                             (def && !def.unit) && 'unit',
                             (def && !def.normalRange) && 'normal range',
-                            (def && !def.standardMedicalGrouping) && 'medical grouping'
+                            (def && !def.standardMedicalGrouping) && 'medical practice grouping',
+                            (def && !(Array.isArray(def.riskCategories) && def.riskCategories.length > 0)) && 'risk categories',
+                            (def && !Array.isArray(def.potentialMedicalConditions)) && 'medical conditions'
                           ].filter(Boolean).join(', ')}. Please review, standardize, or approve it manually.`}
                           key={key}
                           itemKey={key}

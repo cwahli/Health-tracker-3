@@ -11,9 +11,14 @@ interface Props {
   biomarkerHistory: BiomarkerLog[];
   setFoodLogs: (f: FoodLog[]) => void;
   setBiomarkerHistory: (b: BiomarkerLog[]) => void;
+  biomarkers?: any;
+  actions?: any[];
+  dailyBenefits?: any[];
+  report?: any;
+  onSaveAndSync?: (profile: any, foodLogs: any[], biomarkers: any, biomarkerHistory: any[], actions: any[], dailyBenefits: any[], report: any, specificUpdate?: any) => Promise<void>;
 }
 
-export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, setFoodLogs, setBiomarkerHistory }: Props) {
+export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, setFoodLogs, setBiomarkerHistory, biomarkers, actions, dailyBenefits, report, onSaveAndSync }: Props) {
   const [isExporting, setIsExporting] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const [importStatus, setImportStatus] = useState<string>('');
@@ -341,21 +346,42 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
        }
      });
      
-     setFoodLogs(Array.from(existingMap.values()));
-     
+     const finalFoods = Array.from(existingMap.values());
+
      const bioToImport = stagedBio.filter(b => selectedBio.has(b.id));
+     let finalBio = biomarkerHistory;
      if (bioToImport.length > 0) {
          const mergedBio = [...biomarkerHistory];
          const map = new Map(mergedBio.map(b => [b.id, b]));
          bioToImport.forEach(b => map.set(b.id, b));
-         setBiomarkerHistory(Array.from(map.values()));
+         finalBio = Array.from(map.values());
      }
-     
+
+     if (onSaveAndSync) {
+       setImportStatus('Saving and syncing to cloud...');
+       onSaveAndSync(profile, finalFoods, biomarkers, finalBio, actions || [], dailyBenefits || [], report, { type: 'fullPush' })
+         .then(() => {
+           setImportStatus('Import successful and synced to cloud!');
+           setTimeout(() => setImportStatus(''), 4000);
+         })
+         .catch((e) => {
+           console.error(e);
+           setImportStatus('Import saved locally, but cloud sync failed. Please retry from the sync menu.');
+           setTimeout(() => setImportStatus(''), 6000);
+         });
+     } else {
+       // Fallback: no sync pipeline available, only update local React state.
+       // This will NOT survive a refresh — surfaced to the user explicitly rather than
+       // silently claiming success.
+       setFoodLogs(finalFoods);
+       setBiomarkerHistory(finalBio);
+       setImportStatus('Import applied locally only — could not reach the cloud save pipeline. Refresh may lose this data.');
+       setTimeout(() => setImportStatus(''), 6000);
+     }
+
      setShowConflicts(false);
      setStagedFoods([]);
      setStagedBio([]);
-     setImportStatus('Import successful! Changes will sync to cloud.');
-     setTimeout(() => setImportStatus(''), 4000);
   };
 
   return (

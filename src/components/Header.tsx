@@ -93,6 +93,11 @@ interface HeaderProps {
   activeTab?: string;
   autoSyncDisabled?: boolean;
   onChangeAutoSyncDisabled?: (disabled: boolean) => void;
+  biomarkers?: any;
+  actions?: any[];
+  dailyBenefits?: any[];
+  report?: any;
+  onSaveAndSync?: (profile: any, foodLogs: any[], biomarkers: any, biomarkerHistory: any[], actions: any[], dailyBenefits: any[], report: any, specificUpdate?: any) => Promise<void>;
 }
 
 const getSessionId = (): string => {
@@ -124,7 +129,12 @@ export default function Header({
   setBiomarkerHistory,
   activeTab = 'home',
   autoSyncDisabled = false,
-  onChangeAutoSyncDisabled
+  onChangeAutoSyncDisabled,
+  biomarkers,
+  actions,
+  dailyBenefits,
+  report,
+  onSaveAndSync
 }: HeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [showThemeScreen, setShowThemeScreen] = useState(false);
@@ -1281,6 +1291,11 @@ export default function Header({
                      biomarkerHistory={biomarkerHistory || []} 
                      setFoodLogs={setFoodLogs || (() => {})} 
                      setBiomarkerHistory={setBiomarkerHistory || (() => {})} 
+                     onSaveAndSync={onSaveAndSync}
+                     biomarkers={biomarkers}
+                     actions={actions}
+                     dailyBenefits={dailyBenefits}
+                     report={report}
                   />
                   <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 mx-4 mt-4">
                     <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">

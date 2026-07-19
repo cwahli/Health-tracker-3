@@ -105,10 +105,17 @@ const set = async (key: string, val: any): Promise<void> => {
         
         try {
           pruneLocalStorageToFreeSpace();
-          // Try to write a lightweight fallback copy just in case
+          // Try to write a lightweight fallback copy just in case — strip images (the
+          // heaviest field) but keep the food log entries themselves, so a later read of
+          // this fallback doesn't look like "all food logs were deleted".
           if (val && typeof val === 'object') {
             const lightVal = { ...val, _isLightweightFallback: true };
-            if (lightVal.foodLogs) lightVal.foodLogs = [];
+            if (Array.isArray(lightVal.foodLogs)) {
+              lightVal.foodLogs = lightVal.foodLogs.slice(-50).map((f: any) => {
+                const { imageUrl, imageUrls, ...rest } = f;
+                return rest;
+              });
+            }
             if (lightVal.report) lightVal.report = null;
             if (lightVal.biomarkerHistory && lightVal.biomarkerHistory.length > 50) {
               lightVal.biomarkerHistory = lightVal.biomarkerHistory.slice(0, 10);
@@ -126,20 +133,27 @@ const set = async (key: string, val: any): Promise<void> => {
     }
   }
 
-  // 2. Always write the full data to IndexedDB to ensure no data is lost
-  if (typeof window !== 'undefined' && (window as any)._idbFailed) {
-      console.warn("Skipping IndexedDB write because a previous read failed (preventing data overwrite)");
-      return;
-  }
-  
+  // 2. Always write the full data to IndexedDB to ensure no data is lost.
+  // Retry once before giving up on this specific write — a single timeout should not
+  // permanently disable local persistence for the rest of the session.
   try {
     await Promise.race([
       idbSet(key, val),
       new Promise((_, reject) => setTimeout(() => reject(new Error("IndexedDB timeout")), 8000))
     ]);
+    if (typeof window !== 'undefined') (window as any)._idbFailed = false;
   } catch (idbError) {
-    console.error("IndexedDB set failed:", idbError);
-    if (typeof window !== 'undefined') (window as any)._idbFailed = true;
+    console.warn("IndexedDB set failed once, retrying:", idbError);
+    try {
+      await Promise.race([
+        idbSet(key, val),
+        new Promise((_, reject) => setTimeout(() => reject(new Error("IndexedDB timeout (retry)")), 8000))
+      ]);
+      if (typeof window !== 'undefined') (window as any)._idbFailed = false;
+    } catch (retryError) {
+      console.error("IndexedDB set failed twice, giving up on this write:", retryError);
+      if (typeof window !== 'undefined') (window as any)._idbFailed = true;
+    }
   }
 };
 
@@ -4157,6 +4171,11 @@ export default function App() {
         setBiomarkerHistory={setBiomarkerHistory}
         setFoodLogs={setFoodLogs}
         profile={profile}
+        onSaveAndSync={saveAndSync}
+        biomarkers={biomarkers}
+        actions={actions}
+        dailyBenefits={dailyBenefits}
+        report={report}
         setProfile={(p) => {
           setProfile(p);
           const bundle = {

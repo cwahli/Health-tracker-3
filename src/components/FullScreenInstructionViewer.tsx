@@ -501,17 +501,27 @@ For each provided biomarker, determine the appropriate unit of measurement for t
 - US (Customary System): Use mg/dL, g/dL, pg/mL, mg/24h, U/L, etc.
 
 For each biomarker, return:
-1. Standardized Name (Clean Title Case).
-2. The appropriate unit for the chosen system.
+1. The appropriate unit for the chosen system.
+2. The conversion factor to convert from the current unit to the standardized unit (1 if no conversion needed).
+3. Your confidence in the conversion (high, medium, low).
+4. Any relevant notes.
 
 === SYSTEM CONSTRAINTS ===
-You MUST work in YAML. Return a single flat YAML array of objects. Do NOT use any Markdown blocks, wrapping backticks (e.g., do NOT wrap in \`\`\`yaml or \`\`\`), or extra text. Output ONLY the raw YAML text.
+You MUST work in JSON. Return a single JSON object with a "mappedBiomarkers" array. Do NOT use any Markdown blocks, wrapping backticks, or extra text. Output ONLY the raw JSON text.
 Do NOT change the values or ranges, and do NOT provide explanations. Your ONLY role is to standardize the unit.
 
-YAML Array Item Schema:
-- key: "biomarker_key"
-  name: "Biomarker Name"
-  unit: "standardized_unit"`;
+JSON Schema:
+{
+  "mappedBiomarkers": [
+    {
+      "originalKey": "biomarker_key",
+      "standardizedUnit": "standardized_unit",
+      "conversionFactor": 1,
+      "confidence": "high",
+      "notes": "..."
+    }
+  ]
+}`;
       defaultVariableData = `TARGET METRIC SYSTEM: SI
 BIOMARKERS TO PROCESS:
 [
@@ -534,14 +544,19 @@ For each provided biomarker, determine:
 3. Potential Medical Conditions. A JSON array of string tags (e.g. ["Fatty Liver", "Obesity"]) representing associated conditions.
 
 === SYSTEM CONSTRAINTS ===
-You MUST work in YAML. Return a single flat YAML array of objects. Do NOT use any Markdown blocks, wrapping backticks, or extra text. Output ONLY the raw YAML text.
+You MUST work in JSON. Return a single JSON object with a "categorisedBiomarkers" array. Do NOT use any Markdown blocks, wrapping backticks, or extra text. Output ONLY the raw JSON text.
 
-YAML Array Item Schema:
-- key: "biomarker_key"
-  name: "Biomarker Name"
-  standardMedicalGrouping: "One of the allowed values"
-  riskCategories: ["Tag1", "Tag2"]
-  potentialMedicalConditions: ["Condition1", "Condition2"]`;
+JSON Schema:
+{
+  "categorisedBiomarkers": [
+    {
+      "originalKey": "biomarker_key",
+      "standardMedicalGrouping": "One of the allowed values",
+      "riskCategories": ["Tag1", "Tag2"],
+      "potentialMedicalConditions": ["Condition1", "Condition2"]
+    }
+  ]
+}`;
       defaultVariableData = `BIOMARKERS TO PROCESS:
 [
   {
@@ -625,20 +640,20 @@ For each matched group, determine:
 3. A list of all matching source biomarkers that belong to this group.
 
 === SYSTEM CONSTRAINTS ===
-- You MUST work in YAML. Return a single flat YAML array of objects representing the groups. Do NOT use any Markdown blocks, wrapping backticks (e.g., do NOT wrap in \`\`\`yaml or \`\`\`), or extra text. Output ONLY the raw YAML text.
+- You MUST work in JSON. Return a single JSON object with a "consolidatedGroups" array. Do NOT use any Markdown blocks, wrapping backticks, or extra text. Output ONLY the raw JSON text.
 - Do NOT delete any data. Your sole purpose is to identify similar biomarkers and group them.
 - DO NOT perform, input, or output any form of medical categorization, standard medical grouping, or physiological classification. This is entirely handled programmatically by the website, and you must not attempt to modify or determine medical groupings.
 
-YAML Array Item Schema:
-- groupName: "Group Title (e.g. Serum Albumin)"
-  recommendedClinicalName: "Recommended Clinical Name"
-  recommendedUniqueKey: "recommended_unique_key"
-  biomarkers:
-    - key: "original_biomarker_key"
-      name: "Original Biomarker Name"
-      unit: "Original Unit"
-      range: "Original normal range"
-      description: "Original description"`;
+JSON Schema:
+{
+  "consolidatedGroups": [
+    {
+      "canonicalName": "Recommended Clinical Name (e.g. Serum Albumin)",
+      "variants": ["original_biomarker_key_1", "original_biomarker_key_2"],
+      "rationale": "Why these are the same clinical biomarker"
+    }
+  ]
+}`;
       defaultVariableData = `BIOMARKERS TO PROCESS:
 [
   {

@@ -5254,21 +5254,12 @@ For each matched group, determine:
 
 JSON Schema:
 {
-  "explanation": "A friendly conversational summary answering the user's prompt or explaining the proposed groupings.",
-  "groups": [
+  "scratchpad": "Think step-by-step: compare the provided names, identify synonyms, determine the most universally recognized clinical name, and map variants.",
+  "consolidatedGroups": [
     {
-      "groupName": "Group Title (e.g. Serum Albumin)",
-      "recommendedClinicalName": "Recommended Clinical Name",
-      "recommendedUniqueKey": "recommended_unique_key",
-      "biomarkers": [
-        {
-          "key": "original_biomarker_key",
-          "name": "Original Biomarker Name",
-          "unit": "Original Unit",
-          "range": "Original normal range",
-          "description": "Original description"
-        }
-      ]
+      "canonicalName": "Recommended Clinical Name (e.g. Serum Albumin)",
+      "variants": ["original_biomarker_key_1", "original_biomarker_key_2"],
+      "rationale": "Why these are the same clinical biomarker"
     }
   ]
 }
