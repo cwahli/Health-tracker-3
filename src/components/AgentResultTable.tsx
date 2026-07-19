@@ -12,7 +12,8 @@ import {
   TrendingDown,
   TrendingUp,
   Sparkles,
-  ArrowRight
+  ArrowRight,
+  Loader2
 } from 'lucide-react';
 
 interface AgentResultTableProps {
@@ -2246,7 +2247,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
             onClick={() => onApplyChanges(unselectedRowKeys)}
             className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/10 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
           >
-            <CheckCircle2 className="w-4 h-4" />
+            {isApplying ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
             {isApplying 
               ? 'Applying Agent Findings...' 
               : (agentResult?.status === 'needs_continuation' || agentResult?.needsContinuation || agentResult?.hasMore || agentResult?.hasMoreMarkers)
@@ -2369,7 +2370,21 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
                 >
                   Close Explorer
                 </button>
-                {hasAnythingToApprove && onApplyChanges && (
+                {onContinueToNextStep ? (
+                  <button
+                    type="button"
+                    disabled={isApplying}
+                    onClick={async () => {
+                      const filteredRows = tableData.filter(row => !unselectedRowKeys.includes(row.key));
+                      await onContinueToNextStep(unselectedRowKeys, filteredRows);
+                      setIsFullscreen(false);
+                    }}
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/10 flex items-center gap-1.5 transition-all cursor-pointer"
+                  >
+                    {isApplying ? <Loader2 className="w-4 h-4 animate-spin" /> : <ArrowRight className="w-4 h-4" />}
+                    {isApplying ? 'Processing...' : 'Continue to Next Step'}
+                  </button>
+                ) : (hasAnythingToApprove && onApplyChanges) ? (
                   <button
                     type="button"
                     disabled={isApplying}
@@ -2379,14 +2394,14 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
                     }}
                     className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/10 flex items-center gap-1.5 transition-all cursor-pointer"
                   >
-                    <CheckCircle2 className="w-4 h-4" />
+                    {isApplying ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-4 h-4" />}
                     {isApplying 
                       ? 'Applying...' 
                       : (agentResult?.status === 'needs_continuation' || agentResult?.needsContinuation || agentResult?.hasMore || agentResult?.hasMoreMarkers)
                         ? 'Continue to Next Batch'
                         : 'Apply Findings & Close'}
                   </button>
-                )}
+                ) : null}
               </div>
             </div>
           </div>
