@@ -165,6 +165,9 @@ function sanitizeUnitText(rawUnit: any): string {
     .replace(/\^/g, '*')
     .replace(/^[a-z]*(?=10)/g, '')
     .replace(/[x×]/g, '')
+    .replace(/units\/week/g, 'u/week')
+    .replace(/ng\/ml/g, 'ug/l')
+    .replace(/^\/[0-9]+$/g, 'score')
     .trim();
 }
 
@@ -605,7 +608,12 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
 
           // CRITICAL: status shouldn't be new if it's a name change or unit change or grouping change. It should just be "Changed", or if it's merged it's "Merged"
           const isNew = isNewInHistory && !isRenamedOrUnitOrGroupChanged && !isMerged;
-          const isChanged = (isRenamedOrUnitOrGroupChanged || (!isNewInHistory && existingEntries.length > 0)) && !isMerged;
+
+          const exactMatch = existingEntries.find((h: any) => toYYYYMMDD(String(h.date)) === toYYYYMMDD(String(resolvedDate)));
+          const matchVal = exactMatch?.biomarkers?.[key];
+          const isValueSame = matchVal !== undefined && (parseFloat(String(matchVal)) === parseFloat(String(parsed.value)) || String(matchVal).toLowerCase().trim() === String(parsed.value).toLowerCase().trim());
+          
+          const isChanged = (isRenamedOrUnitOrGroupChanged || (!isNewInHistory && existingEntries.length > 0 && !isValueSame)) && !isMerged;
           
           let changeReason = parsed.changeReason || parsed.explanation || '';
           if (!changeReason) {
@@ -1570,8 +1578,22 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
 
     // Map missingList to keys and names
     const missingBiomarkers: { key: string; name: string }[] = [];
+    
+    // First, add unmappedTests from the agent if available
+    const addedUnmappedNames = new Set<string>();
+    if (agentResult?.unmappedTests && Array.isArray(agentResult.unmappedTests)) {
+      agentResult.unmappedTests.forEach((test: any) => {
+        const raw_name = test?.raw_name || (typeof test === 'string' ? test : '');
+        if (!raw_name) return;
+        const suggested_key = test?.suggested_key || raw_name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        missingBiomarkers.push({ key: suggested_key, name: raw_name });
+        addedUnmappedNames.add(raw_name.toLowerCase());
+      });
+    }
+
     if (agentResult?.batchBiomarkers && Array.isArray(agentResult.batchBiomarkers)) {
       missingList.forEach(name => {
+        if (addedUnmappedNames.has(name.toLowerCase())) return;
         const found = agentResult.batchBiomarkers.find((b: any) => (b.name || b.key) === name);
         if (found) {
           const key = found.key || found.name?.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
@@ -1583,6 +1605,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
       });
     } else {
       missingList.forEach(name => {
+        if (addedUnmappedNames.has(name.toLowerCase())) return;
         const key = name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
         missingBiomarkers.push({ key, name });
       });

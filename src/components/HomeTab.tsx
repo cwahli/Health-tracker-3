@@ -10,6 +10,40 @@ import { BiomarkerExpandedSection } from './BiomarkerExpandedSection';
 import ReviewBiomarkerModal from './ReviewBiomarkerModal';
 import LogChat from './LogChat';
 
+const defaultNutrientTargets: { [key: string]: string } = {
+  calories: "1800 kcal",
+  protein: "70 g",
+  carbohydrates: "200 g",
+  totalFat: "60 g",
+  saturatedFat: "20 g",
+  unsaturatedFat: "40 g",
+  omega3: "1.1 g",
+  addedSugar: "25 g",
+  totalFibre: "25 g",
+  solubleFibre: "5 g",
+  sodium: "1500 mg",
+  potassium: "3500 mg",
+  magnesium: "310 mg",
+  calcium: "1000 mg",
+  iron: "18 mg",
+  zinc: "8 mg",
+  selenium: "55 mcg",
+  iodine: "150 mcg",
+  phosphorus: "700 mg",
+  vitaminD: "600 IU",
+  vitaminB12: "2.4 mcg",
+  folate: "400 mcg",
+  vitaminC: "75 mg",
+  vitaminE: "15 mg",
+  vitaminK: "90 mcg",
+  vitaminA: "700 mcg",
+  vitaminB6: "1.3 mg",
+  thiamine: "1.1 mg",
+  riboflavin: "1.1 mg",
+  niacin: "14 mg",
+  steps: "3000 steps"
+};
+
 interface HomeTabProps {
   profile: UserProfile;
   foodLogs: FoodLog[];
@@ -822,7 +856,7 @@ export default function HomeTab({
         </div>
 
         {/* Expandable Targets Section */}
-        {report && (
+        {true && (
           <div>
             <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/30 mt-3">
               <button
@@ -843,7 +877,7 @@ export default function HomeTab({
             </div>
 
             {showAllTargets && (() => {
-              const remainingEntries = Object.entries(report?.dailyNutrientTargets || {}).filter(([key]) => !['calories', 'saturatedFat', 'sodium', 'steps'].includes(key));
+              const remainingEntries = Object.entries(report?.dailyNutrientTargets || defaultNutrientTargets).filter(([key]) => !['calories', 'saturatedFat', 'sodium', 'steps'].includes(key));
               const CORE_KEYS = ['protein', 'carbohydrates', 'sugar', 'addedSugar', 'solubleFibre', 'fibre', 'potassium', 'unsaturatedFat', 'calcium', 'iron', 'cholesterol'];
               const coreTargets = remainingEntries.filter(([key]) => CORE_KEYS.includes(key));
               const additionalTargets = remainingEntries.filter(([key]) => !CORE_KEYS.includes(key));
@@ -1039,10 +1073,29 @@ export default function HomeTab({
                         <label className="text-[10px] font-bold text-slate-500">{t.label} ({t.unit})</label>
                         <input 
                           type="number"
-                          value={report && report.dailyNutrientTargets ? parseTarget((report.dailyNutrientTargets as any)[t.key], t.default) : t.default}
+                          value={parseTarget((report?.dailyNutrientTargets as any)?.[t.key] || defaultNutrientTargets[t.key], t.default)}
                           onChange={(e) => {
-                             if (onUpdateReport && report) {
-                               onUpdateReport({...report, dailyNutrientTargets: {...report.dailyNutrientTargets, [t.key]: `${e.target.value} ${t.unit}`}})
+                             if (onUpdateReport) {
+                               const currentTargets = report?.dailyNutrientTargets || defaultNutrientTargets;
+                               const updatedReport = report ? {
+                                 ...report,
+                                 dailyNutrientTargets: {
+                                   ...currentTargets,
+                                   [t.key]: `${e.target.value} ${t.unit}`
+                                 }
+                               } : {
+                                 id: "custom-report",
+                                 created_at: new Date().toISOString(),
+                                 healthBaselineCategories: [],
+                                 overallSummary: "Custom daily nutrient targets",
+                                 recommendations: [],
+                                 mostImportantNextStep: "Maintain a healthy routine",
+                                 dailyNutrientTargets: {
+                                   ...currentTargets,
+                                   [t.key]: `${e.target.value} ${t.unit}`
+                                 }
+                               };
+                               onUpdateReport(updatedReport);
                              }
                           }}
                           className="w-full bg-slate-50 dark:bg-slate-950/45 border border-slate-150 dark:border-slate-800 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 outline-none"

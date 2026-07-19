@@ -1979,11 +1979,34 @@ ${logsText}`);
           
           // Merge custom biomarker definitions into profile if any
           let mergedProfile = { ...resData.profile };
+          let defsWithApproval: { [key: string]: any } = {};
+
           if (resData.customBiomarkerDefs && Object.keys(resData.customBiomarkerDefs).length > 0) {
-            const defsWithApproval: { [key: string]: any } = {};
             Object.entries(resData.customBiomarkerDefs).forEach(([k, v]: [string, any]) => {
               defsWithApproval[k] = { ...v, needsApproval: true };
             });
+          }
+
+          if (resData.unmappedTests && Array.isArray(resData.unmappedTests)) {
+            resData.unmappedTests.forEach((test: any) => {
+              if (!test) return;
+              const raw_name = test.raw_name || (typeof test === 'string' ? test : '');
+              if (!raw_name) return;
+              const suggested_key = test.suggested_key || raw_name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+              if (!defsWithApproval[suggested_key]) {
+                defsWithApproval[suggested_key] = {
+                  name: raw_name,
+                  unit: '',
+                  normalRange: '',
+                  description: '',
+                  standardMedicalGrouping: 'By Medical Practice',
+                  needsApproval: true
+                };
+              }
+            });
+          }
+
+          if (Object.keys(defsWithApproval).length > 0) {
             mergedProfile.customBiomarkers = {
               ...(profile?.customBiomarkers || {}),
               ...defsWithApproval
@@ -2123,24 +2146,64 @@ ${logsText}`);
       const allUserText = messages.slice(0, msgIndex).filter(m => m.role === 'user').map(m => m.content).join('\n\n');
       const nextBatch = (msg.data?.agentResult?.currentBatch || 1) + 1;
 
+      const lightProfile = profile ? { ...profile } as any : null;
+      if (lightProfile) {
+        delete lightProfile.fontSizeTitle;
+        delete lightProfile.fontSizeSubtitle;
+        delete lightProfile.fontSizeSubtitleSmall;
+        delete lightProfile.fontSizeBodySmall;
+        delete lightProfile.fontSizeXS;
+        delete lightProfile.fontSizeKeyMetric;
+        delete lightProfile.fontSizeDescription;
+        delete lightProfile.photoUrl;
+        delete lightProfile.timezone;
+        delete lightProfile.language;
+        delete lightProfile.deletedBiomarkerLogIds;
+        delete lightProfile.deletedFoodLogIds;
+      }
+
       const bodyData: any = {
         agentType: 'agent1_step1',
-        message: `continue`,
+        message: `continue. CRITICAL: Do NOT map a test to an existing key if it is not a perfect match. Do not use surrogate markers. If a test does not have a perfect match in the EXISTING DATABASE KEYS, you MUST extract it as a new biomarker with a lowercase snake_case key (e.g., 'pulse_rate'). Do not generate empty or null entries for tests that are not present in the text.`,
         originalReportText: allUserText,
         currentBatch: nextBatch,
         extractedYaml: msg.data?.agentResult?.extractedYaml || msg.extractedYaml,
         remainingText: msg.data?.agentResult?.remainingText || '',
         estimatedTotalMarkers: msg.data?.agentResult?.estimatedTotalMarkers,
         numberOfBatches: numberOfBatches,
-        engine: selectedModelId
+        engine: selectedModelId,
+        userProfile: lightProfile
       };
 
       trackApiCall('gemini', `Medical Analyze - ${agentType}`);
+      const currentReqId = generateQueryId();
+      setActiveQueryId(currentReqId);
+
       const response = await fetch('/api/gemini/medical-analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Session-ID': currentReqId
+        },
         body: JSON.stringify(bodyData)
       });
+
+      try {
+        const logsRes = await fetch(`/api/gemini/debug-logs?sessionId=${currentReqId}`);
+        if (logsRes.ok) {
+           const logsData = await logsRes.json();
+           if (logsData && logsData.logs && logsData.logs.length > 0) {
+              saveAgentRequestLog({
+                 id: currentReqId,
+                 timestamp: new Date().toISOString(),
+                 summary: `[Medical Analyze] Batch ${nextBatch} (Continue)`,
+                 logs: logsData.logs
+              });
+           }
+        }
+      } catch (e) {
+        console.warn("Could not save agent request logs", e);
+      }
 
       if (!response.ok) {
         const errText = await response.text();
@@ -2159,18 +2222,22 @@ ${logsText}`);
               let oldParsed = oldYamlStr;
               if (typeof oldYamlStr === 'string') {
                 const cleanedOld = oldYamlStr.replace(/```(?:yaml|yml|json)?/gi, '').trim();
-                oldParsed = parse(cleanedOld);
+                try {
+                  oldParsed = JSON.parse(cleanedOld);
+                } catch(e) {
+                  oldParsed = parse(cleanedOld);
+                }
               }
               oldEntries = Array.isArray(oldParsed) 
                 ? oldParsed 
                 : (oldParsed?.biomarkers || oldParsed?.entries || oldParsed?.data || []);
               if (!Array.isArray(oldEntries)) oldEntries = [];
             } catch (e) {
-              console.warn("Failed to parse old YAML", e);
+              console.warn("Failed to parse old JSON/YAML", e);
             }
           }
 
-          // Parse new YAML entries
+          // Parse new JSON entries
           const newYamlStr = resData.extractedYaml || '';
           let newEntries: any[] = [];
           if (newYamlStr) {
@@ -2178,7 +2245,11 @@ ${logsText}`);
               let newParsed = newYamlStr;
               if (typeof newYamlStr === 'string') {
                 const cleanedNew = newYamlStr.replace(/```(?:yaml|yml|json)?/gi, '').trim();
-                newParsed = parse(cleanedNew);
+                try {
+                  newParsed = JSON.parse(cleanedNew);
+                } catch(e) {
+                  newParsed = parse(cleanedNew);
+                }
               }
               newEntries = Array.isArray(newParsed) 
                 ? newParsed 
@@ -2210,15 +2281,29 @@ ${logsText}`);
             }
           });
 
-          // Convert combined back to YAML
+          // Convert combined back to JSON
           let combinedYamlStr = resData.extractedYaml || oldYamlStr;
           if (combinedEntries.length > 0) {
             try {
-              combinedYamlStr = stringify(combinedEntries);
+              combinedYamlStr = JSON.stringify(combinedEntries, null, 2);
             } catch (e) {
               console.warn("Failed to stringify combined entries", e);
             }
           }
+          
+          let combinedUnmappedTests = [
+            ...(Array.isArray(m.data?.agentResult?.unmappedTests) ? m.data.agentResult.unmappedTests : []),
+            ...(Array.isArray(resData.unmappedTests) ? resData.unmappedTests : [])
+          ];
+          
+          // Deduplicate unmapped tests by raw_name
+          const uniqueUnmapped = new Map();
+          combinedUnmappedTests.forEach(test => {
+            if (test && test.raw_name) {
+              uniqueUnmapped.set(test.raw_name, test);
+            }
+          });
+          combinedUnmappedTests = Array.from(uniqueUnmapped.values());
 
           const updatedMsg = {
             ...m,
@@ -2232,6 +2317,7 @@ ${logsText}`);
                 hasMoreMarkers: resData.hasMoreMarkers,
                 remainingText: resData.remainingText || '',
                 currentBatch: resData.currentBatch || nextBatch,
+                unmappedTests: combinedUnmappedTests,
                 estimatedTotalMarkers: resData.estimatedTotalMarkers !== undefined ? resData.estimatedTotalMarkers : m.data?.agentResult?.estimatedTotalMarkers
               }
             }
@@ -2262,12 +2348,29 @@ ${logsText}`);
   const handleAgent1Step = async (step: 'agent1_step2' | 'agent1_step3', msg: any) => {
     setIsAnalyzing(true);
     try {
+      const lightProfile = profile ? { ...profile } as any : null;
+      if (lightProfile) {
+        delete lightProfile.fontSizeTitle;
+        delete lightProfile.fontSizeSubtitle;
+        delete lightProfile.fontSizeSubtitleSmall;
+        delete lightProfile.fontSizeBodySmall;
+        delete lightProfile.fontSizeXS;
+        delete lightProfile.fontSizeKeyMetric;
+        delete lightProfile.fontSizeDescription;
+        delete lightProfile.photoUrl;
+        delete lightProfile.timezone;
+        delete lightProfile.language;
+        delete lightProfile.deletedBiomarkerLogIds;
+        delete lightProfile.deletedFoodLogIds;
+      }
+
       const bodyData: any = {
         agentType: step,
         extractedYaml: msg.data?.agentResult?.extractedYaml || msg.extractedYaml,
         bucketMapping: msg.data?.agentResult?.bucketMapping ? JSON.stringify(msg.data?.agentResult.bucketMapping) : msg.data?.bucketMapping ? JSON.stringify(msg.data?.bucketMapping) : undefined,
         message: "Continue processing",
-        engine: selectedModelId
+        engine: selectedModelId,
+        userProfile: lightProfile
       };
 
       // To grab yaml and mapping correctly from previous messages
@@ -2290,11 +2393,34 @@ ${logsText}`);
       setLastSentPayload(displayPayload);
 
       trackApiCall('gemini', `Medical Analyze - ${agentType}`);
+      const currentReqId = generateQueryId();
+      setActiveQueryId(currentReqId);
+
       const response = await fetch('/api/gemini/medical-analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'X-Session-ID': currentReqId
+        },
         body: JSON.stringify(bodyData)
       });
+
+      try {
+        const logsRes = await fetch(`/api/gemini/debug-logs?sessionId=${currentReqId}`);
+        if (logsRes.ok) {
+           const logsData = await logsRes.json();
+           if (logsData && logsData.logs && logsData.logs.length > 0) {
+              saveAgentRequestLog({
+                 id: currentReqId,
+                 timestamp: new Date().toISOString(),
+                 summary: `[Medical Analyze] Processing Step: ${step}`,
+                 logs: logsData.logs
+              });
+           }
+        }
+      } catch (e) {
+        console.warn("Could not save agent request logs", e);
+      }
 
       if (!response.ok) {
         const errText = await response.text();

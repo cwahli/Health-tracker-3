@@ -8,6 +8,7 @@ import BiomarkerRangeBuilder, { parseNormalRangeStr } from './BiomarkerRangeBuil
 import CombineBiomarkersModal from './CombineBiomarkersModal';
 import LLMSelector from './LLMSelector';
 import FullScreenInstructionViewer from './FullScreenInstructionViewer';
+import { saveAgentRequestLog } from '../utils/agentLogsTracker';
 
 interface BiomarkerDictionaryModalProps {
   profile: UserProfile;
@@ -1299,6 +1300,25 @@ I can analyze these, compare them with our database keys, and find standard mapp
       }
 
       const result = await response.json();
+      const sessionId = getSessionId();
+
+      // Capture and save agent debug logs for this request
+      try {
+        const logsRes = await fetch(`/api/gemini/debug-logs?sessionId=${sessionId}`);
+        if (logsRes.ok) {
+          const logsData = await logsRes.json();
+          if (logsData && logsData.logs && logsData.logs.length > 0) {
+            saveAgentRequestLog({
+              id: sessionId,
+              timestamp: new Date().toISOString(),
+              summary: `[Accuracy] Checked accuracy of ${selectedKeys.length || 'all'} biomarker(s)`,
+              logs: logsData.logs
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("Could not save agent request logs", e);
+      }
 
       // Save the agent payload/analysis results to the user profile's log history (agentAnalyses)
       const newAnalysis = {
@@ -1630,6 +1650,27 @@ I can analyze these, compare them with our database keys, and find standard mapp
 
       setStandardizationSummary(parsed);
 
+      // Capture and save agent debug logs for this request
+      try {
+        const logsRes = await fetch(`/api/gemini/debug-logs?sessionId=${sessionId}`);
+        if (logsRes.ok) {
+          const logsData = await logsRes.json();
+          if (logsData && logsData.logs && logsData.logs.length > 0) {
+            const summaryText = isMedicalCategorisationMode 
+              ? `[Categorisation] Processed ${selectedKeys.length} biomarker(s)`
+              : `[Standardization] Standardized ${selectedKeys.length} biomarker(s)`;
+            saveAgentRequestLog({
+              id: sessionId,
+              timestamp: new Date().toISOString(),
+              summary: summaryText,
+              logs: logsData.logs
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("Could not save agent request logs", e);
+      }
+
       // Persist the agent call/result so it survives modal close and appears in agent history,
       // matching the pattern already used by Data Accuracy and Name Consolidation agents.
       const agentTypeForLog = isMedicalCategorisationMode ? 'medical_categorise' : 'standardize_units';
@@ -1781,6 +1822,24 @@ I can analyze these, compare them with our database keys, and find standard mapp
       const parsed = data.consolidatedGroups || data.groups || [];
       setConsolidationYaml(JSON.stringify(parsed, null, 2));
       setConsolidationGroups(parsed);
+
+      // Capture and save agent debug logs for this request
+      try {
+        const logsRes = await fetch(`/api/gemini/debug-logs?sessionId=${sessionId}`);
+        if (logsRes.ok) {
+          const logsData = await logsRes.json();
+          if (logsData && logsData.logs && logsData.logs.length > 0) {
+            saveAgentRequestLog({
+              id: sessionId,
+              timestamp: new Date().toISOString(),
+              summary: `[Consolidation] Consolidated ${selectedKeys.length} biomarker(s)`,
+              logs: logsData.logs
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("Could not save agent request logs", e);
+      }
 
       const newAnalysis = {
         id: `analysis_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
@@ -4158,6 +4217,33 @@ I can analyze these, compare them with our database keys, and find standard mapp
               ) : (
                 <div className="text-center py-8 text-slate-400 dark:text-slate-500 text-xs">
                   No biomarkers found matching the filter options.
+                  {searchQuery && (
+                    <div className="mt-4">
+                      <button
+                        onClick={() => {
+                          const newKey = searchQuery.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+                          const newCustomBiomarkers = { ...profile.customBiomarkers };
+                          newCustomBiomarkers[newKey] = {
+                            name: searchQuery.includes('_') 
+                              ? searchQuery.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ')
+                              : searchQuery,
+                            unit: '',
+                            normalRange: '',
+                            description: '',
+                            standardMedicalGrouping: 'By Medical Practice',
+                            riskCategories: [],
+                            potentialMedicalConditions: [],
+                            needsApproval: true
+                          };
+                          onUpdateProfile({ customBiomarkers: newCustomBiomarkers });
+                          setSearchQuery('');
+                        }}
+                        className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm shadow-indigo-600/10 cursor-pointer"
+                      >
+                        Create New Biomarker: "{searchQuery}"
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
             </div>

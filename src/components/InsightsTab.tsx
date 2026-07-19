@@ -849,6 +849,25 @@ export default function InsightsTab({
       }
     });
 
+    // 3. Add unmappedTests to customBiomarkers with needsApproval = true
+    if (result?.unmappedTests && Array.isArray(result.unmappedTests)) {
+      result.unmappedTests.forEach((test: any) => {
+        const raw_name = test?.raw_name || (typeof test === 'string' ? test : '');
+        if (!raw_name) return;
+        const suggested_key = test?.suggested_key || raw_name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+        if (!updatedCustoms[suggested_key]) {
+          updatedCustoms[suggested_key] = {
+            name: raw_name,
+            unit: '',
+            normalRange: '',
+            description: '',
+            standardMedicalGrouping: 'By Medical Practice',
+            needsApproval: true
+          };
+        }
+      });
+    }
+
     currentHistory.sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
 
     // Recompute biomarkers list

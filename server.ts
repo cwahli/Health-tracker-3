@@ -3455,6 +3455,17 @@ let {
             required: ["biomarker", "date", "updated_at", "unit", "explanation"]
           }
         },
+        unmappedTests: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              raw_name: { type: Type.STRING },
+              suggested_key: { type: Type.STRING }
+            },
+            required: ["raw_name", "suggested_key"]
+          }
+        },
         text: { type: Type.STRING, description: "Friendly clinical conversational message to the user." },
         hasMoreMarkers: { type: Type.BOOLEAN },
         remainingText: { type: Type.STRING },
@@ -3574,46 +3585,66 @@ You MUST output ONLY a valid JSON object containing:
       } else if (agentType === "agent1_step1") {
         const itemsPerBatch = 50; // Force 50 regardless of req.body value
         
-        systemInstruction = `agent_profile:
-  role: "Expert Clinical Data Extractor and Lossless Data Conduit"
-  objective: "Parse raw medical reports/text/images, isolate distinct biomarker measurements, and structure them verbatim into standard clinical format."
-critical_extraction_rules:
-  zero_math_verbatim_extraction: "You are strictly forbidden from performing any calculations, normalizations, or unit conversions. Extract the exact numerical value and the exact unit provided in the text."
-  verbatim_qualitative_data: "Qualitative results (e.g., 'Negative', 'Trace', 'High') must be extracted exactly as written."
-  dictionary_mapping: "You are strictly forbidden from inventing new biomarker keys. You must only select keys from the provided enum list in the JSON schema."
-  unit_standardization: "Standardize 'µg/L' and 'ug/L' to always return as 'ug/L' (they are equivalent)."
-mode_routing:
-  priority: "Always prioritize structured data extraction over conversational text when raw medical data/text/photos are present."
-chunked_processing:
-  limit_per_chunk: ${itemsPerBatch}
-  behavior:
-    - "Extract ONLY the first ${itemsPerBatch} biomarker entries in this chunk."
-    - "If you reach the limit of ${itemsPerBatch} extracted biomarkers, set 'hasMoreMarkers' to true in your JSON response."
-    - "Copy ALL remaining unparsed report text/context verbatim from the very next character after the last extracted entry to the absolute end of the input raw medical data into 'remainingText'. Do NOT truncate, summarize, or skip this text. It is critical that all remaining lines are kept in 'remainingText' so they can be parsed in the next chunk."
-    - "In the 'text' response, kindly inform the user you have completed this chunk and ask to continue."
-    - "If total remaining biomarkers <= ${itemsPerBatch}, set 'hasMoreMarkers' to false and 'remainingText' to empty string."
-required_output_format:
-  response_schema:
-    extractedData: "A JSON array of objects, containing the newly extracted biomarker entries. If the user message is 'continue', parse the next batch from the 'REMAINING UNPARSED TEXT' and do NOT repeat or duplicate the entries from 'PREVIOUSLY EXTRACTED YAML'."
-    text: "string (Friendly clinical conversational message)"
-    hasMoreMarkers: "boolean"
-    remainingText: "string"
-    estimatedTotalMarkers: "number (Realistic, non-hallucinated estimate of total distinct biomarker readings present in original report text. e.g. count lines of tests.)"
-extracted_data_schema:
-  - biomarker: "string (MUST use the standard canonical ID if a match is found. Do not invent new keys if a synonym exists)"
-    date: "YYYY-MM-DD"
-    updated_at: "number (Unix timestamp of extraction)"
-    numeric_value: "number or null"
-    qualitative_value: "string or null"
-    unit: "string (verbatim from text)"
-    explanation: "string (why/how it was mapped or created)"
-rules_for_inputs:
-  raw_data_extraction: "Extract only from raw text/report. Do NOT extract from pre-existing logs."
-  continue_extracting: "If the user message is 'continue', you MUST find the position of the last extracted entry from 'PREVIOUSLY EXTRACTED YAML' inside the 'USER RAW DATA' or 'REMAINING UNPARSED TEXT'. Then, parse the NEXT batch of up to ${itemsPerBatch} biomarkers starting EXACTLY from that point. You MUST NOT repeat, duplicate, or include ANY entries that are already present in the 'PREVIOUSLY EXTRACTED YAML' or already extracted in previous batches. Make sure 'hasMoreMarkers' is true if there is still more unparsed raw report text remaining."
-  update_data: "Support editing, adding, or deleting biomarkers in the array."
+        systemInstruction = `{
+  "agent_profile": {
+    "role": "Expert Clinical Data Extractor and Lossless Data Conduit",
+    "objective": "Parse raw medical reports/text/images, isolate distinct biomarker measurements, and structure them verbatim into standard clinical format."
+  },
+  "critical_extraction_rules": {
+    "zero_math_verbatim_extraction": "You are strictly forbidden from performing any calculations, normalizations, or unit conversions. Extract the exact numerical value and the exact unit provided in the text.",
+    "verbatim_qualitative_data": "Qualitative results (e.g., 'Negative', 'Trace', 'High') must be extracted exactly as written.",
+    "dictionary_mapping": "You are strictly forbidden from inventing new biomarker keys. You must only select keys from the EXACT provided EXISTING DATABASE KEYS enum list. Do NOT guess or use synonyms.",
+    "unit_standardization": "Standardize 'µg/L' and 'ug/L' to always return as 'ug/L' (they are equivalent). Treat 'u/week' and 'units/week' as equivalent and output as 'u/week'."
+  },
+  "mode_routing": {
+    "priority": "Always prioritize structured data extraction over conversational text when raw medical data/text/photos are present."
+  },
+  "chunked_processing": {
+    "limit_per_chunk": ${itemsPerBatch},
+    "behavior": [
+      "Extract ONLY the first ${itemsPerBatch} biomarker entries in this chunk.",
+      "If you reach the limit of ${itemsPerBatch} extracted biomarkers, set 'hasMoreMarkers' to true in your JSON response.",
+      "Copy ALL remaining unparsed report text/context verbatim from the very next character after the last extracted entry to the absolute end of the input raw medical data into 'remainingText'. Do NOT truncate, summarize, or skip this text. It is critical that all remaining lines are kept in 'remainingText' so they can be parsed in the next chunk.",
+      "In the 'text' response, kindly inform the user you have completed this chunk and ask to continue.",
+      "If total remaining biomarkers <= ${itemsPerBatch}, set 'hasMoreMarkers' to false and 'remainingText' to empty string."
+    ]
+  },
+  "required_output_format": {
+    "response_schema": {
+      "extractedData": "A JSON array of objects, containing the newly extracted biomarker entries. If the user message is 'continue', parse the next batch from the 'REMAINING UNPARSED TEXT' and do NOT repeat or duplicate the entries from 'PREVIOUSLY EXTRACTED JSON'.",
+      "unmappedTests": [
+        {
+          "raw_name": "string (The exact test name from the text)",
+          "suggested_key": "string (A clean, lowercase snake_case key suggestion for this test, e.g., 'pulse_rate', 'sars_cov_2_rna')"
+        }
+      ],
+      "text": "string (Friendly clinical conversational message)",
+      "hasMoreMarkers": "boolean",
+      "remainingText": "string",
+      "estimatedTotalMarkers": "number (Realistic, non-hallucinated estimate of total distinct biomarker readings present in original report text.)"
+    }
+  },
+  "extracted_data_schema": [
+    {
+      "biomarker": "string (MUST be an exact match from the EXISTING DATABASE KEYS array. Do not guess, map synonyms, or invent new keys.)",
+      "date": "YYYY-MM-DD",
+      "updated_at": "number (Unix timestamp of extraction)",
+      "numeric_value": "number or null",
+      "qualitative_value": "string or null",
+      "unit": "string (verbatim from text)",
+      "explanation": "string (why/how it was mapped or created)"
+    }
+  ],
+  "rules_for_inputs": {
+    "raw_data_extraction": "Extract only from raw text/report. Do NOT extract from pre-existing logs.",
+    "unmapped_data_handling": "If a test in the raw data does not perfectly match an existing key in the enum list, do NOT force a mapping into 'extractedData'. You must completely skip it in 'extractedData' and instead add it to the 'unmappedTests' array, providing both the 'raw_name' and a 'suggested_key' formatted in lowercase snake_case.",
+    "continue_extracting": "If the user message is 'continue', you MUST find the position of the last extracted entry from 'PREVIOUSLY EXTRACTED JSON' inside the 'USER RAW DATA' or 'REMAINING UNPARSED TEXT'. Then, parse the NEXT batch of up to ${itemsPerBatch} biomarkers starting EXACTLY from that point. You MUST NOT repeat, duplicate, or include ANY entries that are already present in the 'PREVIOUSLY EXTRACTED JSON'.",
+    "update_data": "Support editing, adding, or deleting biomarkers in the array."
+  }
+}
 
 === EXISTING DATABASE KEYS ===
-[${Array.from(new Set([...biomarkerDefinitions.map(d => d.key), ...Object.keys(userProfile?.customBiomarkers || {})])).join(', ')}]`;
+${Array.from(new Set([...biomarkerDefinitions.map(d => d.key), ...Object.keys(userProfile?.customBiomarkers || {})])).join(', ')}`;
         mockData = {};
       } else if (agentType === "agent1") {
         systemInstruction = `You are an expert Clinical Data Parser and Medical Ontology Agent.
@@ -3639,12 +3670,12 @@ Your output MUST be valid JSON using the schema provided. Return the array of bi
       } else if (agentType === "agent2" || agentType === "agent1_step2") {
         systemInstruction = `You are an expert Clinical Ontologist and conversational health assistant (Step 2: Category Mapping).
 Your tasks:
-1. Identify all unique biomarkers in the YAML list and categorize them by associating:
+1. Identify all unique biomarkers in the JSON list and categorize them by associating:
    - "riskCategories": An array of matching risk categories. Choose from: 'Cardiovascular', 'Kidney & hydration', 'Metabolic & glycemic', 'Liver & hepatitis stress', 'Hematology'. If none match, you can use other appropriate categories.
    - "standardMedicalGrouping": Choose exactly ONE of these standard physiological groupings: 'Metabolic', 'Hepatic', 'Renal', 'Hematology', 'Biometrics', or 'Other'.
    - "potentialMedicalConditions": An array of related medical conditions or risks (e.g. ['Diabetes Risk', 'Insulin Resistance', 'Obesity', 'Anemia', 'Hepatitis Stress', 'Fatty Liver', 'Chronic Kidney Disease']).
 CRITICAL CATEGORY ASSIGNMENT RULE: For EVERY single biomarker in "bucketMapping", you MUST assign at least ONE category in "riskCategories" (never leave it empty), exactly ONE standard grouping in "standardMedicalGrouping" (never leave it empty), and at least ONE related condition in "potentialMedicalConditions" (never leave it empty).
-CRITICAL REQUIREMENT: You MUST map EVERY SINGLE UNIQUE BIOMARKER found in the provided YAML. Do NOT skip or omit any biomarkers. If there are 65 biomarkers in the YAML, your dictionary MUST contain exactly 65 keys.
+CRITICAL REQUIREMENT: You MUST map EVERY SINGLE UNIQUE BIOMARKER found in the provided JSON data. Do NOT skip or omit any biomarkers. If there are 65 biomarkers in the JSON, your dictionary MUST contain exactly 65 keys.
 2. Handle conversational questions, updates, requests to go back, or requests to continue/submit from the user.
 
 You MUST respond with a JSON object containing the following keys:
@@ -3676,8 +3707,8 @@ Make sure your entire output is valid JSON, containing "text" and "bucketMapping
       } else if (agentType === "agent3" || agentType === "agent1_step3") {
         systemInstruction = `You are a clinical data coordinator and conversational health assistant (Step 3: Data Assembly).
 Your tasks:
-1. Assemble the flat YAML biomarker logs and the bucket mapping dictionary into a structured physiological nested JSON.
-CRITICAL REQUIREMENT: You MUST include EVERY SINGLE BIOMARKER ENTRY from the YAML. Do NOT skip or omit any biomarkers or history entries.
+1. Assemble the flat JSON biomarker logs and the bucket mapping dictionary into a structured physiological nested JSON.
+CRITICAL REQUIREMENT: You MUST include EVERY SINGLE BIOMARKER ENTRY from the JSON. Do NOT skip or omit any biomarkers or history entries.
 2. EXTREME DIVERGENCE FLAG: If you notice an extreme divergence in a biomarker value (e.g., highly unlikely, physiologically impossible, or a very clear metric unit mismatch like US vs SI), you MUST flag it by adding an array "flaggedAnomalies" to your JSON output. Mention this in your "text" response so the user can verify, confirm, or edit it (which may involve updating the metric unit).
 3. Handle conversational questions, updates, requests to go back, or requests to continue/submit from the user.
 
@@ -4107,29 +4138,29 @@ Your output MUST be a valid JSON object matching the schema provided.`;
           biomarkerHistory: biomarkerHistory || []
         };
 
-        let yamlStr = "";
+        let jsonStr = "";
         if (req.body.extractedYaml) {
           if (typeof req.body.extractedYaml === 'string') {
-            yamlStr = req.body.extractedYaml;
+            jsonStr = req.body.extractedYaml;
           } else {
-            yamlStr = jsToYaml(req.body.extractedYaml);
+            jsonStr = JSON.stringify(req.body.extractedYaml, null, 2);
           }
         }
 
         let dataContext = "";
         if (agentType === "agent1_step1") {
-          const prevYaml = yamlStr ? `\n\nPREVIOUSLY EXTRACTED YAML:\n${yamlStr}` : "";
+          const prevJson = jsonStr ? `\n\nPREVIOUSLY EXTRACTED JSON:\n${jsonStr}` : "";
           const remText = req.body.remainingText ? `\n\nREMAINING UNPARSED TEXT:\n${req.body.remainingText}` : "";
           const prevTotal = req.body.estimatedTotalMarkers ? `\n\nPREVIOUSLY ESTIMATED TOTAL MARKERS:\n${req.body.estimatedTotalMarkers}` : "";
           const baseData = customVariableData ? `\n\n${customVariableData}\n` : `\n\nUSER PROFILE:\n${JSON.stringify(cleanProfile, null, 2)}\n`;
           const reportSource = req.body.originalReportText || message;
-          dataContext = `\n\nUSER RAW DATA:\n${reportSource}${prevYaml}${remText}${prevTotal}${baseData}`;
+          dataContext = `\n\nUSER RAW DATA:\n${reportSource}${prevJson}${remText}${prevTotal}${baseData}`;
         } else if (agentType === "agent1_step2") {
           const baseData = customVariableData ? `\n\n${customVariableData}\n` : "";
-          dataContext = `${baseData}\n\nEXTRACTED YAML DATA:\n${yamlStr}\n`;
+          dataContext = `${baseData}\n\nEXTRACTED JSON DATA:\n${jsonStr}\n`;
         } else if (agentType === "agent1_step3") {
           const baseData = customVariableData ? `\n\n${customVariableData}\n` : "";
-          dataContext = `${baseData}\n\nEXTRACTED YAML DATA:\n${yamlStr}\n\nBUCKET MAPPING JSON:\n${req.body.bucketMapping}\n`;
+          dataContext = `${baseData}\n\nEXTRACTED JSON DATA:\n${jsonStr}\n\nBUCKET MAPPING JSON:\n${req.body.bucketMapping}\n`;
         } else if (agentType === "data_review") {
           const batchData = req.body.batchBiomarkers || [];
           const baseData = customVariableData ? `\n\n${customVariableData}\n` : `\n\nUSER PROFILE:\n${JSON.stringify(cleanProfile, null, 2)}\n`;
@@ -4189,7 +4220,7 @@ Your output MUST be a valid JSON object matching the schema provided.`;
               }
               const parsed = JSON.parse(cleanJson);
               
-              const expectedCount = (yamlStr?.match(/- biomarker:/g) || []).length;
+              const expectedCount = (jsonStr?.match(/"biomarker":/g) || []).length;
               let actualCount = 0;
               if (parsed.buckets && Array.isArray(parsed.buckets)) {
                 parsed.buckets.forEach((b: any) => {
@@ -4216,7 +4247,7 @@ Your output MUST be a valid JSON object matching the schema provided.`;
                 textOutput = cleanJson;
               } else {
                 console.log(`Agent 3 retry ${attempt}: Expected ${expectedCount} entries, got ${actualCount}`);
-                promptText += `\n\nERROR: You missed some entries. I expected ${expectedCount} historical log entries based on the YAML, but you only outputted ${actualCount}. You MUST include EVERY single entry from the YAML. Do not summarize or skip any.`;
+                promptText += `\n\nERROR: You missed some entries. I expected ${expectedCount} historical log entries based on the JSON data, but you only outputted ${actualCount}. You MUST include EVERY single entry from the JSON. Do not summarize or skip any.`;
               }
             } catch (err) {
               console.error("Agent 3 parse error:", err);
@@ -4234,6 +4265,7 @@ Your output MUST be a valid JSON object matching the schema provided.`;
         let hasMoreMarkers = false;
         let remainingText = "";
         let estimatedTotalMarkers: number | null = null;
+        let unmappedTests: any[] = [];
         try {
           const parsed = JSON.parse(textOutput.replace(/```(?:json)?/gi, "").trim());
           if (parsed.extractedData) {
@@ -4243,6 +4275,9 @@ Your output MUST be a valid JSON object matching the schema provided.`;
           }
           if (parsed.text) {
             text = parsed.text;
+          }
+          if (parsed.unmappedTests) {
+            unmappedTests = parsed.unmappedTests;
           }
           
           if (Array.isArray(cleanYaml)) {
@@ -4293,6 +4328,7 @@ Your output MUST be a valid JSON object matching the schema provided.`;
           hasMoreMarkers,
           remainingText,
           estimatedTotalMarkers,
+          unmappedTests,
           currentBatch: req.body.currentBatch || 1,
           agentPrompt: fullPromptSent,
           apiCalls: [{ type: 'gemini', label: `Medical History Agent (${engine || 'gemini-3.1-flash-lite'})` }]
@@ -5159,9 +5195,15 @@ app.post("/api/gemini/medical-categorise", async (req, res) => {
 
 === OBJECTIVE ===
 For each provided biomarker, determine:
-1. Standard Medical Grouping. Allowed values ONLY: 'Metabolic', 'Hepatic', 'Renal', 'Hematology', 'Biometrics', 'Other'
-2. Risk Categories. A JSON array of string tags representing associated risks. YOU MUST ONLY CHOOSE FROM THESE EXACT CATEGORIES: "Cardiovascular", "Kidney", "Metabolic", "Liver", "Hematology", "Wellness", "Screenings". Do NOT invent new ones. CRITICAL: You MUST assign AT LEAST ONE category to EVERY biomarker. If no specific pathological risk applies, you MUST use "Wellness" or "Screenings" as a default. Never return an empty array [].
-3. Potential Medical Conditions. A JSON array of string tags (e.g. ["Fatty Liver", "Obesity"]) representing associated conditions. If none apply, you MUST return an empty array [].
+1. Standard Medical Grouping. Allowed values ONLY: 'Metabolic', 'Hepatic', 'Renal', 'Hematology', 'Biometrics', 'Other' (Even if it is 'Other', it is considered categorized).
+2. Risk Categories. A JSON array of string tags representing associated risks. YOU MUST ONLY CHOOSE FROM THESE EXACT CATEGORIES: "Cardiovascular", "Kidney", "Metabolic", "Liver", "Hematology", "Wellness", "Screenings". Do NOT invent new ones. CRITICAL: You MUST assign AT LEAST ONE category to EVERY biomarker. Never return an empty array [].
+3. Potential Medical Conditions. A JSON array of string tags representing associated clinical conditions, clinical states, symptoms, or indicators. CRITICAL: You MUST assign AT LEAST ONE potential medical condition to EVERY biomarker. Never return an empty array [].
+
+=== CLINICAL REASONING FOR UNUSUAL OR BIOMETRIC MEASUREMENTS ===
+You must think through the clinical reasoning of why specific measurements are taken at all and associate them with relevant medical conditions.
+- For biometric markers like "steps": think about why physical activity is tracked and associate it with conditions/states such as "Sedentary State", "Physical Deconditioning", "Cardiovascular Inactivity", or "General Fitness".
+- For platelet markers like "platelet_distribution_width" (PDW) or general platelets: think through why they are measured (e.g. platelet size variability, bone marrow activity, clot formation) and associate them with relevant clinical conditions such as "acute infections", "chronic inflammatory disorders", "aplastic anemia", "nutritional deficiencies".
+- Do not leave any fields blank or empty. Every biomarker must have at least one value for every single field/grouping.
 
 CRITICAL: You MUST include all fields (standardMedicalGrouping, riskCategories, potentialMedicalConditions) for every biomarker in your JSON output.
 
