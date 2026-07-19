@@ -15,6 +15,7 @@ import GoogleHealthIntegration from './GoogleHealthIntegration';
 import FullScreenLogViewer from './FullScreenLogViewer';
 import ApiCallTrackerModal from './ApiCallTrackerModal';
 import UserManagementTab from './UserManagementTab';
+import BackupRestoreTab from './BackupRestoreTab';
 import { Activity } from 'lucide-react';
 import {
   getGoogleAccessToken,
@@ -86,6 +87,9 @@ interface HeaderProps {
   dbInteractions?: DbInteraction[];
   quota?: QuotaData;
   foodLogs?: FoodLog[];
+  setFoodLogs?: (f: FoodLog[]) => void;
+  biomarkerHistory?: any[];
+  setBiomarkerHistory?: (b: any[]) => void;
   activeTab?: string;
   autoSyncDisabled?: boolean;
   onChangeAutoSyncDisabled?: (disabled: boolean) => void;
@@ -115,6 +119,9 @@ export default function Header({
   dbInteractions = [],
   quota,
   foodLogs = [],
+  setFoodLogs,
+  biomarkerHistory = [],
+  setBiomarkerHistory,
   activeTab = 'home',
   autoSyncDisabled = false,
   onChangeAutoSyncDisabled
@@ -128,7 +135,7 @@ export default function Header({
     if (saved) return saved as 'admin' | 'user';
     return 'admin';
   });
-  const [activeAdminTab, setActiveAdminTab] = useState<'sync' | 'users'>('sync');
+  const [activeAdminTab, setActiveAdminTab] = useState<'sync' | 'users' | 'backup'>('sync');
   const [showAgentLogs, setShowAgentLogs] = useState(false);
   const [showApiTracker, setShowApiTracker] = useState(false);
   const [isTrackerOpen, setIsTrackerOpen] = useState(false);
@@ -777,9 +784,6 @@ export default function Header({
 
             {/* Preferences & Session */}
             <div className="col-span-2 border-t border-slate-100 dark:border-slate-800/85 mt-2 pt-3 text-left">
-              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Google Health Integration</span>
-              <GoogleHealthIntegration profile={profile} />
-              
               <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2 mt-4">Preferences & Session</span>
               <div className="grid grid-cols-2 gap-3 mb-4">
                 {/* Language Selection */}
@@ -1238,7 +1242,19 @@ export default function Header({
                         : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
                     }`}
                   >
-                    Sync, Telemetry & Backup
+                    Sync & Telemetry
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setActiveAdminTab('backup')}
+                    className={`pb-3 text-xs font-bold transition-all border-b-2 relative cursor-pointer flex items-center gap-1.5 ${
+                      activeAdminTab === 'backup'
+                        ? 'border-indigo-600 text-indigo-600 dark:text-indigo-400'
+                        : 'border-transparent text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'
+                    }`}
+                  >
+                    <Archive className="w-4 h-4" />
+                    Backup
                   </button>
                   <button
                     type="button"
@@ -1257,6 +1273,26 @@ export default function Header({
 
               {dbOverlayViewMode === 'admin' && activeAdminTab === 'users' ? (
                 <UserManagementTab />
+              ) : dbOverlayViewMode === 'admin' && activeAdminTab === 'backup' ? (
+                <div className="space-y-6 max-h-[75vh] overflow-y-auto pb-8">
+                  <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 mx-4 mt-4">
+                    <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
+                      <Cloud className="w-5 h-5 text-indigo-400" />
+                      Google Workspace Integration
+                    </h3>
+                    <p className="text-sm text-slate-400 mb-4">
+                      Connect your Google account to enable Google Drive backup and sync capabilities for your health data.
+                    </p>
+                    <GoogleHealthIntegration profile={profile} />
+                  </div>
+                  <BackupRestoreTab 
+                     profile={profile} 
+                     foodLogs={foodLogs || []} 
+                     biomarkerHistory={biomarkerHistory || []} 
+                     setFoodLogs={setFoodLogs || (() => {})} 
+                     setBiomarkerHistory={setBiomarkerHistory || (() => {})} 
+                  />
+                </div>
               ) : (
                 <>
                   {/* Cloud Sync Mode Strategy Select Card */}

@@ -3586,6 +3586,7 @@ Your tasks:
    - "riskCategories": An array of matching risk categories. Choose from: 'Cardiovascular', 'Kidney & hydration', 'Metabolic & glycemic', 'Liver & hepatitis stress', 'Hematology'. If none match, you can use other appropriate categories.
    - "standardMedicalGrouping": Choose exactly ONE of these standard physiological groupings: 'Metabolic', 'Hepatic', 'Renal', 'Hematology', 'Biometrics', or 'Other'.
    - "potentialMedicalConditions": An array of related medical conditions or risks (e.g. ['Diabetes Risk', 'Insulin Resistance', 'Obesity', 'Anemia', 'Hepatitis Stress', 'Fatty Liver', 'Chronic Kidney Disease']).
+CRITICAL CATEGORY ASSIGNMENT RULE: For EVERY single biomarker in "bucketMapping", you MUST assign at least ONE category in "riskCategories" (never leave it empty), exactly ONE standard grouping in "standardMedicalGrouping" (never leave it empty), and at least ONE related condition in "potentialMedicalConditions" (never leave it empty).
 CRITICAL REQUIREMENT: You MUST map EVERY SINGLE UNIQUE BIOMARKER found in the provided YAML. Do NOT skip or omit any biomarkers. If there are 65 biomarkers in the YAML, your dictionary MUST contain exactly 65 keys.
 2. Handle conversational questions, updates, requests to go back, or requests to continue/submit from the user.
 
@@ -4076,16 +4077,17 @@ reviewedBiomarkers: []`;
           biomarkerHistory: biomarkerHistory || []
         };
 
+        let yamlStr = "";
+        if (req.body.extractedYaml) {
+          if (typeof req.body.extractedYaml === 'string') {
+            yamlStr = req.body.extractedYaml;
+          } else {
+            yamlStr = jsToYaml(req.body.extractedYaml);
+          }
+        }
+
         let dataContext = "";
         if (agentType === "agent1_step1") {
-          let yamlStr = "";
-          if (req.body.extractedYaml) {
-            if (typeof req.body.extractedYaml === 'string') {
-              yamlStr = req.body.extractedYaml;
-            } else {
-              yamlStr = jsToYaml(req.body.extractedYaml);
-            }
-          }
           const prevYaml = yamlStr ? `\n\nPREVIOUSLY EXTRACTED YAML:\n${yamlStr}` : "";
           const remText = req.body.remainingText ? `\n\nREMAINING UNPARSED TEXT:\n${req.body.remainingText}` : "";
           const prevTotal = req.body.estimatedTotalMarkers ? `\n\nPREVIOUSLY ESTIMATED TOTAL MARKERS:\n${req.body.estimatedTotalMarkers}` : "";
@@ -4094,10 +4096,10 @@ reviewedBiomarkers: []`;
           dataContext = `\n\nUSER RAW DATA:\n${reportSource}${prevYaml}${remText}${prevTotal}${baseData}`;
         } else if (agentType === "agent1_step2") {
           const baseData = customVariableData ? `\n\n${customVariableData}\n` : "";
-          dataContext = `${baseData}\n\nEXTRACTED YAML DATA:\n${req.body.extractedYaml}\n`;
+          dataContext = `${baseData}\n\nEXTRACTED YAML DATA:\n${yamlStr}\n`;
         } else if (agentType === "agent1_step3") {
           const baseData = customVariableData ? `\n\n${customVariableData}\n` : "";
-          dataContext = `${baseData}\n\nEXTRACTED YAML DATA:\n${req.body.extractedYaml}\n\nBUCKET MAPPING JSON:\n${req.body.bucketMapping}\n`;
+          dataContext = `${baseData}\n\nEXTRACTED YAML DATA:\n${yamlStr}\n\nBUCKET MAPPING JSON:\n${req.body.bucketMapping}\n`;
         } else if (agentType === "data_review") {
           const batchData = req.body.batchBiomarkers || [];
           const baseData = customVariableData ? `\n\n${customVariableData}\n` : `\n\nUSER PROFILE:\n${JSON.stringify(cleanProfile, null, 2)}\n`;
@@ -4153,7 +4155,7 @@ reviewedBiomarkers: []`;
               }
               const parsed = JSON.parse(cleanJson);
               
-              const expectedCount = (req.body.extractedYaml?.match(/- biomarker:/g) || []).length;
+              const expectedCount = (yamlStr?.match(/- biomarker:/g) || []).length;
               let actualCount = 0;
               if (parsed.buckets && Array.isArray(parsed.buckets)) {
                 parsed.buckets.forEach((b: any) => {

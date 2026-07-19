@@ -842,6 +842,13 @@ export default function InsightsTab({
   const handleApproveBatchStep2 = async (bIdx: number, result: any) => {
     // Save customBiomarkers to user profile
     const updatedCustoms = { ...(profile.customBiomarkers || {}) };
+    const currentHistory = JSON.parse(JSON.stringify(biomarkerHistory || []));
+    
+    // Create/update history logs for reviewed biomarkers
+    const todayStr = new Date().toISOString().split('T')[0];
+    const logDate = result.date || result.logDate || todayStr;
+    const biomarkersByDate: Record<string, Record<string, any>> = {};
+
     result.reviewedBiomarkers?.forEach((bm: any) => {
       const existing: any = updatedCustoms[bm.key] || {};
       updatedCustoms[bm.key] = {
@@ -857,6 +864,16 @@ export default function InsightsTab({
         status: bm.status || existing.status || 'Healthy',
         rangeBrackets: bm.rangeBrackets || existing.rangeBrackets || []
       } as any;
+
+      // Group for log entry
+      const bmDate = bm.date || bm.logDate || logDate;
+      if (!biomarkersByDate[bmDate]) {
+        biomarkersByDate[bmDate] = {};
+      }
+      if (bm.userValue !== undefined && bm.userValue !== null && bm.userValue !== '') {
+        const valNum = Number(bm.userValue);
+        biomarkersByDate[bmDate][bm.key] = isNaN(valNum) ? bm.userValue : valNum;
+      }
     });
 
     const updatedProfile = {
@@ -864,8 +881,50 @@ export default function InsightsTab({
       customBiomarkers: updatedCustoms
     };
 
+    // Merge these into currentHistory
+    Object.entries(biomarkersByDate).forEach(([dateStr, bms]) => {
+      if (Object.keys(bms).length === 0) return;
+
+      const matchDate = (d1: string, d2: string) => {
+        if (!d1 || !d2) return false;
+        return String(d1).split('T')[0].trim() === String(d2).split('T')[0].trim();
+      };
+
+      let existingLogIndex = currentHistory.findIndex((h: any) => matchDate(h.date, dateStr));
+      if (existingLogIndex >= 0) {
+        currentHistory[existingLogIndex].biomarkers = {
+          ...(currentHistory[existingLogIndex].biomarkers || {}),
+          ...bms
+        };
+        if (!currentHistory[existingLogIndex].note) {
+          currentHistory[existingLogIndex].note = "Calibrated by Clinical Calibration Agent";
+        }
+      } else {
+        currentHistory.push({
+          id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+          date: dateStr,
+          biomarkers: bms,
+          note: "Calibrated by Clinical Calibration Agent"
+        });
+      }
+    });
+
+    // Recompute biomarkers list
+    const recomputedBiomarkers: { [key: string]: number | string } = {};
+    [...currentHistory]
+      .filter((b: any) => b.sync_state !== 'delete' && !(profile?.deletedBiomarkerLogIds?.[b.id] && (profile?.deletedBiomarkerLogIds?.[b.id] || 0) >= (b.updated_at || 0)))
+      .sort((a, b) => toYYYYMMDD(a.date).localeCompare(toYYYYMMDD(b.date)))
+      .forEach((log: any) => {
+        Object.entries(log.biomarkers).forEach(([k, v]) => {
+          recomputedBiomarkers[k] = v as string | number;
+        });
+      });
+
     if (onUpdateProfile) {
       await onUpdateProfile(updatedProfile);
+    }
+    if (onUpdateHistory) {
+      await onUpdateHistory(currentHistory, recomputedBiomarkers, updatedProfile);
     }
 
     // Move missing biomarkers to future batches if selected
