@@ -4696,6 +4696,35 @@ export default function App() {
                   standardMedicalGrouping: (existing.standardMedicalGrouping && existing.standardMedicalGrouping !== 'Other') ? existing.standardMedicalGrouping : (row.standardMedicalGrouping || 'Other'),
                   potentialMedicalConditions: row.potentialMedicalConditions || existing.potentialMedicalConditions || []
                 } as any;
+
+                // Extract and write the actual numeric or qualitative reading value to hHistory
+                const rawVal = row.numeric_value !== undefined && row.numeric_value !== null && row.numeric_value !== ''
+                  ? row.numeric_value
+                  : (row.value !== undefined ? row.value : row.qualitative_value);
+                
+                const entryDate = row.date || new Date().toISOString().split('T')[0];
+                const standardDate = String(entryDate).split('T')[0].trim();
+
+                if (rawVal !== undefined && rawVal !== null && rawVal !== '') {
+                  const valNum = Number(rawVal);
+                  const finalValue = isNaN(valNum) ? rawVal : valNum;
+
+                  let existingLogIndex = hHistory.findIndex((h: any) => {
+                    if (!h.date) return false;
+                    return String(h.date).split('T')[0].trim() === standardDate;
+                  });
+
+                  if (existingLogIndex >= 0) {
+                    hHistory[existingLogIndex].biomarkers[key] = finalValue;
+                  } else {
+                    hHistory.push({
+                      id: `log_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`,
+                      date: standardDate,
+                      biomarkers: { [key]: finalValue },
+                      note: "Extracted by Clinical Data Parser"
+                    });
+                  }
+                }
               });
 
               hHistory.sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
