@@ -627,7 +627,9 @@ ${logsText}`);
   const [selectedItemKeys, setSelectedItemKeys] = useState<string[]>([]);
   const foodCardActionRef = useRef<any>(null);
   const [activeConversationId, setActiveConversationId] = useState<string>(() => {
-    return `session_${Date.now()}`;
+    const key = `active_session_id_${type || 'medical'}_${agentType || 'none'}`;
+    const saved = localStorage.getItem(key);
+    return saved || `session_${Date.now()}`;
   });
   const [conversationsList, setConversationsList] = useState<any[]>([]);
   const [isLoadingConversations, setIsLoadingConversations] = useState<boolean>(false);
@@ -714,8 +716,13 @@ ${logsText}`);
       try {
         sessionStorage.setItem(chatStorageKey, JSON.stringify(msgs));
         if (payload) sessionStorage.setItem(payloadStorageKey, JSON.stringify(payload));
+        // Fallback to localStorage and IndexedDB to survive page reloads and tab closures
+        localStorage.setItem(chatStorageKey, JSON.stringify(msgs));
+        if (payload) localStorage.setItem(payloadStorageKey, JSON.stringify(payload));
+        await idbSet(`${chatStorageKey}_guest_${id}`, msgs);
+        if (payload) await idbSet(`${payloadStorageKey}_guest_${id}`, payload);
       } catch (e) {
-        console.warn("Quota exceeded in sessionStorage");
+        console.warn("Quota exceeded in sessionStorage/localStorage/IndexedDB");
       }
       return;
     }
@@ -818,14 +825,34 @@ ${logsText}`);
   const loadConversationsFromFirestore = async () => {
     const userId = auth.currentUser?.uid;
     if (!userId) {
-      const saved = sessionStorage.getItem(chatStorageKey);
-      if (saved) {
-        try {
-          const parsed = JSON.parse(saved);
-          setMessages(migrateMessages(parsed), false);
-          const savedPayload = sessionStorage.getItem(payloadStorageKey);
-          setLastSentPayload(savedPayload ? JSON.parse(savedPayload) : null);
-        } catch {}
+      let savedMsgs = null;
+      let savedPayload = null;
+
+      try {
+        // Try IndexedDB first (retains full images and detail payload)
+        const idbSaved = await idbGet(`${chatStorageKey}_guest_${activeConversationId}`);
+        if (idbSaved) {
+          savedMsgs = idbSaved;
+          savedPayload = await idbGet(`${payloadStorageKey}_guest_${activeConversationId}`);
+        }
+      } catch (e) {
+        console.warn("Failed to load guest chat from IndexedDB:", e);
+      }
+
+      if (!savedMsgs) {
+        const saved = sessionStorage.getItem(chatStorageKey) || localStorage.getItem(chatStorageKey);
+        if (saved) {
+          try {
+            savedMsgs = JSON.parse(saved);
+            const savedP = sessionStorage.getItem(payloadStorageKey) || localStorage.getItem(payloadStorageKey);
+            savedPayload = savedP ? JSON.parse(savedP) : null;
+          } catch {}
+        }
+      }
+
+      if (savedMsgs) {
+        setMessages(migrateMessages(savedMsgs), false);
+        setLastSentPayload(savedPayload);
       } else {
         const welcome = getWelcomeMessage();
         setMessages([welcome], false);
@@ -909,7 +936,53 @@ ${logsText}`);
         }]);
       }
     } catch (err) {
-      console.error("Error loading conversations from Firestore:", err);
+      console.warn("Error loading conversations from Firestore (falling back to local IndexedDB/localStorage):", err);
+      try {
+        const listKey = `conversations_list_${type || 'medical'}_${agentType || 'none'}_${userId}`;
+        const localList = await idbGet(listKey);
+        if (localList && localList.length > 0) {
+          console.log("Successfully loaded backup conversations list from IndexedDB after Firestore error");
+          setConversationsList(localList);
+          
+          const match = localList.find((c: any) => c.id === activeConversationId) || localList[0];
+          setActiveConversationId(match.id);
+          
+          let localSaved = await idbGet(`${chatStorageKey}_${userId}_${match.id}`);
+          let localPayload = await idbGet(`${payloadStorageKey}_${userId}_${match.id}`);
+          
+          if (localSaved) {
+            setMessages(migrateMessages(localSaved), false);
+            setLastSentPayload(localPayload || null);
+          } else {
+            // Check if there is anything under guest just in case
+            let guestSaved = await idbGet(`${chatStorageKey}_guest_${match.id}`);
+            if (guestSaved) {
+              setMessages(migrateMessages(guestSaved), false);
+              setLastSentPayload(await idbGet(`${payloadStorageKey}_guest_${match.id}`) || null);
+            } else {
+              setMessages([getWelcomeMessage()], false);
+              setLastSentPayload(null);
+            }
+          }
+        } else {
+          // No local list, initialize new session
+          const newId = `session_${Date.now()}`;
+          setActiveConversationId(newId);
+          const welcome = getWelcomeMessage();
+          setMessages([welcome], false);
+          setLastSentPayload(null);
+          setConversationsList([{
+            id: newId,
+            type: type || 'medical',
+            agentType: agentType || null,
+            title: 'New Session',
+            updatedAt: new Date().toISOString(),
+            messages: [welcome]
+          }]);
+        }
+      } catch (fallbackErr) {
+        console.error("Failed to load offline conversations fallback from IndexedDB:", fallbackErr);
+      }
     } finally {
       setIsLoadingConversations(false);
     }
@@ -959,14 +1032,65 @@ ${logsText}`);
     }
   };
 
-  const handleSwitchSession = (sessId: string) => {
+  const handleSwitchSession = async (sessId: string) => {
     const found = conversationsList.find(c => c.id === sessId);
     if (found) {
       setActiveConversationId(sessId);
-      setMessages(migrateMessages(found.messages || []), false);
-      setLastSentPayload(found.lastSentPayload || null);
+      
+      const userId = auth.currentUser?.uid || 'guest';
+      let fullMessages = null;
+      let fullPayload = null;
+      try {
+        const idbSaved = await idbGet(`${chatStorageKey}_${userId}_${sessId}`);
+        if (idbSaved) {
+          fullMessages = idbSaved;
+          fullPayload = await idbGet(`${payloadStorageKey}_${userId}_${sessId}`);
+        } else {
+          const guestSaved = await idbGet(`${chatStorageKey}_guest_${sessId}`);
+          if (guestSaved) {
+            fullMessages = guestSaved;
+            fullPayload = await idbGet(`${payloadStorageKey}_guest_${sessId}`);
+          }
+        }
+      } catch (e) {
+        console.warn("Failed to load full session from IndexedDB:", e);
+      }
+
+      if (fullMessages) {
+        setMessages(migrateMessages(fullMessages), false);
+        setLastSentPayload(fullPayload || null);
+      } else {
+        setMessages(migrateMessages(found.messages || []), false);
+        setLastSentPayload(found.lastSentPayload || null);
+      }
     }
   };
+
+  useEffect(() => {
+    const userId = auth.currentUser?.uid || 'guest';
+    if (conversationsList && conversationsList.length > 0) {
+      const lightweightList = conversationsList.map(c => ({
+        id: c.id,
+        userId: c.userId || userId,
+        type: c.type,
+        agentType: c.agentType,
+        title: c.title,
+        createdAt: c.createdAt || new Date().toISOString(),
+        updatedAt: c.updatedAt || new Date().toISOString(),
+      }));
+      const listKey = `conversations_list_${type || 'medical'}_${agentType || 'none'}_${userId}`;
+      idbSet(listKey, lightweightList).catch(err => {
+        console.warn("Failed to save lightweight conversations list to IndexedDB:", err);
+      });
+    }
+  }, [conversationsList, type, agentType]);
+
+  useEffect(() => {
+    if (activeConversationId) {
+      const key = `active_session_id_${type || 'medical'}_${agentType || 'none'}`;
+      localStorage.setItem(key, activeConversationId);
+    }
+  }, [activeConversationId, type, agentType]);
 
   useEffect(() => {
     if (isOpen) {
@@ -1592,7 +1716,6 @@ ${logsText}`);
           }
         }
       } else if (isAgent('medical')) {
-        bodyData.foodLogs = (activeFoodLogs || []).map(f => ({ name: f.name, date: f.date, nutrients: f.nutrients }));
         bodyData.existingBiomarkers = Array.from(new Set([...(biomarkers ? Object.keys(biomarkers) : []), ...Object.keys(profile?.customBiomarkers || {})]));
         bodyData.numberOfBatches = numberOfBatches;
         const lastMsg = [...messages].reverse().find(m => m.lastProcessedItem !== undefined);
@@ -1627,7 +1750,6 @@ ${logsText}`);
           const deletedIds = profile?.deletedBiomarkerLogIds || {};
           bodyData.biomarkerHistory = (biomarkerHistory || []).filter(h => h.sync_state !== 'delete' && !deletedIds[h.id]);
           bodyData.biomarkers = biomarkers || {};
-          bodyData.recentMeals = activeFoodLogs ? (activeFoodLogs || []).slice(-20).map(f => f.name) : [];
           bodyData.agentDiagnosticSummary = profile?.agentDiagnosticSummary || '';
 
           if ((currentStep === 'data_review' || currentStep === 'agent1') && dataReviewBatchIdx !== null && dataReviewBatchIdx !== undefined) {
@@ -1972,7 +2094,7 @@ ${logsText}`);
 
       const bodyData: any = {
         agentType: 'agent1_step1',
-        message: `continue: ${allUserText}`,
+        message: `continue`,
         extractedYaml: msg.data?.agentResult?.extractedYaml || msg.extractedYaml,
         remainingText: msg.data?.agentResult?.remainingText || '',
         estimatedTotalMarkers: msg.data?.agentResult?.estimatedTotalMarkers,
@@ -2001,8 +2123,11 @@ ${logsText}`);
           let oldEntries: any[] = [];
           if (oldYamlStr) {
             try {
-              const cleanedOld = oldYamlStr.replace(/```(?:yaml|yml)?/gi, '').trim();
-              const oldParsed = parse(cleanedOld);
+              let oldParsed = oldYamlStr;
+              if (typeof oldYamlStr === 'string') {
+                const cleanedOld = oldYamlStr.replace(/```(?:yaml|yml|json)?/gi, '').trim();
+                oldParsed = parse(cleanedOld);
+              }
               oldEntries = Array.isArray(oldParsed) 
                 ? oldParsed 
                 : (oldParsed?.biomarkers || oldParsed?.entries || oldParsed?.data || []);
@@ -2017,8 +2142,11 @@ ${logsText}`);
           let newEntries: any[] = [];
           if (newYamlStr) {
             try {
-              const cleanedNew = newYamlStr.replace(/```(?:yaml|yml)?/gi, '').trim();
-              const newParsed = parse(cleanedNew);
+              let newParsed = newYamlStr;
+              if (typeof newYamlStr === 'string') {
+                const cleanedNew = newYamlStr.replace(/```(?:yaml|yml|json)?/gi, '').trim();
+                newParsed = parse(cleanedNew);
+              }
               newEntries = Array.isArray(newParsed) 
                 ? newParsed 
                 : (newParsed?.biomarkers || newParsed?.entries || newParsed?.data || []);
@@ -2034,13 +2162,13 @@ ${logsText}`);
             if (!newE || typeof newE !== 'object') return;
             const newKey = String(newE.biomarker || newE.name || '').trim().toLowerCase();
             const newDate = String(newE.date || '').trim();
-            const newVal = String(newE.value || '').trim();
+            const newVal = String(newE.numeric_value !== undefined && newE.numeric_value !== null ? newE.numeric_value : (newE.qualitative_value || newE.value || '')).trim();
             
             const isDuplicate = oldEntries.some((oldE: any) => {
               if (!oldE || typeof oldE !== 'object') return false;
               const oldKey = String(oldE.biomarker || oldE.name || '').trim().toLowerCase();
               const oldDate = String(oldE.date || '').trim();
-              const oldVal = String(oldE.value || '').trim();
+              const oldVal = String(oldE.numeric_value !== undefined && oldE.numeric_value !== null ? oldE.numeric_value : (oldE.qualitative_value || oldE.value || '')).trim();
               return oldKey === newKey && oldDate === newDate && oldVal === newVal;
             });
             

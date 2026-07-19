@@ -39,18 +39,27 @@ const pruneLocalStorageToFreeSpace = () => {
     // 2. Remove or truncate telemetry logs
     localStorage.removeItem('local_api_events');
     
-    // 3. Truncate snapshots to keep only the single most recent one per user
+    // 3. Truncate snapshots and clear chat keys from localStorage since they're in IndexedDB
+    const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
-      if (key && key.startsWith('health_cockpit_snapshots_')) {
-        try {
-          const snaps = JSON.parse(localStorage.getItem(key) || '[]');
-          if (snaps.length > 1) {
-            localStorage.setItem(key, JSON.stringify(snaps.slice(0, 1)));
-          }
-        } catch {}
+      if (key) {
+        if (key.startsWith('health_cockpit_snapshots_')) {
+          try {
+            const snaps = JSON.parse(localStorage.getItem(key) || '[]');
+            if (snaps.length > 1) {
+              localStorage.setItem(key, JSON.stringify(snaps.slice(0, 1)));
+            }
+          } catch {}
+        } else if (key.startsWith('chat_messages_') || key.startsWith('chat_payload_')) {
+          // Since chat history is fully and safely saved in IndexedDB,
+          // we can remove it from localStorage to free up the 5MB quota!
+          keysToRemove.push(key);
+        }
       }
     }
+    keysToRemove.forEach(k => localStorage.removeItem(k));
+    console.log(`Successfully pruned ${keysToRemove.length} chat keys from localStorage to reclaim space.`);
   } catch (e) {
     console.error("Failed to prune localStorage:", e);
   }
@@ -74,28 +83,38 @@ const get = async (key: string): Promise<any> => {
 };
 
 const set = async (key: string, val: any): Promise<void> => {
-  // 1. Try writing to localStorage with proactive pruning on failure
-  try {
-    localStorage.setItem(key, JSON.stringify(val));
-  } catch (localStorageError: any) {
-    console.warn("localStorage setItem failed. Attempting to prune and retry:", localStorageError);
-    pruneLocalStorageToFreeSpace();
+  const isHeavyKey = key.startsWith('health_cockpit_app_data_') || key.startsWith('health_cockpit_snapshots_');
+  const isSaturated = typeof window !== 'undefined' && (window as any)._localStorageSaturated === true;
+
+  if (!isSaturated || !isHeavyKey) {
     try {
       localStorage.setItem(key, JSON.stringify(val));
-    } catch (retryError) {
-      console.warn("Even after pruning, localStorage write failed. Saving a lightweight fallback:", retryError);
-      try {
-        if (val && typeof val === 'object') {
-          const lightVal = { ...val };
-          if (lightVal.foodLogs) lightVal.foodLogs = [];
-          if (lightVal.report) lightVal.report = null;
-          if (lightVal.biomarkerHistory && lightVal.biomarkerHistory.length > 50) {
-            lightVal.biomarkerHistory = lightVal.biomarkerHistory.slice(0, 10);
-          }
-          localStorage.setItem(key, JSON.stringify(lightVal));
+    } catch (localStorageError: any) {
+      if (isHeavyKey) {
+        if (typeof window !== 'undefined') {
+          (window as any)._localStorageSaturated = true;
         }
-      } catch (fallbackError) {
-        console.error("Failed to write even lightweight fallback to localStorage:", fallbackError);
+        console.warn(`[Storage] localStorage quota reached. Transitioned to high-capacity IndexedDB for key: ${key}. No data will be lost.`);
+        
+        try {
+          pruneLocalStorageToFreeSpace();
+          // Try to write a lightweight fallback copy just in case
+          if (val && typeof val === 'object') {
+            const lightVal = { ...val };
+            if (lightVal.foodLogs) lightVal.foodLogs = [];
+            if (lightVal.report) lightVal.report = null;
+            if (lightVal.biomarkerHistory && lightVal.biomarkerHistory.length > 50) {
+              lightVal.biomarkerHistory = lightVal.biomarkerHistory.slice(0, 10);
+            }
+            localStorage.setItem(key, JSON.stringify(lightVal));
+          }
+        } catch (fallbackError) {
+          // Quietly rely on IndexedDB
+        }
+      } else {
+        try {
+          localStorage.setItem(key, JSON.stringify(val));
+        } catch {}
       }
     }
   }

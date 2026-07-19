@@ -67,7 +67,15 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                           })()}
                           onContinueToNextStep={
                             (msg.data?.agentResult?.hasMoreMarkers || msg.data?.agentResult?.hasMore || msg.data?.agentResult?.needsContinuation || msg.data?.agentResult?.status === 'needs_continuation') ? undefined :
-                            msg.agentTypeStep === 'agent1_step1' ? async () => { await handleAgent1Step('agent1_step2', msg); } :
+                            msg.agentTypeStep === 'agent1_step1' ? async (filteredKeys, filteredRows) => {
+                               if (filteredKeys && msg.data?.agentResult) {
+                                  msg.data.agentResult.unselectedRowKeys = filteredKeys;
+                                  if (filteredRows && filteredRows.length > 0) {
+                                     msg.data.agentResult.extractedYaml = filteredRows;
+                                  }
+                               }
+                               await handleAgent1Step('agent1_step2', msg); 
+                            } :
                             msg.agentTypeStep === 'agent1_step2' ? async () => { await handleAgent1Step('agent1_step3', msg); } :
                             undefined
                           }
@@ -212,7 +220,11 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                                     onLogMedical(filteredBiomarkers, msg.pendingProfile || {}, msg.pendingDate, filteredEntries, msg.modificationCommand, isContinuation);
                                     setLoggedMessageIds?.(prev => [...prev, msg.id]);
                                     if (isContinuation) {
-                                      handleSend("Proceed with extraction.");
+                                      if (handleContinueExtractionChunk) {
+                                        await handleContinueExtractionChunk(msg);
+                                      } else {
+                                        handleSend("Proceed with extraction.");
+                                      }
                                     }
                                   }
                                 }}
@@ -257,13 +269,17 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                       {msg.mode !== 'plan' && msg.mode !== 'discussion' && !(msg.data?.pendingBiomarkerEntries && Array.isArray(msg.data?.pendingBiomarkerEntries) && msg.data?.pendingBiomarkerEntries.length > 0) && (
                         <div className="pt-2 space-y-2">
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               if (onLogMedical) {
                                 const isContinuation = !!(msg.status === 'needs_continuation' || msg.data?.agentResult?.status === 'needs_continuation' || msg.data?.agentResult?.hasMore || msg.data?.agentResult?.hasMoreMarkers || msg.data?.agentResult?.needsContinuation);
                                 onLogMedical(msg.data?.pendingBiomarkers || {}, msg.pendingProfile || {}, msg.pendingDate, msg.data?.pendingBiomarkerEntries, msg.modificationCommand, isContinuation);
                                 setLoggedMessageIds?.(prev => [...prev, msg.id]);
                                 if (isContinuation) {
-                                  handleSend("Proceed with extraction.");
+                                  if (handleContinueExtractionChunk) {
+                                    await handleContinueExtractionChunk(msg);
+                                  } else {
+                                    handleSend("Proceed with extraction.");
+                                  }
                                 }
                               }
                             }}

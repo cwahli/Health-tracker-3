@@ -260,28 +260,42 @@ export default function MedicalHistoryTab({
   const subCategories = useMemo(() => {
     if (viewType === 'risk') {
       const allRisks = new Set<string>();
+      let hasUncategorized = false;
       allDefinitions.forEach(def => {
-        def.riskCategories?.forEach(r => {
-          if (r) allRisks.add(r);
-        });
+        if (!def.riskCategories || def.riskCategories.length === 0) {
+           hasUncategorized = true;
+        } else {
+          def.riskCategories.forEach(r => {
+            if (r) allRisks.add(r);
+          });
+        }
       });
-      return ['all', ...Array.from(allRisks).sort()];
+      const arr = Array.from(allRisks).sort();
+      if (hasUncategorized) arr.push('Uncategorized');
+      return ['all', ...arr];
     } else if (viewType === 'condition') {
       const allConditions = new Set<string>();
+      let hasUnknown = false;
       allDefinitions.forEach(def => {
-        def.potentialMedicalConditions?.forEach(c => {
-          if (c) allConditions.add(c);
-        });
+        if (!def.potentialMedicalConditions || def.potentialMedicalConditions.length === 0) {
+           hasUnknown = true;
+        } else {
+          def.potentialMedicalConditions.forEach(c => {
+            if (c) allConditions.add(c);
+          });
+        }
       });
-      return ['all', ...Array.from(allConditions).sort()];
+      const arr = Array.from(allConditions).sort();
+      if (hasUnknown) arr.push('Unknown');
+      return ['all', ...arr];
     } else {
       const allPractices = new Set<string>();
       allDefinitions.forEach(def => {
-        if (def.standardMedicalGrouping) {
-          allPractices.add(def.standardMedicalGrouping);
-        } else {
-          allPractices.add('Other');
+        let groupName = def.standardMedicalGrouping;
+        if (!groupName || groupName === 'Other') {
+           groupName = getPhysiologicalBucket(def.key, def.name);
         }
+        allPractices.add(groupName);
       });
       return ['all', ...Array.from(allPractices).sort()];
     }
@@ -293,10 +307,11 @@ export default function MedicalHistoryTab({
       if (searchQuery.trim() !== '') {
         const q = searchQuery.toLowerCase();
         const matchesName = def.name.toLowerCase().includes(q);
+        const matchesKey = def.key.toLowerCase().includes(q);
         const matchesConditions = def.potentialMedicalConditions?.some(c => c.toLowerCase().includes(q));
         const matchesRisks = def.riskCategories?.some(r => r.toLowerCase().includes(q));
         const matchesGroup = def.standardMedicalGrouping?.toLowerCase().includes(q);
-        if (!matchesName && !matchesConditions && !matchesRisks && !matchesGroup) {
+        if (!matchesName && !matchesKey && !matchesConditions && !matchesRisks && !matchesGroup) {
           return false;
         }
       }
@@ -356,8 +371,10 @@ export default function MedicalHistoryTab({
   const getBiomarkersForSubCategory = (cat: string) => {
     return filteredBiomarkers.filter(def => {
       if (viewType === 'risk') {
+        if (cat === 'Uncategorized') return !def.riskCategories || def.riskCategories.length === 0;
         return def.riskCategories?.includes(cat);
       } else if (viewType === 'condition') {
+        if (cat === 'Unknown') return !def.potentialMedicalConditions || def.potentialMedicalConditions.length === 0;
         return def.potentialMedicalConditions?.includes(cat);
       } else {
         let groupName = def.standardMedicalGrouping;

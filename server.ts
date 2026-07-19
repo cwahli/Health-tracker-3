@@ -8,6 +8,50 @@ if (getApps().length === 0) {
 import { getAuth as getAdminAuth } from 'firebase-admin/auth';
 const adminAuth = getAdminAuth();
 import express from "express";
+
+const BiomarkerMatrix: Record<string, any> = {
+  "hematocrit": {
+    "targetUnit": "%",
+    "conversionLogic": (value: number, sanitizedUnit: string) => {
+      if (sanitizedUnit === "l/l" || value < 1.0) return value * 100; 
+      return value;
+    }
+  },
+  "total_cholesterol": {
+    "targetUnit": "mmol/L",
+    "conversionLogic": (value: number, sanitizedUnit: string) => {
+      if (sanitizedUnit === "mg/dl") return value * 0.02586; 
+      return value;
+    }
+  },
+  "egfr": {
+    "targetUnit": "mL/min/1.73m2",
+    "conversionLogic": (value: number, sanitizedUnit: string) => value
+  },
+  "qrisk2_10yr_risk": {
+    "targetUnit": "%",
+    "conversionLogic": (value: number, sanitizedUnit: string) => value
+  },
+  "red_blood_cell_distribution_width": {
+    "targetUnit": "%",
+    "conversionLogic": (value: number, sanitizedUnit: string) => value
+  }
+};
+
+function sanitizeUnitText(rawUnit: any): string {
+  if (!rawUnit) return '';
+  return String(rawUnit)
+    .toLowerCase()
+    .replace(/[\s]+/g, ' ')
+    .replace(/²/g, '2')
+    .replace(/³/g, '3')
+    .replace(/percent/g, '%')
+    .replace(/\^/g, '*')
+    .replace(/^[a-z]*(?=10)/g, '')
+    .replace(/[x×]/g, '')
+    .trim();
+}
+
 import path from "path";
 import fs from "fs";
 import { GoogleGenAI, Type } from "@google/genai";
@@ -435,6 +479,7 @@ TRANS FAT AVOIDANCE: Trans fat (partially hydrogenated oils) is universally harm
 
 === DATA EXTRACTION DEPTH RULES ===
 1. CORE NUTRIENTS: For EVERY new item, you MUST populate labelNutrientsPerServing with your best clinical estimate per 100g (set servingSizeGrams=100). When a physical label is visible, use the exact label values. When databaseMatches contains a relevant entry, use it to improve your estimate and set dbSource accordingly.
+1b. ATWATER MACRO VALIDATION: You MUST mathematically verify database/estimated macros. Calculate: (Fat*9 + Carb*4 + Protein*4). If this calculated value diverges from the database calories by >10%, or if visual flags indicate missing high-calorie components (like sauce), you MUST autonomously reject the database calories and overwrite them with your Atwater calculation.
 2. TRACE NUTRIENTS: Do NOT estimate these individually. Instead, output the single most appropriate foodType string for each item (e.g., 'red_meat', 'leafy_veg', 'root_veg', etc.).
 
 Critical: Original Name Override & Anti-Merging Rule
@@ -472,7 +517,7 @@ MODE B: DISCUSSION
 
 MODE C: MODIFICATION COMMAND (ACTIVE MEAL UPDATE)
 Triggered ONLY when the user asks to modify, add, or correct a weight for an item that currently exists inside the CURRENT_ACTIVE_MEAL_STATE.
-- ANTI-CRASH RULE: You MUST populate \`itemName\` with the EXACT literal string from the active state (e.g., "Beef, chuck for stew, raw" NOT "Beef"). 
+- ANTI-CRASH RULE: You MUST populate itemName with the EXACT literal string from the active meal state to ensure successful database matching.
 - ANTI-CRASH RULE 2: You MUST populate \`targetDbId\` with the exact ID from the active state to ensure the backend calculator finds it.
 - Do NOT use Mode C if the user is discussing a food from a theoretical comparison that is not in the active meal state.
 - Set "mode": "modify". Populate the "modificationCommand" array. Set foodData and comparison to null.
@@ -1928,7 +1973,7 @@ Still populate "items" as real JSON objects. Adapt HOW you group items based on 
 STEP 3 — CORE EXTRACTION & GROUPING LAWS (apply in both branches):
 - PRODUCT/PRICE LABELS (type a): Read the EXACT food name and weight. Convert kg to grams.
 - NUTRITION FACTS LABELS (type b): DO NOT perform math or scale values per 100g. Transcribe the EXACT total package weight, serving size weight, and nutrients per serving exactly as printed into the "rawNutritionLabel" object. Extract the full printed ingredients/Komposisi text into "ingredientsList". If an item has NO legible physical nutrition panel visible, leave "rawNutritionLabel" as {} and "ingredientsList" as null — do not estimate or hallucinate these values. The "nutritionFacts" field is reserved for downstream use and must always be left as {} by you; never populate it yourself.
-- FOOD PHOTOS (type c): Identify items and estimate weight using visual references (plates, hands, packaging markers).
+- FOOD PHOTOS (type c): Identify items and estimate weight using visual references (plates, hands, packaging markers). CRITICAL: Scale weight estimates to the actual visual size (e.g., miniature street-food vs. large restaurant portions) rather than defaulting to textbook averages. If traditional components (like dipping sauces) are physically absent, state this explicitly in anomalyFlags (e.g., "sauce absent").
 - MENUS AND POSTERS (type e): covered by the density branches above.
 - CLASSIFICATION LAW: Base "contentType" on the primary visual layout of the image, NOT the extraction method used.
   * If the image is a restaurant menu, promotional poster, or combo board (regardless of whether it contains food photos or just text), you MUST set "contentType" to "menu_or_poster".
@@ -1948,8 +1993,14 @@ CRITICAL RULES:
   * PLATED MEALS: For a meal on a table, extract ALL visible dishes, sides, drinks, and condiments. Never treat a side dish on a table as "background inventory."
 - USER TEXT SUPREMACY & TARGET FILTERING (CRITICAL FOCUS OVERRIDE):
   The user's text message is the absolute authority on WHAT to extract and HOW MUCH:
-  * Subject Isolation (What to extract): If the user's text explicitly names a specific item, category, or subset of foods (e.g., "I ate the mung bean pia", "Compare the chips", "Is this beef healthy?", "Just the red bags"), you MUST restrict your extraction ONLY to the items that semantically match their text. Completely ignore and omit all other visible foods, menu items, or products in the image, treating them as irrelevant background.
-  * Explicit Quantities (How much): If the user explicitly states a quantity, count, or weight in their text (e.g., "3 piece", "10 skewers"), you MUST mathematically calculate the estimatedWeightGrams based strictly on those units, overriding visual volume defaults.
+
+  Subject Isolation (What to extract): If the user's text explicitly names a specific item, category, or subset of foods (e.g., "I ate the mung bean pia", "Compare the chips", "Is this beef healthy?", "Just the red bags"), you MUST restrict your extraction ONLY to the items that semantically match their text. Completely ignore and omit all other visible foods, menu items, or products in the image, treating them as irrelevant background.
+
+  Explicit Quantities (How much): Treat relative quantities and absolute weights differently.
+
+  Absolute Weights: If the user text provides a hard weight (e.g., "150g", "4 oz"), use that exact number, overriding visual volume entirely.
+
+  Relative Quantities: If the user text provides a fraction, percentage, or piece count (e.g., "1/4 of", "half", "3 pieces"), you MUST first visually estimate the total weight of the specific whole item shown in the image. Then, apply the user's math to your visual estimate. NEVER apply user fractions to generic textbook averages; ground the math in the visual size of the actual food photographed.
 - SEMANTIC ALIGNMENT:
   The English keyword you generate MUST biologically and semantically match the text you extracted in originalName. Do not hallucinate categories. If the originalName indicates a protein/meat (e.g., "Ikan" means fish), the keyword cannot be a vegetable (e.g., "bok choy"). If unsure of a translation, default to a generic category (e.g., "fish", "meat").
 JSON SCHEMA STRICT REQUIREMENT:
@@ -1960,7 +2011,8 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
   "items": [
     {
       "keyword": "string (English. If visual contradicts OCR, trust visual. If totally obscured, use 'unknown item'. For a dense menu category block, use the category name)",
-      "estimatedWeightGrams": "number (0 for menu category blocks. Prioritize user text quantities over visual volume)",
+      "weightReasoning": "string (CRITICAL: If the user provided a relative fraction, you MUST explicitly describe the physical size/count of the food in the image here first. e.g., 'The image shows 1 segment with 3 small pods. Total estimated weight is 120g. Applying user fraction 1/4 = 30g')",
+      "estimatedWeightGrams": "number (Must logically match your weightReasoning)",
       "originalName": "string (Exact OCR. If unreadable, 'UNREADABLE'. For a dense menu category block, a comma-separated list of every food name in that block, ignoring prices)",
       "source": "label | visual",
       "boundingBox2D": "[ymin, xmin, ymax, xmax] (CRITICAL: a real, specific box for this item, category block, or cluster — never the default full-image box unless the item truly fills the frame)",
@@ -1969,12 +2021,12 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
       "rawNutritionLabel": "{ 'servingSize': string, 'calories': number, 'protein': string, 'totalFat': string, 'saturatedFat': string, 'totalCarbohydrate': string, 'sugar': string, 'sodium': string } (Exact printed macros ONLY if a physical nutrition panel is visible for this item. Otherwise {}. Never estimate.)",
       "nutritionFacts": "{} (Always leave this exactly empty. Reserved for downstream use — do not populate.)",
       "anomalyFlags": [
-        "string (List issues e.g. 'abbreviation used', 'glare'. Leave empty [] if perfect)"
+        "string (List visual or OCR issues e.g. 'abbreviation used', 'glare', 'obscured item'. DO NOT flag user-provided quantities, weights, or text instructions as anomalies. Leave empty [] if perfect)"
       ],
       "itemConfidence": "High | Medium | Low (If anomalyFlags is NOT empty, MUST be Medium or Low)"
     }
   ],
-  "cookingMethod": "string",
+  "cookingMethod": "string (Focus STRICTLY on high-impact modifiers. Specify if the item is 'deep-fried', 'oil-basted', or 'charred/burnt'. If cooked without visible added fat, default to 'dry-cooked' or 'raw'. Include exclusion of ingredient or sauce in it if it's different to the traditional way of cooking).",
   "scanCompleteness": "full | partial"
 }
 `;
@@ -3340,7 +3392,8 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
 app.post("/api/gemini/medical-analyze", async (req, res) => {
   try {
     const explicitSessionId = (req.headers["x-session-id"] as string) || "default-session";
-    let { 
+
+let { 
       message, 
       image, 
       images, 
@@ -3361,10 +3414,48 @@ app.post("/api/gemini/medical-analyze", async (req, res) => {
     // Isolate Diagnostic Agent Data (agent4):
     // Ensure agent4 only receives diagnostic-relevant data (biomarkers and profile)
     // and is not sent other conversation or food log entries.
+    const allBiomarkerKeys = Array.from(new Set([
+      ...biomarkerDefinitions.map(d => d.key),
+      ...Object.keys(userProfile?.customBiomarkers || {})
+    ]));
+    
+    const agent1Step1Schema = {
+      type: Type.OBJECT,
+      properties: {
+        extractedData: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              biomarker: {
+                type: Type.STRING,
+                description: "The canonical ID of the biomarker.",
+                enum: allBiomarkerKeys.length > 0 ? allBiomarkerKeys : ["unknown_biomarker"]
+              },
+              date: { type: Type.STRING, description: "Format: YYYY-MM-DD" },
+              updated_at: { type: Type.INTEGER },
+              numeric_value: { type: Type.NUMBER, description: "The exact numerical value if quantitative. Leave null if qualitative.", nullable: true },
+              qualitative_value: { type: Type.STRING, description: "The exact string if qualitative (e.g., 'NEGATIVE'). Leave null if quantitative.", nullable: true },
+              unit: { type: Type.STRING, description: "The exact unit verbatim from the text. Leave empty string if none." },
+              explanation: { type: Type.STRING, description: "Why or how it was mapped." }
+            },
+            required: ["biomarker", "date", "updated_at", "unit", "explanation"]
+          }
+        },
+        text: { type: Type.STRING, description: "Friendly clinical conversational message to the user." },
+        hasMoreMarkers: { type: Type.BOOLEAN },
+        remainingText: { type: Type.STRING },
+        estimatedTotalMarkers: { type: Type.INTEGER }
+      },
+      required: ["extractedData", "text", "hasMoreMarkers", "remainingText", "estimatedTotalMarkers"]
+    };
     if (agentType === "agent4") {
       recentMeals = [];
       biomarkerHistory = [];
-      if (history && history.length > 0) {
+      
+
+
+    if (history && history.length > 0) {
         history = history.filter((h: any) => {
           if (!h.content) return false;
           const lower = h.content.toLowerCase();
@@ -3416,7 +3507,7 @@ You MUST output ONLY a valid JSON object containing:
 critical_extraction_rules:
   zero_math_verbatim_extraction: "You are strictly forbidden from performing any calculations, normalizations, or unit conversions. Extract the exact numerical value and the exact unit provided in the text."
   verbatim_qualitative_data: "Qualitative results (e.g., 'Negative', 'Trace', 'High') must be extracted exactly as written."
-  dictionary_mapping: "When extracting biomarkers, you MUST map the extracted name to the standard canonical aliases provided. If a match is found, use the canonical ID. Do not invent new keys if a synonym exists. If completely absent from existing keys, generate a clean, lowercase snake_case key."
+  dictionary_mapping: "You are strictly forbidden from inventing new biomarker keys. You must only select keys from the provided enum list in the JSON schema."
   unit_standardization: "Standardize 'µg/L' and 'ug/L' to always return as 'ug/L' (they are equivalent)."
 mode_routing:
   priority: "Always prioritize structured data extraction over conversational text when raw medical data/text/photos are present."
@@ -3458,7 +3549,7 @@ Your primary objective is to parse raw health reports, standardize clinical term
 1. Extraction & Standardization: Parse the incoming raw data. Convert every raw biomarker name into its most widely accepted standard clinical terminology (e.g., "Serum alt level" maps to "Alanine Aminotransferase (ALT)").
 2. Lossless Math & Units (CRITICAL): You are strictly forbidden from performing calculations, unit conversions, or inferring missing units. Extract the exact numerical value and the exact unit provided in the text.
 3. Qualitative Data (CRITICAL): If a result is qualitative (e.g., "Negative", "Trace", "High"), extract it exactly as written.
-4. Dictionary Mapping (MANDATORY): When extracting biomarkers, you MUST map the extracted name to the standard canonical aliases provided. If a match is found, use the canonical ID. Do not invent new keys if a synonym exists. ONLY if absent, you may generate a clean snake_case key.
+4. Dictionary Mapping (MANDATORY): You are strictly forbidden from inventing new biomarker keys. You must only select keys from the provided enum list in the JSON schema.
 5. Clinical Mapping: For each biomarker, map it to:
    - riskCategories: Physiological risk categories (e.g., 'Cardiovascular', 'Kidney & hydration', 'Metabolic & glycemic', 'Liver & hepatitis stress', 'Hematology', 'Biometrics', 'Other').
    - standardMedicalGrouping: Main clinical division ('Metabolic', 'Hepatic', 'Renal', 'Hematology', 'Biometrics', 'Other').
@@ -3989,7 +4080,7 @@ reviewedBiomarkers: []`;
           const prevYaml = req.body.extractedYaml ? `\n\nPREVIOUSLY EXTRACTED YAML:\n${req.body.extractedYaml}` : "";
           const remText = req.body.remainingText ? `\n\nREMAINING UNPARSED TEXT:\n${req.body.remainingText}` : "";
           const prevTotal = req.body.estimatedTotalMarkers ? `\n\nPREVIOUSLY ESTIMATED TOTAL MARKERS:\n${req.body.estimatedTotalMarkers}` : "";
-          const baseData = customVariableData ? `\n\n${customVariableData}\n` : `\n\nEXISTING BIOMARKER LOGS:\n${JSON.stringify(biomarkerHistory || [], null, 2)}\n\nUSER PROFILE:\n${JSON.stringify(cleanProfile, null, 2)}\n`;
+          const baseData = customVariableData ? `\n\n${customVariableData}\n` : `\n\nUSER PROFILE:\n${JSON.stringify(cleanProfile, null, 2)}\n`;
           dataContext = `\n\nUSER RAW DATA:\n${message}${prevYaml}${remText}${prevTotal}${baseData}`;
         } else if (agentType === "agent1_step2") {
           const baseData = customVariableData ? `\n\n${customVariableData}\n` : "";
@@ -4015,7 +4106,8 @@ reviewedBiomarkers: []`;
           systemInstruction = customSystemInstruction;
         }
 
-        let promptText = `Chat History:\n${historyText}${foodLogs ? `PATIENT'S RECENT LOGGED MEALS HISTORY:\n${foodLogs.map((m: any, idx: number) => `- Meal ${idx + 1}: "${m.name}" on ${m.date}`).join("\n")}\n\n` : ""}${imageCtx}\nUser message: "${message}"${dataContext}`;
+        const includeFoodLogs = foodLogs && agentType !== "agent1_step1" && agentType !== "agent1_step2" && agentType !== "agent1_step3" && agentType !== "data_review" && agentType !== "agent1" && agentType !== "agent4";
+        let promptText = `Chat History:\n${historyText}${includeFoodLogs ? `PATIENT'S RECENT LOGGED MEALS HISTORY:\n${foodLogs.map((m: any, idx: number) => `- Meal ${idx + 1}: "${m.name}" on ${m.date}`).join("\n")}\n\n` : ""}${imageCtx}\nUser message: "${message}"${dataContext}`;
         fullPromptSent = `System Instruction:\n${systemInstruction}\n\n${promptText}`;
 
         let isYaml = (agentType === "agent1");
@@ -4035,7 +4127,8 @@ reviewedBiomarkers: []`;
             promptText,
             imagePayload,
             imagePayloads: imagesPayload,
-            responseMimeType: isYaml ? "text/plain" : "application/json"
+            responseMimeType: isYaml ? "text/plain" : "application/json",
+            responseSchema: (agentType === "agent1_step1" || agentType === "agent1") ? agent1Step1Schema : undefined
           });
           
           addDebugLog(`[Medical Analyze Agent] Response Received:\n${textOutput}`, explicitSessionId);
@@ -4097,12 +4190,44 @@ reviewedBiomarkers: []`;
         let estimatedTotalMarkers: number | null = null;
         try {
           const parsed = JSON.parse(textOutput.replace(/```(?:json)?/gi, "").trim());
-          if (parsed.extractedYaml) {
+          if (parsed.extractedData) {
+            cleanYaml = parsed.extractedData;
+          } else if (parsed.extractedYaml) {
             cleanYaml = parsed.extractedYaml;
           }
           if (parsed.text) {
             text = parsed.text;
           }
+          
+          if (Array.isArray(cleanYaml)) {
+            cleanYaml = cleanYaml.map((item: any) => {
+              if (!item || typeof item !== 'object') return item;
+              if (item.unit) {
+                const rawUnit = item.unit;
+                const sanitizedUnit = sanitizeUnitText(rawUnit);
+                item.unit = sanitizedUnit;
+                
+                if (item.biomarker) {
+                  const matrixConfig = BiomarkerMatrix[item.biomarker];
+                  if (matrixConfig) {
+                    const val = item.numeric_value !== undefined && item.numeric_value !== null ? item.numeric_value : item.value;
+                    if (typeof val === 'number' || (typeof val === 'string' && !isNaN(parseFloat(val)))) {
+                      const numVal = parseFloat(String(val));
+                      const newVal = matrixConfig.conversionLogic(numVal, sanitizedUnit);
+                      const roundedNewVal = Math.round(newVal * 100) / 100;
+
+                      if (item.numeric_value !== undefined && item.numeric_value !== null) item.numeric_value = roundedNewVal;
+                      else if (item.value !== undefined && item.value !== null) item.value = roundedNewVal;
+                      
+                      item.unit = matrixConfig.targetUnit;
+                    }
+                  }
+                }
+              }
+              return item;
+            });
+          }
+
           if (parsed.hasMoreMarkers !== undefined) {
             hasMoreMarkers = !!parsed.hasMoreMarkers;
           }
@@ -4128,11 +4253,17 @@ reviewedBiomarkers: []`;
       }
 
             if (agentType === "agent1") {
-        let cleanYaml = textOutput.replace(/```(?:yaml)?/gi, "").trim();
+        let parsedRows = [];
+        try {
+          const parsed = JSON.parse(textOutput.replace(/```(?:json)?/gi, "").trim());
+          if (parsed.extractedData) parsedRows = parsed.extractedData;
+        } catch (e) {
+          console.error("agent1 JSON parse error", e);
+        }
         return res.json({
           text: "",
           agentType,
-          extractedYaml: cleanYaml,
+          extractedYaml: parsedRows,
           hasMoreMarkers: false,
           remainingText: "",
           estimatedTotalMarkers: 0,
@@ -4959,17 +5090,11 @@ For each provided biomarker, determine:
 2. Risk Categories. A JSON array of string tags representing associated risks. YOU MUST ONLY CHOOSE FROM THESE EXACT CATEGORIES: "Cardiovascular", "Kidney", "Metabolic", "Liver", "Hematology", "Wellness", "Screenings". Do NOT invent new ones. If none apply, you MUST return an empty array [].
 3. Potential Medical Conditions. A JSON array of string tags (e.g. ["Fatty Liver", "Obesity"]) representing associated conditions. If none apply, you MUST return an empty array [].
 
-CRITICAL: You MUST include all fields (riskCategories and potentialMedicalConditions) in your YAML output. If a biomarker has no risks or conditions, output an empty array []. Do not omit the fields.
+CRITICAL: You MUST include all fields (standardMedicalGrouping, riskCategories, potentialMedicalConditions) for every biomarker in your JSON output.
 
 === SYSTEM CONSTRAINTS ===
-You MUST work in YAML. Return a single flat YAML array of objects. Do NOT use any Markdown blocks, wrapping backticks, or extra text. Output ONLY the raw YAML text.
-
-YAML Array Item Schema:
-- key: "biomarker_key"
-  name: "Biomarker Name"
-  standardMedicalGrouping: "One of the allowed values"
-  riskCategories: ["Tag1", "Tag2"]
-  potentialMedicalConditions: ["Condition1", "Condition2"]
+Return a single flat JSON array of objects.
+Do NOT use any Markdown blocks, wrapping backticks, or extra text. Output ONLY the raw JSON text.
 
 Biomarkers to process:
 ${JSON.stringify(selectedBiomarkers, null, 2)}`;
@@ -4993,18 +5118,17 @@ ${JSON.stringify(selectedBiomarkers, null, 2)}`;
             type: Type.OBJECT,
             properties: {
               originalKey: { type: Type.STRING },
-              primaryCategory: { type: Type.STRING },
-              subCategory: { type: Type.STRING },
-              clinicalSignificance: { type: Type.STRING },
-              standardRiskLevels: {
-                type: Type.OBJECT,
-                properties: {
-                  low: { type: Type.STRING },
-                  optimal: { type: Type.STRING },
-                  high: { type: Type.STRING }
-                }
+              standardMedicalGrouping: { type: Type.STRING, enum: ['Metabolic', 'Hepatic', 'Renal', 'Hematology', 'Biometrics', 'Other'] },
+              riskCategories: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING, enum: ["Cardiovascular", "Kidney", "Metabolic", "Liver", "Hematology", "Wellness", "Screenings"] }
+              },
+              potentialMedicalConditions: {
+                type: Type.ARRAY,
+                items: { type: Type.STRING }
               }
-            }
+            },
+            required: ["originalKey", "standardMedicalGrouping", "riskCategories", "potentialMedicalConditions"]
           }
         }
       },
@@ -5013,8 +5137,8 @@ ${JSON.stringify(selectedBiomarkers, null, 2)}`;
 
     const textOutput = await callUnifiedLLM({
       modelId,
-      systemInstruction: systemInstruction + "\n\nJSON STRUCTURED OUTPUT:\nYou must strictly return a JSON object. Do not add markdown wrappers. Think step-by-step in the 'scratchpad' field first.",
-      promptText: "Please output the categorisation in JSON format.",
+      systemInstruction,
+      promptText: "Please output the categorisation in JSON format following the schema exactly.",
       responseMimeType: "application/json",
       responseSchema: medicalCategoriseSchema
     });

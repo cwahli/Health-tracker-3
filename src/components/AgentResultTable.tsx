@@ -23,7 +23,7 @@ interface AgentResultTableProps {
   initialRawText?: string;
   onApplyChanges?: (filteredRows?: any[]) => Promise<void>;
   onCancel?: () => void;
-  onContinueToNextStep?: () => Promise<void>;
+  onContinueToNextStep?: (filteredKeys?: string[], filteredRows?: any[]) => Promise<void>;
   isApplying?: boolean;
   precedingAgent1Result?: any;
   selectedMissingKeys?: string[];
@@ -152,6 +152,20 @@ export const resolveBiomarkerKey = (rawKey: string, rawName: string, profile: an
   }
   return targetKey;
 };
+
+function sanitizeUnitText(rawUnit: any): string {
+  if (!rawUnit) return '';
+  return String(rawUnit)
+    .toLowerCase()
+    .replace(/[\s]+/g, ' ')
+    .replace(/²/g, '2')
+    .replace(/³/g, '3')
+    .replace(/percent/g, '%')
+    .replace(/\^/g, '*')
+    .replace(/^[a-z]*(?=10)/g, '')
+    .replace(/[x×]/g, '')
+    .trim();
+}
 
 export const AgentResultTable: React.FC<AgentResultTableProps> = ({
   agentType,
@@ -377,10 +391,10 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
             }
             const bioMatch = line.match(/(?:-\s+)?biomarker:\s*(.*)/i);
             if (bioMatch) { current.biomarker = bioMatch[1].replace(/['"]/g, '').trim(); }
-            const dateMatch = line.match(/date:\s*([\d-]+)/i);
-            if (dateMatch) { current.date = dateMatch[1].trim(); }
-            const valMatch = line.match(/value:\s*([\d.]+)/i);
-            if (valMatch) { current.value = valMatch[1]; }
+            const dateMatch = line.match(/date:\s*(.*)/i);
+            if (dateMatch) { current.date = dateMatch[1].replace(/['"]/g, '').trim(); }
+            const valMatch = line.match(/value:\s*(.*)/i);
+            if (valMatch) { current.value = valMatch[1].replace(/['"]/g, '').trim(); }
             const unitMatch = line.match(/unit:\s*(.*)/i);
             if (unitMatch) { current.unit = unitMatch[1].replace(/['"]/g, '').trim(); }
           }
@@ -424,7 +438,11 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
         }
       }
 
-      parsedRows = parsedRows.filter((p: any) => p && typeof p === 'object');
+      parsedRows = parsedRows.filter((p: any) => p && typeof p === 'object').map((p: any) => {
+    if (p.numeric_value !== undefined && p.numeric_value !== null) p.value = p.numeric_value;
+    else if (p.qualitative_value !== undefined && p.qualitative_value !== null) p.value = p.qualitative_value;
+    return p;
+  });
       // Advanced alignment mapping with raw batch input (if available)
       if (agentResult?.batchBiomarkers && Array.isArray(agentResult.batchBiomarkers) && agentResult.batchBiomarkers.length > 0) {
         const rawItems = agentResult.batchBiomarkers;
@@ -548,6 +566,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           let key = resolveBiomarkerKey(safeKey || String(parsed.key || biomarkerName), biomarkerName, profile);
           
           const existingEntries = (biomarkerHistory || []).filter((h: any) => h.biomarkers?.[key] !== undefined);
+          const hasLegacyProfileData = profile?.biomarkers?.[key] !== undefined;
           const customDef = profile?.customBiomarkers?.[key];
           const normalRange = customDef?.normalRange || '';
           const valueNum = parseFloat(parsed.value);
@@ -566,7 +585,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
 
           const isRenamed = (rawName && rawName !== biomarkerName) || (parsed.originalName && parsed.originalName !== parsed.standardizedName);
           const rowUnit = parsed.unit || parsed.metric || '';
-          const isUnitChanged = rawUnit && rawUnit !== rowUnit;
+          const isUnitChanged = rawUnit && sanitizeUnitText(rawUnit) !== sanitizeUnitText(rowUnit);
           
           const newGroup = parsed.standardMedicalGrouping || 'Other';
           const oldGroup = customDef?.standardMedicalGrouping || 'Other';
@@ -576,7 +595,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           const oldConditions = customDef?.potentialMedicalConditions || [];
           const isConditionsChanged = !!customDef && JSON.stringify([...(parsed.potentialMedicalConditions || [])].sort()) !== JSON.stringify([...oldConditions].sort());
           
-          const isNewInHistory = existingEntries.length === 0;
+          const isNewInHistory = existingEntries.length === 0 && !hasLegacyProfileData;
           const isRenamedOrUnitOrGroupChanged = isRenamed || isUnitChanged || isGroupChanged;
           
           const isMerged = parsedToRawGroup[idx] && parsedToRawGroup[idx].length > 1;
@@ -802,7 +821,8 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
         // We'll approximate this by checking customDef. If profile?.customBiomarkers?.[key] exists, it's correct.
         
         const existingEntries = (biomarkerHistory || []).filter((h: any) => h.biomarkers?.[key] !== undefined);
-        let isNew = row.noChangeNeeded ? false : (existingEntries.length === 0);
+        const hasLegacyProfileData = profile?.biomarkers?.[key] !== undefined;
+        let isNew = row.noChangeNeeded ? false : (existingEntries.length === 0 && !hasLegacyProfileData);
         
         // Determine severity of biomarker if clinical context is available in customBiomarkers
         const customDef = profile?.customBiomarkers?.[key];
@@ -832,24 +852,11 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
 
         const isSameUnit = (unit1: string, unit2: string) => {
           if (!unit1 || !unit2) return unit1 === unit2;
-          // remove x or ×, convert * to ^, remove spaces
-          const norm = (u: string) => u.toLowerCase().replace(/^[a-z]*(?=10)/g, '').replace(/[x×]/g, '').replace(/\*/g, '^').replace(/\s/g, '');
-          return norm(unit1) === norm(unit2);
+          return sanitizeUnitText(unit1) === sanitizeUnitText(unit2);
         };
         const normalizeDate = (d: string) => {
           if (!d) return d;
-          const str = String(d).replace(/\//g, '-').replace(/\./g, '-').trim();
-          const match1 = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-          if (match1) return `${match1[1]}-${match1[2].padStart(2, '0')}-${match1[3].padStart(2, '0')}`;
-          const match2 = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-          if (match2) return `${match2[3]}-${match2[2].padStart(2, '0')}-${match2[1].padStart(2, '0')}`;
-          const match3 = str.match(/^(\d{1,2})\s+([a-zA-Z]{3,})\s+(\d{4})$/);
-          if (match3) {
-            const months = {jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
-            const m = (months as any)[match3[2].toLowerCase().substring(0,3)] || '01';
-            return `${match3[3]}-${m}-${match3[1].padStart(2, '0')}`;
-          }
-          return str;
+          return toYYYYMMDD(d);
         };
         const normalizedRowDate = normalizeDate(row.date);
 
@@ -907,7 +914,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           value: row.value ?? 'N/A',
           unit: rowUnit,
           isNew,
-          isNewBiomarker: isNew && (existingEntries.length === 0),
+          isNewBiomarker: isNew && existingEntries.length === 0 && !hasLegacyProfileData,
           isChanged,
           isSynced,
           isUnitChanged,
@@ -994,7 +1001,8 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
         const biomarkerName = row.biomarker || row.name || row.key || 'Unknown';
         const key = resolveBiomarkerKey(row.key || String(biomarkerName).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''), biomarkerName, profile);
         const existingEntries = (biomarkerHistory || []).filter((h: any) => h.biomarkers?.[key] !== undefined);
-        let isNew = row.noChangeNeeded ? false : (existingEntries.length === 0);
+        const hasLegacyProfileData = profile?.biomarkers?.[key] !== undefined;
+        let isNew = row.noChangeNeeded ? false : (existingEntries.length === 0 && !hasLegacyProfileData);
         
         const customDef = profile?.customBiomarkers?.[key];
         const normalRange = row.normalRange || customDef?.normalRange || '';
@@ -1023,24 +1031,11 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
 
         const isSameUnit = (unit1: string, unit2: string) => {
           if (!unit1 || !unit2) return unit1 === unit2;
-          // remove x or ×, convert * to ^, remove spaces
-          const norm = (u: string) => u.toLowerCase().replace(/^[a-z]*(?=10)/g, '').replace(/[x×]/g, '').replace(/\*/g, '^').replace(/\s/g, '');
-          return norm(unit1) === norm(unit2);
+          return sanitizeUnitText(unit1) === sanitizeUnitText(unit2);
         };
         const normalizeDate = (d: string) => {
           if (!d) return d;
-          const str = String(d).replace(/\//g, '-').replace(/\./g, '-').trim();
-          const match1 = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-          if (match1) return `${match1[1]}-${match1[2].padStart(2, '0')}-${match1[3].padStart(2, '0')}`;
-          const match2 = str.match(/^(\d{1,2})-(\d{1,2})-(\d{4})$/);
-          if (match2) return `${match2[3]}-${match2[2].padStart(2, '0')}-${match2[1].padStart(2, '0')}`;
-          const match3 = str.match(/^(\d{1,2})\s+([a-zA-Z]{3,})\s+(\d{4})$/);
-          if (match3) {
-            const months = {jan:'01',feb:'02',mar:'03',apr:'04',may:'05',jun:'06',jul:'07',aug:'08',sep:'09',oct:'10',nov:'11',dec:'12'};
-            const m = (months as any)[match3[2].toLowerCase().substring(0,3)] || '01';
-            return `${match3[3]}-${m}-${match3[1].padStart(2, '0')}`;
-          }
-          return str;
+          return toYYYYMMDD(d);
         };
         const normalizedRowDate = normalizeDate(row.date);
 
@@ -1098,7 +1093,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           value: row.value ?? 'N/A',
           unit: rowUnit,
           isNew,
-          isNewBiomarker: isNew && (existingEntries.length === 0),
+          isNewBiomarker: isNew && existingEntries.length === 0 && !hasLegacyProfileData,
           isChanged,
           isSynced,
           isUnitChanged,
@@ -1659,7 +1654,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
             <tr key={idx} className={`${bgClass} hover:bg-slate-50/50 dark:hover:bg-slate-900/40 transition-colors`}>
               <td className="px-3 py-2 font-semibold">
                 <div className="flex items-center gap-2">
-                  {(row.isMissing || row.isNew || row.isChanged || row.isRenamed || row.isUnitChanged || row.isGroupChanged) && !isToDelete && !row.isSynced && agentType === 'medical_extract' && (
+                  {(row.isMissing || row.isNew || row.isChanged || row.isRenamed || row.isUnitChanged || row.isGroupChanged) && !isToDelete && !row.isSynced && (agentType === 'medical_extract' || agentType === 'agent1') && (
                     <input
                       type="checkbox"
                       checked={row.isMissing ? effectiveSelectedMissingKeys.includes(row.key) : !unselectedRowKeys.includes(row.key)}
@@ -2197,7 +2192,10 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           <button
             type="button"
             disabled={isApplying}
-            onClick={onContinueToNextStep}
+            onClick={() => {
+              const filteredRows = tableData.filter(row => !unselectedRowKeys.includes(row.key));
+              onContinueToNextStep(unselectedRowKeys, filteredRows);
+            }}
             className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-indigo-400 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/10 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
           >
             <ArrowRight className="w-4 h-4" />
@@ -2213,7 +2211,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
             <CheckCircle2 className="w-4 h-4" />
             {isApplying 
               ? 'Applying Agent Findings...' 
-              : (agentResult?.status === 'needs_continuation' || agentResult?.needsContinuation || agentResult?.hasMore)
+              : (agentResult?.status === 'needs_continuation' || agentResult?.needsContinuation || agentResult?.hasMore || agentResult?.hasMoreMarkers)
                 ? 'Continue to Next Batch'
                 : 'Apply & Save Agent Findings'}
           </button>
@@ -2346,7 +2344,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
                     <CheckCircle2 className="w-4 h-4" />
                     {isApplying 
                       ? 'Applying...' 
-                      : (agentResult?.status === 'needs_continuation' || agentResult?.needsContinuation || agentResult?.hasMore)
+                      : (agentResult?.status === 'needs_continuation' || agentResult?.needsContinuation || agentResult?.hasMore || agentResult?.hasMoreMarkers)
                         ? 'Continue to Next Batch'
                         : 'Apply Findings & Close'}
                   </button>
