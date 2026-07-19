@@ -1275,6 +1275,13 @@ export default function Header({
                 <UserManagementTab />
               ) : dbOverlayViewMode === 'admin' && activeAdminTab === 'backup' ? (
                 <div className="space-y-6 max-h-[75vh] overflow-y-auto pb-8">
+                  <BackupRestoreTab 
+                     profile={profile} 
+                     foodLogs={foodLogs || []} 
+                     biomarkerHistory={biomarkerHistory || []} 
+                     setFoodLogs={setFoodLogs || (() => {})} 
+                     setBiomarkerHistory={setBiomarkerHistory || (() => {})} 
+                  />
                   <div className="p-4 bg-slate-800/50 rounded-xl border border-slate-700/50 mx-4 mt-4">
                     <h3 className="text-lg font-semibold text-white flex items-center gap-2 mb-2">
                       <Cloud className="w-5 h-5 text-indigo-400" />
@@ -1285,13 +1292,6 @@ export default function Header({
                     </p>
                     <GoogleHealthIntegration profile={profile} />
                   </div>
-                  <BackupRestoreTab 
-                     profile={profile} 
-                     foodLogs={foodLogs || []} 
-                     biomarkerHistory={biomarkerHistory || []} 
-                     setFoodLogs={setFoodLogs || (() => {})} 
-                     setBiomarkerHistory={setBiomarkerHistory || (() => {})} 
-                  />
                 </div>
               ) : (
                 <>

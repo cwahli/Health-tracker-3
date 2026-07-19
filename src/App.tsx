@@ -67,12 +67,19 @@ const pruneLocalStorageToFreeSpace = () => {
 
 const get = async (key: string): Promise<any> => {
   try {
-    return await Promise.race([
+    const result = await Promise.race([
       idbGet(key),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("IndexedDB timeout")), 1500))
+      new Promise((_, reject) => setTimeout(() => reject(new Error("IndexedDB timeout")), 8000))
     ]);
+    if (result !== undefined) {
+      return result;
+    }
+    // Fall back to localStorage if IDB returned undefined (key not found or wiped)
+    const val = localStorage.getItem(key);
+    return val ? JSON.parse(val) : undefined;
   } catch (e) {
     console.warn("get timeout/error (falling back to localStorage):", e);
+    if (typeof window !== 'undefined') (window as any)._idbFailed = true;
     try {
       const val = localStorage.getItem(key);
       return val ? JSON.parse(val) : undefined;
@@ -100,7 +107,7 @@ const set = async (key: string, val: any): Promise<void> => {
           pruneLocalStorageToFreeSpace();
           // Try to write a lightweight fallback copy just in case
           if (val && typeof val === 'object') {
-            const lightVal = { ...val };
+            const lightVal = { ...val, _isLightweightFallback: true };
             if (lightVal.foodLogs) lightVal.foodLogs = [];
             if (lightVal.report) lightVal.report = null;
             if (lightVal.biomarkerHistory && lightVal.biomarkerHistory.length > 50) {
@@ -120,13 +127,19 @@ const set = async (key: string, val: any): Promise<void> => {
   }
 
   // 2. Always write the full data to IndexedDB to ensure no data is lost
+  if (typeof window !== 'undefined' && (window as any)._idbFailed) {
+      console.warn("Skipping IndexedDB write because a previous read failed (preventing data overwrite)");
+      return;
+  }
+  
   try {
     await Promise.race([
       idbSet(key, val),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("IndexedDB timeout")), 1500))
+      new Promise((_, reject) => setTimeout(() => reject(new Error("IndexedDB timeout")), 8000))
     ]);
   } catch (idbError) {
     console.error("IndexedDB set failed:", idbError);
+    if (typeof window !== 'undefined') (window as any)._idbFailed = true;
   }
 };
 
@@ -1918,6 +1931,13 @@ export default function App() {
             loadedActions = parsedLocal.actions || [];
             loadedBenefits = parsedLocal.dailyBenefits || [];
             loadedReport = parsedLocal.report || null;
+            
+            // If we loaded a lightweight fallback (e.g. from localStorage because IDB failed),
+            // we MUST trigger a sync to pull the missing heavy data (like foodLogs) from the cloud.
+            if (parsedLocal._isLightweightFallback) {
+              console.warn("Lightweight local fallback detected. Forcing cloud sync to restore full data.");
+              (window as any).sessionSyncTriggered = true;
+            }
           }
 
           const isDemoUser = newEmail === 'demo@healthcockpit.com';

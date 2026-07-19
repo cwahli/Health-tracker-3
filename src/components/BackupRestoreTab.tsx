@@ -21,7 +21,7 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
   const [showConflicts, setShowConflicts] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const [stagedFoods, setStagedFoods] = useState<FoodLog[]>([]);
+  const [stagedFoods, setStagedFoods] = useState<(FoodLog & { similarTo?: any })[]>([]);
   const [stagedBio, setStagedBio] = useState<BiomarkerLog[]>([]);
   const [selectedFoods, setSelectedFoods] = useState<Set<string>>(new Set());
   const [selectedBio, setSelectedBio] = useState<Set<string>>(new Set());
@@ -41,6 +41,7 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
         // ensure objects are stringified for CSV
         if (row.nutrients) row.nutrients = JSON.stringify(row.nutrients);
         if (row.itemsBreakdown) row.itemsBreakdown = JSON.stringify(row.itemsBreakdown);
+        if (row.scoutItems) row.scoutItems = JSON.stringify(row.scoutItems);
         return row;
       });
 
@@ -65,7 +66,7 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
                // Extract format
                const match = log.imageUrl.match(/data:image\/([a-zA-Z0-9]+);base64,/);
                const ext = match ? match[1] : 'jpg';
-               imgFolder.file(`\${log.id}_main.\${ext}`, base64Data, { base64: true });
+               imgFolder.file(`${log.id}_main.${ext}`, base64Data, { base64: true });
             }
           }
           if (log.imageUrls && log.imageUrls.length > 0) {
@@ -74,7 +75,7 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
                if (base64Data) {
                   const match = url.match(/data:image\/([a-zA-Z0-9]+);base64,/);
                   const ext = match ? match[1] : 'jpg';
-                  imgFolder.file(`\${log.id}_extra_\${i}.\${ext}`, base64Data, { base64: true });
+                  imgFolder.file(`${log.id}_extra_${i}.${ext}`, base64Data, { base64: true });
                }
             });
           }
@@ -82,7 +83,7 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
       }
 
       const content = await zip.generateAsync({ type: 'blob' });
-      const filename = `\${profile.name || 'User'}_backup_\${new Date().toISOString().slice(0,10)}.zip`;
+      const filename = `${profile.nickname || 'User'}_backup_${new Date().toISOString().slice(0,10)}.zip`;
       saveAs(content, filename);
     } catch (e) {
       console.error(e);
@@ -115,6 +116,9 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
           if (typeof row.itemsBreakdown === 'string') {
             try { row.itemsBreakdown = JSON.parse(row.itemsBreakdown); } catch(e){}
           }
+          if (typeof row.scoutItems === 'string') {
+            try { row.scoutItems = JSON.parse(row.scoutItems); } catch(e){}
+          }
           return row;
         });
       }
@@ -142,22 +146,22 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
       const imgFolder = zip.folder("images");
       if (imgFolder) {
         for (const log of importedFoods) {
-          const mainImgRegex = new RegExp(`^images/\${log.id}_main\\.[a-zA-Z0-9]+$`);
+          const mainImgRegex = new RegExp(`${log.id}_main\\.[a-zA-Z0-9]+$`);
           const mainImgFiles = zip.file(mainImgRegex);
           if (mainImgFiles.length > 0) {
              const base64 = await mainImgFiles[0].async('base64');
              const ext = mainImgFiles[0].name.split('.').pop();
-             log.imageUrl = `data:image/\${ext};base64,\${base64}`;
+             log.imageUrl = `data:image/${ext};base64,${base64}`;
           }
 
-          const extraImgRegex = new RegExp(`^images/\${log.id}_extra_\\d+\\.[a-zA-Z0-9]+$`);
+          const extraImgRegex = new RegExp(`${log.id}_extra_\\d+\\.[a-zA-Z0-9]+$`);
           const extraImgFiles = zip.file(extraImgRegex);
           if (extraImgFiles.length > 0) {
              log.imageUrls = [];
              for (const f of extraImgFiles) {
                 const base64 = await f.async('base64');
                 const ext = f.name.split('.').pop();
-                log.imageUrls.push(`data:image/\${ext};base64,\${base64}`);
+                log.imageUrls.push(`data:image/${ext};base64,${base64}`);
              }
           }
         }
@@ -170,11 +174,27 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
       
       const existingFoodMap = new Map(foodLogs.map(f => [f.id, f]));
       const existingBioMap = new Map(biomarkerHistory.map(b => [b.id, b]));
+      
+      const existingPhotoMap = new Map();
+      foodLogs.forEach(f => {
+        if (f.imageUrl && f.imageUrl.length > 100) {
+          // Just use the first 100 chars as a rough hash, or the whole thing
+          // The whole thing might be big, let's use the whole thing for exact match
+          existingPhotoMap.set(f.imageUrl, f);
+        }
+      });
 
       importedFoods.forEach(f => {
          const existing = existingFoodMap.get(f.id);
+         const existingByPhoto = f.imageUrl ? existingPhotoMap.get(f.imageUrl) : null;
+         
          if (!existing) {
-             f.sync_state = 'new';
+             if (existingByPhoto) {
+                 (f as any).sync_state = 'similar_photo';
+                 (f as any).similarTo = existingByPhoto;
+             } else {
+                 f.sync_state = 'new';
+             }
              f.updated_at = Date.now();
              newFoods.push(f);
          } else {
@@ -308,20 +328,42 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
                {stagedFoods.length > 0 && (
                  <div className="bg-slate-800 rounded-lg p-3">
                    <h4 className="text-sm font-semibold text-slate-200 mb-2 border-b border-slate-700 pb-2">Food Logs ({stagedFoods.length})</h4>
-                   <div className="max-h-40 overflow-y-auto space-y-2">
+                   <div className="max-h-64 overflow-y-auto space-y-2">
                      {stagedFoods.map(f => (
-                       <label key={f.id} className="text-xs text-slate-300 flex items-center gap-2 cursor-pointer hover:bg-slate-700/50 p-1 rounded">
-                         <input type="checkbox" checked={selectedFoods.has(f.id)} onChange={(e) => {
-                             const next = new Set(selectedFoods);
-                             if (e.target.checked) next.add(f.id); else next.delete(f.id);
-                             setSelectedFoods(next);
-                         }} className="rounded bg-slate-900 border-slate-600 text-indigo-500 focus:ring-indigo-500" />
-                         <span className="truncate flex-1 font-medium">{f.name}</span>
-                         <span className="text-slate-500 w-24 text-right">{f.date?.slice(0,10)}</span>
-                         <span className="text-[10px] uppercase px-1.5 py-0.5 rounded bg-indigo-500/20 text-indigo-400">
-                           {f.sync_state === 'new' ? 'New' : 'Differs'}
-                         </span>
-                       </label>
+                       <div key={f.id} className="text-xs text-slate-300 flex flex-col gap-2 hover:bg-slate-700/50 p-2 rounded">
+                         <label className="flex items-center gap-2 cursor-pointer">
+                           <input type="checkbox" checked={selectedFoods.has(f.id)} onChange={(e) => {
+                               const next = new Set(selectedFoods);
+                               if (e.target.checked) next.add(f.id); else next.delete(f.id);
+                               setSelectedFoods(next);
+                           }} className="rounded bg-slate-900 border-slate-600 text-indigo-500 focus:ring-indigo-500" />
+                           {f.imageUrl ? <img src={f.imageUrl} className="w-8 h-8 rounded object-cover" /> : <div className="w-8 h-8 rounded bg-slate-600 flex items-center justify-center"><ImageIcon className="w-4 h-4 text-slate-400" /></div>}
+                           <span className="truncate flex-1 font-medium">{f.name}</span>
+                           <span className="text-slate-500 w-24 text-right">{f.date?.slice(0,10)}</span>
+                           <span className={`text-[10px] uppercase px-1.5 py-0.5 rounded ${(f.sync_state as string) === 'similar_photo' ? 'bg-amber-500/20 text-amber-400' : 'bg-indigo-500/20 text-indigo-400'}`}>
+                             {f.sync_state === 'new' ? 'New' : (f.sync_state as string) === 'similar_photo' ? 'Similar Photo' : 'Differs'}
+                           </span>
+                         </label>
+                         {(f.sync_state as string) === 'similar_photo' && (
+                             <div className="pl-6 flex flex-col gap-1 text-[10px] text-amber-400">
+                               <div>⚠️ Identical photo found in existing log: "{f.similarTo?.name}". Selecting this will add the backup as a new entry.</div>
+                               <input 
+                                   type="text" 
+                                   value={f.name} 
+                                   onChange={(e) => {
+                                       const nextStaged = [...stagedFoods];
+                                       const idx = nextStaged.findIndex(sf => sf.id === f.id);
+                                       if (idx >= 0) {
+                                           nextStaged[idx] = { ...nextStaged[idx], name: e.target.value };
+                                           setStagedFoods(nextStaged);
+                                       }
+                                   }} 
+                                   className="mt-1 px-2 py-1 bg-slate-900 border border-slate-700 rounded text-slate-200 w-full focus:outline-none focus:border-indigo-500"
+                                   placeholder="Edit name for the new entry..."
+                               />
+                             </div>
+                         )}
+                       </div>
                      ))}
                    </div>
                  </div>

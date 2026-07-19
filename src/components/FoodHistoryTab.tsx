@@ -1423,7 +1423,7 @@ export default function FoodHistoryTab({
                                 </div>
                               )}
 
-                              {log.itemsBreakdown && log.itemsBreakdown.length > 0 && (
+                              {Array.isArray(log.itemsBreakdown) && log.itemsBreakdown.length > 0 && (
                                 <div className="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
                                   <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
                                     <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">

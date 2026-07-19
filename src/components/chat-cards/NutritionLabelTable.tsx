@@ -31,10 +31,14 @@ function normalizeNutritionKeys(obj: any) {
 }
 
 export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOpen = false }: { activeScoutItems: any[], onConfirmItem?: (idx: any) => void, defaultOpen?: boolean }) {
-  if (!activeScoutItems?.length) return null;
+  let items = activeScoutItems;
+  if (typeof items === 'string') {
+    try { items = JSON.parse(items); } catch(e) { items = []; }
+  }
+  if (!Array.isArray(items) || !items.length) return null;
   // Only `rawNutritionLabel` is gated on "a real physical panel is visible" — `nutritionFacts`
   // is a general-purpose estimate field and must never be treated as evidence of a real label.
-  const processedItems = activeScoutItems.map(item => {
+  const processedItems = items.map(item => {
     if (!item) return item;
     let parsedRaw = item.rawNutritionLabel;
     if (typeof parsedRaw === 'string') {
