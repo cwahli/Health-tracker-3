@@ -566,7 +566,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           const safeKey = cleaned.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
           let key = resolveBiomarkerKey(safeKey || String(parsed.key || biomarkerName), biomarkerName, profile);
           
-          const existingEntries = (biomarkerHistory || []).filter((h: any) => h.biomarkers?.[key] !== undefined);
+          const existingEntries = (biomarkerHistory || []).filter((h: any) => h?.biomarkers?.[key] !== undefined);
           const hasLegacyProfileData = profile?.biomarkers?.[key] !== undefined;
           const customDef = profile?.customBiomarkers?.[key];
           const normalRange = customDef?.normalRange || '';
@@ -638,7 +638,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           let resolvedDate = parsed.date || 'N/A';
           if (rawKey) {
             const historyDates = biomarkerHistory
-              .filter((h: any) => h.biomarkers?.[rawKey] !== undefined)
+              .filter((h: any) => h?.biomarkers?.[rawKey] !== undefined)
               .map((h: any) => h.date);
             if (historyDates.length > 0) {
               resolvedDate = historyDates[0];
@@ -687,7 +687,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           
           let resolvedDate = parentParsed.date || 'N/A';
           const historyDates = biomarkerHistory
-            .filter((h: any) => h.biomarkers?.[raw.key] !== undefined)
+            .filter((h: any) => h?.biomarkers?.[raw.key] !== undefined)
             .map((h: any) => h.date);
           if (historyDates.length > 0) {
             resolvedDate = historyDates[0];
@@ -821,7 +821,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
         // If it's a standard key but units don't match, App.tsx appends the unit. 
         // We'll approximate this by checking customDef. If profile?.customBiomarkers?.[key] exists, it's correct.
         
-        const existingEntries = (biomarkerHistory || []).filter((h: any) => h.biomarkers?.[key] !== undefined);
+        const existingEntries = (biomarkerHistory || []).filter((h: any) => h?.biomarkers?.[key] !== undefined);
         const hasLegacyProfileData = profile?.biomarkers?.[key] !== undefined;
         let isNew = row.noChangeNeeded ? false : (existingEntries.length === 0 && !hasLegacyProfileData);
         
@@ -871,9 +871,9 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
         let isUnitChanged = false;
 
         if (!row.noChangeNeeded && !isNew && existingEntries.length > 0) {
-          const exactMatch = existingEntries.find((h: any) => normalizeDate(h.date) === normalizedRowDate && h.biomarkers?.[key] !== undefined);
+          const exactMatch = existingEntries.find((h: any) => normalizeDate(h.date) === normalizedRowDate && h?.biomarkers?.[key] !== undefined);
           if (exactMatch) {
-            const matchVal = exactMatch.biomarkers[key];
+            const matchVal = exactMatch.biomarkers?.[key];
             const dictUnit = customDef?.unit || '';
             const numMatchVal = parseFloat(matchVal);
             const numRowVal = parseFloat(row.value);
@@ -912,7 +912,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
             }
           } else {
             const sortedHistory = [...existingEntries].sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
-            const latestVal = sortedHistory[0].biomarkers[key];
+            const latestVal = sortedHistory[0]?.biomarkers?.[key];
             if (latestVal !== undefined) {
               isNew = true;
               isChanged = false;
@@ -1020,7 +1020,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
       const finalRowsFallback = parsedRows.map((row: any) => {
         const biomarkerName = row.biomarker || row.name || row.key || 'Unknown';
         const key = resolveBiomarkerKey(row.key || String(biomarkerName).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, ''), biomarkerName, profile);
-        const existingEntries = (biomarkerHistory || []).filter((h: any) => h.biomarkers?.[key] !== undefined);
+        const existingEntries = (biomarkerHistory || []).filter((h: any) => h?.biomarkers?.[key] !== undefined);
         const hasLegacyProfileData = profile?.biomarkers?.[key] !== undefined;
         let isNew = row.noChangeNeeded ? false : (existingEntries.length === 0 && !hasLegacyProfileData);
         
@@ -1069,9 +1069,9 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
         let isUnitChanged = false;
 
         if (!row.noChangeNeeded && !isNew && existingEntries.length > 0) {
-          const exactMatch = existingEntries.find((h: any) => normalizeDate(h.date) === normalizedRowDate && h.biomarkers?.[key] !== undefined);
+          const exactMatch = existingEntries.find((h: any) => normalizeDate(h.date) === normalizedRowDate && h?.biomarkers?.[key] !== undefined);
           if (exactMatch) {
-            const matchVal = exactMatch.biomarkers[key];
+            const matchVal = exactMatch.biomarkers?.[key];
             const dictUnit = customDef?.unit || '';
             const numMatchVal = parseFloat(matchVal);
             const numRowVal = parseFloat(row.value);
@@ -1110,7 +1110,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
             }
           } else {
             const sortedHistory = [...existingEntries].sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
-            const latestVal = sortedHistory[0].biomarkers[key];
+            const latestVal = sortedHistory[0]?.biomarkers?.[key];
             if (latestVal !== undefined) {
               isNew = true;
               isChanged = false;
@@ -1158,15 +1158,15 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
     if (agentType === 'agent2') {
       // Step 2: Clinical Ontologist (Mapping)
       const mapping = agentResult.bucketMapping || agentResult || {};
-      const entries = Object.entries(mapping).filter(([k]) => k !== 'text' && k !== 'extractedYaml');
+      const entries = Object.entries(mapping).filter(([k, v]) => k !== 'text' && k !== 'extractedYaml' && v && typeof v === 'object');
       
-      return entries.filter((e: any) => e && typeof e === 'object').map(([bioName, mapData]: [string, any]) => {
+      return entries.map(([bioName, mapData]: [string, any]) => {
         const key = String(bioName).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
         const existingDef = profile?.customBiomarkers?.[key];
-        const newGroup = mapData.standardMedicalGrouping || 'Other';
+        const newGroup = mapData?.standardMedicalGrouping || 'Other';
         const oldGroup = existingDef?.standardMedicalGrouping || 'Other';
         const isGroupChanged = newGroup !== oldGroup;
-        const newCategories = (Array.isArray(mapData.riskCategories) ? mapData.riskCategories : []).join(', ');
+        const newCategories = (Array.isArray(mapData?.riskCategories) ? mapData.riskCategories : []).join(', ');
         const oldCategories = (Array.isArray(existingDef?.riskCategories) ? existingDef?.riskCategories : []).join(', ');
         const isCategoryChanged = newCategories !== oldCategories;
         const isChanged = isGroupChanged || isCategoryChanged;
@@ -1183,9 +1183,9 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           changeReason = `Mapped ${bioName} to ${newGroup}`;
         }
 
-        const hasRisk = mapData.riskCategories && mapData.riskCategories.length > 0;
+        const hasRisk = mapData?.riskCategories && mapData.riskCategories.length > 0;
         const riskReason = hasRisk 
-          ? `Associated with risk categories: ${(Array.isArray(mapData.riskCategories) ? mapData.riskCategories : []).join(', ')}` 
+          ? `Associated with risk categories: ${(Array.isArray(mapData?.riskCategories) ? mapData.riskCategories : []).join(', ')}` 
           : "";
 
         return {
@@ -1212,8 +1212,10 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
       // Step 3: Clinical Data Coordinator (Assembly)
       const buckets = Array.isArray(agentResult.buckets) ? agentResult.buckets : [];
       const allBiomarkers = buckets.flatMap((bucket: any) => {
+        if (!bucket) return [];
         return (bucket.biomarkers || []).filter((b: any) => b && typeof b === 'object').map((b: any) => {
-          const key = String(b.name || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+          const nameToUse = b.name || b.key || b.biomarker || 'Unknown';
+          const key = String(nameToUse).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
           const existingDef = profile?.customBiomarkers?.[key];
           const oldGroup = existingDef?.standardMedicalGrouping || 'Other';
           const isGroupChanged = bucket.systemName && bucket.systemName !== oldGroup;
@@ -1224,7 +1226,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
             if (!existingDef) {
               hasNewReadings = true;
             } else {
-              const existingDates = (biomarkerHistory || []).filter((h: any) => h.biomarkers?.[key] !== undefined).map((h: any) => h.date);
+              const existingDates = (biomarkerHistory || []).filter((h: any) => h && h.biomarkers && h.biomarkers[key] !== undefined).map((h: any) => h.date);
               const newDates = b.history.filter((h: any) => h && h.date && !existingDates.includes(h.date));
               if (newDates.length > 0) {
                 hasNewReadings = true;
@@ -1234,7 +1236,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
 
           let changeReason = "";
           if (isNew) {
-            changeReason = `Assembled new biomarker: ${b.name}`;
+            changeReason = `Assembled new biomarker: ${nameToUse}`;
           } else if (hasNewReadings) {
             changeReason = `Integrated ${b.history?.length || 0} readings`;
           }
@@ -1242,11 +1244,11 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           const customDef = profile?.customBiomarkers?.[key];
           const hasRisk = customDef?.riskCategories && customDef.riskCategories.length > 0;
           const riskReason = hasRisk 
-            ? `Associated with risk categories: ${(Array.isArray(customDef.riskCategories) ? customDef.riskCategories : []).join(', ')}` 
+            ? `Associated with risk categories: ${(Array.isArray(customDef?.riskCategories) ? customDef.riskCategories : []).join(', ')}` 
             : "";
 
           return {
-            biomarker: b.name || 'Unknown',
+            biomarker: nameToUse,
             group: bucket.systemName || 'Other',
             oldGroup,
             isGroupChanged,
@@ -1269,8 +1271,11 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
       // Step 4: Prognostic Diagnostics Assessment
       const conditions = Array.isArray(agentResult.prioritizedConditions) ? agentResult.prioritizedConditions : [];
       return conditions.flatMap((cond: any) => {
+        if (!cond) return [];
         return (Array.isArray(cond.biomarkers) ? cond.biomarkers : []).map((b: any) => {
-          const key = String(b.key || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+          if (!b) return null;
+          const nameToUse = b.name || b.key || b.biomarker || 'Unknown';
+          const key = String(nameToUse).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
           const existingDef = profile?.customBiomarkers?.[key];
           const oldGroup = existingDef?.standardMedicalGrouping || 'Other';
           const isGroupChanged = cond.conditionName && cond.conditionName !== oldGroup;
@@ -1287,7 +1292,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
             : "";
 
           return {
-            biomarker: b.name || b.key || 'Unknown',
+            biomarker: nameToUse,
             condition: cond.conditionName || 'Other',
             oldGroup,
             isGroupChanged,
@@ -1298,7 +1303,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
             riskReason,
             isAtRisk
           };
-        });
+        }).filter(Boolean);
       });
     }
 
