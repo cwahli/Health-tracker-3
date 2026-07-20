@@ -21,7 +21,7 @@ import { Plus, HeartHandshake, RefreshCw, Sparkles, Stethoscope, Utensils, Loade
 import { auth, db } from './firebase';
 import { onAuthStateChanged, signOut as fbSignOut } from 'firebase/auth';
 import { trackApiCall, setActiveQueryId, generateQueryId, initializeFetchInterceptor } from './utils/apiTracker';
-import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, getDocFromServer, getDocsFromServer, onSnapshot, getDocsFromCache, writeBatch } from 'firebase/firestore';
+import { doc, getDoc, setDoc, collection, getDocs, deleteDoc, getDocFromServer, getDocsFromServer, getDocsFromCache, writeBatch } from 'firebase/firestore';
 import { sanitizeForFirestore, checkQuotaFlag, handleRetryQuota } from './utils/firestoreUtils';
 import { getCurrentDateInTimezone, toYYYYMMDD, normalizeBiomarkerHistory } from './utils/dateUtils';
 import { biomarkerDefinitions, isAsianEthnicity, hasBmiPendingAlert, getProfileFingerprint } from './utils/biomarkers';
@@ -1959,11 +1959,11 @@ export default function App() {
             loadedBenefits = parsedLocal.dailyBenefits || [];
             loadedReport = parsedLocal.report || null;
             
-            // If we loaded a lightweight fallback (e.g. from localStorage because IDB failed),
-            // we MUST trigger a sync to pull the missing heavy data (like foodLogs) from the cloud.
+            // If we loaded a lightweight fallback, show a warning but do NOT auto-sync.
+            // The user must manually click "Sync Now" to pull cloud data.
+            // Auto-syncing here was causing large Firebase read spikes on page load.
             if (parsedLocal._isLightweightFallback) {
-              console.warn("Lightweight local fallback detected. Forcing cloud sync to restore full data.");
-              sessionStorage.setItem('sessionSyncTriggered', 'true');
+              console.warn("[Storage] Lightweight local fallback detected. Full data available via manual Sync Now.");
             }
           }
 
@@ -2030,8 +2030,9 @@ export default function App() {
           // One-Time Legacy Migration & Real-Time onSnapshot setup
           const uid = user.uid;
           
-          // A. One-Time Legacy Migration
-          if (loadedProfile) {
+          // A. One-Time Legacy Migration — only runs during an explicit manual sync session.
+          // This prevents automatic Firestore reads on every page load.
+          if (loadedProfile && sessionStorage.getItem('sessionSyncTriggered') === 'true') {
             if (!loadedProfile.metadata) loadedProfile.metadata = {};
             if (!loadedProfile.metadata.legacyMigratedV2) {
               // Cheap check: verify against the cloud flag before doing an expensive
@@ -2121,112 +2122,10 @@ export default function App() {
             }
           }
           
-          // B. Real-Time V2 Syncing via onSnapshot on consolidated_logs
-          // @ts-ignore
-          if (sessionStorage.getItem('sessionSyncTriggered') === 'true' && sessionStorage.getItem('isSnapshotAttached') !== 'true') {
-            try {
-              console.log("[Realtime Sync] Setting up real-time listener for consolidated_logs");
-              // @ts-ignore
-              sessionStorage.setItem('isSnapshotAttached', 'true');
-              const q = collection(db, 'users', uid, 'consolidated_logs');
-              if (!firestoreReadGuard('onSnapshot consolidated_logs')) return;
-              const unsubSnapshot = onSnapshot(q, (snapshot) => {
-              // Read all buckets from snapshot
-              const allDocs = snapshot.docs.map(d => d.data());
-              if (allDocs.length > 0) {
-                // Merge them into foodLogs and biomarkerHistory
-                let combinedFoods: FoodLog[] = [];
-                let combinedHistory: BiomarkerLog[] = [];
-                
-                allDocs.forEach((docData: any) => {
-                  if (docData && docData.logs) {
-                    Object.values(docData.logs).forEach((logInfo: any) => {
-                      if (logInfo.type === 'food') {
-                        combinedFoods.push({ ...logInfo.data, sync_state: 'synced' });
-                      } else if (logInfo.type === 'biomarker') {
-                        combinedHistory.push({ ...logInfo.data, sync_state: 'synced' });
-                      }
-                    });
-                  }
-                  // Fallback for legacy format if any
-                  if (docData.foodLogs && Array.isArray(docData.foodLogs)) {
-                    combinedFoods = [...combinedFoods, ...docData.foodLogs];
-                  }
-                  if (docData.biomarkerHistory && Array.isArray(docData.biomarkerHistory)) {
-                    combinedHistory = [...combinedHistory, ...docData.biomarkerHistory];
-                  }
-                });
-                
-                // De-duplicate and sort
-                setFoodLogs(prevFoods => {
-                  const map = new Map<string, FoodLog>();
-                  // Seed with existing foods to preserve local edits if applicable
-                  prevFoods.forEach(f => map.set(f.id, f));
-                  combinedFoods.forEach(f => {
-                    const existing = map.get(f.id);
-                    if (!existing || (f.updated_at || 0) > (existing.updated_at || 0)) {
-                      // Preserve images from local state because server strips them for storage
-                      if (existing && !f.imageUrl && (!f.imageUrls || f.imageUrls.length === 0)) {
-                        f.imageUrl = existing.imageUrl;
-                        f.imageUrls = existing.imageUrls;
-                      }
-                      map.set(f.id, f);
-                    }
-                  });
-                  const list = Array.from(map.values()).filter(f => f.sync_state !== 'delete' && !(profile?.deletedFoodLogIds?.[f.id] && (profile?.deletedFoodLogIds?.[f.id] || 0) >= (f.updated_at || 0)));
-                  list.sort((a, b) => b.date.localeCompare(a.date));
-                  return list;
-                });
-                
-                setBiomarkerHistory(prevHistory => {
-                  const map = new Map<string, BiomarkerLog>();
-                  prevHistory.forEach(h => map.set(h.id, h));
-                  combinedHistory.forEach(h => {
-                    const existing = map.get(h.id);
-                    if (!existing || (h.updated_at || 0) > (existing.updated_at || 0)) {
-                      map.set(h.id, h);
-                    }
-                  });
-                  const list = Array.from(map.values()).filter(h => h.sync_state !== 'delete' && !((profile || {}).deletedBiomarkerLogIds || {})[h.id]);
-                  list.sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
-                  return list;
-                });
-                
-                // Dynamically recompute biomarkers if history changed
-                setBiomarkers(() => {
-                  const computed: { [key: string]: number | string } = {};
-                  // Group by biomarker key to find the latest value
-                  const histories: { [key: string]: { date: string; val: any }[] } = {};
-                  const deletedBioIdsSet = (profile || {}).deletedBiomarkerLogIds || {};
-                  combinedHistory.forEach(h => {
-                    if (h.biomarkers && h.sync_state !== 'delete' && !deletedBioIdsSet[h.id]) {
-                      Object.entries(h.biomarkers).forEach(([key, val]) => {
-                        if (!histories[key]) histories[key] = [];
-                        histories[key].push({ date: h.date, val });
-                      });
-                    }
-                  });
-                  Object.keys(histories).forEach(key => {
-                    histories[key].sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
-                    computed[key] = histories[key][0].val;
-                  });
-                  return computed;
-                });
-              }
-            }, (snapshotErr) => {
-              console.warn("[Realtime Sync] onSnapshot error:", snapshotErr);
-            });
-            unsubs.push(() => {
-              // @ts-ignore
-              sessionStorage.removeItem('isSnapshotAttached');
-              unsubSnapshot();
-            });
-          } catch (snapshotSetupErr) {
-            // @ts-ignore
-            sessionStorage.removeItem('isSnapshotAttached');
-            console.warn("[Realtime Sync] Failed to set up onSnapshot:", snapshotSetupErr);
-          }
-          }
+          // B. Real-Time Sync via onSnapshot — DISABLED.
+          // Removed: onSnapshot generates one Firestore read per document in consolidated_logs
+          // on every write event, causing large read spikes. Sync is now on-demand only:
+          // the user must click "Sync Now" to pull cloud changes.
         } else {
           // Not signed in, fall back to guest storage if available
           const storageKey = getStorageKey('guest');
