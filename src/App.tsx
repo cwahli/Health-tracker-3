@@ -28,6 +28,18 @@ import { biomarkerDefinitions, isAsianEthnicity, hasBmiPendingAlert, getProfileF
 import { standardizeUnit, CONVERSION_FACTORS } from './utils/unitConversion';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 
+const FIRESTORE_READ_BUDGET = 3000; // generous for one real session; a runaway loop hits this fast
+function firestoreReadGuard(label: string, docCount: number = 1): boolean {
+  const key = 'firestoreReadCountThisSession';
+  const current = parseInt(sessionStorage.getItem(key) || '0', 10) + docCount;
+  sessionStorage.setItem(key, String(current));
+  if (current > FIRESTORE_READ_BUDGET) {
+    console.error(`[Circuit Breaker] Firestore read budget exceeded (${current}/${FIRESTORE_READ_BUDGET}) at "${label}". Blocking further reads this session to prevent runaway cost. Reload the page to reset.`);
+    return false; // caller should skip the read
+  }
+  return true;
+}
+
 const pruneLocalStorageToFreeSpace = () => {
   console.warn("Pruning localStorage to free up space...");
   try {
@@ -922,7 +934,7 @@ export default function App() {
   // Check of changes in profile and other info on the database (and pull latest changes)
   const checkForDbChanges = async (forceUserId?: string, forcePull?: boolean, forceReplaceLocal?: boolean) => {
     (window as any).isManualSyncExecuting = true;
-    window.sessionSyncTriggered = true;
+    sessionStorage.setItem('sessionSyncTriggered', 'true');
     const uid = forceUserId || auth.currentUser?.uid;
     console.log("Checking DB changes for UID:", uid);
     if (!uid) {
@@ -1951,7 +1963,7 @@ export default function App() {
             // we MUST trigger a sync to pull the missing heavy data (like foodLogs) from the cloud.
             if (parsedLocal._isLightweightFallback) {
               console.warn("Lightweight local fallback detected. Forcing cloud sync to restore full data.");
-              (window as any).sessionSyncTriggered = true;
+              sessionStorage.setItem('sessionSyncTriggered', 'true');
             }
           }
 
@@ -2041,11 +2053,15 @@ export default function App() {
               } else {
               console.log("[Migration] Initiating one-time legacy migration to V2 consolidated bucket logs");
               try {
-                const legacyFoodsSnap = await getDocs(collection(db, 'users', uid, 'foodLogs'));
-                const legacyHistorySnap = await getDocs(collection(db, 'users', uid, 'biomarkerHistory'));
+                let legacyFoodsSnap: any = { docs: [] };
+                let legacyHistorySnap: any = { docs: [] };
+                if (firestoreReadGuard('legacy migration scan')) {
+                  legacyFoodsSnap = await getDocs(collection(db, 'users', uid, 'foodLogs'));
+                  legacyHistorySnap = await getDocs(collection(db, 'users', uid, 'biomarkerHistory'));
+                }
                 
-                const legacyFoods: FoodLog[] = legacyFoodsSnap.docs.map(d => ({ id: d.id, ...d.data() } as FoodLog));
-                const legacyHistory: BiomarkerLog[] = legacyHistorySnap.docs.map(d => ({ id: d.id, ...d.data() } as BiomarkerLog));
+                const legacyFoods: FoodLog[] = legacyFoodsSnap.docs.map((d: any) => ({ id: d.id, ...d.data() } as FoodLog));
+                const legacyHistory: BiomarkerLog[] = legacyHistorySnap.docs.map((d: any) => ({ id: d.id, ...d.data() } as BiomarkerLog));
 
                 // Never resurrect logs the user has already deleted. These IDs are the
                 // source of truth for deletions and must be respected during migration,
@@ -2107,12 +2123,13 @@ export default function App() {
           
           // B. Real-Time V2 Syncing via onSnapshot on consolidated_logs
           // @ts-ignore
-          if (window.sessionSyncTriggered && !window.isSnapshotAttached) {
+          if (sessionStorage.getItem('sessionSyncTriggered') === 'true' && sessionStorage.getItem('isSnapshotAttached') !== 'true') {
             try {
               console.log("[Realtime Sync] Setting up real-time listener for consolidated_logs");
               // @ts-ignore
-              window.isSnapshotAttached = true;
+              sessionStorage.setItem('isSnapshotAttached', 'true');
               const q = collection(db, 'users', uid, 'consolidated_logs');
+              if (!firestoreReadGuard('onSnapshot consolidated_logs')) return;
               const unsubSnapshot = onSnapshot(q, (snapshot) => {
               // Read all buckets from snapshot
               const allDocs = snapshot.docs.map(d => d.data());
@@ -2201,12 +2218,12 @@ export default function App() {
             });
             unsubs.push(() => {
               // @ts-ignore
-              window.isSnapshotAttached = false;
+              sessionStorage.removeItem('isSnapshotAttached');
               unsubSnapshot();
             });
           } catch (snapshotSetupErr) {
             // @ts-ignore
-            window.isSnapshotAttached = false;
+            sessionStorage.removeItem('isSnapshotAttached');
             console.warn("[Realtime Sync] Failed to set up onSnapshot:", snapshotSetupErr);
           }
           }
