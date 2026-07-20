@@ -6,7 +6,7 @@ import { FoodLog } from '../types';
  * and extracts its real, non-referenced image URL.
  */
 export function resolveFoodImage(img: string | undefined, foodLogs: FoodLog[]): string | undefined {
-  if (!img) return undefined;
+  if (!img || img === '[image_removed_for_snapshot]') return undefined;
   if (!img.startsWith('ref:')) return img;
   
   const primaryId = img.replace('ref:', '');

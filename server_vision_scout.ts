@@ -75,6 +75,7 @@ CRITICAL RULES:
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers.
 {
+  "scratchpad": "string (Think step-by-step: analyze the image, apply density rules, and determine items)",
   "recommendedMode": "new_log | evaluation | discussion (CRITICAL: 'evaluation' MUST ONLY be used if the image contains MULTIPLE distinct options like a menu, or if the user explicitly asks to compare items. If the user asks 'is it healthy?' for a single product, you MUST use 'new_log')",
   "contentType": "visual | menu_or_poster | text",
   "items": [
@@ -145,6 +146,7 @@ export function mergeScoutItems(visionItems: any[], llmItems: any[] | null | und
 }
 
 export interface VisionScoutResult {
+  scratchpad?: string;
   items: any[];
   scoutConfidenceRating: string;
   scoutConfidenceComment: string;
@@ -395,6 +397,7 @@ export function parseAndHealVisionScout(
   }
 
   return {
+    scratchpad: parsedScout?.scratchpad,
     items: visionScoutItems,
     scoutConfidenceRating,
     scoutConfidenceComment,

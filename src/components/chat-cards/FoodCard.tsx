@@ -14,6 +14,55 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { ZoomableImage } from '../ZoomableImage';
 import { FoodScoutItemPreview, OnlineFoodImage } from './FoodScoutItemPreview';
 
+const AgentThoughtBox = ({ scoutScratchpad, dietitianScratchpad, isLive }: { scoutScratchpad?: string, dietitianScratchpad?: string, isLive?: boolean }) => {
+  const [isExpanded, setIsExpanded] = React.useState(!!isLive);
+  
+  React.useEffect(() => {
+    if (isLive) {
+      setIsExpanded(true);
+    }
+  }, [isLive]);
+
+  if (!scoutScratchpad && !dietitianScratchpad) return null;
+  
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-2xl px-4 py-3 shadow-sm border border-slate-200 dark:border-slate-800/40 min-w-[250px] my-2">
+      <div className="flex flex-col gap-2">
+        <button 
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between font-medium hover:text-indigo-600 transition-colors w-full"
+        >
+          <span className="flex items-center gap-2">
+            <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+            Agents thought...
+          </span>
+          {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+        </button>
+        {isExpanded && (
+          <div className="flex flex-col gap-3 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
+            {scoutScratchpad && (
+              <div className="flex flex-col gap-1 text-left">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Vision Scout</span>
+                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg font-mono text-[11px] border border-slate-100 dark:border-slate-800">
+                  {scoutScratchpad}
+                </p>
+              </div>
+            )}
+            {dietitianScratchpad && (
+              <div className="flex flex-col gap-1 text-left">
+                <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian</span>
+                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed bg-indigo-50/50 dark:bg-indigo-900/20 p-2 rounded-lg font-mono text-[11px] border border-indigo-100 dark:border-indigo-800/30">
+                  {dietitianScratchpad}
+                </p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 interface CroppedFoodImageProps {
   src: string;
   boundingBox: [number, number, number, number]; // [ymin, xmin, ymax, xmax] from 0 to 1000
@@ -867,6 +916,12 @@ export const FoodCard: React.FC<AgentCardProps & {
                            )}
                         </div>
                       )}
+
+                      <AgentThoughtBox 
+                        scoutScratchpad={msg.data?.agentResult?.scoutScratchpad}
+                        dietitianScratchpad={msg.data?.agentResult?.dietitianScratchpad}
+                        isLive={msg.isLive}
+                      />
 
                       {(msg.content || msg.data?.agentResult?.message) && (
                         <div className="text-[11.5px] text-slate-700 dark:text-slate-300 font-sans leading-relaxed text-left pb-3 whitespace-pre-line break-words">
@@ -1798,6 +1853,12 @@ export const FoodCard: React.FC<AgentCardProps & {
                           <span className="font-mono text-[10px] text-slate-400">{msg.data?.pendingFoodLog.date}</span>
                         </div>
                       </div>
+
+                      <AgentThoughtBox 
+                        scoutScratchpad={msg.data?.agentResult?.scoutScratchpad}
+                        dietitianScratchpad={msg.data?.agentResult?.dietitianScratchpad}
+                        isLive={msg.isLive}
+                      />
 
                       {(msg.content || msg.data?.agentResult?.message) && (
                         <div className="text-[11.5px] text-slate-700 dark:text-slate-300 font-sans leading-relaxed text-left py-2 border-b border-slate-100 dark:border-slate-800/50 whitespace-pre-line break-words">

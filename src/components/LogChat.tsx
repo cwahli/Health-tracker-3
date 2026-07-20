@@ -626,7 +626,13 @@ ${logsText}`);
     if (markAsUnsaved) {
       hasUnsavedChangesRef.current = true;
     }
-    setMessagesInternal(update);
+    setMessagesInternal(prev => {
+      let newVal = typeof update === 'function' ? update(prev) : update;
+      if (isAgent('food') && newVal.length > 11) {
+        newVal = [newVal[0], ...newVal.slice(-10)];
+      }
+      return newVal;
+    });
   };
   
   // Synchronized Multi-select Search Mode States for Bottom Action Bar
@@ -1163,6 +1169,9 @@ ${logsText}`);
   const [isCompressing, setIsCompressing] = useState(false);
   const [compressionProgress, setCompressionProgress] = useState({ current: 0, total: 0, percent: 0 });
   const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [activeReqId, setActiveReqId] = useState<string | null>(null);
+  const [liveThoughts, setLiveThoughts] = useState<{scout?: string, dietitian?: string}>({});
+  const [isThoughtsExpanded, setIsThoughtsExpanded] = useState(true);
   const [analyzingStepIndex, setAnalyzingStepIndex] = useState(0);
   const [expandedNutrients, setExpandedNutrients] = useState(false);
   const [isEngineSelectorOpen, setIsEngineSelectorOpen] = useState(false);
@@ -1193,6 +1202,42 @@ ${logsText}`);
       if (interval) clearInterval(interval);
     };
   }, [isAnalyzing, type]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout | null = null;
+    if (isAnalyzing && activeReqId) {
+      interval = setInterval(async () => {
+        try {
+          const res = await fetch(`/api/gemini/debug-logs?sessionId=${activeReqId}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data && data.logs && Array.isArray(data.logs)) {
+              let newScout: string | undefined;
+              let newDietitian: string | undefined;
+              for (const log of data.logs) {
+                if (log.message.startsWith('[Scout Scratchpad]')) {
+                  newScout = log.message.substring(19).trim();
+                } else if (log.message.startsWith('[Dietitian Scratchpad]')) {
+                  newDietitian = log.message.substring(23).trim();
+                }
+              }
+              setLiveThoughts(prev => {
+                if (prev.scout !== newScout || prev.dietitian !== newDietitian) {
+                  return { scout: newScout || prev.scout, dietitian: newDietitian || prev.dietitian };
+                }
+                return prev;
+              });
+            }
+          }
+        } catch (e) {
+          // ignore polling errors
+        }
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [isAnalyzing, activeReqId]);
 
   const [loggedMessageIds, setLoggedMessageIds] = useState<string[]>([]);
   const [showPastDiscussion, setShowPastDiscussion] = useState(false);
@@ -1471,6 +1516,8 @@ ${logsText}`);
 
     const currentReqId = generateQueryId();
     setActiveQueryId(currentReqId);
+    setActiveReqId(currentReqId);
+    setLiveThoughts({});
     let textToSend = typeof overrideText === 'string' ? overrideText : (overrideText?.text || inputText);
     const compareOnly = typeof overrideText === 'object' && overrideText?.compareOnly;
     const compareItems = typeof overrideText === 'object' && overrideText?.compareItems;
@@ -1504,7 +1551,23 @@ ${logsText}`);
       imageUrls: selectedImages.length > 0 ? selectedImages : undefined
     };
 
-    setMessages(prev => [...prev, userMsg]);
+    const isFood = isAgent('food');
+    const liveMsg: ChatMessage = {
+      id: `msg_live_${Date.now()}`,
+      role: 'assistant',
+      content: '',
+      timestamp: new Date().toISOString(),
+      isLive: true,
+      agentType: isFood ? 'food' : (isAgent('food_idea') ? 'food_idea' : (agentType || 'agent1')),
+      data: {
+        agentResult: {
+          scoutScratchpad: '',
+          dietitianScratchpad: ''
+        }
+      }
+    };
+
+    setMessages(prev => [...prev, userMsg, liveMsg]);
     if (typeof overrideText !== 'string') {
       setInputText('');
     }
@@ -1841,7 +1904,12 @@ ${logsText}`);
       }
       setLastSentPayload(displayPayload);
 
-      const response = await fetch(endpoint, {
+      let fetchEndpoint = endpoint;
+      if (endpoint === '/api/gemini/food-analyze') {
+        fetchEndpoint += '?stream=true';
+      }
+
+      const response = await fetch(fetchEndpoint, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -1880,7 +1948,60 @@ ${logsText}`);
           : `Request failed (${response.status}). Please try again.`);
       }
 
-      const resData = await response.json();
+      const contentType = response.headers.get("content-type");
+      let resData: any = {};
+      if (contentType && contentType.includes("text/event-stream")) {
+        const reader = response.body?.getReader();
+        if (!reader) throw new Error("No stream reader available");
+        const decoder = new TextDecoder();
+        let accumulatedText = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          const chunkStr = decoder.decode(value, { stream: true });
+          const events = chunkStr.split("\n\n");
+          for (const ev of events) {
+            if (ev.startsWith("data: ")) {
+              try {
+                const data = JSON.parse(ev.slice(6));
+                if (data.chunk) {
+                  accumulatedText += data.chunk;
+                  const scoutMatch = accumulatedText.match(/\"scoutScratchpad\"\s*:\s*\"([^]*?)(\"|$)/);
+                  const dietMatch = accumulatedText.match(/\"dietitianScratchpad\"\s*:\s*\"([^]*?)(\"|$)/) || accumulatedText.match(/\"scratchpad\"\s*:\s*\"([^]*?)(\"|$)/);
+                  setMessages(prev => {
+                    const newMsgs = [...prev];
+                    const lastMsg = newMsgs[newMsgs.length - 1];
+                    if (lastMsg && lastMsg.role === "assistant" && lastMsg.isLive) {
+                      const updatedData = lastMsg.data ? { ...lastMsg.data } : {};
+                      const updatedAgentResult = updatedData.agentResult ? { ...updatedData.agentResult } : {};
+                      let hasChanges = false;
+                      if (scoutMatch) {
+                        updatedAgentResult.scoutScratchpad = scoutMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, "\"");
+                        hasChanges = true;
+                      }
+                      if (dietMatch) {
+                        updatedAgentResult.dietitianScratchpad = dietMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, "\"");
+                        hasChanges = true;
+                      }
+                      if (hasChanges) {
+                        return [
+                          ...newMsgs.slice(0, newMsgs.length - 1),
+                          { ...lastMsg, data: { ...updatedData, agentResult: updatedAgentResult } }
+                        ];
+                      }
+                    }
+                    return prev;
+                  });
+                } else if (data.final) {
+                  resData = data.result;
+                }
+              } catch (e) {}
+            }
+          }
+        }
+      } else {
+        resData = await response.json();
+      }
       if (resData.error) throw new Error(resData.error);
 
       // Deduct agent credits upon successful response
@@ -2019,12 +2140,13 @@ ${logsText}`);
       const migratedAssistantMsg = migrateMessages([assistantMsg])[0];
 
       setMessages(prev => {
+        const filteredPrev = prev.filter(m => !m.isLive);
         if (isAgent('food') && resData.mode === 'modify' && (resData.data || (resData.scoutItems && resData.scoutItems.length > 0))) {
-          let newPrev = [...prev];
+          let newPrev = [...filteredPrev];
 
           if (resData.data) {
             // Check if this food was already saved to database history
-            const targetMsg = [...prev].reverse().find(m => m.data?.pendingFoodLog);
+            const targetMsg = [...filteredPrev].reverse().find(m => m.data?.pendingFoodLog);
             const wasLogged = targetMsg ? loggedMessageIds.includes(targetMsg.id) : false;
             if (wasLogged && targetMsg?.data?.pendingFoodLog) {
               // Automatically mark the modified card message as logged too
@@ -2079,13 +2201,13 @@ ${logsText}`);
           }
           return [...newPrev, migratedAssistantMsg];
         }
-        return [...prev, migratedAssistantMsg];
+        return [...filteredPrev, migratedAssistantMsg];
       });
     } catch (err: any) {
       console.error(err);
       if (isAgent('food')) {
         setMessages(prev => [
-          ...prev,
+          ...prev.filter(m => !m.isLive),
           {
             id: `msg_err_${Date.now()}`,
             role: 'assistant',
@@ -2102,7 +2224,7 @@ ${logsText}`);
       } else {
         const isQuota = err.message?.includes("429") || err.message?.includes("quota") || err.message?.includes("RESOURCE_EXHAUSTED");
         setMessages(prev => [
-          ...prev,
+          ...prev.filter(m => !m.isLive),
           {
             id: `msg_err_${Date.now()}`,
             role: 'assistant',
@@ -2113,6 +2235,7 @@ ${logsText}`);
       }
     } finally {
       setIsAnalyzing(false);
+      setActiveReqId(null);
     }
   };
 
@@ -2210,7 +2333,7 @@ ${logsText}`);
         throw new Error(`Server returned ${response.status}: ${errText}`);
       }
 
-      const resData = await response.json();
+      const contentType = response.headers.get("content-type"); let resData: any = {}; if (contentType && contentType.includes("text/event-stream")) { const reader = response.body?.getReader(); if (!reader) throw new Error("No stream reader available"); const decoder = new TextDecoder(); let accumulatedText = ""; while (true) { const { done, value } = await reader.read(); if (done) break; const chunkStr = decoder.decode(value, { stream: true }); const events = chunkStr.split("\n\n"); for (const ev of events) { if (ev.startsWith("data: ")) { try { const data = JSON.parse(ev.slice(6)); if (data.chunk) { accumulatedText += data.chunk; const scoutMatch = accumulatedText.match(/\"scoutScratchpad\"\s*:\s*\"([^]*?)(\"|$)/); const dietMatch = accumulatedText.match(/\"dietitianScratchpad\"\s*:\s*\"([^]*?)(\"|$)/); setMessages(prev => { const newMsgs = [...prev]; const lastMsg = newMsgs[newMsgs.length - 1]; if (lastMsg && lastMsg.role === "assistant" && lastMsg.isLive) { const updatedData = lastMsg.data ? { ...lastMsg.data } : {}; const updatedAgentResult = updatedData.agentResult ? { ...updatedData.agentResult } : {}; let hasChanges = false; if (scoutMatch) { updatedAgentResult.scoutScratchpad = scoutMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, "\""); hasChanges = true; } if (dietMatch) { updatedAgentResult.dietitianScratchpad = dietMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, "\""); hasChanges = true; } if (hasChanges) { return [ ...newMsgs.slice(0, newMsgs.length - 1), { ...lastMsg, data: { ...updatedData, agentResult: updatedAgentResult } } ]; } } return prev; }); } else if (data.final) { resData = data.result; } } catch (e) {} } } } } else { resData = await response.json(); }
 
       setMessages(prev => prev.map(m => {
         if (m.id === msg.id) {
@@ -2427,7 +2550,7 @@ ${logsText}`);
         throw new Error(`Server returned ${response.status}: ${errText}`);
       }
 
-      const resData = await response.json();
+      const contentType = response.headers.get("content-type"); let resData: any = {}; if (contentType && contentType.includes("text/event-stream")) { const reader = response.body?.getReader(); if (!reader) throw new Error("No stream reader available"); const decoder = new TextDecoder(); let accumulatedText = ""; while (true) { const { done, value } = await reader.read(); if (done) break; const chunkStr = decoder.decode(value, { stream: true }); const events = chunkStr.split("\n\n"); for (const ev of events) { if (ev.startsWith("data: ")) { try { const data = JSON.parse(ev.slice(6)); if (data.chunk) { accumulatedText += data.chunk; const scoutMatch = accumulatedText.match(/\"scoutScratchpad\"\s*:\s*\"([^]*?)(\"|$)/); const dietMatch = accumulatedText.match(/\"dietitianScratchpad\"\s*:\s*\"([^]*?)(\"|$)/); setMessages(prev => { const newMsgs = [...prev]; const lastMsg = newMsgs[newMsgs.length - 1]; if (lastMsg && lastMsg.role === "assistant" && lastMsg.isLive) { const updatedData = lastMsg.data ? { ...lastMsg.data } : {}; const updatedAgentResult = updatedData.agentResult ? { ...updatedData.agentResult } : {}; let hasChanges = false; if (scoutMatch) { updatedAgentResult.scoutScratchpad = scoutMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, "\""); hasChanges = true; } if (dietMatch) { updatedAgentResult.dietitianScratchpad = dietMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, "\""); hasChanges = true; } if (hasChanges) { return [ ...newMsgs.slice(0, newMsgs.length - 1), { ...lastMsg, data: { ...updatedData, agentResult: updatedAgentResult } } ]; } } return prev; }); } else if (data.final) { resData = data.result; } } catch (e) {} } } } } else { resData = await response.json(); }
       
       const assistantMsg: ChatMessage & { agentTypeStep?: string } = {
         id: `msg_agent1_${step}_${Date.now()}`,
@@ -3118,10 +3241,49 @@ ${JSON.stringify(profile, null, 2)}`);
             <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 flex-shrink-0 animate-pulse">
               <Loader className="w-4 h-4 animate-spin text-indigo-600" />
             </div>
-            <div className="bg-white dark:bg-slate-800 rounded-2xl px-4 py-3 shadow-sm border border-slate-200 dark:border-slate-800/40">
-              <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 font-medium">
-                {ANALYZING_STEPS[analyzingStepIndex]}
-              </p>
+            <div className="bg-white dark:bg-slate-800 rounded-2xl px-4 py-3 shadow-sm border border-slate-200 dark:border-slate-800/40 min-w-[250px]">
+              {isAgent('food') ? (
+                <div className="flex flex-col gap-2">
+                  <button 
+                    onClick={() => setIsThoughtsExpanded(!isThoughtsExpanded)}
+                    className="text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between font-medium hover:text-indigo-600 transition-colors w-full"
+                  >
+                    <span className="flex items-center gap-2">
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                      Agent thought...
+                    </span>
+                    {isThoughtsExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                  </button>
+                  {isThoughtsExpanded && (
+                    <div className="flex flex-col gap-3 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
+                      {liveThoughts.scout && (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Vision Scout</span>
+                          <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg font-mono text-[11px] border border-slate-100 dark:border-slate-800">
+                            {liveThoughts.scout}
+                          </p>
+                        </div>
+                      )}
+                      {liveThoughts.dietitian ? (
+                        <div className="flex flex-col gap-1">
+                          <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian</span>
+                          <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed bg-indigo-50/50 dark:bg-indigo-900/20 p-2 rounded-lg font-mono text-[11px] border border-indigo-100 dark:border-indigo-800/30">
+                            {liveThoughts.dietitian}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className="text-[11px] text-slate-400 italic animate-pulse px-1">
+                          {ANALYZING_STEPS[analyzingStepIndex]}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 font-medium">
+                  {ANALYZING_STEPS[analyzingStepIndex]}
+                </p>
+              )}
             </div>
           </div>
         )}

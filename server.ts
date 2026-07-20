@@ -501,6 +501,7 @@ JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly.
 
 {
+  "scratchpad": "string (Think step-by-step: analyze the user input, biomarkers, and scout data to formulate the response.)",
   "mode": "new_log | discussion | modify | evaluation | origin",
   "message": "A highly personalized conversational response detailing the clinical rationale. If the user asked a specific question (e.g., \"is this healthy?\"), you MUST directly answer it here.",
   "modificationCommand": [
@@ -755,7 +756,21 @@ function robustParseJson(cleanJson: string): any {
 }
 
 // Unified Multi-Provider LLM Router with automatic fallbacks & simulation modes
-async function callUnifiedLLM({
+async function callUnifiedLLM(args: any): Promise<any> {
+  try {
+    return await callUnifiedLLMInternal(args);
+  } catch (e: any) {
+    if (args.modelId === "gemini-3.1-flash-lite" && (e.message?.includes("503") || e.status === 503 || e.message?.toLowerCase().includes("demand") || e.message?.toLowerCase().includes("unavailable") || e.message?.includes("500"))) {
+      const explicitSessionId = logSessionStorage.getStore();
+      actualAddDebugLog(`[UnifiedLLM] High demand for ${args.modelId}. Falling back to gemini-2.5-flash.`, explicitSessionId);
+      args.modelId = "gemini-2.5-flash";
+      return await callUnifiedLLMInternal(args);
+    }
+    throw e;
+  }
+}
+
+async function callUnifiedLLMInternal({
   modelId,
   systemInstruction,
   promptText,
@@ -765,7 +780,8 @@ async function callUnifiedLLM({
   responseSchema,
   googleSearch,
   enablePlaceIdTool,
-  maxOutputTokens
+  maxOutputTokens,
+  onStream
 }: {
   modelId: string;
   systemInstruction: string;
@@ -777,6 +793,7 @@ async function callUnifiedLLM({
   googleSearch?: boolean;
   enablePlaceIdTool?: boolean;
   maxOutputTokens?: number;
+  onStream?: (chunk: string) => void;
 }) {
   const explicitSessionId = logSessionStorage.getStore();
   const addDebugLog = (msg: string) => actualAddDebugLog(msg, explicitSessionId);
@@ -1044,11 +1061,28 @@ async function callUnifiedLLM({
   addDebugLog(`[UnifiedLLM-Prompt] System Instruction:\n${resolvedInstruction}`);
   addDebugLog(`[UnifiedLLM-Prompt] User Prompt:\n${promptText}`);
   try {
-    let response = await ai.models.generateContent({
-      model: targetGeminiModel,
-      contents,
-      config: configObj
-    });
+    let response: any;
+    if (onStream && (!configObj.tools || configObj.tools.length === 0)) {
+      const stream = await ai.models.generateContentStream({
+        model: targetGeminiModel,
+        contents,
+        config: configObj
+      });
+      let fullText = "";
+      for await (const chunk of stream) {
+        if (chunk.text) {
+          fullText += chunk.text;
+          onStream(chunk.text);
+        }
+      }
+      response = { text: fullText, functionCalls: [] };
+    } else {
+      response = await ai.models.generateContent({
+        model: targetGeminiModel,
+        contents,
+        config: configObj
+      });
+    }
     
     // Handle function calls loop
     let callCount = 0;
@@ -1509,6 +1543,34 @@ app.get("/api/gemini/instruction-preview", async (req, res) => {
 
 // Gemini Food Analyze Endpoint
 app.post("/api/gemini/food-analyze", async (req, res) => {
+  const isStream = req.query.stream === 'true';
+  let hasSentHeaders = false;
+
+  if (isStream) {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    hasSentHeaders = true;
+
+    const originalJson = res.json.bind(res);
+    const originalStatus = res.status.bind(res);
+
+    res.status = (code: number) => {
+      // If headers already sent, ignore status code changes
+      if (!res.headersSent) {
+        originalStatus(code);
+      }
+      return res;
+    };
+
+    res.json = (body: any) => {
+      res.write(`data: ${JSON.stringify({ final: true, result: body })}\n\n`);
+      res.end();
+      return res;
+    };
+  }
+
   try {
     const { message, image, images, imageDates, history, userProfile, engine, biomarkersNeedingImprovement, remainingAllowance, userId, activeMeal, customSystemInstruction, customVariableData, foodLogs } = req.body;
 
@@ -1868,6 +1930,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
     const databaseMatchesArray: any[] = [];
     // Initialize with active items from previous turns so the Dietitian can see and update them
     let visionScoutItems: any[] = req.body.activeScoutItems || [];
+    let scoutScratchpad: string | undefined;
     let scoutConfidenceRating = "High (>90%)";
     let scoutConfidenceComment = "";
     let scoutRecommendedMode: string | null = null;
@@ -1905,6 +1968,11 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
           });
 
           const scoutResult = parseAndHealVisionScout(scoutOutput, addDebugLog);
+          
+          if (scoutResult.scratchpad) {
+            scoutScratchpad = scoutResult.scratchpad;
+            addDebugLog(`[Scout Scratchpad]\n${scoutResult.scratchpad}`);
+          }
 
           visionScoutItems = scoutResult.items;
           scoutConfidenceRating = scoutResult.scoutConfidenceRating;
@@ -2252,6 +2320,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
     const foodAnalyzeSchema = {
       type: Type.OBJECT,
       properties: {
+        scratchpad: { type: Type.STRING, description: "Think step-by-step: analyze the user input, biomarkers, and scout data to formulate the response." },
         mode: { type: Type.STRING, description: "String indicating active mode: new_log, discussion, modify, evaluation, or origin" },
         message: { type: Type.STRING, description: "A highly personalized conversational response detailing the clinical rationale, biomarker alignment, or modification confirmation." },
         modificationCommand: {
@@ -2465,6 +2534,11 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
     const fullPromptSent = `System Instruction:\n${finalSystemInstruction}\n\n${promptText}`;
     addDebugLog(`[RouteAgent Chat] Sending request to Gemini...`);
     async function callAndParseFoodAnalysis(callArgs: any): Promise<{ textOutput: string; rawParsed: any }> {
+      if (isStream) {
+        callArgs.onStream = (chunk: string) => {
+          res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+        };
+      }
       const textOutput = await callUnifiedLLM(callArgs);
       let cleanJson = textOutput.replace(/```(?:json)?/gi, "").trim();
 
@@ -2560,6 +2634,10 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
 
     addDebugLog(`[RouteAgent Chat] Received response from Gemini. Length: ${textOutput.length} chars.`);
 
+    if (rawParsed.scratchpad) {
+      addDebugLog(`[Dietitian Scratchpad]\n${rawParsed.scratchpad}`);
+    }
+
     let mode = rawParsed.mode || "new_log";
 
     const apiCalls = [
@@ -2576,6 +2654,8 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       addDebugLog(`[Mode Routing] DISCUSSION mode triggered (0 database operations).`);
       return res.json({
         mode: "discussion",
+        scoutScratchpad,
+        dietitianScratchpad: rawParsed.scratchpad,
         text: rawParsed.message || "Here is the details on this meal composition.",
         data: null,
         agentPrompt: fullPromptSent,
@@ -2594,6 +2674,8 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       
       return res.json({
         mode: "evaluation",
+        scoutScratchpad,
+        dietitianScratchpad: rawParsed.scratchpad,
         comparison: comparisonData,
         scoutItems: mergeScoutItems(visionScoutItems, rawParsed.scoutItems),
         scoutContentType: visionScoutContentType,
@@ -2708,6 +2790,8 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         
         return res.json({
           mode: "modify",
+          scoutScratchpad,
+          dietitianScratchpad: rawParsed.scratchpad,
           text: rawParsed.message || `I have updated your meal to reflect the correction.`,
           data: parsedData,
           agentPrompt: fullPromptSent,
@@ -2718,6 +2802,8 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
 
       return res.json({
         mode: "new_log",
+        scoutScratchpad,
+        dietitianScratchpad: rawParsed.scratchpad,
         text: rawParsed.message || `I have analyzed the food: **${parsedData.name}** (${parsedData.quantity}).`,
         data: parsedData,
         agentPrompt: fullPromptSent,
@@ -4708,12 +4794,28 @@ app.post("/api/gemini/standardize-units", async (req, res) => {
     addDebugLog(`[Standardize Units Agent] Request received to standardize ${selectedBiomarkers?.length} biomarkers using model: ${modelId}.`, explicitSessionId);
 
     let systemInstruction = `You are an automated Clinical Unit Standardization Agent. Your task is to accurately standardize medical units for various biomarkers to ensure consistency across the application.
-=== OBJECTIVE ===
-For each provided biomarker, determine:
-1. The most universally accepted standard metric unit (e.g., mg/dL, mmol/L, g/L).
-2. The conversion factor to convert from the user's current unit to the standard unit. If no conversion is needed, output 1.
-3. Your confidence in the conversion (high, medium, low).
-4. Any relevant notes.`;
+
+=== SYSTEM CONSTRAINTS ===
+- Do NOT repeat biomarkers. Output exactly ONE object per input biomarker.
+- Do NOT put explanations, sentences, or thought processes inside the "standardizedUnit", "conversionFactor", or "confidence" fields. 
+- Put ALL explanations and reasoning strictly in the "notes" or "scratchpad" fields.
+
+=== OUTPUT SCHEMA ===
+You must return a raw, valid JSON object matching this exact schema. Do not include markdown wrappers.
+
+{
+  "scratchpad": "string (Think step-by-step here ONLY)",
+  "mappedBiomarkers": [
+    {
+      "originalKey": "string (must exactly match the provided input key)",
+      "standardizedUnit": "string (ONLY the pure metric abbreviation, e.g., 'mmol/L', '%', 'score', 'cm', 'ratio', or 'kg')",
+      "conversionFactor": "number (e.g., 1)",
+      "confidence": "string (strictly 'high', 'medium', or 'low')",
+      "notes": "string (Put your clinical reasoning and annotations here)"
+    }
+  ]
+}
+`;
 
     if (customSystemInstruction) {
       systemInstruction += `\n\n=== CUSTOM INSTRUCTIONS ===\n${customSystemInstruction}`;
@@ -4866,38 +4968,30 @@ app.post("/api/gemini/consolidate-names", async (req, res) => {
 
     let systemInstruction = `You are an automated Name Consolidation Agent. Your task is to identify clinical biomarkers with similar, synonymous, or variant names from a selected list and group them together to make consolidation easy.
 
-=== OBJECTIVE ===
-Analyze the selected list of biomarkers and group them by clinical equivalence (e.g. "Serum Albumin", "Albumin, Serum", "Albumin g/L" are all the same clinical biomarker and should be grouped together).
-For each matched group, determine:
-1. A standard recommended clinical name (e.g. "Serum Albumin").
-2. A recommended unique key using snake_case (e.g. "serum_albumin").
-3. A list of all matching source biomarkers that belong to this group.
-
 === SYSTEM CONSTRAINTS ===
-- You MUST return a JSON object with this exact structure. Do NOT wrap it in markdown blocks. Return ONLY the raw valid JSON.
-- DO NOT perform, input, or output any form of medical categorization, standard medical grouping, or physiological classification. This is entirely handled programmatically by the website, and you must not attempt to modify or determine medical groupings.
+- DO NOT perform, input, or output any form of medical categorization, standard medical grouping, or physiological classification.
+- You must return a raw, valid JSON object matching this exact schema. Do not include markdown wrappers.
 
-JSON Schema:
+=== OUTPUT SCHEMA ===
 {
-  "scratchpad": "Think step-by-step: compare the provided names, identify synonyms, determine the most universally recognized clinical name, and map variants.",
+  "scratchpad": "Think step-by-step: compare the provided names and identify synonyms.",
   "consolidatedGroups": [
     {
-      "canonicalName": "Recommended Clinical Name (e.g. Serum Albumin)",
-      "variants": ["original_biomarker_key_1", "original_biomarker_key_2"],
-      "rationale": "Why these are the same clinical biomarker"
+      "canonicalName": "string (Recommended Clinical Name, e.g., 'Serum Albumin')",
+      "recommendedKey": "string (unique key using snake_case, e.g., 'serum_albumin')",
+      "variants": ["array of strings containing the original keys that match this group"],
+      "rationale": "string (Why these are the same clinical biomarker)"
     }
   ]
 }
-
-Biomarkers to process:
-${JSON.stringify(selectedBiomarkers, null, 2)}`;
+`;
 
     if (customSystemInstruction) {
       addDebugLog(`[Name Consolidation Agent] Overriding system instruction with custom version (${customSystemInstruction.length} chars).`, explicitSessionId);
       systemInstruction = customSystemInstruction;
     }
 
-    const dynamicPromptText = `USER DATA / CONVERSATION TEXT:
+    const dynamicPromptText = `Biomarkers to process:\n${JSON.stringify(selectedBiomarkers, null, 2)}\n\nUSER DATA / CONVERSATION TEXT:
 \"\"\"${inputText || "Please identify the duplicates from the provided list and consolidate them."}\"\"\"
 
 Please output a valid JSON object matching the requested schema.`;
@@ -4915,6 +5009,7 @@ Please output a valid JSON object matching the requested schema.`;
             type: Type.OBJECT,
             properties: {
               canonicalName: { type: Type.STRING },
+              recommendedKey: { type: Type.STRING },
               variants: { type: Type.ARRAY, items: { type: Type.STRING } },
               rationale: { type: Type.STRING }
             }

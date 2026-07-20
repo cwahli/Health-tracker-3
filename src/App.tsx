@@ -905,7 +905,8 @@ export default function App() {
           cloudProfile.lastUpdatedAt &&
           localProfile.lastUpdatedAt === cloudProfile.lastUpdatedAt &&
           parsedLocal.foodLogs &&
-          parsedLocal.biomarkerHistory
+          parsedLocal.biomarkerHistory &&
+          (cloudProfile?.metadata?.legacyImagesMigrated || localProfile?.metadata?.legacyImagesMigrated)
         );
         hasUnsynced = false;
 
@@ -1062,6 +1063,46 @@ export default function App() {
                 }
 
                 v2Foods = v2Foods.map(f => ({ ...f, ...imageMap[f.id] }));
+
+                // --- IMAGE RESTORE FALLBACK ---
+                const isImageMissing = (item: any) => !item.imageUrl || item.imageUrl === '[image_removed_for_snapshot]' || item.imageUrl === '';
+                const missingImageFoods = v2Foods.filter(f => isImageMissing(f) && (!f.imageUrls || f.imageUrls.length === 0 || f.imageUrls.every(u => !u || u === '[image_removed_for_snapshot]')));
+                const hasMigratedImages = cloudProfile?.metadata?.legacyImagesMigrated || localProfile?.metadata?.legacyImagesMigrated;
+                if (missingImageFoods.length > 0 && !hasMigratedImages) {
+                    console.log("[Migration] Attempting to restore missing images from legacy foodLogs collection...");
+                    try {
+                        const legacySnap = await getDocs(collection(db, 'users', uid, 'foodLogs'));
+                        const recoveredUpdates: any[] = [];
+                        legacySnap.docs.forEach(d => {
+                            const data = d.data();
+                            const f = v2Foods.find(v => v.id === d.id);
+                            if (f && isImageMissing(f) && data.imageUrl && data.imageUrl !== '[image_removed_for_snapshot]') {
+                                f.imageUrl = data.imageUrl;
+                                f.imageUrls = data.imageUrls || [];
+                                recoveredUpdates.push({ id: d.id, imageUrl: data.imageUrl, imageUrls: data.imageUrls });
+                            }
+                        });
+                        
+                        if (recoveredUpdates.length > 0) {
+                            console.log(`[Migration] Restored ${recoveredUpdates.length} images! Saving to foodImages...`);
+                            recoveredUpdates.forEach(up => {
+                                setDoc(doc(db, 'users', uid, 'foodImages', up.id), sanitizeForFirestore({
+                                  imageUrl: up.imageUrl || null,
+                                  imageUrls: up.imageUrls || []
+                                })).catch(e => console.error(e));
+                            });
+                        }
+                        
+                        // Mark as migrated so we don't scan legacy collection every time
+                        await setDoc(doc(db, 'users', uid), { metadata: { legacyImagesMigrated: true } }, { merge: true });
+                        if (localProfile) {
+                            localProfile.metadata = { ...localProfile.metadata, legacyImagesMigrated: true };
+                        }
+                    } catch (err) {
+                        console.error("[Migration] Failed to restore legacy images:", err);
+                    }
+                }
+                // --- END IMAGE RESTORE FALLBACK ---
               }
             } catch (err) {
               console.error("Failed to fetch consolidated logs", err);
@@ -1811,9 +1852,19 @@ export default function App() {
           setReport(loadedReport);
           
           // Load only from local cache on initial load/session load to prevent automatic Firebase calls.
-          // Firestore checks will happen ONLY when the user manually clicks "Sync Now" in the header.
+          // Firestore checks will happen ONLY when the user manually clicks "Sync Now" in the header,
+          // or exceptionally if a lightweight fallback was detected on startup.
           setSyncState('local');
           setIsAuthChecking(false);
+
+          if (parsedLocal && parsedLocal._isLightweightFallback) {
+            console.log("[Storage] Lightweight fallback detected on page load. Auto-triggering Firestore sync to restore images and complete data...");
+            setTimeout(() => {
+              checkForDbChanges(undefined, true).catch(err => {
+                console.error("[Storage] Auto-sync to recover from lightweight fallback failed:", err);
+              });
+            }, 500);
+          }
 
           // One-Time Legacy Migration & Real-Time onSnapshot setup
           const uid = user.uid;

@@ -369,8 +369,7 @@ export interface ChatMessage {
   agentType?: string | null;
   agentTypeStep?: string;
   extractedYaml?: string;
-
-
+  isLive?: boolean;
 }
 
 export interface DbInteraction {

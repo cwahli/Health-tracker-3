@@ -812,9 +812,9 @@ export default function BiomarkerDictionaryModal({
   const fileInputRef2 = useRef<HTMLInputElement>(null);
 
   // Model Selection states
-  const [standardizeModel, setStandardizeModel] = useState<string>('gemini-3.1-flash-lite');
-  const [medicalCategoriseModel, setMedicalCategoriseModel] = useState<string>('gemini-3.1-flash-lite');
-  const [dataAccuracyModel, setDataAccuracyModel] = useState<string>('gemini-3.1-flash-lite');
+  const [standardizeModel, setStandardizeModel] = useState<string>('gemini-3.1-flash');
+  const [medicalCategoriseModel, setMedicalCategoriseModel] = useState<string>('gemini-3.1-flash');
+  const [dataAccuracyModel, setDataAccuracyModel] = useState<string>('gemini-3.1-flash');
 
   // Instruction View states
   const [showStandardizeInstructions, setShowStandardizeInstructions] = useState<boolean>(false);
@@ -831,7 +831,7 @@ export default function BiomarkerDictionaryModal({
 
   // Name Consolidation Agent States
   const [isNameConsolidationMode, setIsNameConsolidationMode] = useState<boolean>(false);
-  const [nameConsolidationModel, setNameConsolidationModel] = useState<string>('gemini-3.1-flash-lite');
+  const [nameConsolidationModel, setNameConsolidationModel] = useState<string>('gemini-3.1-flash');
   const [consolidationYaml, setConsolidationYaml] = useState<string | null>(null);
   const [consolidationGroups, setConsolidationGroups] = useState<any[] | null>(null);
   const [consolidationLoading, setConsolidationLoading] = useState<boolean>(false);
@@ -882,14 +882,14 @@ export default function BiomarkerDictionaryModal({
   const customKeys = Object.keys(profile.customBiomarkers || {});
   
   const historyKeys = useMemo(() => {
-    const keys = new Set<string>();
+    const keys = new Set<string>(Object.keys(biomarkers || {}));
     biomarkerHistory.forEach(log => {
       if (log.biomarkers) {
         Object.keys(log.biomarkers).forEach(k => keys.add(k));
       }
     });
     return Array.from(keys);
-  }, [biomarkerHistory]);
+  }, [biomarkerHistory, biomarkers]);
 
   const hasActualOverride = React.useCallback((key: string): boolean => {
     // These keys have auto-generated custom overrides
@@ -1057,6 +1057,11 @@ export default function BiomarkerDictionaryModal({
     return [...toApproveKeys, ...allApprovedKeys];
   }, [toApproveKeys, allApprovedKeys]);
 
+  const totalUniqueCount = useMemo(() => {
+    const keys = new Set<string>([...historyKeys, ...customKeys]);
+    return keys.size;
+  }, [historyKeys, customKeys]);
+
   // Handle single Route Agent logic (legacy, but we can make it start a chat for that single key!)
   const handleRouteBiomarker = (key: string) => {
     setSelectedKeys([key]);
@@ -1116,7 +1121,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'X-Session-ID': getSessionId()
+          'X-Session-ID': generateQueryId()
         },
         body: JSON.stringify({
           messages: nextMessages,
@@ -1283,7 +1288,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'X-Session-ID': getSessionId()
+          'X-Session-ID': generateQueryId()
         },
         body: JSON.stringify({
           inputText: promptText,
@@ -1300,7 +1305,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
       }
 
       const result = await response.json();
-      const sessionId = getSessionId();
+      const sessionId = generateQueryId();
 
       // Capture and save agent debug logs for this request
       try {
@@ -1596,7 +1601,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
       });
 
       // Get session ID for telemetry / backend logging isolation
-      const sessionId = getSessionId();
+      const sessionId = generateQueryId();
 
       const endpoint = isMedicalCategorisationMode ? '/api/gemini/medical-categorise' : '/api/gemini/standardize-units';
       const agentKey = isMedicalCategorisationMode ? 'medical_categorise' : 'standardize';
@@ -1619,7 +1624,21 @@ I can analyze these, compare them with our database keys, and find standard mapp
       const data = await res.json();
       
       
-      const jsonData = typeof data.jsonResponse === 'string' ? JSON.parse(data.jsonResponse) : data.jsonResponse;
+      let jsonData;
+      try {
+        let rawText = typeof data.jsonResponse === 'string' 
+          ? data.jsonResponse 
+          : JSON.stringify(data.jsonResponse);
+
+        // Strip potential markdown wrappers (the silent killer of JSON.parse)
+        rawText = rawText.replace(/```(?:json)?/gi, '').replace(/```/gi, '').trim();
+
+        // Safely parse the cleaned string
+        jsonData = JSON.parse(rawText);
+        
+      } catch (error) {
+        console.error("Failed to parse agent JSON output:", error);
+      }
       setStandardizationYaml(JSON.stringify(jsonData, null, 2));
       
       let parsed = [];
@@ -1799,7 +1818,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
         };
       });
 
-      const sessionId = getSessionId();
+      const sessionId = generateQueryId();
 
       trackApiCall('gemini', `Consolidate Names`);
       const res = await fetch('/api/gemini/consolidate-names', {
@@ -1819,7 +1838,23 @@ I can analyze these, compare them with our database keys, and find standard mapp
       if (!res.ok) throw new Error("Failed to contact name consolidation agent");
       const data = await res.json();
       
-      const parsed = data.consolidatedGroups || data.groups || [];
+      let parsedData;
+      try {
+        let rawText = typeof data === 'string' 
+          ? data 
+          : JSON.stringify(data);
+
+        // Strip potential markdown wrappers (the silent killer of JSON.parse)
+        rawText = rawText.replace(/```(?:json)?/gi, '').replace(/```/gi, '').trim();
+
+        // Safely parse the cleaned string
+        parsedData = JSON.parse(rawText);
+        
+      } catch (error) {
+        console.error("Failed to parse agent JSON output:", error);
+      }
+      const dataToUse = parsedData || data;
+      const parsed = dataToUse.consolidatedGroups || dataToUse.groups || [];
       setConsolidationYaml(JSON.stringify(parsed, null, 2));
       setConsolidationGroups(parsed);
 
@@ -2044,7 +2079,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                         ? `Consolidate and group ${selectedKeys.length} biomarkers with duplicate or similar names`
                         : isBatchPasteMode 
                           ? "Paste a JSON configuration file to automatically map and aggregate history logs"
-                          : "Standardize, route, or batch-consolidate your custom biomarkers"}
+                          : `Standardize, route, or batch-consolidate your custom biomarkers (Total: ${totalUniqueCount})`}
               </p>
             </div>
           </div>

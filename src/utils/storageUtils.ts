@@ -66,23 +66,34 @@ export const set = async (key: string, val: any): Promise<void> => {
         if (typeof window !== 'undefined') {
           (window as any)._localStorageSaturated = true;
         }
-        console.warn(`[Storage] localStorage quota reached. Transitioned to high-capacity IndexedDB for key: ${key}. No data will be lost.`);
+        console.warn(`[Storage] localStorage quota reached. Transitioning to high-capacity IndexedDB for key: ${key}. No data will be lost.`);
         
         try {
           pruneLocalStorageToFreeSpace();
-          if (val && typeof val === 'object') {
-            const lightVal = { ...val, _isLightweightFallback: true };
-            if (Array.isArray(lightVal.foodLogs)) {
-              lightVal.foodLogs = lightVal.foodLogs.slice(-50).map((f: any) => {
-                const { imageUrl, imageUrls, ...rest } = f;
-                return rest;
-              });
+          // Try writing the full, uncorrupted val first after pruning
+          try {
+            localStorage.setItem(key, JSON.stringify(val));
+            console.log(`[Storage] Successfully saved full uncorrupted data to localStorage after pruning!`);
+            if (typeof window !== 'undefined') {
+              (window as any)._localStorageSaturated = false; // Reset saturation as we succeeded
             }
-            if (lightVal.report) lightVal.report = null;
-            if (lightVal.biomarkerHistory && lightVal.biomarkerHistory.length > 50) {
-              lightVal.biomarkerHistory = lightVal.biomarkerHistory.slice(0, 10);
+          } catch (secondError) {
+            // If it still fails, only then do we fall back to lightweight version with images stripped
+            if (val && typeof val === 'object') {
+              const lightVal = { ...val, _isLightweightFallback: true };
+              if (Array.isArray(lightVal.foodLogs)) {
+                lightVal.foodLogs = lightVal.foodLogs.slice(-50).map((f: any) => {
+                  const { imageUrl, imageUrls, ...rest } = f;
+                  return rest;
+                });
+              }
+              if (lightVal.report) lightVal.report = null;
+              if (lightVal.biomarkerHistory && lightVal.biomarkerHistory.length > 50) {
+                lightVal.biomarkerHistory = lightVal.biomarkerHistory.slice(0, 10);
+              }
+              localStorage.setItem(key, JSON.stringify(lightVal));
+              console.warn("[Storage] Saved lightweight fallback with stripped images after prune retry failed.");
             }
-            localStorage.setItem(key, JSON.stringify(lightVal));
           }
         } catch (fallbackError) {
           // Quietly rely on IndexedDB

@@ -498,8 +498,8 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
                    <div className="flex items-center justify-between mb-2 border-b border-slate-700 pb-2">
                      <h4 className="text-sm font-semibold text-slate-200">Food Logs ({stagedFoods.length})</h4>
                      <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                       <input type="checkbox" checked={selectedFoods.size === stagedFoods.filter(f => f.sync_state !== 'identical').length && stagedFoods.length > 0} onChange={(e) => {
-                           if (e.target.checked) setSelectedFoods(new Set(stagedFoods.filter(f => f.sync_state !== 'identical').map(f => f.id)));
+                       <input type="checkbox" checked={selectedFoods.size === stagedFoods.filter(f => (f.sync_state as string) !== "identical").length && stagedFoods.length > 0} onChange={(e) => {
+                           if (e.target.checked) setSelectedFoods(new Set(stagedFoods.filter(f => (f.sync_state as string) !== "identical").map(f => f.id)));
                            else setSelectedFoods(new Set());
                        }} className="rounded bg-slate-900 border-slate-600 text-indigo-500 focus:ring-indigo-500" />
                        Select All Importable
@@ -507,8 +507,8 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
                    </div>
                    <div className="space-y-3">
                      {[...stagedFoods].sort((a, b) => {
-                       if (a.sync_state === 'identical' && b.sync_state !== 'identical') return 1;
-                       if (a.sync_state !== 'identical' && b.sync_state === 'identical') return -1;
+                       if ((a.sync_state as string) === "identical" && (b.sync_state as string) !== "identical") return 1;
+                       if ((a.sync_state as string) !== "identical" && (b.sync_state as string) === "identical") return -1;
                        return 0;
                      }).map(f => {
                         const isSimilarPhoto = (f.sync_state as string) === 'similar_photo';
@@ -642,8 +642,8 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
                    <div className="flex items-center justify-between mb-2 border-b border-slate-700 pb-2">
                      <h4 className="text-sm font-semibold text-slate-200">Biomarkers ({stagedBio.length})</h4>
                      <label className="flex items-center gap-2 text-xs text-slate-300 cursor-pointer">
-                       <input type="checkbox" checked={selectedBio.size === stagedBio.filter(b => b.sync_state !== 'identical').length && stagedBio.length > 0} onChange={(e) => {
-                           if (e.target.checked) setSelectedBio(new Set(stagedBio.filter(b => b.sync_state !== 'identical').map(b => b.id)));
+                       <input type="checkbox" checked={selectedBio.size === stagedBio.filter(b => (b.sync_state as string) !== "identical").length && stagedBio.length > 0} onChange={(e) => {
+                           if (e.target.checked) setSelectedBio(new Set(stagedBio.filter(b => (b.sync_state as string) !== "identical").map(b => b.id)));
                            else setSelectedBio(new Set());
                        }} className="rounded bg-slate-900 border-slate-600 text-indigo-500 focus:ring-indigo-500" />
                        Select All Importable
@@ -651,11 +651,11 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
                    </div>
                    <div className="space-y-2">
                      {[...stagedBio].sort((a, b) => {
-                       if (a.sync_state === 'identical' && b.sync_state !== 'identical') return 1;
-                       if (a.sync_state !== 'identical' && b.sync_state === 'identical') return -1;
+                       if ((a.sync_state as string) === "identical" && (b.sync_state as string) !== "identical") return 1;
+                       if ((a.sync_state as string) !== "identical" && (b.sync_state as string) === "identical") return -1;
                        return 0;
                      }).map(b => {
-                       const isIdentical = b.sync_state === 'identical';
+                       const isIdentical = (b.sync_state as string) === "identical";
                        const bioEntries = Object.entries(b.biomarkers || {});
                        const titleText = bioEntries.length > 0 
                          ? bioEntries.slice(0, 2).map(([k, v]) => `${k.replace(/_/g, ' ')}: ${typeof v === 'object' && v !== null ? (v as any).value : v}`).join(' | ') + (bioEntries.length > 2 ? ` (+${bioEntries.length - 2} more)` : '')
