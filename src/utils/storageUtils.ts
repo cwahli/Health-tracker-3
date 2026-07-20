@@ -2,7 +2,7 @@ import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { UserProfile, FoodLog, BiomarkerLog, HealthAction, DailyBenefit, RecommendationReport, FoodIdea } from '../types';
 
 export const pruneLocalStorageToFreeSpace = () => {
-  console.warn("Pruning localStorage to free up space...");
+  console.log("Pruning localStorage to free up space...");
   try {
     localStorage.removeItem('agent1_batch_results');
     localStorage.removeItem('batch_analysis_results');
@@ -17,6 +17,36 @@ export const pruneLocalStorageToFreeSpace = () => {
             const snaps = JSON.parse(localStorage.getItem(key) || '[]');
             if (snaps.length > 1) {
               localStorage.setItem(key, JSON.stringify(snaps.slice(0, 1)));
+            }
+          } catch {}
+        } else if (key.startsWith('health_cockpit_app_data_')) {
+          try {
+            const data = JSON.parse(localStorage.getItem(key) || '{}');
+            let modified = false;
+            if (data && Array.isArray(data.foodLogs)) {
+              data.foodLogs = data.foodLogs.map((log: any) => {
+                if (log.imageUrl && log.imageUrl.startsWith('data:image/')) {
+                  delete log.imageUrl;
+                  modified = true;
+                }
+                if (Array.isArray(log.imageUrls)) {
+                  log.imageUrls = log.imageUrls.filter((url: string) => !url.startsWith('data:image/'));
+                  modified = true;
+                }
+                return log;
+              });
+              if (data.foodLogs.length > 100) {
+                data.foodLogs = data.foodLogs.slice(-50);
+                modified = true;
+              }
+            }
+            if (data && data.report) {
+              data.report = null;
+              modified = true;
+            }
+            if (modified) {
+              localStorage.setItem(key, JSON.stringify(data));
+              console.log(`[Storage] Compressed large app data key during pruning: ${key}`);
             }
           } catch {}
         } else if (key.startsWith('chat_messages_') || key.startsWith('chat_payload_')) {
@@ -43,7 +73,7 @@ export const get = async (key: string): Promise<any> => {
     const val = localStorage.getItem(key);
     return val ? JSON.parse(val) : undefined;
   } catch (e) {
-    console.warn("get timeout/error (falling back to localStorage):", e);
+    console.log("get timeout/error (falling back to localStorage):", e);
     if (typeof window !== 'undefined') (window as any)._idbFailed = true;
     try {
       const val = localStorage.getItem(key);
@@ -56,7 +86,8 @@ export const get = async (key: string): Promise<any> => {
 
 export const set = async (key: string, val: any): Promise<void> => {
   const isHeavyKey = key.startsWith('health_cockpit_app_data_') || key.startsWith('health_cockpit_snapshots_');
-  const isSaturated = typeof window !== 'undefined' && (window as any)._localStorageSaturated === true;
+  const isSaturated = typeof window !== 'undefined' && 
+    ((window as any)._localStorageSaturated === true || localStorage.getItem('_ls_saturated') === 'true');
 
   if (!isSaturated || !isHeavyKey) {
     try {
@@ -65,8 +96,9 @@ export const set = async (key: string, val: any): Promise<void> => {
       if (isHeavyKey) {
         if (typeof window !== 'undefined') {
           (window as any)._localStorageSaturated = true;
+          try { localStorage.setItem('_ls_saturated', 'true'); } catch {}
         }
-        console.warn(`[Storage] localStorage quota reached. Transitioning to high-capacity IndexedDB for key: ${key}. No data will be lost.`);
+        console.log(`[Storage] localStorage quota reached. Transitioning to high-capacity IndexedDB for key: ${key}. No data will be lost.`);
         
         try {
           pruneLocalStorageToFreeSpace();
@@ -76,6 +108,7 @@ export const set = async (key: string, val: any): Promise<void> => {
             console.log(`[Storage] Successfully saved full uncorrupted data to localStorage after pruning!`);
             if (typeof window !== 'undefined') {
               (window as any)._localStorageSaturated = false; // Reset saturation as we succeeded
+              localStorage.removeItem('_ls_saturated');
             }
           } catch (secondError) {
             // If it still fails, only then do we fall back to lightweight version with images stripped
@@ -92,7 +125,7 @@ export const set = async (key: string, val: any): Promise<void> => {
                 lightVal.biomarkerHistory = lightVal.biomarkerHistory.slice(0, 10);
               }
               localStorage.setItem(key, JSON.stringify(lightVal));
-              console.warn("[Storage] Saved lightweight fallback with stripped images after prune retry failed.");
+              console.log("[Storage] Saved lightweight fallback with stripped images after prune retry failed.");
             }
           }
         } catch (fallbackError) {

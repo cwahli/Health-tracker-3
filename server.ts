@@ -501,7 +501,7 @@ JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly.
 
 {
-  "scratchpad": "string (Think step-by-step: analyze the user input, biomarkers, and scout data to formulate the response.)",
+  "scratchpad": "string (Use this as a brief, lightweight scratchpad to support your thinking. This is purely to jot down your immediate clinical thoughts to support your reasoning. Do NOT write instructions, do NOT perform extra work, and do NOT restate your guidelines here. Keep it short, direct, and focused on your analysis.)",
   "mode": "new_log | discussion | modify | evaluation | origin",
   "message": "A highly personalized conversational response detailing the clinical rationale. If the user asked a specific question (e.g., \"is this healthy?\"), you MUST directly answer it here.",
   "modificationCommand": [
@@ -2441,7 +2441,7 @@ ${databaseMatches}
     const foodAnalyzeSchema = {
       type: Type.OBJECT,
       properties: {
-        scratchpad: { type: Type.STRING, description: "Think step-by-step here FIRST, before any other field: analyze the user input, biomarkers, scout data, and database matches to formulate the response. If you are already using extended/native thinking for this request, you may leave this brief." },
+        scratchpad: { type: Type.STRING, description: "Use this as a brief, lightweight scratchpad to support your thinking. This is purely to jot down your immediate clinical thoughts to support your reasoning. Do NOT write instructions, do NOT perform extra work, and do NOT restate your guidelines here. Keep it short, direct, and focused on your analysis." },
         mode: { type: Type.STRING, description: "new_log | discussion | modify | evaluation | origin" },
         message: { type: Type.STRING, description: "A highly personalized conversational response detailing the clinical rationale, biomarker alignment, or modification confirmation." },
         modificationCommand: {

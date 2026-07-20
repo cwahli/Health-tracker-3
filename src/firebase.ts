@@ -79,11 +79,11 @@ async function testConnection() {
           window.localStorage.removeItem('firestore_quota_exceeded_time');
           console.log("Firestore quota lockout expired. Retrying connection...");
         } else {
-          console.warn("Firestore connection test skipped: Quota is marked as exceeded.");
+          console.log("Firestore connection test skipped: Quota is marked as exceeded.");
           return;
         }
       } else {
-        console.warn("Firestore connection test skipped: Quota is marked as exceeded.");
+        console.log("Firestore connection test skipped: Quota is marked as exceeded.");
         return;
       }
     }
@@ -96,7 +96,7 @@ async function testConnection() {
           window.localStorage.setItem('firestore_quota_exceeded', 'true');
           window.localStorage.setItem('firestore_quota_exceeded_time', new Date().getTime().toString());
         }
-        console.warn("Firestore connection test: Quota limit exceeded.");
+        console.log("Firestore connection test: Quota limit exceeded.");
         return;
       }
       if (msg.includes('the client is offline')) {

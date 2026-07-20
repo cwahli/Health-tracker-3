@@ -970,8 +970,8 @@ ${logsText}`);
           messages: [welcome]
         }]);
       }
-    } catch (err) {
-      console.warn("Error loading conversations from Firestore (falling back to local IndexedDB/localStorage):", err);
+    } catch (err: any) {
+      console.log("Error loading conversations from Firestore (falling back to local IndexedDB/localStorage):", err?.message || err);
       try {
         const listKey = `conversations_list_${type || 'medical'}_${agentType || 'none'}_${userId}`;
         const localList = await idbGet(listKey);
@@ -1406,8 +1406,10 @@ ${logsText}`);
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }, 150);
       }
+    } else if (isAnalyzing) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [isAnalyzing, messages]);
+  }, [isAnalyzing, messages, liveThoughts]);
 
   const matchingPreviousLogs = React.useMemo(() => {
     if (type !== 'food' || !activeFoodLogs || inputText.trim().length < 3) return [];
@@ -1919,7 +1921,36 @@ ${logsText}`);
         const decoder = new TextDecoder();
         const accumulatedByStage: Record<string, string> = { scout: "", dietitian: "" };
         let lineBuffer = "";
-        const unescapeScratchpad = (raw: string) => raw.replace(/\\n/g, "\n").replace(/\\"/g, "\"");
+        const extractScratchpadText = (accumulated: string) => {
+          const index = accumulated.indexOf('"scratchpad"');
+          if (index === -1) return "";
+          
+          const colonIndex = accumulated.indexOf(':', index + 12);
+          if (colonIndex === -1) return "";
+          
+          const startQuoteIndex = accumulated.indexOf('"', colonIndex + 1);
+          if (startQuoteIndex === -1) return "";
+          
+          let text = "";
+          let escaped = false;
+          for (let i = startQuoteIndex + 1; i < accumulated.length; i++) {
+            const char = accumulated[i];
+            if (escaped) {
+              if (char === 'n') text += '\n';
+              else if (char === 't') text += '\t';
+              else if (char === 'r') text += '\r';
+              else text += char;
+              escaped = false;
+            } else if (char === '\\') {
+              escaped = true;
+            } else if (char === '"') {
+              return text;
+            } else {
+              text += char;
+            }
+          }
+          return text;
+        };
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -1935,9 +1966,8 @@ ${logsText}`);
                 const stage: string = data.stage === 'scout' ? 'scout' : 'dietitian';
                 if (data.chunk) {
                   accumulatedByStage[stage] += data.chunk;
-                  const match = accumulatedByStage[stage].match(/\"scratchpad\"\s*:\s*\"([^]*?)(\"|$)/);
-                  if (match) {
-                    const text = unescapeScratchpad(match[1]);
+                  const text = extractScratchpadText(accumulatedByStage[stage]);
+                  if (text) {
                     setMessages(prev => {
                       const newMsgs = [...prev];
                       const lastMsg = newMsgs[newMsgs.length - 1];
@@ -3259,6 +3289,10 @@ ${JSON.stringify(profile, null, 2)}`);
                   </button>
                   {isThoughtsExpanded && (
                     <div className="flex flex-col gap-3 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 italic animate-pulse px-1 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping"></span>
+                        {ANALYZING_STEPS[analyzingStepIndex]}
+                      </p>
                       {liveThoughts.scout && (
                         <div className="flex flex-col gap-1">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Vision Scout</span>
@@ -3267,17 +3301,13 @@ ${JSON.stringify(profile, null, 2)}`);
                           </p>
                         </div>
                       )}
-                      {liveThoughts.dietitian ? (
+                      {liveThoughts.dietitian && (
                         <div className="flex flex-col gap-1">
                           <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian</span>
                           <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed bg-indigo-50/50 dark:bg-indigo-900/20 p-2 rounded-lg font-mono text-[11px] border border-indigo-100 dark:border-indigo-800/30">
                             {liveThoughts.dietitian}
                           </p>
                         </div>
-                      ) : (
-                        <p className="text-[11px] text-slate-400 italic animate-pulse px-1">
-                          {ANALYZING_STEPS[analyzingStepIndex]}
-                        </p>
                       )}
                     </div>
                   )}

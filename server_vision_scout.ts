@@ -82,7 +82,7 @@ CRITICAL RULES:
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers.
 {
-  "scratchpad": "string (Think step-by-step: analyze the image, apply density rules, and determine items)",
+  "scratchpad": "string (Use this as a brief, lightweight scratchpad to support your thinking. This is purely to jot down your immediate visual thoughts to support your reasoning. Do NOT write instructions, do NOT perform extra work, and do NOT restate your guidelines here. Keep it short, direct, and focused on your analysis.)",
   "recommendedMode": "new_log | evaluation | discussion",
   "contentType": "visual | menu_or_poster | text",
   "items": [
