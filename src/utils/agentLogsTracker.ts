@@ -11,8 +11,16 @@ export interface AgentRequestLog {
 }
 
 export const saveAgentRequestLog = (requestLog: AgentRequestLog) => {
+  // Strip large base64 image data before saving to stay within localStorage quota
+  const sanitized: AgentRequestLog = {
+    ...requestLog,
+    logs: requestLog.logs.map(log => ({
+      ...log,
+      message: log.message.replace(/data:image\/[^;]+;base64,[A-Za-z0-9+/=]{200,}/g, '[image data stripped]')
+    }))
+  };
   const existing = getAgentRequestLogs();
-  existing.unshift(requestLog);
+  existing.unshift(sanitized);
   
   // Limit to the last 5 requests to stay well within localStorage quota
   if (existing.length > 5) {

@@ -1203,42 +1203,6 @@ ${logsText}`);
     };
   }, [isAnalyzing, type]);
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout | null = null;
-    if (isAnalyzing && activeReqId) {
-      interval = setInterval(async () => {
-        try {
-          const res = await fetch(`/api/gemini/debug-logs?sessionId=${activeReqId}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data && data.logs && Array.isArray(data.logs)) {
-              let newScout: string | undefined;
-              let newDietitian: string | undefined;
-              for (const log of data.logs) {
-                if (log.message.startsWith('[Scout Scratchpad]')) {
-                  newScout = log.message.substring(19).trim();
-                } else if (log.message.startsWith('[Dietitian Scratchpad]')) {
-                  newDietitian = log.message.substring(23).trim();
-                }
-              }
-              setLiveThoughts(prev => {
-                if (prev.scout !== newScout || prev.dietitian !== newDietitian) {
-                  return { scout: newScout || prev.scout, dietitian: newDietitian || prev.dietitian };
-                }
-                return prev;
-              });
-            }
-          }
-        } catch (e) {
-          // ignore polling errors
-        }
-      }, 1000);
-    }
-    return () => {
-      if (interval) clearInterval(interval);
-    };
-  }, [isAnalyzing, activeReqId]);
-
   const [loggedMessageIds, setLoggedMessageIds] = useState<string[]>([]);
   const [showPastDiscussion, setShowPastDiscussion] = useState(false);
   const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
@@ -1955,12 +1919,16 @@ ${logsText}`);
         if (!reader) throw new Error("No stream reader available");
         const decoder = new TextDecoder();
         let accumulatedText = "";
+        let lineBuffer = "";
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
-          const chunkStr = decoder.decode(value, { stream: true });
-          const events = chunkStr.split("\n\n");
-          for (const ev of events) {
+          lineBuffer += decoder.decode(value, { stream: true });
+          // Process only complete SSE events (delimited by \n\n) from the accumulated buffer
+          let separatorIdx: number;
+          while ((separatorIdx = lineBuffer.indexOf("\n\n")) !== -1) {
+            const ev = lineBuffer.substring(0, separatorIdx);
+            lineBuffer = lineBuffer.substring(separatorIdx + 2);
             if (ev.startsWith("data: ")) {
               try {
                 const data = JSON.parse(ev.slice(6));
@@ -1976,11 +1944,11 @@ ${logsText}`);
                       const updatedAgentResult = updatedData.agentResult ? { ...updatedData.agentResult } : {};
                       let hasChanges = false;
                       if (scoutMatch) {
-                        updatedAgentResult.scoutScratchpad = scoutMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, "\"");
+                        updatedAgentResult.scoutScratchpad = scoutMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, "\"");
                         hasChanges = true;
                       }
                       if (dietMatch) {
-                        updatedAgentResult.dietitianScratchpad = dietMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, "\"");
+                        updatedAgentResult.dietitianScratchpad = dietMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, "\"");
                         hasChanges = true;
                       }
                       if (hasChanges) {
@@ -1992,12 +1960,26 @@ ${logsText}`);
                     }
                     return prev;
                   });
+                  // Also update the live thoughts display in the analyzing bubble (real-time, no polling)
+                  if (scoutMatch) {
+                    setLiveThoughts(prev => ({ ...prev, scout: scoutMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, "\"") }));
+                  }
+                  if (dietMatch) {
+                    setLiveThoughts(prev => ({ ...prev, dietitian: dietMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, "\"") }));
+                  }
                 } else if (data.final) {
                   resData = data.result;
                 }
-              } catch (e) {}
+              } catch (e) { /* ignore malformed events */ }
             }
           }
+        }
+        // Flush any remaining complete event left in the buffer after the stream closes
+        if (lineBuffer.startsWith("data: ")) {
+          try {
+            const data = JSON.parse(lineBuffer.slice(6));
+            if (data.final) resData = data.result;
+          } catch (e) {}
         }
       } else {
         resData = await response.json();
@@ -2044,7 +2026,11 @@ ${logsText}`);
           assistantMsg.data = { 
             pendingFoodLog: newFoodLog,
             scoutItems: resData.scoutItems || [],
-            scoutContentType: resData.scoutContentType
+            scoutContentType: resData.scoutContentType,
+            agentResult: {
+              scoutScratchpad: resData.scoutScratchpad || '',
+              dietitianScratchpad: resData.dietitianScratchpad || ''
+            }
           };
           assistantMsg.pendingFoodLog = newFoodLog;
         } else if (resData.mode === 'evaluation') {
