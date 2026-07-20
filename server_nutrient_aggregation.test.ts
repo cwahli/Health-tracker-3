@@ -1,0 +1,144 @@
+import { describe, it, expect, vi } from "vitest";
+import { aggregateItemsNutrients } from "./server_nutrient_aggregation";
+
+describe("server_nutrient_aggregation", () => {
+  it("aggregates standard estimated items correctly from LLM estimate data", () => {
+    const rawItems = [
+      {
+        name: "Avocado Toast",
+        canonicalDbName: "Toast with Avocado",
+        weightGrams: 100,
+        dbSource: "estimated",
+        dbId: null,
+        labelNutrientsPerServing: {
+          servingSizeGrams: 100,
+          calories: 200,
+          protein: 5,
+          totalFat: 10,
+          saturatedFat: 2,
+          transFat: 0,
+          carbohydrates: 25,
+          addedSugar: 1,
+          sodium: 200,
+          potassium: 300,
+          totalFibre: 6,
+          solubleFibre: 2
+        },
+        foodType: "processed"
+      }
+    ];
+
+    const dbMatchMap = new Map();
+    const databaseMatchesArray: any[] = [];
+    const logs: string[] = [];
+    const logger = (msg: string) => { logs.push(msg); };
+
+    const result = aggregateItemsNutrients(
+      rawItems,
+      100,
+      dbMatchMap,
+      databaseMatchesArray,
+      logger
+    );
+
+    // Validate calories, macros, and sodium
+    expect(result.nutrients.calories).toBe(200);
+    expect(result.nutrients.protein).toBe(5);
+    expect(result.nutrients.totalFat).toBe(10);
+    expect(result.nutrients.saturatedFat).toBe(2);
+    expect(result.nutrients.carbohydrates).toBe(25);
+    expect(result.nutrients.sodium).toBe(200);
+
+    // Validate itemsBreakdown mapping
+    expect(result.itemsBreakdown).toHaveLength(1);
+    expect(result.itemsBreakdown[0].name).toBe("Toast with Avocado");
+    expect(result.itemsBreakdown[0].weightGrams).toBe(100);
+    expect(result.itemsBreakdown[0].calories).toBe(200);
+  });
+
+  it("applies scale factor when item weight differs from servingSizeGrams", () => {
+    const rawItems = [
+      {
+        name: "Scrambled Eggs",
+        weightGrams: 150, // 150g weight, serving size is 100g (scale factor = 1.5)
+        dbSource: "estimated",
+        labelNutrientsPerServing: {
+          servingSizeGrams: 100,
+          calories: 140,
+          protein: 12,
+          totalFat: 9,
+          saturatedFat: 3,
+          transFat: 0,
+          carbohydrates: 1
+        },
+        foodType: "egg"
+      }
+    ];
+
+    const result = aggregateItemsNutrients(rawItems, 150, new Map(), [], () => {});
+
+    expect(result.nutrients.calories).toBe(210); // 140 * 1.5
+    expect(result.nutrients.protein).toBe(18); // 12 * 1.5
+    expect(result.nutrients.totalFat).toBe(13.5); // 9 * 1.5
+    expect(result.nutrients.saturatedFat).toBe(4.5); // 3 * 1.5
+  });
+
+  it("reinforces nutrients using dbMatchMap for USDA or OFF source items", () => {
+    const rawItems = [
+      {
+        name: "Peanut Butter",
+        weightGrams: 50,
+        dbSource: "usda",
+        dbId: "FDC_123456",
+        labelNutrientsPerServing: {
+          servingSizeGrams: 100,
+          calories: 100 // Core-11 here should be overridden by database values
+        }
+      }
+    ];
+
+    // Simulated USDA matched nutrients per 100g
+    const mockDbNutrients = {
+      calories: 588,
+      protein: 25,
+      totalFat: 50,
+      saturatedFat: 10,
+      transFat: 0,
+      carbohydrates: 20
+    };
+
+    const dbMatchMap = new Map([["FDC_123456", mockDbNutrients]]);
+    const result = aggregateItemsNutrients(rawItems, 50, dbMatchMap, [], () => {});
+
+    // Overridden nutrients should scale to 50g (factor of 0.5)
+    expect(result.nutrients.calories).toBe(294); // 588 * 0.5
+    expect(result.nutrients.protein).toBe(12.5); // 25 * 0.5
+    expect(result.nutrients.totalFat).toBe(25); // 50 * 0.5
+    expect(result.nutrients.saturatedFat).toBe(5); // 10 * 0.5
+  });
+
+  it("ensures physical fat consistency (totalFat must equal or exceed saturated + trans fat)", () => {
+    const rawItems = [
+      {
+        name: "Faulty Oil",
+        weightGrams: 100,
+        dbSource: "estimated",
+        labelNutrientsPerServing: {
+          servingSizeGrams: 100,
+          calories: 100,
+          totalFat: 5,
+          saturatedFat: 6, // Saturated fat exceeds total fat!
+          transFat: 2      // Trans fat is also present
+        }
+      }
+    ];
+
+    const result = aggregateItemsNutrients(rawItems, 100, new Map(), [], () => {});
+
+    // Saturated (6) + Trans (2) = 8. Since totalFat was 5, it must be adjusted to 8.
+    expect(result.nutrients.saturatedFat).toBe(6);
+    expect(result.nutrients.transFat).toBe(2);
+    expect(result.nutrients.totalFat).toBe(8);
+    expect(result.nutrients.unsaturatedFat).toBe(0); // 8 - 6 - 2 = 0
+  });
+});

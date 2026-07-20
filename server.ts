@@ -75,7 +75,8 @@ import YAML from "yaml";
 import { AsyncLocalStorage } from "async_hooks";
 import { biomarkerDefinitions, getBiomarkerStatus, getBiomarkerStatusLabel, getBiomarkerMetadata, getCustomBiomarkerDef } from "./src/utils/biomarkers";
 import { NUTRIENT_KEYS } from "./src/utils/nutrients";
-import { jsToYaml, extractBalancedJson, sanitizeMealWeight } from "./server_pure_helpers";
+import { jsToYaml, extractBalancedJson, sanitizeMealWeight, findItemIndexInList } from "./server_pure_helpers";
+import { aggregateItemsNutrients } from "./server_nutrient_aggregation";
 
 
 import { getFirestore, Firestore } from "firebase-admin/firestore";
@@ -2974,122 +2975,30 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       parsedData.scoutConfidenceRating = sanitizeString(rawFoodData.scoutConfidenceRating, scoutConfidenceRating || "High (>90%)");
       parsedData.scoutConfidenceComment = rawFoodData.scoutConfidenceComment !== undefined ? sanitizeString(rawFoodData.scoutConfidenceComment, "") : (scoutConfidenceComment || "");
 
-      const evaluationNutrientKeys = [
-        "calories", "protein", "totalFat", "saturatedFat", "transFat", "unsaturatedFat", "omega3", 
-        "carbohydrates", "addedSugar", "totalFibre", "solubleFibre", "sodium", "potassium", 
-        "magnesium", "calcium", "iron", "zinc", "selenium", "iodine", "phosphorus", 
-        "vitaminD", "vitaminB12", "folate", "vitaminC", "vitaminE", "vitaminK", 
-        "vitaminA", "vitaminB6", "thiamine", "riboflavin", "niacin"
-      ];
-
-      // Initialize all nutrients to 0
-      parsedData.nutrients = {};
-      for (const key of evaluationNutrientKeys) {
-        parsedData.nutrients[key] = 0;
-      }
-
-      // Map and construct itemsBreakdown using the high-precision standard foods database
+      // Map and construct itemsBreakdown and aggregate all nutrients
       if (rawFoodData.itemsBreakdown && Array.isArray(rawFoodData.itemsBreakdown) && rawFoodData.itemsBreakdown.length > 0) {
-        parsedData.itemsBreakdown = rawFoodData.itemsBreakdown.map((item: any) => {
-          const canonicalName = sanitizeString(item.canonicalDbName || item.name, "Unspecified Item");
-          const itemWeight = sanitizeMealWeight(item.weightGrams, Math.round(totalWeightGrams / rawFoodData.itemsBreakdown.length));
-          const dbSource = sanitizeString(item.dbSource, "estimated");
-          const dbId = item.dbId !== undefined && item.dbId !== null ? String(item.dbId) : null;
-          
-          let itemNutrients: any = {};
-          // Zero-initialize all 31 nutrient keys
-          for (const key of NUTRIENT_KEYS) { itemNutrients[key] = 0; }
-          const labelData = item.labelNutrientsPerServing;
-          let servingSizeGrams = labelData && labelData.servingSizeGrams !== undefined && labelData.servingSizeGrams !== null
-            ? Number(labelData.servingSizeGrams)
-            : 0;
-          if (labelData && (!servingSizeGrams || isNaN(servingSizeGrams) || servingSizeGrams <= 0)) {
-            servingSizeGrams = 100;
-          }
-          const coreLabelKeys = ["calories","protein","totalFat","saturatedFat","transFat",
-                                 "carbohydrates","addedSugar","sodium","potassium","totalFibre","solubleFibre"];
-          // STEP 1: Apply LLM core-11 estimate (present for label and estimated items)
-          if (labelData && servingSizeGrams > 0) {
-            const scaleFactor = itemWeight / servingSizeGrams;
-            for (const key of coreLabelKeys) {
-              if (labelData[key] !== undefined && labelData[key] !== null) {
-                itemNutrients[key] = parseFloat((Number(labelData[key]) * scaleFactor).toFixed(2));
-              }
-            }
-            addDebugLog(`[Nutrient] "${canonicalName}" core-11 from LLM estimate (servingSizeGrams=${servingSizeGrams}).`);
-          } else if (dbSource === "estimated") {
-            addDebugLog(`[Nutrient Warning] "${canonicalName}" is 'estimated' but LLM did not provide labelNutrientsPerServing. Core-11 will be zero.`);
-            itemNutrients.isUnverified = true;
-          }
-          // STEP 2: If USDA/OFF match found, override core-11 with verified DB data (reinforcement)
-          if ((dbSource === "usda" || dbSource === "off") && dbId) {
-            const hasInMap = dbMatchMap.has(dbId);
-            const match = !hasInMap ? databaseMatchesArray.find((m: any) => m.id === dbId) : null;
-            if (hasInMap) {
-              const baseNutrientsPer100g = dbMatchMap.get(dbId);
-              const factor = itemWeight / 100;
-              for (const key of coreLabelKeys) {
-                if (baseNutrientsPer100g[key] !== undefined) {
-                  itemNutrients[key] = parseFloat((baseNutrientsPer100g[key] * factor).toFixed(2));
-                }
-              }
-              addDebugLog(`[Nutrient] "${canonicalName}" core-11 reinforced by USDA/OFF dbMatchMap.`);
-            } else if (match) {
-              const baseNutrientsPer100g = dbSource === "usda" ? extractUSDANutrientsPer100g(match) : extractOFFNutrientsPer100g(match);
-              const factor = itemWeight / 100;
-              for (const key of coreLabelKeys) {
-                if (baseNutrientsPer100g[key] !== undefined) {
-                  itemNutrients[key] = parseFloat((baseNutrientsPer100g[key] * factor).toFixed(2));
-                }
-              }
-              addDebugLog(`[Nutrient] "${canonicalName}" core-11 reinforced by USDA/OFF match object.`);
-            }
-          }
-          // STEP 3: Derive the 20 trace nutrients from food-type classification
-          const foodType = item.foodType || 'unknown';
-          const traceNutrients = getTraceNutrientsForFoodType(foodType, itemWeight);
-          for (const key of Object.keys(traceNutrients)) {
-            itemNutrients[key] = (traceNutrients as any)[key];
-          }
-          addDebugLog(`[Nutrient] "${canonicalName}" trace-20 from foodType="${foodType}".`);
-
-          // Ensure physical consistency of fats for the item
-          if (itemNutrients.saturatedFat > itemNutrients.totalFat) {
-            itemNutrients.totalFat = itemNutrients.saturatedFat;
-          }
-          if (itemNutrients.transFat > itemNutrients.totalFat) {
-            itemNutrients.totalFat = itemNutrients.transFat;
-          }
-          if (itemNutrients.saturatedFat + itemNutrients.transFat > itemNutrients.totalFat) {
-            itemNutrients.totalFat = parseFloat((itemNutrients.saturatedFat + itemNutrients.transFat).toFixed(2));
-          }
-          itemNutrients.unsaturatedFat = parseFloat(Math.max(0, itemNutrients.totalFat - itemNutrients.saturatedFat - itemNutrients.transFat).toFixed(2));
-
-          // Add to aggregated nutrients
-          for (const key of NUTRIENT_KEYS) {
-            parsedData.nutrients[key] = parseFloat((parsedData.nutrients[key] + (itemNutrients[key] || 0)).toFixed(2));
-          }
-
-          return {
-            name: canonicalName,
-            weightGrams: itemWeight,
-            calories: itemNutrients.calories || 0,
-            saturatedFat: itemNutrients.saturatedFat || 0,
-            sodium: itemNutrients.sodium || 0,
-            dbSource,
-            dbId,
-            isUnverified: itemNutrients.isUnverified || false
-          };
-        });
+        const { nutrients, itemsBreakdown } = aggregateItemsNutrients(
+          rawFoodData.itemsBreakdown,
+          totalWeightGrams,
+          dbMatchMap,
+          databaseMatchesArray,
+          addDebugLog
+        );
+        parsedData.nutrients = nutrients;
+        parsedData.itemsBreakdown = itemsBreakdown;
       } else {
-  addDebugLog(`[Nutrient Warning] LLM returned no itemsBreakdown for "${parsedData.name}". All nutrients will be zero. Check LLM prompt compliance.`);
-  parsedData.itemsBreakdown = [{
-    name: parsedData.name,
-    weightGrams: totalWeightGrams,
-    calories: 0, saturatedFat: 0, sodium: 0,
-    dbSource: "estimated", dbId: null
-  }];
-}
+        addDebugLog(`[Nutrient Warning] LLM returned no itemsBreakdown for "${parsedData.name}". All nutrients will be zero. Check LLM prompt compliance.`);
+        parsedData.nutrients = {};
+        for (const key of NUTRIENT_KEYS) {
+          parsedData.nutrients[key] = 0;
+        }
+        parsedData.itemsBreakdown = [{
+          name: parsedData.name,
+          weightGrams: totalWeightGrams,
+          calories: 0, saturatedFat: 0, sodium: 0,
+          dbSource: "estimated", dbId: null
+        }];
+      }
 
       if (mode === "modify") {
         parsedData.id = req.body.activeMeal?.id;
@@ -3166,50 +3075,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       };
 
       const findItemIndex = (itemNameStr: string, targetDbId: string | null): number => {
-        if (!activeMeal.itemsBreakdown || !Array.isArray(activeMeal.itemsBreakdown)) return -1;
-        const nameLower = itemNameStr.trim().toLowerCase();
-        if (!nameLower && !targetDbId) return -1;
-
-        // 1. Exact match by dbId
-        if (targetDbId) {
-          const idx = activeMeal.itemsBreakdown.findIndex((it: any) => it.dbId && String(it.dbId) === targetDbId);
-          if (idx !== -1) return idx;
-        }
-
-        // 2. Exact match by item name (case-insensitive)
-        const exactIdx = activeMeal.itemsBreakdown.findIndex((it: any) => it.name && it.name.trim().toLowerCase() === nameLower);
-        if (exactIdx !== -1) return exactIdx;
-
-        // 3. Exact match by canonical name if present
-        const canonicalIdx = activeMeal.itemsBreakdown.findIndex((it: any) => it.canonicalDbName && it.canonicalDbName.trim().toLowerCase() === nameLower);
-        if (canonicalIdx !== -1) return canonicalIdx;
-
-        // 4. Substring prefix/suffix match (e.g. startsWith or endsWith)
-        const wordMatchIdx = activeMeal.itemsBreakdown.findIndex((it: any) => {
-          const itName = (it.name || "").trim().toLowerCase();
-          return itName.startsWith(nameLower) || itName.endsWith(nameLower);
-        });
-        if (wordMatchIdx !== -1) return wordMatchIdx;
-
-        // 5. Classic includes fallback (fuzzy substring, first match wins)
-        const includesIdx = activeMeal.itemsBreakdown.findIndex((it: any) => {
-          const itName = (it.name || "").trim().toLowerCase();
-          return itName.includes(nameLower) || nameLower.includes(itName);
-        });
-        if (includesIdx !== -1) return includesIdx;
-
-        // 6. Word-by-word intersection match as ultimate fallback
-        const words = nameLower.split(/\s+/).filter(w => w.length > 2);
-        if (words.length > 0) {
-          const wordMatch = activeMeal.itemsBreakdown.findIndex((it: any) => {
-            const itName = (it.name || "").trim().toLowerCase();
-            const itCanon = (it.canonicalDbName || "").trim().toLowerCase();
-            return words.some(word => itName.includes(word) || itCanon.includes(word));
-          });
-          if (wordMatch !== -1) return wordMatch;
-        }
-
-        return -1;
+        return findItemIndexInList(activeMeal.itemsBreakdown, itemNameStr, targetDbId);
       };
 
       const isWholeMealMatch = (name: string) => {
