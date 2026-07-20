@@ -6610,14 +6610,19 @@ app.post('/api/health-connect/steps', async (req, res) => {
   }
 });
 
-app.get('/admin/migrate', async (req, res) => {
+app.post('/admin/migrate', async (req, res) => {
   try {
-    if (!process.env.ADMIN_MIGRATION_SECRET || req.query.secret !== process.env.ADMIN_MIGRATION_SECRET) {
+    const secret = req.headers['x-admin-secret'] || req.body?.secret;
+    if (!process.env.ADMIN_MIGRATION_SECRET || secret !== process.env.ADMIN_MIGRATION_SECRET) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
-    const commit = req.query.commit === 'true';
+    const commit = req.body?.commit === true;
     if (!db) {
       return res.status(500).json({ error: 'Firestore is not initialized.' });
+    }
+    const targetUid = req.body?.uid;
+    if (!targetUid || typeof targetUid !== 'string') {
+      return res.status(400).json({ error: 'A single "uid" is required in the request body. This endpoint no longer scans all users in one call — call it once per uid.' });
     }
 
     const report = {
@@ -6630,10 +6635,13 @@ app.get('/admin/migrate', async (req, res) => {
       dryRun: !commit
     };
 
-    const usersSnap = await db.collection('users').get();
-    report.scannedUsers = usersSnap.size;
+    const targetDoc = await db.collection('users').doc(targetUid).get();
+    if (!targetDoc.exists) {
+      return res.status(404).json({ error: `No user found with uid ${targetUid}` });
+    }
+    report.scannedUsers = 1;
 
-    for (const userDoc of usersSnap.docs) {
+    for (const userDoc of [targetDoc]) {
       const uid = userDoc.id;
       const profile = userDoc.data();
       let profileChanged = false;
