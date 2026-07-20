@@ -39,3 +39,70 @@ export function getTraceNutrientsForFoodType(foodType: string, weightGrams: numb
   }
   return result as TraceNutrients;
 }
+
+export interface OilModifier {
+  addedFatPer100g: number; // grams of oil absorbed per 100g of food weight
+  addedSaturatedFatPer100g: number; // of that absorbed fat, how much is saturated fat (approx 15% for typical veggie/frying oil)
+  addedCaloriesPer100g: number; // 9 calories per gram of fat
+  description: string;
+}
+
+export const COOKING_METHOD_OIL_MODIFIERS: Record<string, OilModifier> = {
+  deep_fried: { addedFatPer100g: 10.0, addedSaturatedFatPer100g: 1.5, addedCaloriesPer100g: 90.0, description: "Deep-fried" },
+  pan_fried:  { addedFatPer100g: 5.0,  addedSaturatedFatPer100g: 0.75, addedCaloriesPer100g: 45.0, description: "Pan-fried" },
+  stir_fried: { addedFatPer100g: 3.0,  addedSaturatedFatPer100g: 0.45, addedCaloriesPer100g: 27.0, description: "Stir-fried" },
+  roasted:    { addedFatPer100g: 1.5,  addedSaturatedFatPer100g: 0.22, addedCaloriesPer100g: 13.5, description: "Roasted" },
+  boiled:     { addedFatPer100g: 0.0,  addedSaturatedFatPer100g: 0.0,  addedCaloriesPer100g: 0.0,  description: "Boiled" },
+  steamed:    { addedFatPer100g: 0.0,  addedSaturatedFatPer100g: 0.0,  addedCaloriesPer100g: 0.0,  description: "Steamed" },
+  grilled:    { addedFatPer100g: 0.5,  addedSaturatedFatPer100g: 0.07, addedCaloriesPer100g: 4.5,  description: "Grilled" },
+  baked:      { addedFatPer100g: 0.5,  addedSaturatedFatPer100g: 0.07, addedCaloriesPer100g: 4.5,  description: "Baked" },
+  raw:        { addedFatPer100g: 0.0,  addedSaturatedFatPer100g: 0.0,  addedCaloriesPer100g: 0.0,  description: "Raw / Uncooked" },
+  unknown:    { addedFatPer100g: 0.0,  addedSaturatedFatPer100g: 0.0,  addedCaloriesPer100g: 0.0,  description: "Standard" }
+};
+
+export function getCookingMethodModifier(methodStr: string | null | undefined): OilModifier {
+  if (!methodStr) return COOKING_METHOD_OIL_MODIFIERS.unknown;
+  const normalized = methodStr.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+  
+  // Direct match check
+  if (COOKING_METHOD_OIL_MODIFIERS[normalized]) {
+    return COOKING_METHOD_OIL_MODIFIERS[normalized];
+  }
+
+  // Substring checks
+  const lower = methodStr.toLowerCase();
+  if (lower.includes("deep") || lower.includes("fried_deep") || lower.includes("deepfried")) {
+    return COOKING_METHOD_OIL_MODIFIERS.deep_fried;
+  }
+  if (lower.includes("pan") && lower.includes("fried")) {
+    return COOKING_METHOD_OIL_MODIFIERS.pan_fried;
+  }
+  if (lower.includes("stir") && lower.includes("fried")) {
+    return COOKING_METHOD_OIL_MODIFIERS.stir_fried;
+  }
+  if (lower.includes("fry") || lower.includes("fried")) {
+    // default fried to pan_fried
+    return COOKING_METHOD_OIL_MODIFIERS.pan_fried;
+  }
+  if (lower.includes("roast") || lower.includes("roasted")) {
+    return COOKING_METHOD_OIL_MODIFIERS.roasted;
+  }
+  if (lower.includes("boil") || lower.includes("boiled") || lower.includes("soup")) {
+    return COOKING_METHOD_OIL_MODIFIERS.boiled;
+  }
+  if (lower.includes("steam") || lower.includes("steamed")) {
+    return COOKING_METHOD_OIL_MODIFIERS.steamed;
+  }
+  if (lower.includes("grill") || lower.includes("grilled") || lower.includes("char")) {
+    return COOKING_METHOD_OIL_MODIFIERS.grilled;
+  }
+  if (lower.includes("bake") || lower.includes("baked")) {
+    return COOKING_METHOD_OIL_MODIFIERS.baked;
+  }
+  if (lower.includes("raw") || lower.includes("fresh") || lower.includes("uncooked")) {
+    return COOKING_METHOD_OIL_MODIFIERS.raw;
+  }
+
+  return COOKING_METHOD_OIL_MODIFIERS.unknown;
+}
+

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getTraceNutrientsForFoodType } from './server_food_db';
+import { getTraceNutrientsForFoodType, getCookingMethodModifier } from './server_food_db';
 
 describe('getTraceNutrientsForFoodType', () => {
   it('returns base values at 100g', () => {
@@ -30,3 +30,34 @@ describe('getTraceNutrientsForFoodType', () => {
     expect(result.vitaminD).toBe(0);
   });
 });
+
+describe('getCookingMethodModifier', () => {
+  it('returns exact modifiers for direct keys', () => {
+    const deepFried = getCookingMethodModifier('deep_fried');
+    expect(deepFried.addedFatPer100g).toBe(10.0);
+    expect(deepFried.addedCaloriesPer100g).toBe(90.0);
+
+    const steamed = getCookingMethodModifier('steamed');
+    expect(steamed.addedFatPer100g).toBe(0);
+  });
+
+  it('fuzzy matches lowercase/uppercase/substrings', () => {
+    const deep = getCookingMethodModifier('DEEP fried');
+    expect(deep.addedFatPer100g).toBe(10.0);
+
+    const pan = getCookingMethodModifier('panfried chicken');
+    expect(pan.addedFatPer100g).toBe(5.0);
+
+    const boil = getCookingMethodModifier('boiled beef');
+    expect(boil.addedFatPer100g).toBe(0.0);
+  });
+
+  it('defaults to unknown for empty/null/unrecognized methods', () => {
+    const empty = getCookingMethodModifier(null);
+    expect(empty.addedFatPer100g).toBe(0.0);
+
+    const unrecognized = getCookingMethodModifier('magical_spell');
+    expect(unrecognized.addedFatPer100g).toBe(0.0);
+  });
+});
+

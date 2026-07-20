@@ -1,5 +1,5 @@
 import { NUTRIENT_KEYS } from "./src/utils/nutrients";
-import { getTraceNutrientsForFoodType } from "./server_food_db";
+import { getTraceNutrientsForFoodType, getCookingMethodModifier } from "./server_food_db";
 import { 
   sanitizeMealWeight, 
   sanitizeString,
@@ -87,6 +87,21 @@ export function aggregateItemsNutrients(
       }
     }
 
+    // STEP 2.5: Apply cooking method oil modifiers
+    const cookingMethod = item.cookingMethod || 'unknown';
+    const oilModifier = getCookingMethodModifier(cookingMethod);
+    if (oilModifier.addedFatPer100g > 0) {
+      const factor = itemWeight / 100;
+      const addedFat = parseFloat((oilModifier.addedFatPer100g * factor).toFixed(2));
+      const addedSatFat = parseFloat((oilModifier.addedSaturatedFatPer100g * factor).toFixed(2));
+      const addedCalories = parseFloat((oilModifier.addedCaloriesPer100g * factor).toFixed(1));
+
+      itemNutrients.totalFat = parseFloat((itemNutrients.totalFat + addedFat).toFixed(2));
+      itemNutrients.saturatedFat = parseFloat((itemNutrients.saturatedFat + addedSatFat).toFixed(2));
+      itemNutrients.calories = parseFloat((itemNutrients.calories + addedCalories).toFixed(1));
+      addDebugLog(`[Nutrient Modifier] Applied cooking method "${cookingMethod}" (${oilModifier.description}) to "${canonicalName}": added +${addedFat}g fat, +${addedSatFat}g satFat, +${addedCalories} kcal.`);
+    }
+
     // STEP 3: Derive the 20 trace nutrients from food-type classification
     const foodType = item.foodType || 'unknown';
     const traceNutrients = getTraceNutrientsForFoodType(foodType, itemWeight);
@@ -120,7 +135,8 @@ export function aggregateItemsNutrients(
       sodium: itemNutrients.sodium || 0,
       dbSource,
       dbId,
-      isUnverified: itemNutrients.isUnverified || false
+      isUnverified: itemNutrients.isUnverified || false,
+      cookingMethod: item.cookingMethod || null
     };
   });
 

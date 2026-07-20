@@ -26,7 +26,7 @@ import { sanitizeForFirestore, checkQuotaFlag, handleRetryQuota } from './utils/
 import { getCurrentDateInTimezone, toYYYYMMDD, normalizeBiomarkerHistory } from './utils/dateUtils';
 import { biomarkerDefinitions, isAsianEthnicity, hasBmiPendingAlert, getProfileFingerprint } from './utils/biomarkers';
 import { standardizeUnit, CONVERSION_FACTORS } from './utils/unitConversion';
-import { get as idbGet, set as idbSet } from 'idb-keyval';
+import { get, set, pruneLocalStorageToFreeSpace, getStorageKey, getSnapshotKey, saveLocalSnapshot, loadLocalSnapshots, deleteLocalSnapshot, safeSaveToLocalStorage } from './utils/storageUtils';
 
 const FIRESTORE_READ_BUDGET = 3000; // generous for one real session; a runaway loop hits this fast
 function firestoreReadGuard(label: string, docCount: number = 1): boolean {
@@ -40,217 +40,11 @@ function firestoreReadGuard(label: string, docCount: number = 1): boolean {
   return true;
 }
 
-const pruneLocalStorageToFreeSpace = () => {
-  console.warn("Pruning localStorage to free up space...");
-  try {
-    // 1. Remove large, non-critical batch and diagnostic results
-    localStorage.removeItem('agent1_batch_results');
-    localStorage.removeItem('batch_analysis_results');
-    localStorage.removeItem('agent_request_logs');
-    
-    // 2. Remove or truncate telemetry logs
-    localStorage.removeItem('local_api_events');
-    
-    // 3. Truncate snapshots and clear chat keys from localStorage since they're in IndexedDB
-    const keysToRemove: string[] = [];
-    for (let i = 0; i < localStorage.length; i++) {
-      const key = localStorage.key(i);
-      if (key) {
-        if (key.startsWith('health_cockpit_snapshots_')) {
-          try {
-            const snaps = JSON.parse(localStorage.getItem(key) || '[]');
-            if (snaps.length > 1) {
-              localStorage.setItem(key, JSON.stringify(snaps.slice(0, 1)));
-            }
-          } catch {}
-        } else if (key.startsWith('chat_messages_') || key.startsWith('chat_payload_')) {
-          // Since chat history is fully and safely saved in IndexedDB,
-          // we can remove it from localStorage to free up the 5MB quota!
-          keysToRemove.push(key);
-        }
-      }
-    }
-    keysToRemove.forEach(k => localStorage.removeItem(k));
-    console.log(`Successfully pruned ${keysToRemove.length} chat keys from localStorage to reclaim space.`);
-  } catch (e) {
-    console.error("Failed to prune localStorage:", e);
-  }
-};
-
-const get = async (key: string): Promise<any> => {
-  try {
-    const result = await Promise.race([
-      idbGet(key),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("IndexedDB timeout")), 8000))
-    ]);
-    if (result !== undefined) {
-      return result;
-    }
-    // Fall back to localStorage if IDB returned undefined (key not found or wiped)
-    const val = localStorage.getItem(key);
-    return val ? JSON.parse(val) : undefined;
-  } catch (e) {
-    console.warn("get timeout/error (falling back to localStorage):", e);
-    if (typeof window !== 'undefined') (window as any)._idbFailed = true;
-    try {
-      const val = localStorage.getItem(key);
-      return val ? JSON.parse(val) : undefined;
-    } catch {
-      return undefined;
-    }
-  }
-};
-
-const set = async (key: string, val: any): Promise<void> => {
-  const isHeavyKey = key.startsWith('health_cockpit_app_data_') || key.startsWith('health_cockpit_snapshots_');
-  const isSaturated = typeof window !== 'undefined' && (window as any)._localStorageSaturated === true;
-
-  if (!isSaturated || !isHeavyKey) {
-    try {
-      localStorage.setItem(key, JSON.stringify(val));
-    } catch (localStorageError: any) {
-      if (isHeavyKey) {
-        if (typeof window !== 'undefined') {
-          (window as any)._localStorageSaturated = true;
-        }
-        console.warn(`[Storage] localStorage quota reached. Transitioned to high-capacity IndexedDB for key: ${key}. No data will be lost.`);
-        
-        try {
-          pruneLocalStorageToFreeSpace();
-          // Try to write a lightweight fallback copy just in case — strip images (the
-          // heaviest field) but keep the food log entries themselves, so a later read of
-          // this fallback doesn't look like "all food logs were deleted".
-          if (val && typeof val === 'object') {
-            const lightVal = { ...val, _isLightweightFallback: true };
-            if (Array.isArray(lightVal.foodLogs)) {
-              lightVal.foodLogs = lightVal.foodLogs.slice(-50).map((f: any) => {
-                const { imageUrl, imageUrls, ...rest } = f;
-                return rest;
-              });
-            }
-            if (lightVal.report) lightVal.report = null;
-            if (lightVal.biomarkerHistory && lightVal.biomarkerHistory.length > 50) {
-              lightVal.biomarkerHistory = lightVal.biomarkerHistory.slice(0, 10);
-            }
-            localStorage.setItem(key, JSON.stringify(lightVal));
-          }
-        } catch (fallbackError) {
-          // Quietly rely on IndexedDB
-        }
-      } else {
-        try {
-          localStorage.setItem(key, JSON.stringify(val));
-        } catch {}
-      }
-    }
-  }
-
-  // 2. Always write the full data to IndexedDB to ensure no data is lost.
-  // Retry once before giving up on this specific write — a single timeout should not
-  // permanently disable local persistence for the rest of the session.
-  try {
-    await Promise.race([
-      idbSet(key, val),
-      new Promise((_, reject) => setTimeout(() => reject(new Error("IndexedDB timeout")), 8000))
-    ]);
-    if (typeof window !== 'undefined') (window as any)._idbFailed = false;
-  } catch (idbError) {
-    console.warn("IndexedDB set failed once, retrying:", idbError);
-    try {
-      await Promise.race([
-        idbSet(key, val),
-        new Promise((_, reject) => setTimeout(() => reject(new Error("IndexedDB timeout (retry)")), 8000))
-      ]);
-      if (typeof window !== 'undefined') (window as any)._idbFailed = false;
-    } catch (retryError) {
-      console.error("IndexedDB set failed twice, giving up on this write:", retryError);
-      if (typeof window !== 'undefined') (window as any)._idbFailed = true;
-    }
-  }
-};
-
 import { parse } from 'yaml';
 import { runCleanupMigration } from './utils/migrationTask';
 import { syncLogsWithTimeBuckets, fetchAllConsolidatedLogs } from "./utils/syncUtils";
 import { compressImage } from "./utils/imageCompressor";
-const getStorageKey = (email?: string | null) => {
-  const norm = (email || auth.currentUser?.email || 'guest').toLowerCase().trim();
-  return `health_cockpit_app_data_${norm}`;
-};
 
-const MAX_SNAPSHOTS = 5;
-
-const getSnapshotKey = (email?: string | null) => {
-  const norm = (email || auth.currentUser?.email || 'guest').toLowerCase().trim();
-  return `health_cockpit_snapshots_${norm}`;
-};
-
-/** Save a named snapshot of all current data to IndexedDB. */
-const saveLocalSnapshot = async (
-  label: string,
-  email: string | null | undefined,
-  bundle: {
-    profile: any;
-    foodLogs: any[];
-    biomarkers: Record<string, any>;
-    biomarkerHistory: any[];
-    actions?: any[];
-    dailyBenefits?: any[];
-    report?: any;
-  }
-) => {
-  try {
-    const key = getSnapshotKey(email);
-    let existing: any[] = [];
-    try {
-      existing = (await get(key)) || [];
-    } catch {}
-
-    // Strip base64 images from food logs to keep snapshot small
-    const lightFoodLogs = (bundle.foodLogs || []).map((f: any) => {
-      if (!f.imageUrl || !f.imageUrl.startsWith('data:image/')) return f;
-      return { ...f, imageUrl: '[image_removed_for_snapshot]' };
-    });
-
-    const snapshot = {
-      id: `snap_${Date.now()}`,
-      timestamp: new Date().toISOString(),
-      label,
-      data: {
-        profile: bundle.profile,
-        foodLogs: lightFoodLogs,
-        biomarkers: bundle.biomarkers,
-        biomarkerHistory: bundle.biomarkerHistory,
-        actions: bundle.actions || [],
-        dailyBenefits: bundle.dailyBenefits || [],
-        report: bundle.report || null
-      }
-    };
-
-    const updated = [snapshot, ...existing].slice(0, MAX_SNAPSHOTS);
-    await set(key, updated);
-    return true;
-  } catch (e) {
-    console.warn('[Snapshot] Could not save snapshot:', e);
-    return false;
-  }
-};
-
-/** Load all snapshots for the current user. */
-const loadLocalSnapshots = async (email?: string | null): Promise<any[]> => {
-  try {
-    return (await get(getSnapshotKey(email))) || [];
-  } catch { return []; }
-};
-
-/** Delete a specific snapshot by id. */
-const deleteLocalSnapshot = async (email: string | null | undefined, id: string) => {
-  try {
-    const key = getSnapshotKey(email);
-    const existing = await loadLocalSnapshots(email);
-    await set(key, existing.filter((s: any) => s.id !== id));
-  } catch (e) {}
-};
 const QUOTA_STORAGE_KEY = 'health_cockpit_quota_data';
 const getQuotaKey = () => {
   return new Date().toLocaleDateString('en-US', { timeZone: 'America/Los_Angeles' });
@@ -445,18 +239,6 @@ function isDeepEqual(obj1: any, obj2: any): boolean {
   }
   return true;
 }
-const safeSaveToLocalStorage = async (key: string, bundle: any) => {
-  try {
-    const existing = await get(key) || {};
-    const mergedBundle = {
-      ...bundle,
-      lastSyncedAt: bundle.lastSyncedAt !== undefined ? bundle.lastSyncedAt : existing.lastSyncedAt
-    };
-    await set(key, mergedBundle);
-  } catch (e) {
-    console.error("Failed to save to IndexedDB:", e);
-  }
-};
 const safeAlert = (message: string) => {
   console.log("[App Notification]:", message);
   try {
@@ -1024,6 +806,12 @@ export default function App() {
       
       setSyncState('local');
     };
+
+    if (forcePull) {
+      localStorage.removeItem('firestore_quota_exceeded');
+      localStorage.removeItem('firestore_quota_exceeded_time');
+      setIsFirestoreQuotaExceeded(false);
+    }
 
     if (isFirestoreQuotaExceeded || checkQuotaFlag()) {
       abortWithLocalFallback();
@@ -2368,6 +2156,16 @@ export default function App() {
       setSyncState('local');
       return;
     }
+    // Clear quota flags if this is an explicit manual fullPush or explicit user sync
+    const isExplicitSync = specificUpdate?.type === 'fullPush' || (window as any).isManualSyncExecuting;
+    if (isExplicitSync) {
+      localStorage.removeItem('firestore_quota_exceeded');
+      localStorage.removeItem('firestore_quota_exceeded_time');
+      if (isFirestoreQuotaExceeded) {
+        setIsFirestoreQuotaExceeded(false);
+      }
+    }
+
     if (isFirestoreQuotaExceeded || checkQuotaFlag()) {
       setSyncState('local');
       return;
@@ -2375,7 +2173,6 @@ export default function App() {
 
     // Intercept automatic writes if manual sync mode is enabled to save quota
     const isManualSyncOnly = localStorage.getItem('auto_sync_disabled') === 'true';
-    const isExplicitSync = specificUpdate?.type === 'fullPush' || (window as any).isManualSyncExecuting;
     if (isManualSyncOnly && !isExplicitSync) {
       setSyncState('local');
       return;

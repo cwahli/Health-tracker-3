@@ -108,24 +108,15 @@ export default function FullScreenLogViewer({
     return sessionLogs;
   }, [sessionLogs, isDiagnostic, requestLogs, selectedResponse]);
 
-  const filteredByAgent = useMemo(() => {
+  const agentLogs = useMemo(() => {
     const currentChunks = chunks;
-    if (selectedAgent === 'all') return currentChunks;
-
-    // Distinctive tags reliably identify which agent a log line belongs to.
-    // Generic "[UnifiedLLM] ..." lines (dispatch/attach/system instruction/
-    // completion/response) carry no distinguishing text of their own, so they
-    // inherit the category of whichever agent's request is currently "open"
-    // based on log order. This avoids silently dropping them, and avoids the
-    // old unreliable fallback that only matched by coincidence when prior
-    // chat history happened to contain certain phrases.
     let currentPhase: 'scout' | 'dietitian' | 'standardize' | 'categorise' | 'consolidation' | 'accuracy' | null = null;
-    const scoutChunks: string[] = [];
-    const dietitianChunks: string[] = [];
-    const standardizeChunks: string[] = [];
-    const categoriseChunks: string[] = [];
-    const consolidationChunks: string[] = [];
-    const accuracyChunks: string[] = [];
+    const scout: string[] = [];
+    const dietitian: string[] = [];
+    const standardize: string[] = [];
+    const categorise: string[] = [];
+    const consolidation: string[] = [];
+    const accuracy: string[] = [];
 
     currentChunks.forEach(chunk => {
       const lower = chunk.toLowerCase();
@@ -135,17 +126,17 @@ export default function FullScreenLogViewer({
       // if the dietitian prompt/response mentions 'vision scout' or 'image payload').
       if (lower.includes('[unifiedllm')) {
         if (currentPhase === 'scout') {
-          scoutChunks.push(chunk);
+          scout.push(chunk);
         } else if (currentPhase === 'dietitian') {
-          dietitianChunks.push(chunk);
+          dietitian.push(chunk);
         } else if (currentPhase === 'standardize') {
-          standardizeChunks.push(chunk);
+          standardize.push(chunk);
         } else if (currentPhase === 'categorise') {
-          categoriseChunks.push(chunk);
+          categorise.push(chunk);
         } else if (currentPhase === 'consolidation') {
-          consolidationChunks.push(chunk);
+          consolidation.push(chunk);
         } else if (currentPhase === 'accuracy') {
-          accuracyChunks.push(chunk);
+          accuracy.push(chunk);
         }
         return;
       }
@@ -169,44 +160,57 @@ export default function FullScreenLogViewer({
                               
       if (isStandardizeTag) {
         currentPhase = 'standardize';
-        standardizeChunks.push(chunk);
+        standardize.push(chunk);
         return;
       }
       if (isCategoriseTag) {
         currentPhase = 'categorise';
-        categoriseChunks.push(chunk);
+        categorise.push(chunk);
         return;
       }
       if (isConsolidationTag) {
         currentPhase = 'consolidation';
-        consolidationChunks.push(chunk);
+        consolidation.push(chunk);
         return;
       }
       if (isAccuracyTag) {
         currentPhase = 'accuracy';
-        accuracyChunks.push(chunk);
+        accuracy.push(chunk);
         return;
       }
       if (isScoutTag) {
         currentPhase = 'scout';
-        scoutChunks.push(chunk);
+        scout.push(chunk);
         return;
       }
       if (isDietitianTag) {
         currentPhase = 'dietitian';
-        dietitianChunks.push(chunk);
+        dietitian.push(chunk);
         return;
       }
     });
 
-    if (selectedAgent === 'scout') return scoutChunks;
-    if (selectedAgent === 'dietitian') return dietitianChunks;
-    if (selectedAgent === 'standardize') return standardizeChunks;
-    if (selectedAgent === 'categorise') return categoriseChunks;
-    if (selectedAgent === 'consolidation') return consolidationChunks;
-    if (selectedAgent === 'accuracy') return accuracyChunks;
-    return currentChunks;
-  }, [chunks, selectedAgent]);
+    return {
+      scout,
+      dietitian,
+      standardize,
+      categorise,
+      consolidation,
+      accuracy,
+    };
+  }, [chunks]);
+
+  const filteredByAgent = useMemo(() => {
+    if (selectedAgent === 'all') return chunks;
+    return agentLogs[selectedAgent] || [];
+  }, [chunks, agentLogs, selectedAgent]);
+
+  // Reset selectedAgent filter if the current selected agent has no logs
+  useEffect(() => {
+    if (selectedAgent !== 'all' && (!agentLogs[selectedAgent] || agentLogs[selectedAgent].length === 0)) {
+      setSelectedAgent('all');
+    }
+  }, [agentLogs, selectedAgent]);
 
   const filteredChunks = useMemo(() => {
     if (!searchTerm) return filteredByAgent;
@@ -422,12 +426,24 @@ export default function FullScreenLogViewer({
               className="bg-slate-900 border border-slate-800/80 rounded-xl px-3 py-1.5 outline-none text-slate-200 font-mono focus:border-indigo-500/50 cursor-pointer shadow-sm text-xs"
             >
               <option value="all">All Agents / Process Steps</option>
-              <option value="scout">Visual Food Scout (Image Classifier)</option>
-              <option value="dietitian">Clinical Dietitian AI</option>
-              <option value="standardize">Clinical Unit Standardization Agent</option>
-              <option value="categorise">Clinical Categorisation Agent</option>
-              <option value="consolidation">Clinical Name Consolidation Agent</option>
-              <option value="accuracy">Clinical Data Accuracy Agent</option>
+              {agentLogs.scout.length > 0 && (
+                <option value="scout">Visual Food Scout (Image Classifier)</option>
+              )}
+              {agentLogs.dietitian.length > 0 && (
+                <option value="dietitian">Clinical Dietitian AI</option>
+              )}
+              {agentLogs.standardize.length > 0 && (
+                <option value="standardize">Clinical Unit Standardization Agent</option>
+              )}
+              {agentLogs.categorise.length > 0 && (
+                <option value="categorise">Clinical Categorisation Agent</option>
+              )}
+              {agentLogs.consolidation.length > 0 && (
+                <option value="consolidation">Clinical Name Consolidation Agent</option>
+              )}
+              {agentLogs.accuracy.length > 0 && (
+                <option value="accuracy">Clinical Data Accuracy Agent</option>
+              )}
             </select>
           </div>
 

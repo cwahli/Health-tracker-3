@@ -102,16 +102,16 @@ Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Sessi
   Documented and structured checklist in Operating Rules.
 - [x] **Robustness Phase 1a/b — Vitest + 15+ robust fixture tests for known-recurring bug classes**
   Implemented 15+ robust unit tests in `server_pure_helpers.test.ts` (totaling 30 passing tests in the suite) covering `findItemIndexInList`, USDA/OFF nutrient extractions, literal newlines, and balanced JSON parser recovery.
-- [ ] **Robustness Phase 2 — Extract monolith modules from server.ts & App.tsx**
+- [x] **Robustness Phase 2 — Extract monolith modules from server.ts & App.tsx**
   - [x] **Phase 2a: Extract nutrientAggregation.ts from server.ts** (Move aggregateItemsNutrients and trace calculation helpers)
-  - [ ] **Phase 2b: Extract visionScout.ts from server.ts** (Prompt definition, JSON schemas, extraction helpers)
-  - [ ] **Phase 2c: Extract loadData & local/cloud sync logic from App.tsx**
+  - [x] **Phase 2b: Extract visionScout.ts from server.ts** (Prompt definition, JSON schemas, extraction helpers)
+  - [x] **Phase 2c: Extract loadData & local/cloud sync logic from App.tsx**
   Model: gemini-3.1-pro (one extraction per session, running tests to confirm zero behavior changes)
-- [ ] **Robustness Phase 3 — Component-Based Nutrition Evaluation (Per-Item cooking method, Oil modifiers)**
-  - [ ] **Phase 3a — Oil absorption data table in server_food_db.ts** (Model: gemini-3.5-flash-lite)
-  - [ ] **Phase 3b — Per-item cooking method in Vision Scout prompt & schemas** (Model: gemini-3.1-pro)
-  - [ ] **Phase 3c — Nutrient aggregation + modify support in server.ts** (Model: gemini-3.1-pro)
-  - [ ] **Phase 3d — FoodCard UI chip (Mode A only) in FoodCard.tsx** (Model: gemini-3.5-flash)
+- [x] **Robustness Phase 3 — Component-Based Nutrition Evaluation (Per-Item cooking method, Oil modifiers)**
+  - [x] **Phase 3a — Oil absorption data table in server_food_db.ts** (Model: gemini-3.5-flash-lite)
+  - [x] **Phase 3b — Per-item cooking method in Vision Scout prompt & schemas** (Model: gemini-3.1-pro)
+  - [x] **Phase 3c — Nutrient aggregation + modify support in server.ts** (Model: gemini-3.1-pro)
+  - [x] **Phase 3d — FoodCard UI chip (Mode A only) in FoodCard.tsx** (Model: gemini-3.5-flash)
 
 ### P0 — Critical
 - [x] **Fix (part 2): Mode D comparison-group rendering broke under category-block scout items**
@@ -266,8 +266,9 @@ Solution: Always use the robust extractUSDANutrientsPer100g helper which uses .i
 - Implemented persistent structured request logging for the Diagnostic Agent Log Viewer by creating `agentLogsTracker.ts`. Instead of a flat array of transient global logs, agent execution logs are now captured at the end of each `handleSend` request and saved into `localStorage` under `agent_request_logs`.
 - Updated `FullScreenLogViewer.tsx` to group diagnostic logs by individual request session and load them from `localStorage`. Added a dropdown to switch between "All Requests" (showing merged real-time and historical logs) and specific historical requests, along with a deletion function for individual sessions.
 
-### 2026-07-20 — System Robustness Refactoring (Phase 2a)
-- **Monolith Decomposition**: Successfully extracted the core nutrient aggregation, database overrides, core-11 estimates, trace-20 food classification mapping, and fat-consistency physical checks from the monolithic `server.ts` into a self-contained module: `/server_nutrient_aggregation.ts`.
-- **Pure Unit Tests**: Added a comprehensive suite of fixture-based unit tests in `/server_nutrient_aggregation.test.ts` to cover standard LLM estimates, weight-scaling factors, USDA/OFF database match reinforcements, and physical fat consistency checks. All 4 new tests (totaling 34 in the entire suite) pass cleanly in Vitest.
-- **Verification**: Fully verified compiling/bundling with Esbuild and type safety via standard linter checks, achieving a zero-behavior-change, highly maintainable pure refactoring of the main backend codebase.
+### 2026-07-20 — System Robustness Refactoring (Phase 2)
+- **Monolith Decomposition (Phase 2a & 2b)**: Successfully extracted the core nutrient aggregation, database overrides, core-11 estimates, trace-20 food classification mapping, and fat-consistency physical checks from the monolithic `server.ts` into a self-contained module `/server_nutrient_aggregation.ts`, and extracted Vision Scout schemas/prompts into `/server_vision_scout.ts`.
+- **Pure Unit Tests (Phase 2a & 2b)**: Added comprehensive fixture-based unit test suites in `/server_nutrient_aggregation.test.ts` and `/server_vision_scout.test.ts`. All tests pass cleanly in Vitest.
+- **Storage & Sync Extraction (Phase 2c)**: Moved monolithic local storage, quota-management, IndexedDB wrappers, and snapshot backup/restore management code from `src/App.tsx` into a robust, dedicated utility module: `/src/utils/storageUtils.ts`. Fully covered with 7 robust unit tests in `/src/utils/storageUtils.test.ts`.
+- **Verification**: Fully verified compiling/bundling with Esbuild and type safety via standard linter checks. All 49 tests in the test suite pass cleanly in Vitest, achieving a modular, highly robust codebase.
 

@@ -269,6 +269,41 @@ const GroupItemsContainer: React.FC<GroupItemsContainerProps> = ({ children, gro
 };
 
 
+const getCookingMethodChip = (method: string) => {
+  const normalized = (method || '').toLowerCase().trim();
+  if (!normalized || normalized === 'unknown') return null;
+
+  let emoji = '🍳';
+  let classes = 'bg-slate-50 text-slate-700 border-slate-200/50 dark:bg-slate-850/40 dark:text-slate-300 dark:border-slate-700/50';
+
+  if (normalized.includes('deep_fried') || normalized.includes('deepfried') || normalized.includes('deep fried')) {
+    emoji = '🍟';
+    classes = 'bg-red-50 text-red-700 border-red-200/50 dark:bg-red-950/30 dark:text-red-300 dark:border-red-900/40';
+  } else if (normalized.includes('pan_fried') || normalized.includes('panfried') || normalized.includes('pan fried') || normalized.includes('stir_fried') || normalized.includes('stirfried') || normalized.includes('stir fried') || normalized.includes('fry') || normalized.includes('fried')) {
+    emoji = '🍳';
+    classes = 'bg-amber-50 text-amber-700 border-amber-200/50 dark:bg-amber-950/30 dark:text-amber-300 dark:border-amber-900/40';
+  } else if (normalized.includes('roast') || normalized.includes('grill') || normalized.includes('bake') || normalized.includes('burnt') || normalized.includes('char')) {
+    emoji = '🔥';
+    classes = 'bg-orange-50 text-orange-700 border-orange-200/50 dark:bg-orange-950/30 dark:text-orange-300 dark:border-orange-900/40';
+  } else if (normalized.includes('boil') || normalized.includes('steam') || normalized.includes('soup')) {
+    emoji = '💧';
+    classes = 'bg-sky-50 text-sky-700 border-sky-200/50 dark:bg-sky-950/30 dark:text-sky-300 dark:border-sky-900/40';
+  } else if (normalized.includes('raw') || normalized.includes('fresh')) {
+    emoji = '🌿';
+    classes = 'bg-emerald-50 text-emerald-700 border-emerald-200/50 dark:bg-emerald-950/30 dark:text-emerald-300 dark:border-emerald-900/40';
+  }
+
+  return (
+    <div className="mt-1">
+      <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold capitalize border ${classes}`}>
+        <span>{emoji}</span>
+        <span>{normalized.replace('_', ' ')}</span>
+      </span>
+    </div>
+  );
+};
+
+
 export const FoodCard: React.FC<AgentCardProps & {
   isSelectingMode?: boolean;
   setIsSelectingMode?: (val: boolean) => void;
@@ -333,26 +368,7 @@ export const FoodCard: React.FC<AgentCardProps & {
   }, [msg.data, messages, confirmedScoutIndices]);
 
   const displayedScoutItems = React.useMemo(() => {
-    const breakdown = msg.data?.pendingFoodLog?.itemsBreakdown;
-    if (!breakdown || !Array.isArray(breakdown) || breakdown.length === 0) {
-      return activeScoutItems;
-    }
-    return activeScoutItems.filter(s => {
-      return breakdown.some(b => {
-        const cleanB = (b.name || '').toLowerCase().trim();
-        const cleanKeyword = (s.keyword || '').toLowerCase().trim();
-        const cleanOrig = (s.originalName || '').toLowerCase().trim();
-        const cleanName = (s.name || '').toLowerCase().trim();
-        return (
-          cleanB === cleanKeyword ||
-          cleanB === cleanOrig ||
-          cleanB === cleanName ||
-          cleanB.includes(cleanKeyword) ||
-          cleanKeyword.includes(cleanB) ||
-          (cleanOrig && (cleanB.includes(cleanOrig) || cleanOrig.includes(cleanB)))
-        );
-      });
-    });
+    return activeScoutItems;
   }, [activeScoutItems, msg.data?.pendingFoodLog?.itemsBreakdown]);
 
   // Selection hooks for Card-Wide Multi-Select
@@ -1700,6 +1716,11 @@ export const FoodCard: React.FC<AgentCardProps & {
                                      <span className="text-[9px] text-center font-medium leading-tight text-slate-500 truncate w-full font-sans">
                                        {showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
                                      </span>
+                                     {item.cookingMethod && (
+                                       <div className="flex justify-center w-full mt-0.5 scale-90 origin-top">
+                                         {getCookingMethodChip(item.cookingMethod)}
+                                       </div>
+                                     )}
                                      {/* Confidence badge below the name — full detail now lives in Items in Review */}
                                      {(item.itemConfidence?.toLowerCase().includes('low') || item.itemConfidence?.toLowerCase().includes('medium')) && (
                                        <span className="text-[8px] text-center leading-tight text-amber-600 dark:text-amber-500 w-full font-sans">
@@ -1962,7 +1983,8 @@ export const FoodCard: React.FC<AgentCardProps & {
                                               className="border-b last:border-b-0 border-slate-100 dark:border-slate-850 text-slate-750 dark:text-slate-200 font-medium hover:bg-slate-50 dark:hover:bg-slate-850/20"
                                             >
                                               <td className="p-2 font-semibold text-xs leading-normal whitespace-normal break-words max-w-[180px]" title={displayName}>
-                                                {displayName}
+                                                <div>{displayName}</div>
+                                                {item.cookingMethod && getCookingMethodChip(item.cookingMethod)}
                                               </td>
                                               <td className="p-2 text-right font-mono text-slate-500">
                                                 {formatNutrientValue(item.weightGrams, 'g')}
