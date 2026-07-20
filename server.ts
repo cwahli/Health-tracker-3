@@ -396,7 +396,7 @@ Nutrient target to reach today:
 
 You are an expert clinical dietitian and nutritional LLM analyzer operating within an automated personalized health ecosystem. Your response must be an exact single structured JSON object matching the requested structure. Never add markdown formatting wrappers like \`\`\`json unless instructed.
 
-CONSISTENCY & PROSE PRECISION: In your conversational response ("message") and detailed analysis fields, you should explicitly discuss specific numeric nutrient totals calculated for the current meal. Make sure to reference these specific values to ground your recommendations in real, precise figures rather than general statements. 
+CONSISTENCY & PROSE PRECISION: In your conversational response ("message") and detailed analysis fields, you should explicitly discuss specific numeric nutrient totals calculated for the current meal. CRITICAL: You MUST explicitly weave the mathematical totals you calculated (e.g., 'This 60g donut contains roughly 306 calories and 21g of fat') directly into the conversational message. Do not provide generic warnings without the specific numbers. 
 
 === PATIENT CONTEXT PAYLOAD ===
 CRITICAL PATIENT BIOMARKER WARNINGS & NUTRITIONAL DIRECTIVES:
@@ -432,7 +432,7 @@ Strict Fallback: If a food item does NOT have a clear, exact match in the provid
 Trace Nutrients Taxonomy
 Fungi Expansion: Do NOT estimate trace nutrients individually. Instead, output the single most appropriate foodType string for each item.
 
-Allowed Types: Use exactly one of the following category tags: 'red_meat', 'poultry', 'fish_lean', 'fish_fatty', 'leafy_veg', 'root_veg', 'fungi' (strictly mandatory for mushrooms/cloud ears/wood ears), 'legume', or 'grain'.
+Allowed Types: Use exactly one of the following category tags: 'red_meat', 'poultry', 'fish_lean', 'fish_fatty', 'leafy_veg', 'root_veg', 'fungi', 'legume', 'grain', 'fruit', 'dairy', 'mixed_meal' (for complex dishes), or 'ultra_processed' (for junk food, sweets, and deep-fried commercial items).
 
 === MODE ROUTING DIRECTIVE (STRICTLY ENFORCED) ===
 Operate in one of five distinct modes based on current user intent:
@@ -1978,8 +1978,9 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
     const isEvaluationScale = queriesToSearch.length >= 10;
     const shouldRunDbSearch = !isWeightModification && !isMenuScale && !isEvaluationScale && (visionScoutRanAndReturnedItems || (!hasImage && queriesToSearch.length > 0));
     if (shouldRunDbSearch && queriesToSearch.length > 0) {
-      addDebugLog(`[Database Search] Performing USDA & OFF searches for queries: ${JSON.stringify(queriesToSearch)}`);
-      const searchPromises = queriesToSearch.map(async (q) => {
+      const uniqueQueries = Array.from(new Set(queriesToSearch));
+      addDebugLog(`[Database Search] Performing USDA & OFF searches for queries: ${JSON.stringify(uniqueQueries)}`);
+      const searchPromises = uniqueQueries.map(async (q) => {
         try {
           const cleaned = cleanQuery(q);
           const isBarcode = /^\d{6,}$/.test(cleaned);
@@ -2161,7 +2162,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
     const systemInstruction = buildFoodAnalyzeInstruction({
       biomarkersNeedingImprovement,
       remainingAllowance,
-      activeMeal,
+      activeMeal: hasImage ? null : activeMeal,
       compareItemCount: visionScoutItems ? visionScoutItems.length : 0
     });
 
@@ -2171,7 +2172,9 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
         let flagStr = (item.anomalyFlags && item.anomalyFlags.length > 0) ? ` | Flags: [${item.anomalyFlags.join(', ')}]` : '';
         let confStr = item.itemConfidence ? ` | Confidence: ${item.itemConfidence}` : '';
         let scaledNutrientsStr = "";
-        let ingredientsStr = item.ingredientsList ? ` | Ingredients: ${item.ingredientsList}` : "";
+        let ingredientsStr = "";
+        if (item.ingredientsList) ingredientsStr += ` | Label Ingredients: ${item.ingredientsList}`;
+        if (item.visualIngredients && item.visualIngredients.length > 0) ingredientsStr += ` | Visual Ingredients: ${item.visualIngredients.join(', ')}`;
         const raw = item.rawNutritionLabel;
         const facts = item.nutritionFacts;
         
@@ -2293,7 +2296,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
               items: {
                 type: Type.OBJECT,
                 properties: {
-                  canonicalDbName: { type: Type.STRING },
+                  canonicalDbName: { type: Type.STRING, description: "You MUST preserve the specific toppings or modifiers identified in the originalName (e.g., 'Siomay with mushroom topping' instead of just 'Siomay')." },
                   weightGrams: { type: Type.INTEGER, description: "Weight of ingredient in grams" },
                   dbSource: { type: Type.STRING, description: "'usda' | 'off' | 'estimated' | 'label'" },
                   dbId: { type: Type.STRING, nullable: true },
@@ -2323,7 +2326,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                   foodType: {
                     type: Type.STRING,
                     nullable: true,
-                    description: "Food category for trace nutrient derivation. One of: 'red_meat' | 'poultry' | 'fish_fatty' | 'fish_lean' | 'shellfish' | 'egg' | 'dairy' | 'leafy_veg' | 'root_veg' | 'legume' | 'grain' | 'fruit' | 'processed' | 'unknown'. Examples: beef blade → 'red_meat', salmon → 'fish_fatty', spinach → 'leafy_veg', white rice → 'grain', enoki mushroom → 'root_veg', chicken breast → 'poultry'."
+                    description: "Food category for trace nutrient derivation. One of: 'red_meat' | 'poultry' | 'fish_fatty' | 'fish_lean' | 'shellfish' | 'egg' | 'dairy' | 'leafy_veg' | 'root_veg' | 'legume' | 'grain' | 'fruit' | 'mixed_meal' | 'ultra_processed' | 'unknown'. Examples: beef blade → 'red_meat', salmon → 'fish_fatty', donut → 'ultra_processed', lasagna → 'mixed_meal'."
                   },
                   confidenceRating: { type: Type.STRING, nullable: true },
                   confidenceComment: { type: Type.STRING, nullable: true },

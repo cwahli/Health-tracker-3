@@ -812,7 +812,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                      )}
                                    </div>
                                    <span className="text-[9px] text-center font-medium leading-tight text-slate-500 truncate w-full font-sans">
-                                     {showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
+                                     {(item.originalName || item.keyword)}
                                    </span>
                                    {item.anomalyFlags && item.anomalyFlags.length > 0 && (
                                      <span className="text-[8px] text-center leading-tight text-amber-600 dark:text-amber-500 w-full font-sans line-clamp-2">
@@ -1659,7 +1659,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                      <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 text-slate-700 dark:text-slate-300">
                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                                        <span className="text-[10px] font-bold">
-                                         {showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
+                                         {(item.originalName || item.keyword)}
                                        </span>
                                      </div>
                                    );
@@ -1714,7 +1714,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                        )}
                                      </div>
                                      <span className="text-[9px] text-center font-medium leading-tight text-slate-500 truncate w-full font-sans">
-                                       {showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
+                                       {(item.originalName || item.keyword)}
                                      </span>
                                      {item.cookingMethod && (
                                        <div className="flex justify-center w-full mt-0.5 scale-90 origin-top">

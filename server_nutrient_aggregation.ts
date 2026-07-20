@@ -90,7 +90,7 @@ export function aggregateItemsNutrients(
     // STEP 2.5: Apply cooking method oil modifiers
     const cookingMethod = item.cookingMethod || 'unknown';
     const oilModifier = getCookingMethodModifier(cookingMethod);
-    if (oilModifier.addedFatPer100g > 0) {
+    if (oilModifier.addedFatPer100g > 0 && dbSource !== 'estimated') {
       const factor = itemWeight / 100;
       const addedFat = parseFloat((oilModifier.addedFatPer100g * factor).toFixed(2));
       const addedSatFat = parseFloat((oilModifier.addedSaturatedFatPer100g * factor).toFixed(2));

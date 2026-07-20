@@ -83,6 +83,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
       "weightReasoning": "string (CRITICAL: If the user provided a relative fraction, you MUST explicitly describe the physical size/count of the food in the image here first. e.g., 'The image shows 1 segment with 3 small pods. Total estimated weight is 120g. Applying user fraction 1/4 = 30g')",
       "estimatedWeightGrams": "number (Must logically match your weightReasoning)",
       "originalName": "string (Exact OCR. If unreadable, 'UNREADABLE'. For a dense menu category block, a comma-separated list of every food name in that block, ignoring prices)",
+      "visualIngredients": ["string (An array of distinct components visually identified, e.g., ['chocolate glaze', 'peanuts']. Leave empty [] if none discernible.)"],
       "source": "label | visual",
       "boundingBox2D": "[ymin, xmin, ymax, xmax] (CRITICAL: a real, specific box for this item, category block, or cluster — never the default full-image box unless the item genuinely fills the frame)",
       "sourceImageIndex": 0,
@@ -133,6 +134,7 @@ export function mergeScoutItems(visionItems: any[], llmItems: any[] | null | und
         rawNutritionLabel: vItem.rawNutritionLabel,
         nutritionFacts: vItem.nutritionFacts,
         ingredientsList: vItem.ingredientsList,
+        visualIngredients: vItem.visualIngredients || [],
         boundingBox2D: vItem.boundingBox2D,
         sourceImageIndex: vItem.sourceImageIndex,
         source: vItem.source
