@@ -269,7 +269,7 @@ const GroupItemsContainer: React.FC<GroupItemsContainerProps> = ({ children, gro
 };
 
 
-const getCookingMethodChip = (method: string) => {
+const getCookingMethodChip = (method: string, hideIcon: boolean = false) => {
   const normalized = (method || '').toLowerCase().trim();
   if (!normalized || normalized === 'unknown') return null;
 
@@ -296,8 +296,8 @@ const getCookingMethodChip = (method: string) => {
   return (
     <div className="mt-1">
       <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-bold capitalize border ${classes}`}>
-        <span>{emoji}</span>
-        <span>{normalized.replace('_', ' ')}</span>
+        {!hideIcon && <span>{emoji}</span>}
+        <span>{normalized.replace(/_/g, ' ')}</span>
       </span>
     </div>
   );
@@ -763,17 +763,17 @@ export const FoodCard: React.FC<AgentCardProps & {
                                Identified Ingredients
                              </div>
                            </div>
-                           <div className="flex gap-3 overflow-x-auto pt-2 pb-2 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full font-sans">
+                           <div className="grid grid-cols-4 gap-2 pt-2 pb-2 w-full font-sans">
                              {activeScoutItems.map((item: any, i: number) => {
                                const imgIdx = typeof item.sourceImageIndex === 'number' ? item.sourceImageIndex : 0;
                                const resolvedImgSrc = (messageImages.length > 0)
                                  ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
                                  : getFoodImageUrl(item.keyword);
                                return (
-                                 <div key={i} className="flex flex-col items-center gap-1 shrink-0 snap-align-start w-[72px] relative group">
-                                   <div className="relative">
+                                 <div key={i} className="flex flex-col items-center gap-1 shrink-0 w-full relative group">
+                                   <div className="relative w-full">
                                      <div 
-                                       className={`w-[72px] h-[72px] rounded-xl overflow-hidden cursor-pointer hover:scale-105 active:scale-95 transition-all shadow-sm ${
+                                       className={`w-full aspect-square rounded-xl overflow-hidden cursor-pointer hover:scale-105 active:scale-95 transition-all shadow-sm ${
                                          (item.itemConfidence?.toLowerCase().includes('low') || item.itemConfidence?.toLowerCase().includes('medium')) 
                                            ? 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-400 dark:border-amber-500 shadow-amber-500/20'
                                            : 'bg-slate-100 dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50'
@@ -811,7 +811,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                        </div>
                                      )}
                                    </div>
-                                   <span className="text-[9px] text-center font-medium leading-tight text-slate-500 truncate w-full font-sans">
+                                   <span className="text-[10px] text-center font-medium leading-tight text-slate-500 break-words line-clamp-2 w-full font-sans">
                                      {(item.originalName || item.keyword)}
                                    </span>
                                    {item.anomalyFlags && item.anomalyFlags.length > 0 && (
@@ -1652,7 +1652,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                 </span>
                               )}
                             </div>
-                             <div className={displayAsMenu ? "flex flex-wrap gap-2 pt-1 font-sans" : "flex gap-3 overflow-x-auto pt-2 pb-3 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700 snap-x snap-mandatory w-full font-sans"}>
+                             <div className={displayAsMenu ? "flex flex-wrap gap-2 pt-1 font-sans" : "grid grid-cols-4 gap-2 pt-2 pb-3 w-full font-sans"}>
                                {displayedScoutItems.map((item: any, i: number) => {
                                  if (displayAsMenu) {
                                    return (
@@ -1669,10 +1669,10 @@ export const FoodCard: React.FC<AgentCardProps & {
                                    ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
                                    : getFoodImageUrl(item.keyword);
                                  return (
-                                   <div key={i} className="flex flex-col items-center gap-1 shrink-0 snap-align-start w-[72px] relative group">
-                                     <div className="relative">
+                                   <div key={i} className="flex flex-col items-center gap-1 shrink-0 w-full relative group">
+                                     <div className="relative w-full">
                                        <div 
-                                         className={`w-[72px] h-[72px] rounded-xl overflow-hidden cursor-pointer hover:scale-105 active:scale-95 transition-all shadow-sm ${
+                                         className={`w-full aspect-square rounded-xl overflow-hidden cursor-pointer hover:scale-105 active:scale-95 transition-all shadow-sm ${
                                            (item.itemConfidence?.toLowerCase().includes('low') || item.itemConfidence?.toLowerCase().includes('medium')) 
                                              ? 'bg-amber-50 dark:bg-amber-900/20 border-2 border-amber-400 dark:border-amber-500 shadow-amber-500/20'
                                              : 'bg-slate-100 dark:bg-slate-800 border border-slate-200/50 dark:border-slate-700/50'
@@ -1713,12 +1713,12 @@ export const FoodCard: React.FC<AgentCardProps & {
                                          </div>
                                        )}
                                      </div>
-                                     <span className="text-[9px] text-center font-medium leading-tight text-slate-500 truncate w-full font-sans">
+                                     <span className="text-[10px] text-center font-medium leading-tight text-slate-500 break-words line-clamp-2 w-full font-sans">
                                        {(item.originalName || item.keyword)}
                                      </span>
                                      {item.cookingMethod && (
                                        <div className="flex justify-center w-full mt-0.5 scale-90 origin-top">
-                                         {getCookingMethodChip(item.cookingMethod)}
+                                         {getCookingMethodChip(item.cookingMethod, true)}
                                        </div>
                                      )}
                                      {/* Confidence badge below the name — full detail now lives in Items in Review */}
@@ -1956,26 +1956,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                       </thead>
                                       <tbody>
                                         {msg.data?.pendingFoodLog.itemsBreakdown.map((item: any, itemIdx: number) => {
-                                          const cleanItemName = (item.name || '').toLowerCase().trim();
-                                          const matchingScout = displayedScoutItems.find((s: any) => {
-                                            const cleanKeyword = (s.keyword || '').toLowerCase().trim();
-                                            const cleanOrig = (s.originalName || '').toLowerCase().trim();
-                                            const cleanName = (s.name || '').toLowerCase().trim();
-                                            return (
-                                              cleanItemName === cleanKeyword ||
-                                              cleanItemName === cleanOrig ||
-                                              cleanItemName === cleanName ||
-                                              cleanItemName.includes(cleanKeyword) ||
-                                              cleanKeyword.includes(cleanItemName) ||
-                                              (cleanOrig && (cleanItemName.includes(cleanOrig) || cleanOrig.includes(cleanItemName)))
-                                            );
-                                          });
-
-                                          const displayName = matchingScout 
-                                            ? (showTranslations.scout 
-                                                ? (matchingScout.keyword || matchingScout.originalName || item.name)
-                                                : (matchingScout.originalName || matchingScout.keyword || item.name))
-                                            : item.name;
+                                          const displayName = item.canonicalDbName || item.name || "Unknown Item";
 
                                           return (
                                             <tr 
