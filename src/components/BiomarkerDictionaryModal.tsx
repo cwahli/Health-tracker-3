@@ -812,9 +812,9 @@ export default function BiomarkerDictionaryModal({
   const fileInputRef2 = useRef<HTMLInputElement>(null);
 
   // Model Selection states
-  const [standardizeModel, setStandardizeModel] = useState<string>('gemini-3.1-flash');
-  const [medicalCategoriseModel, setMedicalCategoriseModel] = useState<string>('gemini-3.1-flash');
-  const [dataAccuracyModel, setDataAccuracyModel] = useState<string>('gemini-3.1-flash');
+  const [standardizeModel, setStandardizeModel] = useState<string>('gemini-3.1-flash-lite');
+  const [medicalCategoriseModel, setMedicalCategoriseModel] = useState<string>('gemini-3.1-flash-lite');
+  const [dataAccuracyModel, setDataAccuracyModel] = useState<string>('gemini-3.1-flash-lite');
 
   // Instruction View states
   const [showStandardizeInstructions, setShowStandardizeInstructions] = useState<boolean>(false);
@@ -831,7 +831,7 @@ export default function BiomarkerDictionaryModal({
 
   // Name Consolidation Agent States
   const [isNameConsolidationMode, setIsNameConsolidationMode] = useState<boolean>(false);
-  const [nameConsolidationModel, setNameConsolidationModel] = useState<string>('gemini-3.1-flash');
+  const [nameConsolidationModel, setNameConsolidationModel] = useState<string>('gemini-3.1-flash-lite');
   const [consolidationYaml, setConsolidationYaml] = useState<string | null>(null);
   const [consolidationGroups, setConsolidationGroups] = useState<any[] | null>(null);
   const [consolidationLoading, setConsolidationLoading] = useState<boolean>(false);

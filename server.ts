@@ -411,7 +411,7 @@ TRANS FAT AVOIDANCE: Trans fat (partially hydrogenated oils) is universally harm
 
 === DATA EXTRACTION DEPTH RULES ===
 1. CORE NUTRIENTS: For EVERY new item, you MUST populate labelNutrientsPerServing with your best clinical estimate per 100g (set servingSizeGrams=100). When a physical label is visible, use the exact label values. When databaseMatches contains a relevant entry, use it to improve your estimate and set dbSource accordingly.
-1b. ATWATER MACRO VALIDATION: You MUST mathematically verify database/estimated macros. Calculate: (Fat*9 + Carb*4 + Protein*4). If this calculated value diverges from the database calories by >10%, or if visual flags indicate missing high-calorie components (like sauce), you MUST autonomously reject the database calories and overwrite them with your Atwater calculation.
+1b. BACKEND NUTRITIONAL CALCULATOR DIRECTIVE: The backend has pre-calculated precise nutrient weights for each component item inside "BACKEND PRE-CALCULATED ITEM NUTRIENTS". You MUST treat these numbers as the Absolute Truth and populate "labelNutrientsPerServing" directly from these values (scaled to 100g serving size). Set "dbSource": "backend_calculated". You should ONLY override these values (setting "dbSource": "estimated_override") if the numbers are physically impossible or wildly mismatch the food's visual volume.
 1c. RAW WHOLE FOOD SANITY CHECK (CRITICAL):
 If the item's cookingMethod is "raw", you MUST independently verify the sodium and sugar values provided by the database matches for whole meats, vegetables, and fruits.
 * The Plumping Override: Natural, unenhanced raw chicken, beef, or fish rarely exceeds 80mg of sodium per 100g. If a database match shows >150mg of sodium for raw, unseasoned meat, it represents a saline-injected commercial variant. You MUST autonomously reject that database sodium number and manually estimate it at ~50mg–70mg per 100g to accurately reflect true biological baseline levels, unless the user explicitly scanned a commercial branded package.
@@ -793,7 +793,7 @@ async function callUnifiedLLMInternal({
   googleSearch?: boolean;
   enablePlaceIdTool?: boolean;
   maxOutputTokens?: number;
-  onStream?: (chunk: string) => void;
+  onStream?: (chunk: string, isThought?: boolean) => void;
 }) {
   const explicitSessionId = logSessionStorage.getStore();
   const addDebugLog = (msg: string) => actualAddDebugLog(msg, explicitSessionId);
@@ -1014,6 +1014,13 @@ async function callUnifiedLLMInternal({
     systemInstruction: resolvedInstruction,
     tools: []
   };
+
+  // Enable native reasoning for models that support it (Gemini 2.5/3.5 Pro/Flash, excluding Lite models)
+  if (isJson && (normalizedModelId.includes("pro") || (normalizedModelId.includes("flash") && !normalizedModelId.includes("lite") && !normalizedModelId.includes("1.5")))) {
+    configObj.thinkingConfig = {
+      thinkingBudget: 1024
+    };
+  }
   
   if (responseSchema) {
     configObj.responseSchema = responseSchema;
@@ -1062,6 +1069,7 @@ async function callUnifiedLLMInternal({
   addDebugLog(`[UnifiedLLM-Prompt] User Prompt:\n${promptText}`);
   try {
     let response: any;
+    let thoughtsText = "";
     if (onStream && (!configObj.tools || configObj.tools.length === 0)) {
       const stream = await ai.models.generateContentStream({
         model: targetGeminiModel,
@@ -1070,9 +1078,19 @@ async function callUnifiedLLMInternal({
       });
       let fullText = "";
       for await (const chunk of stream) {
-        if (chunk.text) {
+        if (chunk.candidates?.[0]?.content?.parts) {
+          for (const part of chunk.candidates[0].content.parts) {
+            if (part.thought && part.text) {
+              thoughtsText += part.text;
+              onStream(part.text, true); // true = isThought
+            } else if (part.text) {
+              fullText += part.text;
+              onStream(part.text, false);
+            }
+          }
+        } else if (chunk.text) {
           fullText += chunk.text;
-          onStream(chunk.text);
+          onStream(chunk.text, false);
         }
       }
       response = { text: fullText, functionCalls: [] };
@@ -1082,9 +1100,28 @@ async function callUnifiedLLMInternal({
         contents,
         config: configObj
       });
+      if (response.candidates?.[0]?.content?.parts) {
+        for (const part of response.candidates[0].content.parts) {
+          if (part.thought && part.text) {
+            thoughtsText += part.text;
+          }
+        }
+      }
     }
+
+    let finalJson = response.text || "";
+    // Inject native thoughts as "scratchpad" back into final JSON so existing code downstream works seamlessly
+    if (isJson && finalJson && thoughtsText) {
+      try {
+        const parsed = JSON.parse(finalJson);
+        if (!parsed.scratchpad) {
+          parsed.scratchpad = thoughtsText;
+          finalJson = JSON.stringify(parsed);
+        }
+      } catch (e) {}
+    }
+    response.text = finalJson;
     
-    // Handle function calls loop
     let callCount = 0;
     const maxCalls = 5;
     while (response.functionCalls && response.functionCalls.length > 0 && callCount < maxCalls) {
@@ -1361,8 +1398,11 @@ async function callUnifiedLLMInternal({
         imagePayload,
         imagePayloads,
         responseMimeType,
+        responseSchema,
         googleSearch,
-        enablePlaceIdTool
+        enablePlaceIdTool,
+        maxOutputTokens,
+        onStream
       });
     }
     throw err;
@@ -2118,6 +2158,71 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       }
     }
 
+    // Backend-Side Mathematical Macro Aggregation for Component-Level Decomposition
+    const preCalculatedItems = visionScoutItems.map((item: any) => {
+      const itemWeight = item.estimatedWeightGrams || 100;
+      const aggregatedNutrients: Record<string, number> = {
+        calories: 0, protein: 0, totalFat: 0, saturatedFat: 0, transFat: 0,
+        carbohydrates: 0, addedSugar: 0, sodium: 0, potassium: 0, totalFibre: 0, solubleFibre: 0
+      };
+      
+      let hasComponents = false;
+      if (item.components && Array.isArray(item.components) && item.components.length > 0) {
+        hasComponents = true;
+        item.components.forEach((comp: any) => {
+          const compWeight = itemWeight * ((comp.volumePercentage || 100) / 100);
+          const bestMatch = databaseMatchesArray.find((m: any) => 
+            m.name.toLowerCase().includes(comp.searchQuery.toLowerCase()) ||
+            comp.searchQuery.toLowerCase().includes(m.name.toLowerCase())
+          );
+          if (bestMatch && dbMatchMap.has(bestMatch.id)) {
+            const baseNutrients = dbMatchMap.get(bestMatch.id);
+            const factor = compWeight / 100;
+            Object.keys(aggregatedNutrients).forEach(key => {
+              if (baseNutrients[key] !== undefined) {
+                aggregatedNutrients[key] += parseFloat((baseNutrients[key] * factor).toFixed(2));
+              }
+            });
+          }
+        });
+      } else {
+        const bestMatch = databaseMatchesArray.find((m: any) => 
+          m.name.toLowerCase().includes(item.keyword.toLowerCase()) ||
+          item.keyword.toLowerCase().includes(m.name.toLowerCase())
+        );
+        if (bestMatch && dbMatchMap.has(bestMatch.id)) {
+          const baseNutrients = dbMatchMap.get(bestMatch.id);
+          const factor = itemWeight / 100;
+          Object.keys(aggregatedNutrients).forEach(key => {
+            if (baseNutrients[key] !== undefined) {
+              aggregatedNutrients[key] = parseFloat((baseNutrients[key] * factor).toFixed(2));
+            }
+          });
+        }
+      }
+      
+      return {
+        keyword: item.keyword,
+        originalName: item.originalName || item.keyword,
+        estimatedWeightGrams: itemWeight,
+        hasComponents,
+        nutrients: aggregatedNutrients
+      };
+    });
+
+    let preCalculatedCtx = "";
+    if (preCalculatedItems.length > 0) {
+      preCalculatedCtx = "=== BACKEND PRE-CALCULATED ITEM NUTRIENTS (Absolute Truth) ===\n" +
+        preCalculatedItems.map(item => {
+          return `- "${item.originalName}" (${item.estimatedWeightGrams}g):\n` +
+            `  Calories: ${Math.round(item.nutrients.calories)} kcal\n` +
+            `  Protein: ${item.nutrients.protein}g\n` +
+            `  Fat: ${item.nutrients.totalFat}g (Saturated: ${item.nutrients.saturatedFat}g)\n` +
+            `  Carbs: ${item.nutrients.carbohydrates}g (Sugar: ${item.nutrients.addedSugar}g)\n` +
+            `  Sodium: ${item.nutrients.sodium}mg\n`;
+        }).join("\n") + "\n\n";
+    }
+
     let userCtx = "";
     if (userProfile) {
       userCtx = `\nUSER DIETARY PROFILE & DEMOGRAPHICS:\n` +
@@ -2313,15 +2418,20 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
 
     let databaseMatchesCtx = "";
     if (databaseMatches) {
-      databaseMatchesCtx = `\n=== DATABASE MATCHES FOR THE MEAL ===\n${databaseMatches}\n`;
+      databaseMatchesCtx = `
+=== BACKEND PRE-CALCULATED ITEM NUTRIENTS ===
+${preCalculatedCtx}
+
+=== VERIFIED DATABASE MATCHES ===
+${databaseMatches}
+`;
     }
 
 
     const foodAnalyzeSchema = {
       type: Type.OBJECT,
       properties: {
-        scratchpad: { type: Type.STRING, description: "Think step-by-step: analyze the user input, biomarkers, and scout data to formulate the response." },
-        mode: { type: Type.STRING, description: "String indicating active mode: new_log, discussion, modify, evaluation, or origin" },
+        mode: { type: Type.STRING, description: "new_log | discussion | modify | evaluation | origin" },
         message: { type: Type.STRING, description: "A highly personalized conversational response detailing the clinical rationale, biomarker alignment, or modification confirmation." },
         modificationCommand: {
           type: Type.ARRAY,
@@ -2535,8 +2645,12 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
     addDebugLog(`[RouteAgent Chat] Sending request to Gemini...`);
     async function callAndParseFoodAnalysis(callArgs: any): Promise<{ textOutput: string; rawParsed: any }> {
       if (isStream) {
-        callArgs.onStream = (chunk: string) => {
-          res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+        callArgs.onStream = (chunk: string, isThought?: boolean) => {
+          if (isThought) {
+            res.write(`data: ${JSON.stringify({ thought: chunk })}\n\n`);
+          } else {
+            res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+          }
         };
       }
       const textOutput = await callUnifiedLLM(callArgs);
@@ -5019,13 +5133,19 @@ Please output a valid JSON object matching the requested schema.`;
       required: ["scratchpad", "consolidatedGroups"]
     };
 
-    const textOutput = await callUnifiedLLM({
-      modelId,
-      systemInstruction: systemInstruction + "\n\nJSON STRUCTURED OUTPUT:\nYou must strictly return a JSON object. Do not add markdown wrappers. Think step-by-step in the 'scratchpad' field first.",
-      promptText: dynamicPromptText,
-      responseMimeType: "application/json",
-      responseSchema: consolidateNamesSchema
-    });
+    const consolidationTimeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("Name consolidation timed out after 30s. Model under high demand — please try again.")), 30000)
+    );
+    const textOutput = await Promise.race([
+      callUnifiedLLM({
+        modelId,
+        systemInstruction: systemInstruction + "\n\nJSON STRUCTURED OUTPUT:\nYou must strictly return a JSON object. Do not add markdown wrappers. Think step-by-step in the 'scratchpad' field first.",
+        promptText: dynamicPromptText,
+        responseMimeType: "application/json",
+        responseSchema: consolidateNamesSchema
+      }),
+      consolidationTimeout
+    ]);
 
     let cleanJson = textOutput.trim();
     addDebugLog(`[Name Consolidation Agent] Agent output payload:\n${cleanJson}`, explicitSessionId);

@@ -1,11 +1,17 @@
 import { z } from "zod";
 import { extractBalancedJson } from "./server_pure_helpers";
 
+export const ScoutItemComponentSchema = z.object({
+  searchQuery: z.string(),
+  volumePercentage: z.number().finite().positive(),
+});
+
 export const ScoutItemSchema = z.object({
   keyword: z.string().optional(),
   itemConfidence: z.string().optional(),
   estimatedWeightGrams: z.number().finite().positive().optional(),
   cookingMethod: z.string().optional(),
+  components: z.array(ScoutItemComponentSchema).optional(),
 }).passthrough();
 
 export const VisionScoutSchema = z.object({
@@ -27,6 +33,7 @@ BRANCH A — LOW DENSITY (< 15 total items):
 - Extract EVERY single food item, product package, or nutrition label individually into "items".
 - Draw a tight, precise \`boundingBox2D\` around each item.
 - MEAL vs. COMPARISON ROUTING: if the images show distinct packaged products or menu options of the same category meant to be compared (e.g., 4 different bread wrappers, or a menu of options), set "recommendedMode" to "evaluation". If the images show ingredients or dishes meant to be eaten together as one meal (e.g., fish + rice + a side, or several grocery items for a single meal), set "recommendedMode" to "new_log".
+- COMPONENT DECOMPOSITION DIRECTIVE: For every identified item, decompose complex dishes or products into their core sub-components inside the 'components' array with corresponding estimated volume percentages (totaling 100%). For example, 'siomai with seaweed' becomes keyword: 'siomai dumpling' with component: 'pork dumpling' (80%) and component: 'seaweed' (20%). If the food is simple and has no sub-components, just add a single component matching the base food name with 100% volume.
 
 BRANCH B — HIGH DENSITY (>= 15 total items):
 Still populate "items" as real JSON objects. Adapt HOW you group items based on the visual layout to guarantee 100% coverage without crashing token limits:
@@ -76,29 +83,33 @@ JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers.
 {
   "scratchpad": "string (Think step-by-step: analyze the image, apply density rules, and determine items)",
-  "recommendedMode": "new_log | evaluation | discussion (CRITICAL: 'evaluation' MUST ONLY be used if the image contains MULTIPLE distinct options like a menu, or if the user explicitly asks to compare items. If the user asks 'is it healthy?' for a single product, you MUST use 'new_log')",
+  "recommendedMode": "new_log | evaluation | discussion",
   "contentType": "visual | menu_or_poster | text",
   "items": [
     {
-      "keyword": "string (English. If visual contradicts OCR, trust visual. If totally obscured, use 'unknown item'. For a dense menu category block, use the category name)",
-      "weightReasoning": "string (CRITICAL: If the user provided a relative fraction, you MUST explicitly describe the physical size/count of the food in the image here first. e.g., 'The image shows 1 segment with 3 small pods. Total estimated weight is 120g. Applying user fraction 1/4 = 30g')",
-      "estimatedWeightGrams": "number (Must logically match your weightReasoning)",
-      "originalName": "string (Exact OCR. If unreadable, 'UNREADABLE'. For a dense menu category block, a comma-separated list of every food name in that block, ignoring prices)",
-      "visualIngredients": ["string (An array of distinct components visually identified, e.g., ['chocolate glaze', 'peanuts']. Leave empty [] if none discernible.)"],
-      "source": "label | visual",
-      "boundingBox2D": "[ymin, xmin, ymax, xmax] (CRITICAL: a real, specific box for this item, category block, or cluster — never the default full-image box unless the item genuinely fills the frame)",
-      "sourceImageIndex": 0,
-      "ingredientsList": "string | null (Extract all visible ingredients/Komposisi. If the text is partially cut off by the camera, extract what you can see and add '...' at the end. If totally invisible, use null)",
-      "rawNutritionLabel": "{ 'servingSize': string, 'calories': number, 'protein': string, 'totalFat': string, 'saturatedFat': string, 'totalCarbohydrate': string, 'sugar': string, 'sodium': string } (Exact printed macros ONLY if a physical nutrition panel is visible for this item. Otherwise {}. Never estimate.)",
-      "nutritionFacts": "{} (Always leave this exactly empty. Reserved for downstream use — do not populate.)",
-      "anomalyFlags": [
-        "string (List visual or OCR issues e.g. 'abbreviation used', 'glare', 'obscured item'. DO NOT flag user-provided quantities, weights, or text instructions as anomalies. Leave empty [] if perfect)"
+      "keyword": "string (The core base item only. No toppings, flavors, or subcomponents. e.g., 'siomai dumpling', 'bread')",
+      "weightReasoning": "string",
+      "estimatedWeightGrams": "number",
+      "components": [
+        {
+          "searchQuery": "string (Simple component name for the database, e.g., 'pork dumpling' or 'seaweed')",
+          "volumePercentage": "number (Volume percentage of this component in the total item weight, e.g., 80)"
+        }
       ],
-      "itemConfidence": "High | Medium | Low (If anomalyFlags is NOT empty, MUST be Medium or Low)",
-      "cookingMethod": "deep_fried | pan_fried | stir_fried | roasted | boiled | steamed | grilled | baked | raw | unknown (The cooking method for this specific item, e.g. deep_fried, pan_fried, stir_fried, roasted, boiled, steamed, grilled, baked, raw, unknown. Be precise to support accurate oil/fat absorption calculations)"
+      "originalName": "string",
+      "visualIngredients": ["string"],
+      "source": "label | visual",
+      "boundingBox2D": "[ymin, xmin, ymax, xmax]",
+      "sourceImageIndex": 0,
+      "ingredientsList": "string | null",
+      "rawNutritionLabel": "{ 'servingSize': string, 'calories': number, 'protein': string, 'totalFat': string, 'saturatedFat': string, 'totalCarbohydrate': string, 'sugar': string, 'sodium': string }",
+      "nutritionFacts": "{}",
+      "anomalyFlags": ["string"],
+      "itemConfidence": "High | Medium | Low",
+      "cookingMethod": "deep_fried | pan_fried | stir_fried | roasted | boiled | steamed | grilled | baked | raw | unknown"
     }
   ],
-  "cookingMethod": "string (Focus STRICTLY on high-impact modifiers for the entire meal. Specify if the item is 'deep-fried', 'oil-basted', or 'charred/burnt'. If cooked without visible added fat, default to 'dry-cooked' or 'raw').",
+  "cookingMethod": "string",
   "scanCompleteness": "full | partial"
 }
 `;
@@ -388,7 +399,14 @@ export function parseAndHealVisionScout(
       });
 
       for (const item of visionScoutItems) {
-        if (item.keyword) {
+        if (item.components && Array.isArray(item.components) && item.components.length > 0) {
+          item.components.forEach((c: any) => {
+            if (c.searchQuery) {
+              queriesToSearch.push(c.searchQuery);
+            }
+          });
+          visionScoutRanAndReturnedItems = true;
+        } else if (item.keyword) {
           queriesToSearch.push(item.keyword);
           visionScoutRanAndReturnedItems = true;
         }
