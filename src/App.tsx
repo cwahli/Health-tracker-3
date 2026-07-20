@@ -551,6 +551,7 @@ export default function App() {
     ) {
       setIsFirestoreQuotaExceeded(true);
       localStorage.setItem('firestore_quota_exceeded', 'true');
+      localStorage.setItem('firestore_quota_exceeded_time', new Date().getTime().toString());
       setSyncState('local');
     }
   };
