@@ -24,6 +24,7 @@ import { getAgentCalibration, getAllAgentCalibrations } from '../utils/agentCali
 import { collection, query, where, getDocs, setDoc, doc, deleteDoc, getDoc } from 'firebase/firestore';
 import { sanitizeForFirestore, checkQuotaFlag } from '../utils/firestoreUtils';
 import { get as idbGet, set as idbSet } from 'idb-keyval';
+import { pruneLocalStorageToFreeSpace } from '../utils/storageUtils';
 
 
 import { resolveFoodImage } from '../utils/imageResolver';
@@ -728,10 +729,20 @@ ${logsText}`);
     const userId = auth.currentUser?.uid;
     if (!userId) {
       try {
-        sessionStorage.setItem(chatStorageKey, JSON.stringify(msgs));
+        // Strip heavy base64 images before saving to sessionStorage/localStorage to prevent quota crashes.
+        // IndexedDB below still keeps the full, unstripped copy — it has a much higher capacity ceiling
+        // and is already treated as the authoritative guest store elsewhere (see loadConversationsFromFirestore,
+        // which reads IndexedDB first for guests specifically to retain full images).
+        const strippedMsgs = msgs.map(m => {
+          const copy = { ...m };
+          if (copy.imageUrls) copy.imageUrls = [];
+          if (copy.imageUrl) delete copy.imageUrl;
+          return copy;
+        });
+        sessionStorage.setItem(chatStorageKey, JSON.stringify(strippedMsgs));
         if (payload) sessionStorage.setItem(payloadStorageKey, JSON.stringify(payload));
         // Fallback to localStorage and IndexedDB to survive page reloads and tab closures
-        localStorage.setItem(chatStorageKey, JSON.stringify(msgs));
+        localStorage.setItem(chatStorageKey, JSON.stringify(strippedMsgs));
         if (payload) localStorage.setItem(payloadStorageKey, JSON.stringify(payload));
         await idbSet(`${chatStorageKey}_guest_${id}`, msgs);
         if (payload) await idbSet(`${payloadStorageKey}_guest_${id}`, payload);
@@ -762,8 +773,18 @@ ${logsText}`);
            return copy;
         });
         
-        localStorage.setItem(`${chatStorageKey}_${userId}_${id}`, JSON.stringify(strippedMsgs));
-        if (payload) localStorage.setItem(`${payloadStorageKey}_${userId}_${id}`, JSON.stringify(payload));
+        try {
+          localStorage.setItem(`${chatStorageKey}_${userId}_${id}`, JSON.stringify(strippedMsgs));
+          if (payload) localStorage.setItem(`${payloadStorageKey}_${userId}_${id}`, JSON.stringify(payload));
+        } catch (quotaErr) {
+          // Reuse the existing prune utility (already used elsewhere for the same purpose) to clear
+          // stale chat keys from localStorage before retrying. Safe because IndexedDB above already
+          // holds the authoritative full copy of every conversation.
+          console.warn("[Storage] localStorage quota reached while saving chat session. Pruning stale chat keys and retrying...");
+          pruneLocalStorageToFreeSpace();
+          localStorage.setItem(`${chatStorageKey}_${userId}_${id}`, JSON.stringify(strippedMsgs));
+          if (payload) localStorage.setItem(`${payloadStorageKey}_${userId}_${id}`, JSON.stringify(payload));
+        }
         
         // Also update the local list so the sidebar is completely in sync and beautiful
         const title = msgs.length > 1 

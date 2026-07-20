@@ -2441,6 +2441,7 @@ ${databaseMatches}
     const foodAnalyzeSchema = {
       type: Type.OBJECT,
       properties: {
+        scratchpad: { type: Type.STRING, description: "Think step-by-step here FIRST, before any other field: analyze the user input, biomarkers, scout data, and database matches to formulate the response. If you are already using extended/native thinking for this request, you may leave this brief." },
         mode: { type: Type.STRING, description: "new_log | discussion | modify | evaluation | origin" },
         message: { type: Type.STRING, description: "A highly personalized conversational response detailing the clinical rationale, biomarker alignment, or modification confirmation." },
         modificationCommand: {
