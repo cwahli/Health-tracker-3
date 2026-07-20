@@ -812,6 +812,54 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           });
         }
 
+        // Also append any unmappedTests that are not already in finalRows!
+        if (agentResult?.unmappedTests && Array.isArray(agentResult.unmappedTests)) {
+          agentResult.unmappedTests.forEach((test: any) => {
+            const rawName = test?.raw_name || (typeof test === 'string' ? test : '');
+            if (!rawName) return;
+            const suggested_key = test?.suggested_key || rawName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+            
+            // Check if already in finalRows (either as key, biomarker, or oldName)
+            const cleanRawName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            const cleanSuggestedKey = suggested_key.toLowerCase().replace(/[^a-z0-9]/g, '');
+            
+            const alreadyExists = finalRows.some(row => {
+              const cleanRow = String(row.biomarker || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+              const cleanOld = String(row.oldName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+              const cleanKey = String(row.key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+              return cleanRow === cleanRawName || cleanOld === cleanRawName || cleanKey === cleanSuggestedKey || cleanKey === cleanRawName;
+            });
+            
+            if (!alreadyExists) {
+              finalRows.push({
+                key: suggested_key,
+                biomarker: rawName,
+                oldName: rawName,
+                isRenamed: false,
+                isUnitChanged: false,
+                oldUnit: '',
+                date: 'N/A',
+                value: 'N/A',
+                unit: '',
+                isNew: false,
+                isChanged: false,
+                isAtRisk: false,
+                isSecondary: false,
+                isMissing: true, // Mark as missing!
+                status: 'Missing',
+                severity: 0,
+                normalRange: '',
+                changeReason: `Detected in source text but not mapped to pre-existing keys. Select checkbox to move/approve.`,
+                riskReason: '',
+                description: `Unmapped biomarker found in raw clinical records.`,
+                standardMedicalGrouping: 'Other',
+                riskCategories: [],
+                potentialMedicalConditions: []
+              });
+            }
+          });
+        }
+
         return finalRows;
       }
 
@@ -1001,6 +1049,54 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           potentialMedicalConditions: []
         });
       });
+      
+      // Also append any unmappedTests that are not already in finalRowsFallback!
+      if (agentResult?.unmappedTests && Array.isArray(agentResult.unmappedTests)) {
+        agentResult.unmappedTests.forEach((test: any) => {
+          const rawName = test?.raw_name || (typeof test === 'string' ? test : '');
+          if (!rawName) return;
+          const suggested_key = test?.suggested_key || rawName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+          
+          // Check if already in finalRowsFallback (either as key, biomarker, or oldName)
+          const cleanRawName = rawName.toLowerCase().replace(/[^a-z0-9]/g, '');
+          const cleanSuggestedKey = suggested_key.toLowerCase().replace(/[^a-z0-9]/g, '');
+          
+          const alreadyExists = (finalRowsFallback as any[]).some(row => {
+            const cleanRow = String(row.biomarker || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const cleanOld = String(row.oldName || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            const cleanKey = String(row.key || '').toLowerCase().replace(/[^a-z0-9]/g, '');
+            return cleanRow === cleanRawName || cleanOld === cleanRawName || cleanKey === cleanSuggestedKey || cleanKey === cleanRawName;
+          });
+          
+          if (!alreadyExists) {
+            (finalRowsFallback as any[]).push({
+              key: suggested_key,
+              biomarker: rawName,
+              oldName: rawName,
+              isRenamed: false,
+              isUnitChanged: false,
+              oldUnit: '',
+              date: 'N/A',
+              value: 'N/A',
+              unit: '',
+              isNew: false,
+              isChanged: false,
+              isAtRisk: false,
+              isSecondary: false,
+              isMissing: true, // Mark as missing!
+              status: 'Missing',
+              severity: 0,
+              normalRange: '',
+              changeReason: `Detected in source text but not mapped to pre-existing keys. Select checkbox to move/approve.`,
+              riskReason: '',
+              description: `Unmapped biomarker found in raw clinical records.`,
+              standardMedicalGrouping: 'Other',
+              riskCategories: [],
+              potentialMedicalConditions: []
+            });
+          }
+        });
+      }
       
       return finalRowsFallback;
     }

@@ -732,8 +732,10 @@ export default function InsightsTab({
   };
 
   const handleApproveBatchStep1 = async (bIdx: string | number, result: any) => {
-    // Parse the cleaned YAML
-    const yamlText = result ? (result.extractedYaml || result) : '';
+    setIsApplying(true);
+    try {
+      // Parse the cleaned YAML
+      const yamlText = result ? (result.extractedYaml || result) : '';
     let parsedRows: any[] = [];
     if (typeof yamlText === 'string' && yamlText.trim() !== '') {
       try {
@@ -890,17 +892,22 @@ export default function InsightsTab({
       await onUpdateHistory(currentHistory, recomputedBiomarkers, updatedProfile);
     }
 
-    // Mark as approved
-    setApprovedAgent1Batches(prev => {
-      const updated = { ...prev, [bIdx]: true };
-      localStorage.setItem('approved_agent1_batches', JSON.stringify(updated));
-      return updated;
-    });
+      // Mark as approved
+      setApprovedAgent1Batches(prev => {
+        const updated = { ...prev, [bIdx]: true };
+        localStorage.setItem('approved_agent1_batches', JSON.stringify(updated));
+        return updated;
+      });
+    } finally {
+      setIsApplying(false);
+    }
   };
 
   const handleApproveBatchStep2 = async (bIdx: number, result: any, unselectedKeys?: string[]) => {
-    // Save customBiomarkers to user profile
-    const updatedCustoms = { ...(profile.customBiomarkers || {}) };
+    setIsApplying(true);
+    try {
+      // Save customBiomarkers to user profile
+      const updatedCustoms = { ...(profile.customBiomarkers || {}) };
     const currentHistory = JSON.parse(JSON.stringify(biomarkerHistory || []));
     
     // Create/update history logs for reviewed biomarkers
@@ -998,12 +1005,15 @@ export default function InsightsTab({
       handleMoveMissingBiomarkers(bIdx, keysToMove);
     }
 
-    // Mark as approved
-    setApprovedBatches(prev => {
-      const updated = { ...prev, [bIdx]: true };
-      localStorage.setItem('approved_data_review_batches', JSON.stringify(updated));
-      return updated;
-    });
+      // Mark as approved
+      setApprovedBatches(prev => {
+        const updated = { ...prev, [bIdx]: true };
+        localStorage.setItem('approved_data_review_batches', JSON.stringify(updated));
+        return updated;
+      });
+    } finally {
+      setIsApplying(false);
+    }
   };
 
   const handleRefineDataCleaning = () => {
@@ -1083,6 +1093,7 @@ export default function InsightsTab({
                       profile={profile}
                       biomarkerHistory={activeHistory || []}
                       initialRawText=""
+                      isApplying={isApplying}
                     />
                   </div>
                 ) : agentType === 'health_baseline' ? (
@@ -2009,6 +2020,7 @@ export default function InsightsTab({
                                                 profile={profile}
                                                 biomarkerHistory={activeHistory}
                                                 initialRawText={""}
+                                                isApplying={isApplying}
                                                 onApplyChanges={async (unselectedKeys?: string[]) => {
                                                   await handleApproveBatchStep1(bIdx, result);
                                                   
@@ -2619,6 +2631,7 @@ export default function InsightsTab({
                                                 biomarkerHistory={activeHistory}
                                                 selectedMissingKeys={selectedMissingKeysToMove[bIdx] || STABLE_EMPTY_ARRAY}
                                                 onChangeSelectedMissingKeys={(keys) => setSelectedMissingKeysToMove(prev => ({ ...prev, [bIdx]: keys }))}
+                                                 isApplying={isApplying}
                                                 onApplyChanges={async (unselectedKeys?: string[]) => {
                                                   await handleApproveBatchStep2(bIdx, result, unselectedKeys);
                                                 }}
@@ -2796,6 +2809,7 @@ export default function InsightsTab({
                                     profile={profile}
                                     biomarkerHistory={activeHistory || []}
                                     initialRawText=""
+                                    isApplying={isApplying}
                                   />
                                 </div>
                               ) : step.agentType === 'health_baseline' ? (
@@ -3145,6 +3159,7 @@ export default function InsightsTab({
                 agentResult={batchAnalysisResults[fullscreenBatchIndex]}
                 profile={profile}
                 biomarkerHistory={activeHistory}
+                isApplying={isApplying}
                 selectedMissingKeys={selectedMissingKeysToMove[fullscreenBatchIndex] || STABLE_EMPTY_ARRAY}
                 onChangeSelectedMissingKeys={(keys) => setSelectedMissingKeysToMove(prev => ({ ...prev, [fullscreenBatchIndex]: keys }))}
                 onApplyChanges={async (unselectedKeys?: string[]) => {
