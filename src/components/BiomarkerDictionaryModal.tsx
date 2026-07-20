@@ -835,6 +835,7 @@ export default function BiomarkerDictionaryModal({
   const [consolidationYaml, setConsolidationYaml] = useState<string | null>(null);
   const [consolidationGroups, setConsolidationGroups] = useState<any[] | null>(null);
   const [consolidationLoading, setConsolidationLoading] = useState<boolean>(false);
+  const [consolidationLiveThought, setConsolidationLiveThought] = useState<string>('');
   const [consolidationInput, setConsolidationInput] = useState<string>('');
   const [consolidationMessages, setConsolidationMessages] = useState<any[]>([]);
 
@@ -1804,6 +1805,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
     setConsolidationLoading(true);
     setConsolidationYaml(null);
     setConsolidationGroups(null);
+    setConsolidationLiveThought('');
 
     try {
       const selectedBiomarkerDetails = selectedKeys.map(k => {
@@ -1821,7 +1823,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
       const sessionId = generateQueryId();
 
       trackApiCall('gemini', `Consolidate Names`);
-      const res = await fetch('/api/gemini/consolidate-names', {
+      const res = await fetch('/api/gemini/consolidate-names?stream=true', {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
@@ -1836,7 +1838,46 @@ I can analyze these, compare them with our database keys, and find standard mapp
       });
 
       if (!res.ok) throw new Error("Failed to contact name consolidation agent");
-      const data = await res.json();
+
+      let data: any = {};
+      const contentType = res.headers.get("content-type");
+      if (contentType && contentType.includes("text/event-stream")) {
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error("No stream reader available");
+        const decoder = new TextDecoder();
+        let accumulatedText = "";
+        let lineBuffer = "";
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          lineBuffer += decoder.decode(value, { stream: true });
+          let separatorIdx: number;
+          while ((separatorIdx = lineBuffer.indexOf("\n\n")) !== -1) {
+            const ev = lineBuffer.substring(0, separatorIdx);
+            lineBuffer = lineBuffer.substring(separatorIdx + 2);
+            if (ev.startsWith("data: ")) {
+              try {
+                const chunkData = JSON.parse(ev.slice(6));
+                if (chunkData.chunk) {
+                  accumulatedText += chunkData.chunk;
+                  const match = accumulatedText.match(/\"scratchpad\"\s*:\s*\"([^]*?)(\"|$)/);
+                  if (match) {
+                    setConsolidationLiveThought(match[1].replace(/\\n/g, "\n").replace(/\\"/g, "\""));
+                  }
+                } else if (chunkData.thought) {
+                  setConsolidationLiveThought(prev => (prev || "") + chunkData.thought);
+                } else if (chunkData.final) {
+                  data = chunkData.result;
+                } else if (chunkData.error) {
+                  throw new Error(chunkData.error);
+                }
+              } catch (e) { /* ignore malformed events */ }
+            }
+          }
+        }
+      } else {
+        data = await res.json();
+      }
       
       let parsedData;
       try {
@@ -2872,13 +2913,22 @@ I can analyze these, compare them with our database keys, and find standard mapp
                         <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center shrink-0">
                           <BrainCircuit className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-pulse" />
                         </div>
-                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex items-center gap-2">
-                          <div className="flex space-x-1">
-                            <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
-                            <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
-                            <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></div>
+                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col gap-2 max-w-[85%]">
+                          <div className="flex items-center gap-2">
+                            <div className="flex space-x-1">
+                              <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+                              <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]"></div>
+                              <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></div>
+                            </div>
+                            <span className="text-[13px] text-slate-500 font-medium ml-2">
+                              {consolidationLiveThought ? 'Consolidating...' : 'Analyzing biomarkers...'}
+                            </span>
                           </div>
-                          <span className="text-[13px] text-slate-500 font-medium ml-2">Analyzing biomarkers...</span>
+                          {consolidationLiveThought && (
+                            <div className="text-[11px] text-slate-500 font-mono whitespace-pre-wrap border-t border-slate-100 dark:border-slate-800 pt-2 mt-1">
+                              {consolidationLiveThought}
+                            </div>
+                          )}
                         </div>
                       </div>
                     )}

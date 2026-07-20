@@ -1896,8 +1896,9 @@ ${logsText}`);
         const reader = response.body?.getReader();
         if (!reader) throw new Error("No stream reader available");
         const decoder = new TextDecoder();
-        let accumulatedText = "";
+        const accumulatedByStage: Record<string, string> = { scout: "", dietitian: "" };
         let lineBuffer = "";
+        const unescapeScratchpad = (raw: string) => raw.replace(/\\n/g, "\n").replace(/\\"/g, "\"");
         while (true) {
           const { done, value } = await reader.read();
           if (done) break;
@@ -1910,46 +1911,33 @@ ${logsText}`);
             if (ev.startsWith("data: ")) {
               try {
                 const data = JSON.parse(ev.slice(6));
+                const stage: string = data.stage === 'scout' ? 'scout' : 'dietitian';
                 if (data.chunk) {
-                  accumulatedText += data.chunk;
-                  const scoutMatch = accumulatedText.match(/\"scoutScratchpad\"\s*:\s*\"([^]*?)(\"|$)/);
-                  const dietMatch = accumulatedText.match(/\"dietitianScratchpad\"\s*:\s*\"([^]*?)(\"|$)/) || accumulatedText.match(/\"scratchpad\"\s*:\s*\"([^]*?)(\"|$)/);
-                  setMessages(prev => {
-                    const newMsgs = [...prev];
-                    const lastMsg = newMsgs[newMsgs.length - 1];
-                    if (lastMsg && lastMsg.role === "assistant" && lastMsg.isLive) {
-                      const updatedData = lastMsg.data ? { ...lastMsg.data } : {};
-                      const updatedAgentResult = updatedData.agentResult ? { ...updatedData.agentResult } : {};
-                      let hasChanges = false;
-                      if (scoutMatch) {
-                        updatedAgentResult.scoutScratchpad = scoutMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, "\"");
-                        hasChanges = true;
-                      }
-                      if (dietMatch) {
-                        updatedAgentResult.dietitianScratchpad = dietMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, "\"");
-                        hasChanges = true;
-                      }
-                      if (hasChanges) {
+                  accumulatedByStage[stage] += data.chunk;
+                  const match = accumulatedByStage[stage].match(/\"scratchpad\"\s*:\s*\"([^]*?)(\"|$)/);
+                  if (match) {
+                    const text = unescapeScratchpad(match[1]);
+                    setMessages(prev => {
+                      const newMsgs = [...prev];
+                      const lastMsg = newMsgs[newMsgs.length - 1];
+                      if (lastMsg && lastMsg.role === "assistant" && lastMsg.isLive) {
+                        const updatedData = lastMsg.data ? { ...lastMsg.data } : {};
+                        const updatedAgentResult = updatedData.agentResult ? { ...updatedData.agentResult } : {};
+                        updatedAgentResult[`${stage}Scratchpad`] = text;
                         return [
                           ...newMsgs.slice(0, newMsgs.length - 1),
                           { ...lastMsg, data: { ...updatedData, agentResult: updatedAgentResult } }
                         ];
                       }
-                    }
-                    return prev;
-                  });
-                  // Also update the live thoughts display in the analyzing bubble (real-time, no polling)
-                  if (scoutMatch) {
-                    setLiveThoughts(prev => ({ ...prev, scout: scoutMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, "\"") }));
-                  }
-                  if (dietMatch) {
-                    setLiveThoughts(prev => ({ ...prev, dietitian: dietMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, "\"") }));
+                      return prev;
+                    });
+                    // Also update the live thoughts display in the analyzing bubble (real-time, no polling)
+                    setLiveThoughts(prev => ({ ...prev, [stage]: text }));
                   }
                 } else if (data.thought) {
-                  // Native Gemini chain-of-thought stream, separate from the JSON text chunk.
-                  // Native thinking is currently only enabled on the RouteAgent/Dietitian call,
-                  // so route it to the dietitian thought panel.
-                  setLiveThoughts(prev => ({ ...prev, dietitian: (prev.dietitian || "") + data.thought }));
+                  // Native Gemini chain-of-thought stream (only used when a user manually
+                  // upgrades an agent off lite). Separate from the JSON text chunk above.
+                  setLiveThoughts(prev => ({ ...prev, [stage]: (prev[stage] || "") + data.thought }));
                 } else if (data.final) {
                   resData = data.result;
                 }

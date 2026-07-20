@@ -2009,7 +2009,12 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
             systemInstruction: scoutSystemInstruction,
             promptText: message ? `Analyze this image and list the food items you see, taking into consideration the user's message: "${message}"` : "Analyze this image and list the food items you see.",
             imagePayloads,
-            responseMimeType: "application/json"
+            responseMimeType: "application/json",
+            onStream: isStream ? (chunk: string, isThought?: boolean) => {
+              if (!isThought) {
+                res.write(`data: ${JSON.stringify({ chunk, stage: 'scout' })}\n\n`);
+              }
+            } : undefined
           });
 
           const scoutResult = parseAndHealVisionScout(scoutOutput, addDebugLog);
@@ -2652,9 +2657,9 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       if (isStream) {
         callArgs.onStream = (chunk: string, isThought?: boolean) => {
           if (isThought) {
-            res.write(`data: ${JSON.stringify({ thought: chunk })}\n\n`);
+            res.write(`data: ${JSON.stringify({ thought: chunk, stage: 'dietitian' })}\n\n`);
           } else {
-            res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+            res.write(`data: ${JSON.stringify({ chunk, stage: 'dietitian' })}\n\n`);
           }
         };
       }
@@ -5079,6 +5084,12 @@ app.post("/api/gemini/consolidate-names", async (req, res) => {
     const explicitSessionId = (req.headers["x-session-id"] as string) || "global";
     const { inputText, selectedBiomarkers, engine, customSystemInstruction } = req.body;
     const modelId = engine || "gemini-3.1-flash-lite";
+    const isStream = req.query.stream === 'true';
+    if (isStream) {
+      res.setHeader('Content-Type', 'text/event-stream');
+      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Connection', 'keep-alive');
+    }
     addDebugLog(`[Name Consolidation Agent] Request received using model: ${modelId}. Text length: ${inputText?.length || 0}. Biomarkers count: ${selectedBiomarkers?.length || 0}`, explicitSessionId);
 
     if (inputText) {
@@ -5135,7 +5146,7 @@ Please output a valid JSON object matching the requested schema.`;
           }
         }
       },
-      required: ["scratchpad", "consolidatedGroups"]
+      required: ["consolidatedGroups"]
     };
 
     const consolidationTimeout = new Promise<never>((_, reject) =>
@@ -5144,10 +5155,17 @@ Please output a valid JSON object matching the requested schema.`;
     const textOutput = await Promise.race([
       callUnifiedLLM({
         modelId,
-        systemInstruction: systemInstruction + "\n\nJSON STRUCTURED OUTPUT:\nYou must strictly return a JSON object. Do not add markdown wrappers. Think step-by-step in the 'scratchpad' field first.",
+        systemInstruction: systemInstruction + "\n\nJSON STRUCTURED OUTPUT:\nYou must strictly return a JSON object. Do not add markdown wrappers. Put your step-by-step reasoning in the 'scratchpad' field FIRST, before any other field, unless you are already using extended/native thinking for this request — in that case you may leave 'scratchpad' brief or omit it.",
         promptText: dynamicPromptText,
         responseMimeType: "application/json",
-        responseSchema: consolidateNamesSchema
+        responseSchema: consolidateNamesSchema,
+        onStream: isStream ? (chunk: string, isThought?: boolean) => {
+          if (isThought) {
+            res.write(`data: ${JSON.stringify({ thought: chunk })}\n\n`);
+          } else {
+            res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+          }
+        } : undefined
       }),
       consolidationTimeout
     ]);
@@ -5175,12 +5193,22 @@ Please output a valid JSON object matching the requested schema.`;
       addDebugLog(`[Name Consolidation Agent] Agent Explanation:\n${parsed.explanation}`, explicitSessionId);
     }
 
-    res.json(parsed);
+    if (isStream) {
+      res.write(`data: ${JSON.stringify({ final: true, result: parsed })}\n\n`);
+      res.end();
+    } else {
+      res.json(parsed);
+    }
   } catch (error: any) {
     const explicitSessionId = (req.headers["x-session-id"] as string) || "global";
     addDebugLog(`[Name Consolidation Agent] Error: ${error.message}`, explicitSessionId);
     console.error("[Name Consolidation Agent Error]:", error);
-    res.status(500).json({ error: "Failed to consolidate biomarker names: " + error.message });
+    if (res.headersSent) {
+      res.write(`data: ${JSON.stringify({ error: "Failed to consolidate biomarker names: " + error.message })}\n\n`);
+      res.end();
+    } else {
+      res.status(500).json({ error: "Failed to consolidate biomarker names: " + error.message });
+    }
   }
 });
 
