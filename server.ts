@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { z } from "zod";
 import { getMappedBiomarkerKey } from './src/utils/biomarkers';
 import * as cheerio from "cheerio";
 import fs from "fs";
@@ -723,6 +724,38 @@ async function fetchGoogleMapsPlaceId(
     addDebugLog(`[get_google_maps_place_id] Error: ${errorMsg}`, explicitSessionId);
     return "ERROR_API_FAILED";
   }
+}
+
+const ScoutItemSchema = z.object({
+  keyword: z.string().optional(),
+  itemConfidence: z.string().optional(),
+  estimatedWeightGrams: z.number().finite().positive().optional(),
+}).passthrough();
+
+const VisionScoutSchema = z.object({
+  items: z.array(ScoutItemSchema).optional(),
+}).passthrough();
+
+const ItemBreakdownSchema = z.object({
+  name: z.string().optional(),
+  weightGrams: z.number().finite().nonnegative().optional(),
+  calories: z.number().finite().optional(),
+}).passthrough();
+
+const RouteAgentSchema = z.object({
+  itemsBreakdown: z.array(ItemBreakdownSchema).optional(),
+}).passthrough();
+
+// Validates parsed LLM JSON against a schema. On failure, logs the full raw
+// output (so we can see exactly what the LLM sent) and returns the provided
+// safe fallback instead of letting a malformed shape reach downstream math.
+function validateOrFallback<T>(schema: z.ZodType<T>, parsed: any, rawText: string, label: string, fallback: T): T {
+  const result = schema.safeParse(parsed);
+  if (!result.success) {
+    addDebugLog(`[Zod Validation Failed] ${label}: ${result.error.message}. Raw output: ${rawText}`);
+    return fallback;
+  }
+  return result.data;
 }
 
 function robustParseJson(cleanJson: string): any {
@@ -1986,6 +2019,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
           } catch (e) {
             parsedScout = JSON.parse(extractBalancedJson(scoutOutput));
           }
+          parsedScout = validateOrFallback(VisionScoutSchema, parsedScout, String(scoutOutput), "Vision Scout", { items: [] });
           addDebugLog(`[Vision Scout] Parsed ${Array.isArray(parsedScout?.items) ? parsedScout.items.length : 0} item(s). (Full payload already logged above by UnifiedLLM-Response.)`);
           if (parsedScout) {
             let lowestConfidence = "High (>90%)";
@@ -2745,6 +2779,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       let rawParsed;
       try {
         rawParsed = JSON.parse(extractBalancedJson(cleanJson));
+        rawParsed = validateOrFallback(RouteAgentSchema, rawParsed, cleanJson, "RouteAgent", { itemsBreakdown: [] });
       } catch (parseErr: any) {
         addDebugLog(`[JSON Parse Error] JSON parse failed: ${parseErr.message}. Attempting robust truncation repair...`);
         try {
