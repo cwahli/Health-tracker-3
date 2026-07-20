@@ -233,12 +233,15 @@ export default function FullScreenLogViewer({
     }
   };
 
-  // Scroll active match into view
+  // Scroll active match into view — center on the highlighted keyword itself, not just
+  // the top/bottom edge of the (often very long) log chunk it appears in.
   useEffect(() => {
     if (searchTerm && filteredChunks.length > 0) {
-      const element = document.getElementById(`log-chunk-${activeMatchIndex}`);
-      if (element) {
-        element.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      const container = document.getElementById(`log-chunk-${activeMatchIndex}`);
+      const markElement = container?.querySelector('mark');
+      const target = markElement || container;
+      if (target) {
+        target.scrollIntoView({ behavior: 'smooth', block: 'center' });
       }
     }
   }, [activeMatchIndex, searchTerm, filteredChunks.length]);

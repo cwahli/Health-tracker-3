@@ -1120,7 +1120,12 @@ async function callUnifiedLLMInternal({
         }
       } catch (e) {}
     }
-    response.text = finalJson;
+    // response.text is a getter-only property on the SDK's GenerateContentResponse class —
+    // assigning to it throws and was silently forcing every call through the slow REST
+    // fallback below. Rebuild `response` as a plain object so downstream code in this
+    // function can keep reading response.text / response.functionCalls / response.candidates
+    // exactly as before, without touching the SDK instance.
+    response = { text: finalJson, candidates: response.candidates, functionCalls: response.functionCalls };
     
     let callCount = 0;
     const maxCalls = 5;

@@ -1882,28 +1882,6 @@ ${logsText}`);
         body: JSON.stringify(bodyData)
       });
 
-      // Capture agent debug logs for this request
-      try {
-        const logsRes = await fetch(`/api/gemini/debug-logs?sessionId=${currentReqId}`);
-        if (logsRes.ok) {
-           const logsData = await logsRes.json();
-           if (logsData && logsData.logs && logsData.logs.length > 0) {
-              const summary = [
-                selectedImages.length > 0 ? `[${selectedImages.length} Image(s)]` : null,
-                textToSend ? (textToSend.length > 50 ? textToSend.substring(0, 50) + '...' : textToSend) : null
-              ].filter(Boolean).join(' ') || 'Empty Request';
-              saveAgentRequestLog({
-                 id: currentReqId,
-                 timestamp: new Date().toISOString(),
-                 summary,
-                 logs: logsData.logs
-              });
-           }
-        }
-      } catch (e) {
-        console.warn("Could not save agent request logs", e);
-      }
-
       if (!response.ok) {
         const rawText = await response.text().catch(() => '');
         const looksLikeTimeout = response.status === 504 || response.status === 502 || response.status === 503 || rawText.trim().toLowerCase().startsWith('<!doctype') || rawText.trim().toLowerCase().startsWith('<html');
@@ -1967,6 +1945,11 @@ ${logsText}`);
                   if (dietMatch) {
                     setLiveThoughts(prev => ({ ...prev, dietitian: dietMatch[1].replace(/\\n/g, "\n").replace(/\\"/g, "\"") }));
                   }
+                } else if (data.thought) {
+                  // Native Gemini chain-of-thought stream, separate from the JSON text chunk.
+                  // Native thinking is currently only enabled on the RouteAgent/Dietitian call,
+                  // so route it to the dietitian thought panel.
+                  setLiveThoughts(prev => ({ ...prev, dietitian: (prev.dietitian || "") + data.thought }));
                 } else if (data.final) {
                   resData = data.result;
                 }
@@ -1984,6 +1967,31 @@ ${logsText}`);
       } else {
         resData = await response.json();
       }
+
+      // Capture agent debug logs for this request now that it has fully finished
+      // (moved here from right after the initial fetch, which resolved too early
+      // for streamed requests and captured an incomplete/empty log snapshot).
+      try {
+        const logsRes = await fetch(`/api/gemini/debug-logs?sessionId=${currentReqId}`);
+        if (logsRes.ok) {
+           const logsData = await logsRes.json();
+           if (logsData && logsData.logs && logsData.logs.length > 0) {
+              const summary = [
+                selectedImages.length > 0 ? `[${selectedImages.length} Image(s)]` : null,
+                textToSend ? (textToSend.length > 50 ? textToSend.substring(0, 50) + '...' : textToSend) : null
+              ].filter(Boolean).join(' ') || 'Empty Request';
+              saveAgentRequestLog({
+                 id: currentReqId,
+                 timestamp: new Date().toISOString(),
+                 summary,
+                 logs: logsData.logs
+              });
+           }
+        }
+      } catch (e) {
+        console.warn("Could not save agent request logs", e);
+      }
+
       if (resData.error) throw new Error(resData.error);
 
       // Deduct agent credits upon successful response
