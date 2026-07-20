@@ -1093,7 +1093,7 @@ export default function App() {
           ...(cloudProfile?.customBiomarkers || {}),
           ...(localProfile?.customBiomarkers || {})
         };
-        deletedCustomKeys.forEach(k => {
+        Object.keys(deletedCustomKeys).forEach(k => {
           delete mergedCustomBiomarkers[k];
         });
 
@@ -1454,11 +1454,11 @@ export default function App() {
           const sanitizedLocalBioHistory = sanitizeAndCleanLogs(localBioHistory);
 
           // Filter out deleted items from cloud and local lists
-          const filteredFoods = foods.filter(f => f.sync_state !== 'delete' && !deletedFoods.has(f.id));
-          const filteredLocalFoods = localFoods.filter(f => f.sync_state !== 'delete' && !deletedFoods.has(f.id));
+          const filteredFoods = foods.filter(f => f.sync_state !== 'delete' && !deletedFoods[f.id]);
+          const filteredLocalFoods = localFoods.filter(f => f.sync_state !== 'delete' && !deletedFoods[f.id]);
 
-          const filteredBioHistory = sanitizedBioHistory.filter(b => b.sync_state !== 'delete' && !deletedBioLogs.has(b.id));
-          const filteredLocalBioHistory = sanitizedLocalBioHistory.filter(b => b.sync_state !== 'delete' && !deletedBioLogs.has(b.id));
+          const filteredBioHistory = sanitizedBioHistory.filter(b => b.sync_state !== 'delete' && !deletedBioLogs[b.id]);
+          const filteredLocalBioHistory = sanitizedLocalBioHistory.filter(b => b.sync_state !== 'delete' && !deletedBioLogs[b.id]);
 
           // Conflict Detection
           const lastSyncedAt = parsedLocal.lastSyncedAt || 0;
