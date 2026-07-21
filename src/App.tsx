@@ -731,8 +731,36 @@ export default function App() {
     const isSameUser = profileEmail === currentEmail;
 
     let localProfile = isSameUser ? (profile || parsedLocal.profile) : parsedLocal.profile;
-    let localFoods = isSameUser ? (foodLogs.length > 0 ? [...foodLogs] : (parsedLocal.foodLogs || [])) : (parsedLocal.foodLogs || []);
-    let localBioHistory = isSameUser ? (biomarkerHistory.length > 0 ? [...biomarkerHistory] : (parsedLocal.biomarkerHistory || [])) : (parsedLocal.biomarkerHistory || []);
+    
+    // Union merge disk storage logs (parsedLocal) and React memory state so no restored entries or images are lost
+    const diskFoods: FoodLog[] = parsedLocal.foodLogs || [];
+    const memoryFoods: FoodLog[] = isSameUser ? foodLogs : [];
+    const localFoodMap = new Map<string, FoodLog>();
+    diskFoods.forEach((df) => localFoodMap.set(df.id, df));
+    memoryFoods.forEach((mf) => {
+      const existing = localFoodMap.get(mf.id);
+      if (!existing) {
+        localFoodMap.set(mf.id, mf);
+      } else {
+        const existingHasImg = existing.imageUrl && existing.imageUrl !== '[image_removed_for_snapshot]';
+        const memoryHasImg = mf.imageUrl && mf.imageUrl !== '[image_removed_for_snapshot]';
+        localFoodMap.set(mf.id, {
+          ...existing,
+          ...mf,
+          imageUrl: memoryHasImg ? mf.imageUrl : (existingHasImg ? existing.imageUrl : mf.imageUrl),
+          imageUrls: (mf.imageUrls && mf.imageUrls.length > 0) ? mf.imageUrls : existing.imageUrls
+        });
+      }
+    });
+    let localFoods = Array.from(localFoodMap.values());
+
+    const diskBio: BiomarkerLog[] = parsedLocal.biomarkerHistory || [];
+    const memoryBio: BiomarkerLog[] = isSameUser ? biomarkerHistory : [];
+    const localBioMap = new Map<string, BiomarkerLog>();
+    diskBio.forEach((db) => localBioMap.set(db.id, db));
+    memoryBio.forEach((mb) => localBioMap.set(mb.id, mb));
+    let localBioHistory = Array.from(localBioMap.values());
+
     let localActions = isSameUser ? (actions.length > 0 ? [...actions] : (parsedLocal.actions || [])) : (parsedLocal.actions || []);
     let localBenefits = isSameUser ? (dailyBenefits.length > 0 ? [...dailyBenefits] : (parsedLocal.dailyBenefits || [])) : (parsedLocal.dailyBenefits || []);
     let localReport = isSameUser ? (report || parsedLocal.report) : parsedLocal.report;
@@ -745,11 +773,11 @@ export default function App() {
       localBenefits = [];
     }
     // Immediately populate state from local storage so the UI is responsive
-    if (parsedLocal && (!profile || !isSameUser)) {
+    if (parsedLocal && (!profile || !isSameUser || foodLogs.length < localFoods.length)) {
       if (parsedLocal.profile) setProfile(parsedLocal.profile);
-      if (parsedLocal.foodLogs && parsedLocal.foodLogs.length > 0) setFoodLogs(parsedLocal.foodLogs);
+      if (localFoods.length > 0) setFoodLogs(localFoods);
       if (parsedLocal.biomarkers) setBiomarkers(parsedLocal.biomarkers);
-      if (parsedLocal.biomarkerHistory) setBiomarkerHistory(parsedLocal.biomarkerHistory);
+      if (localBioHistory.length > 0) setBiomarkerHistory(localBioHistory);
       if (parsedLocal.actions) setActions(parsedLocal.actions);
       if (parsedLocal.dailyBenefits) setDailyBenefits(parsedLocal.dailyBenefits);
       if (parsedLocal.report) setReport(parsedLocal.report);
