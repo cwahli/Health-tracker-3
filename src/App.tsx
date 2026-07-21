@@ -26,7 +26,7 @@ import { sanitizeForFirestore, checkQuotaFlag, handleRetryQuota } from './utils/
 import { getCurrentDateInTimezone, toYYYYMMDD, normalizeBiomarkerHistory } from './utils/dateUtils';
 import { biomarkerDefinitions, isAsianEthnicity, hasBmiPendingAlert, getProfileFingerprint } from './utils/biomarkers';
 import { standardizeUnit, CONVERSION_FACTORS } from './utils/unitConversion';
-import { get, set, pruneLocalStorageToFreeSpace, getStorageKey, getSnapshotKey, saveLocalSnapshot, loadLocalSnapshots, deleteLocalSnapshot, safeSaveToLocalStorage } from './utils/storageUtils';
+import { get, set, pruneLocalStorageToFreeSpace, getStorageKey, getSnapshotKey, saveLocalSnapshot, loadLocalSnapshots, deleteLocalSnapshot, safeSaveToLocalStorage, getAggregatedAppData } from './utils/storageUtils';
 
 const FIRESTORE_READ_BUDGET = 3000; // generous for one real session; a runaway loop hits this fast
 function firestoreReadGuard(label: string, docCount: number = 1): boolean {
@@ -724,7 +724,7 @@ export default function App() {
       return;
     }
     // Load local storage first so we don't wipe it on page load
-    const parsedLocal = await get(getStorageKey(auth.currentUser?.email)) || {};
+    const parsedLocal = await getAggregatedAppData(auth.currentUser?.email) || {};
     // Snapshot of current local state (from storage or memory) for safe merge
     const currentEmail = auth.currentUser?.email?.toLowerCase().trim() || 'guest';
     const profileEmail = profile?.email?.toLowerCase().trim();
@@ -2601,9 +2601,7 @@ export default function App() {
           'Multi sync profiles'
         ).catch(err => console.warn('Background sync warning:', err));
 
-        if (foodImageTasks.length > 0) {
-          await withTimeout(chunkPromises(foodImageTasks, 5), 10000, 'Multi sync images').catch(err => console.warn('Image sync warning:', err));
-        }
+
       }
       // Artificially enforce a minimum rotation time of 800ms so the user gets clear visual confirmation
       await new Promise(resolve => setTimeout(resolve, 800));

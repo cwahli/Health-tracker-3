@@ -215,3 +215,59 @@ export const safeSaveToLocalStorage = async (key: string, bundle: any) => {
     console.error("Failed to save to IndexedDB:", e);
   }
 };
+
+/**
+ * Retrieves app data for the target user key, falling back and merging 
+ * with legacy un-suffixed keys ('health_cockpit_app_data', 'health_cockpit_app_data_guest')
+ * to ensure restored ZIP images and legacy entries are never orphaned.
+ */
+export const getAggregatedAppData = async (email?: string | null): Promise<any> => {
+  const primaryKey = getStorageKey(email);
+  const primaryData = (await get(primaryKey)) || {};
+
+  // Check legacy keys
+  const legacyKey = 'health_cockpit_app_data';
+  const guestKey = 'health_cockpit_app_data_guest';
+
+  const legacyData = (await get(legacyKey)) || {};
+  const guestData = (await get(guestKey)) || {};
+
+  const allLogsMap = new Map<string, any>();
+
+  // Helper to merge arrays preserving base64 images
+  const mergeLogs = (logs: any[]) => {
+    if (!Array.isArray(logs)) return;
+    logs.forEach(log => {
+      if (!log || !log.id) return;
+      const existing = allLogsMap.get(log.id);
+      if (!existing) {
+        allLogsMap.set(log.id, log);
+      } else {
+        const existingHasImg = existing.imageUrl && existing.imageUrl !== '[image_removed_for_snapshot]';
+        const logHasImg = log.imageUrl && log.imageUrl !== '[image_removed_for_snapshot]';
+        const existingHasUrls = existing.imageUrls && existing.imageUrls.length > 0;
+        const logHasUrls = log.imageUrls && log.imageUrls.length > 0;
+
+        allLogsMap.set(log.id, {
+          ...existing,
+          ...log,
+          imageUrl: logHasImg ? log.imageUrl : (existingHasImg ? existing.imageUrl : log.imageUrl),
+          imageUrls: logHasUrls ? log.imageUrls : (existingHasUrls ? existing.imageUrls : log.imageUrls)
+        });
+      }
+    });
+  };
+
+  mergeLogs(legacyData.foodLogs);
+  mergeLogs(guestData.foodLogs);
+  mergeLogs(primaryData.foodLogs);
+
+  const mergedFoodLogs = Array.from(allLogsMap.values());
+
+  return {
+    ...legacyData,
+    ...guestData,
+    ...primaryData,
+    foodLogs: mergedFoodLogs.length > 0 ? mergedFoodLogs : (primaryData.foodLogs || [])
+  };
+};
