@@ -765,7 +765,17 @@ export default function App() {
         if (parsedLocal.dailyBenefits) setDailyBenefits(parsedLocal.dailyBenefits);
         if (parsedLocal.report) setReport(parsedLocal.report);
         if (parsedLocal.foodLogs && parsedLocal.foodLogs.length > 0) {
-          setFoodLogs(parsedLocal.foodLogs);
+          // Recover images from current memory state if local storage payload lacks them
+          const recoveredLocalFoods = parsedLocal.foodLogs.map((pf: any) => {
+            const memoryItem = foodLogs.find(f => f.id === pf.id);
+            const memoryHasImage = memoryItem && memoryItem.imageUrl && memoryItem.imageUrl !== '[image_removed_for_snapshot]';
+            const localHasImage = pf.imageUrl && pf.imageUrl !== '[image_removed_for_snapshot]';
+            if (!localHasImage && memoryHasImage) {
+              return { ...pf, imageUrl: memoryItem.imageUrl, imageUrls: memoryItem.imageUrls || pf.imageUrls };
+            }
+            return pf;
+          });
+          setFoodLogs(recoveredLocalFoods);
           hasLocalFoods = true;
         }
         if (parsedLocal.biomarkerHistory && parsedLocal.biomarkerHistory.length > 0) {
@@ -1555,9 +1565,20 @@ export default function App() {
         });
         setBiomarkers(computedBiomarkers);
         // Write bundle back to local storage
+        // Ensure image data from localFoods is preserved in the bundle saved to IndexedDB
+        const foodsToCache = mergedFoods.map(mf => {
+          if (!mf.imageUrl || mf.imageUrl === '[image_removed_for_snapshot]') {
+            const local = localFoods.find(lf => lf.id === mf.id);
+            if (local && local.imageUrl && local.imageUrl !== '[image_removed_for_snapshot]') {
+              return { ...mf, imageUrl: local.imageUrl, imageUrls: local.imageUrls || mf.imageUrls };
+            }
+          }
+          return mf;
+        });
+
         const bundle = {
           profile: mergedProfile,
-          foodLogs: mergedFoods,
+          foodLogs: foodsToCache,
           biomarkers: computedBiomarkers,
           biomarkerHistory: mergedBioHistory,
           actions: mergedActions,
@@ -2450,7 +2471,22 @@ export default function App() {
           }).catch(err => console.error("Food image sync error:", err));
         });
 
-        const foodImagePromise = chunkPromises(foodImageTasks, 5);
+        const foodImagePromise = chunkPromises(foodImageTasks, 5).then(() => {
+          // Mark all saved food items as synced in memory to prevent re-uploading on routine syncs
+          const syncedFoods = currFoods.map(f => ({ ...f, sync_state: 'synced' as const }));
+          setFoodLogs(syncedFoods);
+          // Persist full images in local IndexedDB so offline/quota fallback retains them
+          safeSaveToLocalStorage(getStorageKey(updatedProfile?.email || profile?.email || auth.currentUser?.email), {
+            profile: updatedProfile,
+            foodLogs: syncedFoods,
+            biomarkers: currBiomarkers,
+            biomarkerHistory: currBioHistory,
+            actions: currActions,
+            dailyBenefits: currBenefits,
+            foodIdeas: currFoodIdeas,
+            report: currReport
+          });
+        });
 
         const dashboardPromise = setDoc(doc(db, 'users', uid, 'metadata', 'dashboard'), {
           actions: currActions.map(sanitizeForFirestore),
@@ -2509,13 +2545,23 @@ export default function App() {
           }
         };
 
-        const foodImageTasks = foodImagesToSave.map(imgData => {
-          return () => setDoc(doc(db, "users", uid, "foodImages", imgData.id), {
-            imageUrl: imgData.imageUrl || null,
-            imageUrls: imgData.imageUrls || []
-          }).catch(err => console.error("Food image sync error:", err));
-        });
-        await chunkPromises(foodImageTasks, 5);
+        // ONLY upload images for foods that have unsynced edits (sync_state === 'new' || 'update')
+        const unsyncedImageTasks = currFoods
+          .filter(f => (f.sync_state === 'new' || f.sync_state === 'update') && (
+            (f.imageUrl && f.imageUrl !== '[image_removed_for_snapshot]' && f.imageUrl !== '') ||
+            (f.imageUrls && f.imageUrls.length > 0 && f.imageUrls.some(u => u && u !== '[image_removed_for_snapshot]'))
+          ))
+          .map(f => {
+            const hasRealImage = f.imageUrl && f.imageUrl !== '[image_removed_for_snapshot]' && f.imageUrl !== '';
+            return () => setDoc(doc(db, 'users', uid, 'foodImages', f.id), {
+              imageUrl: hasRealImage ? f.imageUrl : null,
+              imageUrls: f.imageUrls ? f.imageUrls.filter(u => u && u !== '[image_removed_for_snapshot]') : []
+            }).catch(err => console.error("Food image sync error:", err));
+          });
+
+        if (unsyncedImageTasks.length > 0) {
+          await chunkPromises(unsyncedImageTasks, 5);
+        }
 
         await withTimeout(
           Promise.all([
