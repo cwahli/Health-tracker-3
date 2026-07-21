@@ -577,7 +577,7 @@ Respond ONLY with a structured JSON format matching this schema exactly.
 
 const app = express();
 const imageSearchCache = new Map<string, any>();
-const PORT = parseInt(process.env.PORT || '3000', 10);
+const PORT = 3000;
 const SERVER_START_TIME = Date.now();
 
 async function startServer() {
