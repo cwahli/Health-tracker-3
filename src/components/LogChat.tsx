@@ -3476,7 +3476,7 @@ ${JSON.stringify(profile, null, 2)}`);
                   </button>
                 </>
               ) : (
-                !isAgent('food_idea') && !isAgent('daily_recommendation') && !isAgent('medical') && (
+                !isAgent('food_idea') && !isAgent('daily_recommendation') && !(isAgent('medical') && !agentType) && (
                   <button
                     type="button"
                     onClick={() => {
