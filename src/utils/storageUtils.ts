@@ -269,7 +269,7 @@ export const getAggregatedAppData = async (email?: string | null): Promise<any> 
   addLogs(legacyFoods);
   addLogs(guestFoods);
 
-  const migratedFoods = Array.from(allLogsMap.values());
+  const migratedFoods = Array.from(allLogsMap.values()).filter((f: any) => f.sync_state !== 'delete');
   console.log(`[Storage] One-time migration: merging ${migratedFoods.length} food logs from legacy keys into primary key.`);
 
   return {

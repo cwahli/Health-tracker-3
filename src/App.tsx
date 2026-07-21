@@ -1865,9 +1865,12 @@ export default function App() {
 
           if (parsedLocal) {
             loadedProfile = parsedLocal.profile || null;
-            loadedFoods = parsedLocal.foodLogs || [];
+            const deletedFoodMap = loadedProfile?.deletedFoodLogIds || {};
+            const deletedBioMap = loadedProfile?.deletedBiomarkerLogIds || {};
+            // Filter out deleted entries so tombstoned items are never re-hydrated on refresh
+            loadedFoods = (parsedLocal.foodLogs || []).filter((f: any) => f.sync_state !== 'delete' && !deletedFoodMap[f.id]);
+            loadedHistory = (parsedLocal.biomarkerHistory || []).filter((b: any) => b.sync_state !== 'delete' && !deletedBioMap[b.id]);
             loadedBiomarkers = parsedLocal.biomarkers || {};
-            loadedHistory = parsedLocal.biomarkerHistory || [];
             loadedActions = parsedLocal.actions || [];
             loadedBenefits = parsedLocal.dailyBenefits || [];
             loadedReport = parsedLocal.report || null;
@@ -2383,9 +2386,16 @@ export default function App() {
         } else if ((specificUpdate.type === 'foodLog' || specificUpdate.type === 'deleteFood') && specificUpdate.targetId) {
           const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
           const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {};
-          await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
+          await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, async (sf, sb) => {
             setFoodLogs(sf);
             setBiomarkerHistory(sb);
+            // Persist purged/synced logs to IndexedDB immediately so deletes survive refresh
+            const updatedBundle = {
+              ...bundle,
+              foodLogs: sf,
+              biomarkerHistory: sb
+            };
+            await safeSaveToLocalStorage(getStorageKey(updatedProfile?.email || profile?.email || auth.currentUser?.email), updatedBundle);
           });
           const f = currFoods.find(item => item.id === specificUpdate.targetId);
           if (f) {
