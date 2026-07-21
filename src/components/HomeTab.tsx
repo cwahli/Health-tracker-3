@@ -6,6 +6,8 @@ import { getBiomarkerStatus, getBiomarkerColor, getBiomarkerStatusLabel, biomark
 import { getAgentCalibration } from '../utils/agentCalibration';
 import { getCurrentDateInTimezone } from '../utils/dateUtils';
 import { standardizeUnit, reverseStandardizeUnit, formatNormalRange } from '../utils/unitConversion';
+import { PRIMARY_NUTRIENTS } from '../utils/nutrients';
+import { nutrientDefinitions } from '../utils/nutrition';
 import { BiomarkerExpandedSection } from './BiomarkerExpandedSection';
 import ReviewBiomarkerModal from './ReviewBiomarkerModal';
 import LogChat from './LogChat';
@@ -478,6 +480,10 @@ export default function HomeTab({
     return breakdown.adjustedValue;
   }, [getRollingBreakdown]);
 
+  const topMonitoredKeys = (profile?.topNutrientsToMonitor && profile.topNutrientsToMonitor.length > 0)
+    ? profile.topNutrientsToMonitor
+    : PRIMARY_NUTRIENTS;
+
   const baseCaloriesTarget = report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.calories, 1700) : 1800;
   const baseSatFatTarget = report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.saturatedFat, 15) : 15;
   const baseSodiumTarget = report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.sodium, 1200) : 1200;
@@ -727,104 +733,62 @@ export default function HomeTab({
 
         {/* Live progress bars comparing actual todaysTotals vs targets */}
         <div className="space-y-4">
-          {/* Calorie Bar */}
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs font-semibold">
-              <span className="text-slate-700 dark:text-slate-300">Calories Allowed</span>
-              {activeTargets.calories > activeTargets.caloriesTarget ? (
-                <span className="text-rose-500 font-bold font-mono">
-                  {Math.ceil(activeTargets.calories - activeTargets.caloriesTarget)} cal over {activeTargets.caloriesTarget} daily
-                </span>
-              ) : (
-                <span className="text-slate-500 font-mono">{activeTargets.calories} / {activeTargets.caloriesTarget} kcal</span>
-              )}
-            </div>
-            <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
-              {activeTargets.calories > activeTargets.caloriesTarget ? (
-                <>
-                  <div 
-                    className="h-full bg-indigo-600 transition-all duration-500" 
-                    style={{ width: `${(activeTargets.caloriesTarget / activeTargets.calories) * 100}%` }}
-                  />
-                  <div 
-                    className="h-full bg-rose-500 transition-all duration-500" 
-                    style={{ width: `${((activeTargets.calories - activeTargets.caloriesTarget) / activeTargets.calories) * 100}%` }}
-                  />
-                </>
-              ) : (
-                <div 
-                  className="h-full bg-indigo-600 rounded-full transition-all duration-500" 
-                  style={{ width: `${(activeTargets.calories / activeTargets.caloriesTarget) * 100}%` }}
-                />
-              )}
-            </div>
-          </div>
+          {/* Dynamic Top Monitored Nutrient Bars */}
+          {topMonitoredKeys.map((key) => {
+            const reportTargetRaw = report?.dailyNutrientTargets?.[key] ?? defaultNutrientTargets[key];
+            const baseTarget = parseTarget(reportTargetRaw, 0);
+            const adjustedTarget = getAdjustedTarget(key, baseTarget);
+            const actualRaw = Number(timeframeTotals[key] || 0);
+            const actual = formatValue(actualRaw);
+            const unit = parseUnit(reportTargetRaw, fallbackUnits[key] || 'g');
 
-          {/* Saturated Fat Bar (Critical for LDL) */}
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs font-semibold">
-              <span className="text-slate-700 dark:text-slate-300">Saturated Fat Limit</span>
-              {activeTargets.satFat > activeTargets.satFatTarget ? (
-                <span className="text-rose-500 font-bold font-mono">
-                  {(activeTargets.satFat - activeTargets.satFatTarget).toFixed(1)}g over {activeTargets.satFatTarget}g daily
-                </span>
-              ) : (
-                <span className="text-slate-500 font-mono">{activeTargets.satFat}g / {activeTargets.satFatTarget}g</span>
-              )}
-            </div>
-            <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
-              {activeTargets.satFat > activeTargets.satFatTarget ? (
-                <>
-                  <div 
-                    className="h-full bg-indigo-600 transition-all duration-500" 
-                    style={{ width: `${(activeTargets.satFatTarget / activeTargets.satFat) * 100}%` }}
-                  />
-                  <div 
-                    className="h-full bg-rose-500 transition-all duration-500" 
-                    style={{ width: `${((activeTargets.satFat - activeTargets.satFatTarget) / activeTargets.satFat) * 100}%` }}
-                  />
-                </>
-              ) : (
-                <div 
-                  className="h-full bg-indigo-600 rounded-full transition-all duration-500" 
-                  style={{ width: `${(activeTargets.satFat / activeTargets.satFatTarget) * 100}%` }}
-                />
-              )}
-            </div>
-          </div>
+            const nutDef = nutrientDefinitions.find(n => n.key === key);
+            const label = nutDef?.labels?.en || key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
 
-          {/* Sodium Bar */}
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs font-semibold">
-              <span className="text-slate-700 dark:text-slate-300">Sodium Guard</span>
-              {activeTargets.sodium > activeTargets.sodiumTarget ? (
-                <span className="text-rose-500 font-bold font-mono">
-                  {(activeTargets.sodium - activeTargets.sodiumTarget).toFixed(0)}mg over {activeTargets.sodiumTarget}mg daily
-                </span>
-              ) : (
-                <span className="text-slate-500 font-mono">{activeTargets.sodium}mg / {activeTargets.sodiumTarget}mg</span>
-              )}
-            </div>
-            <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
-              {activeTargets.sodium > activeTargets.sodiumTarget ? (
-                <>
-                  <div 
-                    className="h-full bg-indigo-600 transition-all duration-500" 
-                    style={{ width: `${(activeTargets.sodiumTarget / activeTargets.sodium) * 100}%` }}
-                  />
-                  <div 
-                    className="h-full bg-rose-500 transition-all duration-500" 
-                    style={{ width: `${((activeTargets.sodium - activeTargets.sodiumTarget) / activeTargets.sodium) * 100}%` }}
-                  />
-                </>
-              ) : (
-                <div 
-                  className="h-full bg-indigo-600 rounded-full transition-all duration-500" 
-                  style={{ width: `${(activeTargets.sodium / activeTargets.sodiumTarget) * 100}%` }}
-                />
-              )}
-            </div>
-          </div>
+            const isLimit = ['calories', 'saturatedFat', 'sodium', 'addedSugar', 'totalFat', 'transFat', 'cholesterol'].includes(key);
+            const isOver = isLimit && adjustedTarget > 0 && actual > adjustedTarget;
+            const isMet = !isLimit && adjustedTarget > 0 && actual >= adjustedTarget;
+
+            return (
+              <div key={key} className="space-y-1">
+                <div className="flex justify-between text-xs font-semibold">
+                  <span className="text-slate-700 dark:text-slate-300">{label}</span>
+                  {isOver ? (
+                    <span className="text-rose-500 font-bold font-mono">
+                      {formatValue(actual - adjustedTarget)}{unit} over {adjustedTarget}{unit} daily
+                    </span>
+                  ) : isMet ? (
+                    <span className="text-emerald-500 font-bold font-mono">
+                      {actual}{unit} / {adjustedTarget}{unit}
+                    </span>
+                  ) : (
+                    <span className="text-slate-500 font-mono">
+                      {actual}{unit} / {adjustedTarget}{unit}
+                    </span>
+                  )}
+                </div>
+                <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                  {isOver ? (
+                    <>
+                      <div 
+                        className="h-full bg-indigo-600 transition-all duration-500" 
+                        style={{ width: `${(adjustedTarget / actual) * 100}%` }}
+                      />
+                      <div 
+                        className="h-full bg-rose-500 transition-all duration-500" 
+                        style={{ width: `${((actual - adjustedTarget) / actual) * 100}%` }}
+                      />
+                    </>
+                  ) : (
+                    <div 
+                      className={`h-full rounded-full transition-all duration-500 ${isMet ? 'bg-emerald-500' : 'bg-indigo-600'}`} 
+                      style={{ width: `${adjustedTarget > 0 ? Math.min(100, (actual / adjustedTarget) * 100) : 0}%` }}
+                    />
+                  )}
+                </div>
+              </div>
+            );
+          })}
 
           {/* Steps Bar */}
           <div className="space-y-1">
@@ -877,7 +841,7 @@ export default function HomeTab({
             </div>
 
             {showAllTargets && (() => {
-              const remainingEntries = Object.entries(report?.dailyNutrientTargets || defaultNutrientTargets).filter(([key]) => !['calories', 'saturatedFat', 'sodium', 'steps'].includes(key));
+              const remainingEntries = Object.entries(report?.dailyNutrientTargets || defaultNutrientTargets).filter(([key]) => !topMonitoredKeys.includes(key) && key !== 'steps');
               const CORE_KEYS = ['protein', 'carbohydrates', 'sugar', 'addedSugar', 'solubleFibre', 'fibre', 'potassium', 'unsaturatedFat', 'calcium', 'iron', 'cholesterol'];
               const coreTargets = remainingEntries.filter(([key]) => CORE_KEYS.includes(key));
               const additionalTargets = remainingEntries.filter(([key]) => !CORE_KEYS.includes(key));

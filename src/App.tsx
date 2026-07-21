@@ -5170,12 +5170,20 @@ export default function App() {
 
              globalDailyActivities.forEach((da: any) => {
                if (da.activity && da.target && justifiedActivities.has(da.activity.toLowerCase().trim())) {
-                 currentDailyBenefits.push({
-                   id: `db_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                   activity: da.activity,
-                   target: da.target,
-                   completed: false
-                 });
+                 const isStepActivity = /\bsteps?\b/i.test(da.activity) || /\bwalk(ing)?\b/i.test(da.activity);
+                 if (isStepActivity) {
+                   const stepsMatch = String(da.target).match(/[\d,]+/);
+                   if (stepsMatch) {
+                     newDailyNutrientTargets.steps = stepsMatch[0].replace(/,/g, '');
+                   }
+                 } else {
+                   currentDailyBenefits.push({
+                     id: `db_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                     activity: da.activity,
+                     target: da.target,
+                     completed: false
+                   });
+                 }
                }
              });
 
@@ -5190,12 +5198,20 @@ export default function App() {
                if (Array.isArray(cat.dailyActivities)) {
                  cat.dailyActivities.forEach((da: any) => {
                    if (da.activity && da.target) {
-                     currentDailyBenefits.push({
-                       id: `db_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-                       activity: da.activity,
-                       target: da.target,
-                       completed: false
-                     });
+                     const isStepActivity = /\bsteps?\b/i.test(da.activity) || /\bwalk(ing)?\b/i.test(da.activity);
+                     if (isStepActivity) {
+                       const stepsMatch = String(da.target).match(/[\d,]+/);
+                       if (stepsMatch) {
+                         newDailyNutrientTargets.steps = stepsMatch[0].replace(/,/g, '');
+                       }
+                     } else {
+                       currentDailyBenefits.push({
+                         id: `db_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+                         activity: da.activity,
+                         target: da.target,
+                         completed: false
+                       });
+                     }
                    }
                  });
                }
@@ -5203,6 +5219,9 @@ export default function App() {
 
              currentReport.dailyNutrientTargets = newDailyNutrientTargets;
              currentReport.topNutrientTargets = Array.isArray(data.topNutrientTargets) ? data.topNutrientTargets.map((nt: any) => nt.nutrientKey) : [];
+             if (currentReport.topNutrientTargets.length > 0) {
+               updatedProfile.topNutrientsToMonitor = currentReport.topNutrientTargets;
+             }
              currentReport.healthBaselineCategories = acceptedCategories;
              
              setReport(currentReport);

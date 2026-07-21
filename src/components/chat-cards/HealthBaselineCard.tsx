@@ -300,7 +300,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
               
               {nutrientTargets.length > 0 && (
                 <div className="space-y-3 pt-2">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Key Nutrient Targets</div>
+                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Top Nutrient Targets</div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {nutrientTargets.map((nt: any, i: number) => (
                       <div key={i} className="py-2">
@@ -358,7 +358,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
             </div>
           )}
 
-          {!isHandled && onAgentFinish && (
+          {!isHandled && onAgentFinish && riskCategories.length > 0 && (
             <div className="flex flex-col sm:flex-row items-center gap-3 pt-2">
               <button
                 onClick={() => handleApply(Array.from(unselectedKeys))}
