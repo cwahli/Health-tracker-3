@@ -1418,7 +1418,14 @@ export default function App() {
             filteredLocalFoods.forEach(l => foodUnionMap.set(l.id, l));
             // 2. Merge server items, respecting deleted IDs and preserving local image payloads
             filteredFoods.forEach(serverItem => {
-              if (deletedFoods[serverItem.id] || serverItem.sync_state === 'delete') return;
+              const isDeleted = deletedFoods[serverItem.id] || 
+                                (localProfile?.deletedFoodLogIds && localProfile.deletedFoodLogIds[serverItem.id]) ||
+                                (profile?.deletedFoodLogIds && profile.deletedFoodLogIds[serverItem.id]) ||
+                                serverItem.sync_state === 'delete';
+              if (isDeleted) {
+                foodUnionMap.delete(serverItem.id);
+                return;
+              }
               const existingLocal = foodUnionMap.get(serverItem.id);
               if (!existingLocal) {
                 foodUnionMap.set(serverItem.id, serverItem);
@@ -1950,6 +1957,12 @@ export default function App() {
           // This prevents automatic Firestore reads on every page load.
           if (loadedProfile && sessionStorage.getItem('sessionSyncTriggered') === 'true') {
             if (!loadedProfile.metadata) loadedProfile.metadata = {};
+            // If user already has food logs or profile locally, mark legacy migration as completed
+            // so ancient legacy subcollections are NEVER scanned or re-injected on page reload.
+            if (loadedFoods.length > 0) {
+              loadedProfile.metadata.legacyMigratedV2 = true;
+              loadedProfile.metadata.legacyMigrated = true;
+            }
             if (!loadedProfile.metadata.legacyMigratedV2) {
               // Cheap check: verify against the cloud flag before doing an expensive
               // full collection scan. Local IndexedDB may be empty (new browser,

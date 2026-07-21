@@ -52,7 +52,8 @@ export const syncLogsWithTimeBuckets = async (
         const serverItem = serverData.logs[item.id];
         
         if (item.sync_state === 'delete') {
-          if (!serverItem || (item.updated_at || 0) >= (serverItem.updated_at || 0)) {
+          // Unconditionally delete the tombstoned log from the monthly bucket document
+          if (serverItem || serverData.logs[item.id]) {
             delete serverData.logs[item.id];
             changed = true;
           }
@@ -133,8 +134,9 @@ export const fetchAllConsolidatedLogs = async (
     if (data && data.logs) {
       Object.values(data.logs).forEach((logInfo: any) => {
         if (logInfo.type === 'food') {
-          const t = deletedFoodLogIds[logInfo.data.id];
-          if (!t || (logInfo.data.updated_at || 0) > t) {
+          const isDeletedInMap = !!deletedFoodLogIds[logInfo.data.id];
+          const isDeletedInLog = logInfo.data.sync_state === 'delete';
+          if (!isDeletedInMap && !isDeletedInLog) {
             serverFoods.push({ ...logInfo.data, sync_state: 'synced' });
           }
         } else if (logInfo.type === 'biomarker') {
