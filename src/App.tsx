@@ -1706,6 +1706,16 @@ export default function App() {
     // Safety fallback: If Firebase auth takes too long to initialize (e.g. offline and indexedDB locked),
     // we stop the spinner so the user can interact with the app.
     const fallbackTimeout = setTimeout(async () => {
+      let alreadyLoggedIn = false;
+      setProfile((current) => {
+        if (current) alreadyLoggedIn = true;
+        return current;
+      });
+      if (alreadyLoggedIn) {
+        console.log("Auth check timed out, but user is already logged in. Bypassing fallback.");
+        return;
+      }
+
       console.warn("Auth check timed out. Falling back to local state.");
       
       const storageKey = getStorageKey('guest');

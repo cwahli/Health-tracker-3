@@ -3,7 +3,7 @@ import { toYYYYMMDD } from "../utils/dateUtils";
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { UserProfile, BiomarkerLog } from '../types';
 import { biomarkerDefinitions, BIOMARKER_GROUPING_OPTIONS, getBiomarkerMetadata } from '../utils/biomarkers';
-import { X, CheckCircle, AlertCircle, Edit2, Loader, Save, ArrowRight, CheckSquare, Square, MessageSquare, Send, ChevronLeft, ChevronDown, FileCode, Merge, Copy, Upload, Trash, Paperclip, Calendar, Info, Terminal, BrainCircuit } from 'lucide-react';
+import { X, CheckCircle, Check, AlertCircle, Edit2, Loader, Save, ArrowRight, CheckSquare, Square, MessageSquare, Send, ChevronLeft, ChevronDown, FileCode, Merge, Copy, Upload, Trash, Paperclip, Calendar, Info, Terminal, BrainCircuit } from 'lucide-react';
 import BiomarkerRangeBuilder, { parseNormalRangeStr } from './BiomarkerRangeBuilder';
 import CombineBiomarkersModal from './CombineBiomarkersModal';
 import LLMSelector from './LLMSelector';
@@ -1773,17 +1773,9 @@ I can analyze these, compare them with our database keys, and find standard mapp
     }
   };
 
-  const [groupEdits, setGroupEdits] = useState<{
-    [groupIndex: number]: {
-      recommendedClinicalName: string;
-      recommendedUniqueKey: string;
-      masterKey: string;
-      excludedKeys: { [key: string]: boolean };
-      unit?: string;
-      normalRange?: string;
-      description?: string;
-    }
-  }>({});
+  const [groupEdits, setGroupEdits] = useState<any>({});
+  const [editingGroupIdx, setEditingGroupIdx] = useState<number | null>(null);
+  const [viewingLogsKey, setViewingLogsKey] = useState<{ key: string; name: string } | null>(null);
 
 
   // Run Name Consolidation Agent (Chat Interface)
@@ -1812,11 +1804,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
         const customDef: any = profile.customBiomarkers?.[k] || biomarkerDefinitions.find((b: any) => b.key === k);
         return {
           key: k,
-          name: customDef?.name || k,
-          medicalGrouping: customDef?.standardMedicalGrouping || customDef?.medicalGrouping || '',
-          unit: customDef?.unit || '',
-          range: customDef?.normalRange || '',
-          description: customDef?.description || ''
+          name: customDef?.name || k
         };
       });
 
@@ -1924,16 +1912,20 @@ I can analyze these, compare them with our database keys, and find standard mapp
         const variantKeys: string[] = Array.isArray(group.variants) ? group.variants : [];
         const masterDetail = selectedBiomarkerDetails.find(d => variantKeys.includes(d.key)) || selectedBiomarkerDetails[0];
         const isExisting = !!group.isExistingKey && !!group.existingMasterKey;
+        const targetKeyForLookup = isExisting ? group.existingMasterKey : (masterDetail?.key || variantKeys[0] || '');
+        const def: any = profile.customBiomarkers?.[targetKeyForLookup] || biomarkerDefinitions.find((d: any) => d.key === targetKeyForLookup) || {};
+
         seededEdits[idx] = {
           recommendedClinicalName: group.canonicalName || '',
           // When merging into an already-approved key, the target key is that existing
           // key verbatim — never a newly invented one.
           recommendedUniqueKey: isExisting ? group.existingMasterKey : (group.recommendedKey || ''),
-          masterKey: isExisting ? group.existingMasterKey : (masterDetail?.key || variantKeys[0] || ''),
+          masterKey: targetKeyForLookup,
           excludedKeys: {},
-          unit: masterDetail?.unit || '',
-          normalRange: masterDetail?.range || '',
-          description: masterDetail?.description || ''
+          unit: def.unit || '',
+          normalRange: def.normalRange || def.range || '',
+          description: def.description || '',
+          mergeInfo: {}
         };
       });
       setGroupEdits(seededEdits);
@@ -1976,23 +1968,6 @@ I can analyze these, compare them with our database keys, and find standard mapp
         });
       }
 
-      const initialEdits: any = {};
-      parsed.forEach((group: any, idx: number) => {
-        const firstKey = group.biomarkers?.[0]?.key || group.recommendedUniqueKey || '';
-        const masterBio = group.biomarkers?.[0] || {};
-        const origMasterDef = profile.customBiomarkers?.[masterBio.key] || biomarkerDefinitions.find((def: any) => def.key === masterBio.key) || {} as any;
-        initialEdits[idx] = {
-          recommendedClinicalName: group.recommendedClinicalName || group.groupName || '',
-          recommendedUniqueKey: group.recommendedUniqueKey || '',
-          masterKey: firstKey,
-          excludedKeys: {},
-          unit: masterBio.unit || origMasterDef.unit || '',
-          normalRange: masterBio.range || origMasterDef.normalRange || '',
-          description: masterBio.description || origMasterDef.description || ''
-        };
-      });
-      setGroupEdits(initialEdits);
-
       if (data.explanation) {
         setConsolidationMessages(prev => [...prev, {
           role: 'agent',
@@ -2023,7 +1998,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
       
       for (let idx = 0; idx < consolidationGroups.length; idx++) {
         const group = consolidationGroups[idx];
-        const edits = groupEdits[idx];
+        const edits: any = groupEdits[idx];
         if (!edits) continue;
 
         const targetKey = edits.recommendedUniqueKey;
@@ -2035,7 +2010,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
             key: k,
             name: def.name || k,
             unit: def.unit || '',
-            range: def.normalRange || '',
+            range: def.normalRange || def.range || '',
             description: def.description || '',
             medicalGrouping: def.standardMedicalGrouping || def.medicalGrouping || ''
           };
@@ -2043,19 +2018,71 @@ I can analyze these, compare them with our database keys, and find standard mapp
         const includedBiomarkers = groupBiomarkers.filter((b: any) => !edits.excludedKeys[b.key]);
         if (includedBiomarkers.length === 0) continue;
 
-        const masterBio = includedBiomarkers.find((b: any) => b.key === edits.masterKey) || includedBiomarkers[0];
+        const keyExists = !!(biomarkerDefinitions.find((d: any) => d.key === targetKey) || profile.customBiomarkers?.[targetKey]);
         
-        const origMasterDef = profile.customBiomarkers?.[masterBio.key] || biomarkerDefinitions.find((def: any) => def.key === masterBio.key) || {} as any;
+        // Skip if new biomarker but user unchecked the "add" toggle
+        if (!keyExists && (edits as any).addNewBiomarker === false) {
+          continue;
+        }
+
+        const origMasterDef = profile.customBiomarkers?.[targetKey] || biomarkerDefinitions.find((def: any) => def.key === targetKey) || {} as any;
+        
+        let finalUnit = edits.unit !== undefined ? edits.unit : (origMasterDef.unit || '');
+        let finalRange = edits.normalRange !== undefined ? edits.normalRange : (origMasterDef.normalRange || origMasterDef.range || '');
+        let finalDescription = edits.description !== undefined ? edits.description : (origMasterDef.description || '');
+
+        // If key doesn't exist, use the fallback values of the chosen master key if they haven't been edited
+        if (!keyExists) {
+          const masterBio = includedBiomarkers.find((b: any) => b.key === edits.masterKey) || includedBiomarkers[0];
+          const masterDef = profile.customBiomarkers?.[masterBio.key] || biomarkerDefinitions.find((def: any) => def.key === masterBio.key) || {} as any;
+          if (edits.unit === undefined) {
+            finalUnit = masterDef.unit || masterBio?.unit || '';
+          }
+          if (edits.normalRange === undefined) {
+            finalRange = masterDef.normalRange || masterDef.range || masterBio?.range || '';
+          }
+          if (edits.description === undefined) {
+            finalDescription = masterDef.description || masterBio?.description || '';
+          }
+        }
+
+        // Additive merge logic: append differing, checked metadata from candidates
+        const mergeInfo = edits.mergeInfo || {};
+        includedBiomarkers.forEach((b) => {
+          const aliasMerge = mergeInfo[b.key] || {};
+          
+          if (b.key !== targetKey) {
+            // merge unit
+            if (aliasMerge.unit && b.unit && b.unit !== finalUnit) {
+              if (!finalUnit.includes(b.unit)) {
+                finalUnit = finalUnit ? `${finalUnit} | ${b.unit}` : b.unit;
+              }
+            }
+            // merge range
+            if (aliasMerge.range && b.range && b.range !== finalRange) {
+              if (!finalRange.includes(b.range)) {
+                finalRange = finalRange ? `${finalRange} | ${b.range}` : b.range;
+              }
+            }
+            // merge description
+            if (aliasMerge.description && b.description && b.description !== finalDescription) {
+              if (!finalDescription.includes(b.description)) {
+                finalDescription = finalDescription ? `${finalDescription} | ${b.description}` : b.description;
+              }
+            }
+          }
+        });
+
         const targetDef = {
           name: targetName,
-          unit: masterBio?.unit || '',
-          normalRange: masterBio?.range || '',
-          description: masterBio?.description || '',
-          standardMedicalGrouping: (origMasterDef as any).standardMedicalGrouping || (origMasterDef as any).medicalGrouping || masterBio?.medicalGrouping || '',
-          riskCategories: (origMasterDef as any).riskCategories || [],
-          potentialMedicalConditions: (origMasterDef as any).potentialMedicalConditions || [],
-          rangeConfig: (origMasterDef as any).rangeConfig,
-          customRanges: (origMasterDef as any).customRanges
+          unit: finalUnit,
+          normalRange: finalRange,
+          description: finalDescription,
+          standardMedicalGrouping: origMasterDef.standardMedicalGrouping || origMasterDef.medicalGrouping || '',
+          riskCategories: origMasterDef.riskCategories || [],
+          potentialMedicalConditions: origMasterDef.potentialMedicalConditions || [],
+          rangeConfig: origMasterDef.rangeConfig,
+          customRanges: origMasterDef.customRanges
         };
 
         const sourceKeysToDelete = includedBiomarkers.map((b: any) => b.key).filter((k: string) => k !== targetKey);
@@ -3048,8 +3075,13 @@ I can analyze these, compare them with our database keys, and find standard mapp
                       recommendedClinicalName: '',
                       recommendedUniqueKey: '',
                       masterKey: '',
-                      excludedKeys: {}
+                      excludedKeys: {},
+                      mergeInfo: {}
                     };
+
+                    const targetKey = edits.recommendedUniqueKey;
+                    const existingDef: any = biomarkerDefinitions.find((d: any) => d.key === targetKey) || profile.customBiomarkers?.[targetKey];
+                    const keyExists = !!existingDef;
 
                     const groupBiomarkers = (Array.isArray(group.variants) ? group.variants : (group.biomarkers || []).map((b: any) => b.key)).map((k: string) => {
                       const def: any = profile.customBiomarkers?.[k] || biomarkerDefinitions.find((d: any) => d.key === k) || {};
@@ -3057,213 +3089,447 @@ I can analyze these, compare them with our database keys, and find standard mapp
                         key: k,
                         name: def.name || k,
                         unit: def.unit || '',
-                        range: def.normalRange || '',
+                        range: def.normalRange || def.range || '',
                         description: def.description || '',
                         medicalGrouping: def.standardMedicalGrouping || def.medicalGrouping || ''
                       };
                     });
-                    const masterBio = groupBiomarkers.find((b: any) => b.key === edits.masterKey) || groupBiomarkers[0];
-                    const isExistingKeyGroup = !!group.isExistingKey && !!group.existingMasterKey;
 
                     return (
-                      <div key={groupIdx} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden p-4 space-y-4">
-                        <div className="flex items-center gap-2">
-                          {isExistingKeyGroup ? (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
-                              Existing key — will merge into "{group.existingMasterKey}"
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/40">
-                              New biomarker — suggest new key
-                            </span>
+                      <div key={groupIdx} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden p-5 space-y-5">
+                        
+                        {/* Status badge */}
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            {keyExists ? (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40">
+                                Existing Key — Will consolidate into "{targetKey}"
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/40">
+                                New Biomarker — Suggesting as a new key
+                              </span>
+                            )}
+                          </div>
+
+                          {/* If the key does not exist, show "Add as new biomarker" toggle */}
+                          {!keyExists && (
+                            <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                              <input
+                                type="checkbox"
+                                checked={(edits as any).addNewBiomarker !== false}
+                                className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                onChange={(e) => {
+                                  setGroupEdits({
+                                    ...groupEdits,
+                                    [groupIdx]: {
+                                      ...edits,
+                                      addNewBiomarker: e.target.checked
+                                    }
+                                  });
+                                }}
+                              />
+                              Add as new biomarker
+                            </label>
                           )}
                         </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Recommended Name</label>
-                            <input
-                              type="text"
-                              className="w-full text-xs font-medium bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
-                              value={edits.recommendedClinicalName}
-                              onChange={(e) => {
-                                setGroupEdits({
-                                  ...groupEdits,
-                                  [groupIdx]: {
-                                    ...edits,
-                                    recommendedClinicalName: e.target.value
-                                  }
-                                });
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Target Key</label>
-                            <input
-                              type="text"
-                              className="w-full text-xs font-mono bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
-                              value={edits.recommendedUniqueKey}
-                              onChange={(e) => {
-                                setGroupEdits({
-                                  ...groupEdits,
-                                  [groupIdx]: {
-                                    ...edits,
-                                    recommendedUniqueKey: e.target.value
-                                  }
-                                });
-                              }}
-                            />
-                          </div>
-                        </div>
-                        
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Final Unit</label>
-                            <input
-                              type="text"
-                              className="w-full text-xs font-mono bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
-                              value={edits.unit !== undefined ? edits.unit : ''}
-                              onChange={(e) => {
-                                setGroupEdits({
-                                  ...groupEdits,
-                                  [groupIdx]: { ...edits, unit: e.target.value }
-                                });
-                              }}
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Final Normal Range</label>
-                            <input
-                              type="text"
-                              className="w-full text-xs font-mono bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
-                              value={edits.normalRange !== undefined ? edits.normalRange : ''}
-                              onChange={(e) => {
-                                setGroupEdits({
-                                  ...groupEdits,
-                                  [groupIdx]: { ...edits, normalRange: e.target.value }
-                                });
-                              }}
-                            />
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Final Description</label>
-                          <textarea
-                            className="w-full text-xs bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-2 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500 min-h-[60px]"
-                            value={edits.description !== undefined ? edits.description : ''}
-                            onChange={(e) => {
-                              setGroupEdits({
-                                ...groupEdits,
-                                [groupIdx]: { ...edits, description: e.target.value }
-                              });
-                            }}
-                          />
-                        </div>
 
-                        <div className="overflow-x-auto border border-slate-100 dark:border-slate-800/50 rounded-lg">
-                          <table className="w-full text-left border-collapse">
-                            <thead>
-                              <tr className="bg-slate-50 dark:bg-slate-950 text-[10px] font-bold text-slate-500 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800/50">
-                                <th className="py-2 px-3 text-center w-12">Combine</th>
-                                <th className="py-2 px-3 text-center w-12">Master</th>
-                                <th className="py-2 px-3">Key / Name</th>
-                                <th className="py-2 px-3">Grouping</th>
-                                <th className="py-2 px-3">Unit</th>
-                                <th className="py-2 px-3 min-w-[80px]">Range</th>
-                                <th className="py-2 px-3 min-w-[150px]">Description</th>
-                                <th className="py-2 px-3">Logs</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {groupBiomarkers.map((b: any, bIdx: number) => {
-                                const isExcluded = !!edits.excludedKeys[b.key];
-                                const isMaster = edits.masterKey === b.key;
+                        {/* RATIONALE COMMENT */}
+                        {group.rationale && (
+                          <div className="p-3 bg-slate-50 dark:bg-slate-950/40 rounded-lg border border-slate-100 dark:border-slate-800/40 text-xs text-slate-600 dark:text-slate-400">
+                            <span className="font-bold text-slate-700 dark:text-slate-300">Rationale: </span>
+                            {group.rationale}
+                          </div>
+                        )}
 
-                                return (
-                                  <tr 
-                                    key={bIdx} 
-                                    className={`border-b border-slate-100 dark:border-slate-800/30 text-xs ${isExcluded ? 'opacity-40 bg-slate-50/50 dark:bg-slate-950/20' : ''} ${isMaster ? 'bg-violet-50/30 dark:bg-violet-900/10' : ''}`}
-                                  >
-                                    <td className="py-2.5 px-3 text-center">
-                                      <input
-                                        type="checkbox"
-                                        checked={!isExcluded}
-                                        disabled={isMaster}
-                                        className="w-3.5 h-3.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
-                                        onChange={(e) => {
-                                          const newExcluded = { ...edits.excludedKeys };
-                                          if (e.target.checked) {
-                                            delete newExcluded[b.key];
-                                          } else {
-                                            newExcluded[b.key] = true;
-                                          }
-                                          setGroupEdits({
-                                            ...groupEdits,
-                                            [groupIdx]: {
-                                              ...edits,
-                                              excludedKeys: newExcluded
-                                            }
-                                          });
-                                        }}
-                                      />
-                                    </td>
-                                    <td className="py-2.5 px-3 text-center">
-                                      <input
-                                        type="radio"
-                                        name={`group_master_${groupIdx}`}
-                                        checked={isMaster}
-                                        disabled={isExcluded}
-                                        className="w-3.5 h-3.5 text-indigo-600 border-slate-300 focus:ring-indigo-500 cursor-pointer"
-                                        onChange={() => {
-                                          setGroupEdits({
-                                            ...groupEdits,
-                                            [groupIdx]: {
-                                              ...edits,
-                                              masterKey: b.key
-                                            }
-                                          });
-                                        }}
-                                      />
-                                    </td>
-                                    <td className="py-2.5 px-3">
-                                      <div className="font-medium text-slate-800 dark:text-slate-200">{b.name}</div>
-                                      <div className="font-mono text-[10px] text-slate-400 mt-0.5">{b.key}</div>
-                                    </td>
-                                    <td className="py-2.5 px-3">
-                                      <div className="text-slate-600 dark:text-slate-400 mb-1">{b.medicalGrouping || '-'}</div>
-                                      {(() => {
-                                        const origDef = profile.customBiomarkers?.[b.key] || biomarkerDefinitions.find((def: any) => def.key === b.key) || {};
-                                        const rTags = (origDef as any).riskCategories || [];
-                                        const cTags = (origDef as any).potentialMedicalConditions || [];
-                                        if (rTags.length === 0 && cTags.length === 0) return null;
-                                        return (
-                                          <div className="flex flex-wrap gap-1">
-                                            {rTags.map((r: string, i: number) => (
-                                              <span key={i} className="text-[9px] font-bold px-1.5 py-0.5 bg-red-50 text-red-600 dark:bg-red-900/20 dark:text-red-400 rounded-full border border-red-100 dark:border-red-900/30 whitespace-nowrap">
-                                                {r}
-                                              </span>
-                                            ))}
-                                            {cTags.map((c: string, i: number) => (
-                                              <span key={i} className="text-[9px] font-bold px-1.5 py-0.5 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 rounded-full border border-blue-100 dark:border-blue-900/30 whitespace-nowrap">
-                                                {c}
-                                              </span>
-                                            ))}
+                        {/* UNIFIED DISPLAY TABLES */}
+                        {(() => {
+                          const isEditingThis = editingGroupIdx === groupIdx;
+                          const nameVal = edits.recommendedClinicalName || (existingDef ? (existingDef.name || targetKey) : '');
+                          const keyVal = targetKey;
+                          const unitVal = edits.unit !== undefined ? edits.unit : (existingDef ? (existingDef.unit || '') : '');
+                          const rangeVal = edits.normalRange !== undefined ? edits.normalRange : (existingDef ? (existingDef.normalRange || existingDef.range || '') : '');
+                          const descVal = edits.description !== undefined ? edits.description : (existingDef ? (existingDef.description || '') : '');
+
+                          return (
+                            <div className="space-y-4">
+                              {/* MASTER BIOMARKER TABLE */}
+                              <div className={`border rounded-xl overflow-hidden ${
+                                keyExists 
+                                  ? 'border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/5 dark:bg-emerald-950/5' 
+                                  : 'border-indigo-100 dark:border-indigo-900/30 bg-indigo-50/5 dark:bg-indigo-950/5'
+                              }`}>
+                                <div className={`px-4 py-2 text-[11px] font-bold border-b flex justify-between items-center ${
+                                  keyExists 
+                                    ? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-400 border-emerald-100 dark:border-emerald-900/30' 
+                                    : 'bg-indigo-500/10 text-indigo-800 dark:text-indigo-400 border-indigo-100 dark:border-indigo-900/30'
+                                }`}>
+                                  <span>{keyExists ? 'EXISTING MASTER BIOMARKER' : 'PROPOSED NEW MASTER BIOMARKER'}: {targetKey}</span>
+                                  <span className={`text-[10px] font-normal ${keyExists ? 'text-emerald-600' : 'text-indigo-600'}`}>
+                                    {keyExists ? 'Authority Definition' : 'Proposed Definition'}
+                                  </span>
+                                </div>
+                                <table className="w-full text-left border-collapse text-xs">
+                                  <thead>
+                                    <tr className="bg-slate-50/50 dark:bg-slate-950/20 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-100 dark:border-slate-800/30">
+                                      <th className="py-2 px-4 w-1/3">Name</th>
+                                      <th className="py-2 px-4 w-12 text-center">Unit</th>
+                                      <th className="py-2 px-4 w-1/4">Normal Range</th>
+                                      <th className="py-2 px-4">Description</th>
+                                      <th className="py-2 px-4 w-16 text-center">Logs</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    <tr className={`border-b border-slate-100 dark:border-slate-800/20 ${isEditingThis ? 'bg-slate-50/50 dark:bg-slate-950/20' : ''}`}>
+                                      <td className="py-3 px-4">
+                                        {isEditingThis ? (
+                                          <div className="space-y-3">
+                                            <div>
+                                              <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">Biomarker Name</label>
+                                              <input
+                                                type="text"
+                                                className="w-full text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
+                                                value={nameVal}
+                                                onChange={(e) => {
+                                                  setGroupEdits({
+                                                    ...groupEdits,
+                                                    [groupIdx]: {
+                                                      ...edits,
+                                                      recommendedClinicalName: e.target.value
+                                                    }
+                                                  });
+                                                }}
+                                              />
+                                            </div>
+                                            <div>
+                                              <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">Unique Key</label>
+                                              <input
+                                                type="text"
+                                                className="w-full text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
+                                                value={keyVal}
+                                                onChange={(e) => {
+                                                  setGroupEdits({
+                                                    ...groupEdits,
+                                                    [groupIdx]: {
+                                                      ...edits,
+                                                      recommendedUniqueKey: e.target.value
+                                                    }
+                                                  });
+                                                }}
+                                              />
+                                            </div>
+                                            <div className="flex items-center gap-2 pt-1">
+                                              <button
+                                                onClick={() => setEditingGroupIdx(null)}
+                                                className="px-2 py-1 bg-emerald-50 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/50 rounded text-[10px] font-bold flex items-center gap-1 hover:bg-emerald-100 transition-colors"
+                                              >
+                                                <Check className="w-3.5 h-3.5" /> Save
+                                              </button>
+                                              <button
+                                                onClick={() => setEditingGroupIdx(null)}
+                                                className="px-2 py-1 bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 rounded text-[10px] font-bold hover:bg-slate-200 transition-colors"
+                                              >
+                                                Cancel
+                                              </button>
+                                            </div>
                                           </div>
-                                        );
-                                      })()}
-                                    </td>
-                                    <td className="py-2.5 px-3 font-mono text-slate-600 dark:text-slate-400">{b.unit || '-'}</td>
-                                    <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400 text-[10px] whitespace-pre-wrap">{b.range || '-'}</td>
-                                    <td className="py-2.5 px-3 text-slate-600 dark:text-slate-400 text-[10px]">{b.description || '-'}</td>
-                                    <td className="py-2.5 px-3 font-medium text-slate-600 dark:text-slate-400">
-                                      {biomarkerHistory.filter((h: any) => h.biomarkers && h.biomarkers[b.key] !== undefined).length}
-                                    </td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
+                                        ) : (
+                                          <div>
+                                            <div className="flex items-center gap-2 group/title">
+                                              <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">
+                                                {nameVal || 'Unnamed'}
+                                              </span>
+                                              <button
+                                                onClick={() => setEditingGroupIdx(groupIdx)}
+                                                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                                                title="Edit Master Details"
+                                              >
+                                                <Edit2 className="w-3.5 h-3.5" />
+                                              </button>
+                                            </div>
+                                            <div className="font-mono text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                              {keyVal}
+                                            </div>
+                                            
+                                            {/* Existing aliases list */}
+                                            <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">
+                                              <span className="font-bold text-slate-500 dark:text-slate-400">Existing Aliases: </span>
+                                              {existingDef && existingDef.aliases && existingDef.aliases.length > 0 ? (
+                                                <span className="italic font-mono bg-slate-100 dark:bg-slate-800/50 px-1 py-0.5 rounded text-[10px] text-slate-600 dark:text-slate-400">
+                                                  {existingDef.aliases.join(', ')}
+                                                </span>
+                                              ) : (
+                                                <span className="italic text-slate-400">None</span>
+                                              )}
+                                            </div>
+                                          </div>
+                                        )}
+                                      </td>
+                                      
+                                      {/* Unit Cell */}
+                                      <td className="py-2.5 px-4 font-mono text-center text-slate-600 dark:text-slate-400">
+                                        {isEditingThis ? (
+                                          <input
+                                            type="text"
+                                            className="w-full text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-center text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
+                                            value={unitVal}
+                                            onChange={(e) => {
+                                              setGroupEdits({
+                                                ...groupEdits,
+                                                [groupIdx]: {
+                                                  ...edits,
+                                                  unit: e.target.value
+                                                }
+                                              });
+                                            }}
+                                          />
+                                        ) : (
+                                          unitVal || '-'
+                                        )}
+                                      </td>
+
+                                      {/* Range Cell */}
+                                      <td className="py-2.5 px-4 font-mono text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
+                                        {isEditingThis ? (
+                                          <input
+                                            type="text"
+                                            className="w-full text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
+                                            value={rangeVal}
+                                            onChange={(e) => {
+                                              setGroupEdits({
+                                                ...groupEdits,
+                                                [groupIdx]: {
+                                                  ...edits,
+                                                  normalRange: e.target.value
+                                                }
+                                              });
+                                            }}
+                                          />
+                                        ) : (
+                                          rangeVal || '-'
+                                        )}
+                                      </td>
+
+                                      {/* Description Cell */}
+                                      <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
+                                        {isEditingThis ? (
+                                          <textarea
+                                            className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500 min-h-[60px]"
+                                            value={descVal}
+                                            onChange={(e) => {
+                                              setGroupEdits({
+                                                ...groupEdits,
+                                                [groupIdx]: {
+                                                  ...edits,
+                                                  description: e.target.value
+                                                }
+                                              });
+                                            }}
+                                          />
+                                        ) : (
+                                          descVal || '-'
+                                        )}
+                                      </td>
+
+                                      {/* Logs Cell */}
+                                      <td 
+                                        onClick={() => setViewingLogsKey({ key: keyVal, name: nameVal || keyVal })}
+                                        className="py-2.5 px-4 text-center font-bold text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-emerald-500/10 dark:hover:bg-emerald-500/20 underline decoration-dotted transition-all"
+                                        title="Click to view history logs"
+                                      >
+                                        {biomarkerHistory.filter((h: any) => h.biomarkers && h.biomarkers[keyVal] !== undefined).length}
+                                      </td>
+                                    </tr>
+                                  </tbody>
+                                </table>
+                              </div>
+
+                              {/* ALIASES TABLE */}
+                              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+                                <div className="px-4 py-2 bg-slate-50 dark:bg-slate-950 text-[11px] font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                                  <span>CANDIDATE ALIASES TO CONSOLIDATE</span>
+                                  <span className="text-[10px] text-slate-500 font-normal">Check different info to append it</span>
+                                </div>
+                                <table className="w-full text-left border-collapse text-xs">
+                                  <thead>
+                                    <tr className="bg-slate-50/50 dark:bg-slate-950/20 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200 dark:border-slate-800">
+                                      <th className="py-2 px-4 w-1/4">Alias Name / Key</th>
+                                      <th className="py-2 px-4 w-1/5">Unit info</th>
+                                      <th className="py-2 px-4 w-1/5">Range info</th>
+                                      <th className="py-2 px-4 w-1/5">Description info</th>
+                                      <th className="py-2 px-4 w-16 text-center">Logs</th>
+                                      <th className="py-2 px-4 w-16 text-center">Include</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {groupBiomarkers.map((b: any, bIdx: number) => {
+                                      // Calculate same vs different
+                                      const masterUnit = unitVal === '-' ? '' : unitVal;
+                                      const masterRange = rangeVal === '-' ? '' : rangeVal;
+                                      const masterDesc = descVal === '-' ? '' : descVal;
+
+                                      const isUnitSame = !b.unit || b.unit === masterUnit;
+                                      const isRangeSame = !b.range || b.range === masterRange;
+                                      const isDescSame = !b.description || b.description === masterDesc;
+
+                                      const mergeInfo = edits.mergeInfo || {};
+                                      const aliasMerge = mergeInfo[b.key] || {};
+                                      const isExcluded = !!edits.excludedKeys?.[b.key];
+                                      const isIncluded = !isExcluded;
+
+                                      return (
+                                        <tr key={bIdx} className={`border-b border-slate-100 dark:border-slate-800/30 font-medium transition-opacity ${isExcluded ? 'opacity-50' : ''}`}>
+                                          <td className="py-3 px-4">
+                                            <div className="font-semibold text-slate-800 dark:text-slate-200">{b.name}</div>
+                                            <div className="font-mono text-[10px] text-slate-400 mt-0.5">{b.key}</div>
+                                          </td>
+                                          
+                                          {/* Unit col */}
+                                          <td className="py-3 px-4">
+                                            {isUnitSame ? (
+                                              <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                                                <Check className="w-4 h-4 shrink-0" />
+                                                <span className="text-[11px] font-mono">{b.unit || 'Empty'}</span>
+                                              </div>
+                                            ) : (
+                                              <label className="flex items-center gap-2 cursor-pointer bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={!!aliasMerge.unit}
+                                                  className="w-3.5 h-3.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                                  onChange={(e) => {
+                                                    const newMergeInfo = { ...mergeInfo };
+                                                    newMergeInfo[b.key] = {
+                                                      ...aliasMerge,
+                                                      unit: e.target.checked
+                                                    };
+                                                    setGroupEdits({
+                                                      ...groupEdits,
+                                                      [groupIdx]: {
+                                                        ...edits,
+                                                        mergeInfo: newMergeInfo
+                                                      }
+                                                    });
+                                                  }}
+                                                />
+                                                <span className="text-[11px] font-mono font-medium text-slate-700 dark:text-slate-300" title="Add unit to master">
+                                                  {b.unit}
+                                                </span>
+                                              </label>
+                                            )}
+                                          </td>
+
+                                          {/* Range col */}
+                                          <td className="py-3 px-4">
+                                            {isRangeSame ? (
+                                              <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                                                <Check className="w-4 h-4 shrink-0" />
+                                                <span className="text-[11px] font-mono truncate max-w-[120px]" title={b.range}>{b.range || 'Empty'}</span>
+                                              </div>
+                                            ) : (
+                                              <label className="flex items-center gap-2 cursor-pointer bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={!!aliasMerge.range}
+                                                  className="w-3.5 h-3.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                                  onChange={(e) => {
+                                                    const newMergeInfo = { ...mergeInfo };
+                                                    newMergeInfo[b.key] = {
+                                                      ...aliasMerge,
+                                                      range: e.target.checked
+                                                    };
+                                                    setGroupEdits({
+                                                      ...groupEdits,
+                                                      [groupIdx]: {
+                                                        ...edits,
+                                                        mergeInfo: newMergeInfo
+                                                      }
+                                                    });
+                                                  }}
+                                                />
+                                                <span className="text-[10px] text-slate-700 dark:text-slate-300 truncate max-w-[120px]" title="Add range to master">
+                                                  {b.range}
+                                                </span>
+                                              </label>
+                                            )}
+                                          </td>
+
+                                          {/* Description col */}
+                                          <td className="py-3 px-4">
+                                            {isDescSame ? (
+                                              <div className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400">
+                                                <Check className="w-4 h-4 shrink-0" />
+                                                <span className="text-[11px] truncate max-w-[150px]" title={b.description}>{b.description || 'Empty'}</span>
+                                              </div>
+                                            ) : (
+                                              <label className="flex items-center gap-2 cursor-pointer bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={!!aliasMerge.description}
+                                                  className="w-3.5 h-3.5 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                                  onChange={(e) => {
+                                                    const newMergeInfo = { ...mergeInfo };
+                                                    newMergeInfo[b.key] = {
+                                                      ...aliasMerge,
+                                                      description: e.target.checked
+                                                    };
+                                                    setGroupEdits({
+                                                      ...groupEdits,
+                                                      [groupIdx]: {
+                                                        ...edits,
+                                                        mergeInfo: newMergeInfo
+                                                      }
+                                                    });
+                                                  }}
+                                                />
+                                                <span className="text-[10px] text-slate-700 dark:text-slate-300 truncate max-w-[150px]" title="Add description to master">
+                                                  {b.description}
+                                                </span>
+                                              </label>
+                                            )}
+                                          </td>
+
+                                          {/* Logs col */}
+                                          <td 
+                                            onClick={() => setViewingLogsKey({ key: b.key, name: b.name })}
+                                            className="py-3 px-4 text-center font-medium text-slate-600 dark:text-slate-400 cursor-pointer hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20 underline decoration-dotted transition-all"
+                                            title="Click to view history logs"
+                                          >
+                                            {biomarkerHistory.filter((h: any) => h.biomarkers && h.biomarkers[b.key] !== undefined).length}
+                                          </td>
+
+                                          {/* Include / Exclude Checkbox */}
+                                          <td className="py-3 px-4 text-center">
+                                            <input
+                                              type="checkbox"
+                                              checked={isIncluded}
+                                              className="w-4 h-4 text-indigo-600 border-slate-300 rounded focus:ring-indigo-500 cursor-pointer"
+                                              onChange={(e) => {
+                                                const newExcluded = { ...(edits.excludedKeys || {}) };
+                                                if (e.target.checked) {
+                                                  delete newExcluded[b.key];
+                                                } else {
+                                                  newExcluded[b.key] = true;
+                                                }
+                                                setGroupEdits({
+                                                  ...groupEdits,
+                                                  [groupIdx]: {
+                                                    ...edits,
+                                                    excludedKeys: newExcluded
+                                                  }
+                                                });
+                                              }}
+                                            />
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                     );
                   })}
@@ -4445,6 +4711,73 @@ I can analyze these, compare them with our database keys, and find standard mapp
         agentType="data_accuracy"
         profile={profile}
       />
+
+      {/* CLICKABLE LOG HISTORY VIEWER MODAL OVERLAY */}
+      {viewingLogsKey && (() => {
+        const key = viewingLogsKey.key;
+        const name = viewingLogsKey.name;
+        const itemLogs = biomarkerHistory
+          .filter((h: any) => h.biomarkers && h.biomarkers[key] !== undefined)
+          .map((h: any) => ({ date: h.date, value: h.biomarkers[key] }))
+          .sort((a: any, b: any) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
+        
+        return (
+          <div className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[80vh] animate-in fade-in zoom-in-95 duration-200">
+              <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+                <div>
+                  <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">{name}</h3>
+                  <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500 mt-0.5">Key: {key}</p>
+                </div>
+                <button
+                  onClick={() => setViewingLogsKey(null)}
+                  className="p-1.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 rounded-lg hover:bg-slate-150 dark:hover:bg-slate-800 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              <div className="p-4 sm:p-5 flex-1 overflow-y-auto space-y-4">
+                {itemLogs.length === 0 ? (
+                  <div className="text-center py-12 text-slate-400 dark:text-slate-500 text-xs">
+                    No logs recorded for this biomarker.
+                  </div>
+                ) : (
+                  <div className="border border-slate-100 dark:border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
+                    <table className="w-full text-left border-collapse text-xs">
+                      <thead>
+                        <tr className="bg-slate-50/55 dark:bg-slate-950/40 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-150 dark:border-slate-800">
+                          <th className="py-2.5 px-4">Date</th>
+                          <th className="py-2.5 px-4 text-right">Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {itemLogs.map((log: any, idx: number) => (
+                          <tr key={idx} className="border-b border-slate-100 dark:border-slate-800/30 hover:bg-slate-50/50 dark:hover:bg-slate-950/20 font-medium">
+                            <td className="py-2.5 px-4 font-mono text-slate-600 dark:text-slate-400">
+                              {log.date}
+                            </td>
+                            <td className="py-2.5 px-4 text-right font-bold text-slate-800 dark:text-slate-200 font-mono">
+                              {log.value}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+              </div>
+              <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex justify-end bg-slate-50/50 dark:bg-slate-950/20">
+                <button
+                  onClick={() => setViewingLogsKey(null)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-colors"
+                >
+                  Close Logs
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
