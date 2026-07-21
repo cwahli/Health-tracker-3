@@ -1012,7 +1012,8 @@ async function callUnifiedLLMInternal({
     (normalizedModelId.includes("flash") && !normalizedModelId.includes("1.5"))
   )) {
     configObj.thinkingConfig = {
-      thinkingBudget: 1024
+      thinkingBudget: 1024,
+      includeThoughts: true
     };
   }
   
@@ -4927,13 +4928,41 @@ You must return a raw, valid JSON object matching this exact schema. Do not incl
       required: ["scratchpad", "mappedBiomarkers"]
     };
 
-    const textOutput = await callUnifiedLLM({
-      modelId,
-      systemInstruction: systemInstruction + "\n\nJSON STRUCTURED OUTPUT:\nYou must strictly return a JSON object. Do not add markdown wrappers. Think step-by-step in the 'scratchpad' field first.",
-      promptText,
-      responseMimeType: "application/json",
-      responseSchema: standardizeUnitsSchema
-    });
+    const makeStandardizationCall = async () => {
+      let timeoutId: NodeJS.Timeout;
+      const standardizationTimeout = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error("Clinical unit standardization timed out after 115s. Model under high demand — please try again.")), 115000);
+      });
+      try {
+        const llmPromise = callUnifiedLLM({
+          modelId,
+          systemInstruction: systemInstruction + "\n\nJSON STRUCTURED OUTPUT:\nYou must strictly return a JSON object. Do not add markdown wrappers. Think step-by-step in the 'scratchpad' field first.",
+          promptText,
+          responseMimeType: "application/json",
+          responseSchema: standardizeUnitsSchema
+        });
+        
+        // Prevent unhandled rejection if this promise settles after Promise.race finishes
+        llmPromise.catch(() => {});
+        
+        const result = await Promise.race([
+          llmPromise,
+          standardizationTimeout
+        ]);
+        return result as string;
+      } finally {
+        clearTimeout(timeoutId!);
+      }
+    };
+
+    let textOutput: string;
+    try {
+      textOutput = await makeStandardizationCall();
+    } catch (firstErr: any) {
+      addDebugLog(`[Standardize Units Agent] First attempt failed: ${firstErr.message}. Retrying once in 500ms...`, explicitSessionId);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      textOutput = await makeStandardizationCall();
+    }
 
     let cleanJson = textOutput.replace(/```(?:json)?/gi, "").trim();
     addDebugLog(`[Standardize Units Agent] Agent output payload:\n${cleanJson}`, explicitSessionId);
