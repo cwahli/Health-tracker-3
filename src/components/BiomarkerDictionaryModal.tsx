@@ -1802,9 +1802,12 @@ I can analyze these, compare them with our database keys, and find standard mapp
     try {
       const selectedBiomarkerDetails = selectedKeys.map(k => {
         const customDef: any = profile.customBiomarkers?.[k] || biomarkerDefinitions.find((b: any) => b.key === k);
+        const log = biomarkerHistory.find(h => h.biomarkers && h.biomarkers[k] !== undefined);
+        const value = log ? log.biomarkers[k] : '';
         return {
-          key: k,
-          name: customDef?.name || k
+          name: customDef?.name || k,
+          unit: customDef?.unit || '',
+          value: value
         };
       });
 
@@ -1814,11 +1817,11 @@ I can analyze these, compare them with our database keys, and find standard mapp
       const selectedKeySet = new Set(selectedKeys);
       const approvedCustomEntries = Object.entries(profile.customBiomarkers || {})
         .filter(([k, v]: [string, any]) => !v?.needsApproval && !selectedKeySet.has(k))
-        .map(([k, v]: [string, any]) => ({ key: k, name: v?.name || k, aliases: v?.aliases || [] }));
+        .map(([k, v]: [string, any]) => ({ key: k, name: v?.name || k }));
       const existingKeysList = [
         ...biomarkerDefinitions
           .filter((d: any) => !selectedKeySet.has(d.key))
-          .map((d: any) => ({ key: d.key, name: d.name, aliases: d.aliases || [] })),
+          .map((d: any) => ({ key: d.key, name: d.name })),
         ...approvedCustomEntries
       ];
 
@@ -1909,10 +1912,13 @@ I can analyze these, compare them with our database keys, and find standard mapp
       // biomarker metadata.
       const seededEdits: typeof groupEdits = {};
       parsed.forEach((group: any, idx: number) => {
-        const variantKeys: string[] = Array.isArray(group.variants) ? group.variants : [];
-        const masterDetail = selectedBiomarkerDetails.find(d => variantKeys.includes(d.key)) || selectedBiomarkerDetails[0];
+        const aliasNames: string[] = Array.isArray(group.aliases) ? group.aliases : [];
+        const masterName = aliasNames[0];
+        const masterKey = Object.keys(profile.customBiomarkers || {}).find(k => profile.customBiomarkers[k].name === masterName) || 
+                          biomarkerDefinitions.find(d => d.name === masterName)?.key || '';
+        const masterDetail = selectedBiomarkerDetails.find(d => d.name === masterName) || selectedBiomarkerDetails[0];
         const isExisting = !!group.isExistingKey && !!group.existingMasterKey;
-        const targetKeyForLookup = isExisting ? group.existingMasterKey : (masterDetail?.key || variantKeys[0] || '');
+        const targetKeyForLookup = isExisting ? group.existingMasterKey : (masterKey || aliasNames[0] || '');
         const def: any = profile.customBiomarkers?.[targetKeyForLookup] || biomarkerDefinitions.find((d: any) => d.key === targetKeyForLookup) || {};
 
         seededEdits[idx] = {
@@ -2004,7 +2010,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
         const targetKey = edits.recommendedUniqueKey;
         const targetName = edits.recommendedClinicalName;
 
-        const groupBiomarkers = (Array.isArray(group.variants) ? group.variants : (group.biomarkers || []).map((b: any) => b.key)).map((k: string) => {
+        const groupBiomarkers = (Array.isArray(group.aliases) ? group.aliases : (group.biomarkers || []).map((b: any) => b.key)).map((k: string) => {
           const def: any = profile.customBiomarkers?.[k] || biomarkerDefinitions.find((d: any) => d.key === k) || {};
           return {
             key: k,
@@ -3083,7 +3089,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                     const existingDef: any = biomarkerDefinitions.find((d: any) => d.key === targetKey) || profile.customBiomarkers?.[targetKey];
                     const keyExists = !!existingDef;
 
-                    const groupBiomarkers = (Array.isArray(group.variants) ? group.variants : (group.biomarkers || []).map((b: any) => b.key)).map((k: string) => {
+                    const groupBiomarkers = (Array.isArray(group.aliases) ? group.aliases : (group.biomarkers || []).map((b: any) => b.key)).map((k: string) => {
                       const def: any = profile.customBiomarkers?.[k] || biomarkerDefinitions.find((d: any) => d.key === k) || {};
                       return {
                         key: k,

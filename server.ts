@@ -5125,13 +5125,13 @@ app.post("/api/gemini/consolidate-names", async (req, res) => {
       addDebugLog(`[Name Consolidation Agent] User Prompt:\n${inputText}`, explicitSessionId);
     }
 
-    let systemInstruction = `You are an automated Name Consolidation Agent. Your task is to identify clinical biomarkers with similar, synonymous, or variant names from a selected list and group them together to make consolidation easy.
+    let systemInstruction = `You are an automated Name Consolidation Agent. Your task is to identify clinical biomarkers with similar, synonymous, or alias names from a selected list and group them together to make consolidation easy.
 
 === SYSTEM CONSTRAINTS ===
 - DO NOT perform, input, or output any form of medical categorization, standard medical grouping, or physiological classification.
 - You are given a reference list of ALREADY-APPROVED keys (EXISTING DICTIONARY below). For every group you form, you MUST check whether it is actually a duplicate/synonym of one of those already-approved keys.
-  * If it matches an existing key: set "isExistingKey" to true, set "existingMasterKey" to that exact existing key (copy it verbatim, do not invent a new one), and set "recommendedKey" to that same existing key. "variants" should list only the NEW candidate keys from the selected batch that should become aliases of it (do not include the existing key itself, since it isn't part of the selected batch).
-  * If nothing in the existing dictionary matches: set "isExistingKey" to false, "existingMasterKey" to null, and propose a new "recommendedKey" / "canonicalName" as before, with "variants" listing every selected-batch key that belongs in this new group.
+  * If it matches an existing key (for example, if a candidate name is "serum_sodium_mmol_l" or "serum_sodium" and the existing dictionary contains the key "sodium" or name "Sodium", they are synonymous): set "isExistingKey" to true, set "existingMasterKey" to that exact existing key verbatim (e.g., "sodium" — do not invent a new key, and do not use a candidate name like "serum_sodium" if it isn't in the EXISTING DICTIONARY), and set "recommendedKey" to that same existing key. "aliases" should list only the NEW candidate names from the selected batch that should become aliases of it (do not include the existing key itself, since it isn't part of the selected batch).
+  * If nothing in the existing dictionary matches: set "isExistingKey" to false, "existingMasterKey" to null, and propose a new "recommendedKey" / "canonicalName" as before, with "aliases" listing every selected-batch name that belongs in this new group.
 - You must return a raw, valid JSON object matching this exact schema. Do not include markdown wrappers.
 
 === OUTPUT SCHEMA ===
@@ -5141,7 +5141,7 @@ app.post("/api/gemini/consolidate-names", async (req, res) => {
     {
       "canonicalName": "string (Recommended Clinical Name, e.g., 'Serum Albumin')",
       "recommendedKey": "string (unique key using snake_case, e.g., 'serum_albumin')",
-      "variants": ["array of strings containing the original keys from the selected batch that match this group"],
+      "aliases": ["array of strings containing the original names from the selected batch that match this group"],
       "rationale": "string (Why these are the same clinical biomarker)",
       "isExistingKey": false,
       "existingMasterKey": null
@@ -5166,7 +5166,7 @@ Please output a valid JSON object matching the requested schema.`;
     const consolidateNamesSchema = {
       type: Type.OBJECT,
       properties: {
-        scratchpad: { type: Type.STRING, description: "Think step-by-step: compare the provided names against each other and against the existing dictionary, identify synonyms, determine the most universally recognized clinical name, and map variants." },
+        scratchpad: { type: Type.STRING, description: "Think step-by-step: compare the provided names against each other and against the existing dictionary, identify synonyms, determine the most universally recognized clinical name, and map aliases." },
         consolidatedGroups: {
           type: Type.ARRAY,
           items: {
@@ -5174,7 +5174,7 @@ Please output a valid JSON object matching the requested schema.`;
             properties: {
               canonicalName: { type: Type.STRING },
               recommendedKey: { type: Type.STRING },
-              variants: { type: Type.ARRAY, items: { type: Type.STRING } },
+              aliases: { type: Type.ARRAY, items: { type: Type.STRING } },
               rationale: { type: Type.STRING },
               isExistingKey: { type: Type.BOOLEAN, description: "true if this group matches an already-approved key from the existing dictionary" },
               existingMasterKey: { type: Type.STRING, description: "the exact matching key from the existing dictionary, copied verbatim, or omitted/empty if isExistingKey is false" }

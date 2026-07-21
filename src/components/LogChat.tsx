@@ -2131,6 +2131,17 @@ ${logsText}`);
       
       if (isAgent('food')) {
         assistantMsg.agentType = 'food';
+        
+        // Always initialize default data structure to preserve scratchpads across all modes (including discussion)
+        assistantMsg.data = {
+          hasImage: selectedImages.length > 0,
+          scoutItems: resData.scoutItems || [],
+          scoutContentType: resData.scoutContentType,
+          agentResult: {
+            scoutScratchpad: resData.scoutScratchpad || '',
+            dietitianScratchpad: resData.dietitianScratchpad || ''
+          }
+        };
         if (resData.data) {
           const lastFoodLog = [...messages].reverse().find(m => m.data?.pendingFoodLog)?.pendingFoodLog;
           const currentTranscript = [...messages, userMsg, assistantMsg].map(m => ({
@@ -2146,15 +2157,7 @@ ${logsText}`);
             imageUrls: tempImages.length > 0 ? tempImages : resData.data.imageUrls,
             chatTranscript: currentTranscript
           };
-          assistantMsg.data = { 
-            pendingFoodLog: newFoodLog,
-            scoutItems: resData.scoutItems || [],
-            scoutContentType: resData.scoutContentType,
-            agentResult: {
-              scoutScratchpad: resData.scoutScratchpad || '',
-              dietitianScratchpad: resData.dietitianScratchpad || ''
-            }
-          };
+          assistantMsg.data.pendingFoodLog = newFoodLog;
           assistantMsg.pendingFoodLog = newFoodLog;
         } else if (resData.mode === 'evaluation') {
           let carryOverScoutItems = resData.scoutItems || [];
@@ -2164,16 +2167,11 @@ ${logsText}`);
                 carryOverScoutItems = sourceMsg.data.scoutItems;
              }
           }
-          assistantMsg.data = {
-            agentResult: resData,
-            scoutItems: carryOverScoutItems,
-            scoutContentType: resData.scoutContentType
-          };
+          assistantMsg.data.comparison = resData.comparison;
+          assistantMsg.data.scoutItems = carryOverScoutItems;
         } else if (resData.mode === 'origin') {
-          assistantMsg.data = {
-            mode: 'origin',
-            origins: resData.origins || []
-          };
+          assistantMsg.data.mode = 'origin';
+          assistantMsg.data.origins = resData.origins || [];
         }
       } else if (isAgent('food_idea')) {
         assistantMsg.agentType = 'food_idea';
