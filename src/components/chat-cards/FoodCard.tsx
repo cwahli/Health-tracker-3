@@ -14,21 +14,22 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { ZoomableImage } from '../ZoomableImage';
 import { FoodScoutItemPreview, OnlineFoodImage } from './FoodScoutItemPreview';
 
-export const AgentThoughtBox = ({ scoutScratchpad, dietitianScratchpad, isLive }: { scoutScratchpad?: string, dietitianScratchpad?: string, isLive?: boolean }) => {
+export const AgentThoughtBox = ({ scoutScratchpad, dietitianScratchpad, isLive, placeholderStep }: { scoutScratchpad?: string, dietitianScratchpad?: string, isLive?: boolean, placeholderStep?: string }) => {
   const [isExpanded, setIsExpanded] = React.useState(!!isLive);
-  
+
   React.useEffect(() => {
     if (isLive) {
       setIsExpanded(true);
     }
   }, [isLive]);
 
-  if (!scoutScratchpad && !dietitianScratchpad) return null;
-  
+  const hasScratchpad = !!scoutScratchpad || !!dietitianScratchpad;
+  if (!hasScratchpad && !placeholderStep) return null;
+
   return (
-    <div className="bg-white dark:bg-slate-800 rounded-2xl px-4 py-3 shadow-sm border border-slate-200 dark:border-slate-800/40 min-w-[250px] my-2">
+    <div className="px-1 py-2 my-2 min-w-[250px]">
       <div className="flex flex-col gap-2">
-        <button 
+        <button
           onClick={() => setIsExpanded(!isExpanded)}
           className="text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between font-medium hover:text-indigo-600 transition-colors w-full"
         >
@@ -39,11 +40,17 @@ export const AgentThoughtBox = ({ scoutScratchpad, dietitianScratchpad, isLive }
           {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
         </button>
         {isExpanded && (
-          <div className="flex flex-col gap-3 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
+          <div className="flex flex-col gap-3 mt-2 pt-2">
+            {!hasScratchpad && placeholderStep && (
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 italic animate-pulse px-1 flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping"></span>
+                {placeholderStep}
+              </p>
+            )}
             {scoutScratchpad && (
               <div className="flex flex-col gap-1 text-left">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Vision Scout</span>
-                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg font-mono text-[11px] border border-slate-100 dark:border-slate-800">
+                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px]">
                   {scoutScratchpad}
                 </p>
               </div>
@@ -51,7 +58,7 @@ export const AgentThoughtBox = ({ scoutScratchpad, dietitianScratchpad, isLive }
             {dietitianScratchpad && (
               <div className="flex flex-col gap-1 text-left">
                 <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian</span>
-                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed bg-indigo-50/50 dark:bg-indigo-900/20 p-2 rounded-lg font-mono text-[11px] border border-indigo-100 dark:border-indigo-800/30">
+                <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px]">
                   {dietitianScratchpad}
                 </p>
               </div>

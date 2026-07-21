@@ -994,72 +994,37 @@ export default function App() {
               
               // We must still load images
               if (v2Foods.length > 0 && localStorage.getItem('auto_sync_disabled') !== 'true') {
-                const imagesSnap = await getDocs(collection(db, 'users', uid, 'foodImages'));
-                const shouldCompress = !hasRunImageCompression.current;
-                if (shouldCompress) hasRunImageCompression.current = true;
                 const imageMap: Record<string, any> = {};
-                const updatesToPush: { id: string; imageUrl?: string; imageUrls?: string[]; compressionAttempted?: boolean }[] = [];
-
-                for (const d of imagesSnap.docs) {
-                  const data = d.data();
-                  let imageUrl = data.imageUrl;
-                  let imageUrls = data.imageUrls || [];
-                  let needsUpdate = false;
-                  let compressionAttemptedForThisDoc = false;
-
-                  if (shouldCompress && !data.compressionAttempted && imageUrl && imageUrl.startsWith('data:image/') && imageUrl.length > 25000) {
-                    compressionAttemptedForThisDoc = true;
-                    try {
-                      const compressed = await compressImage(imageUrl, 800, 800, 0.7);
-                      if (compressed !== imageUrl && compressed.length < imageUrl.length) {
-                        imageUrl = compressed;
-                        needsUpdate = true;
-                      }
-                    } catch (e) {
-                      console.warn("Auto-recompression failed for imageUrl:", d.id, e);
-                    }
+                
+                // 1. Seed from local storage to avoid downloading identical images
+                localFoods.forEach(lf => {
+                  if (lf.imageUrl || (lf.imageUrls && lf.imageUrls.length > 0)) {
+                    imageMap[lf.id] = { imageUrl: lf.imageUrl, imageUrls: lf.imageUrls || [] };
                   }
+                });
 
-                  if (imageUrls && imageUrls.length > 0) {
-                    const newUrls = [];
-                    for (const url of imageUrls) {
-                      if (shouldCompress && !data.compressionAttempted && url && url.startsWith('data:image/') && url.length > 25000) {
-                        compressionAttemptedForThisDoc = true;
-                        try {
-                          const compressed = await compressImage(url, 800, 800, 0.7);
-                          if (compressed !== url && compressed.length < url.length) {
-                            newUrls.push(compressed);
-                            needsUpdate = true;
-                          } else {
-                            newUrls.push(url);
-                          }
-                        } catch (e) {
-                          newUrls.push(url);
-                          console.warn("Auto-recompression failed for imageUrl inside list:", d.id, e);
+                // 2. Identify foods that are missing images locally
+                const missingImageIds = v2Foods
+                  .filter(f => !imageMap[f.id])
+                  .map(f => f.id);
+
+                // 3. Fetch ONLY missing images individually
+                if (missingImageIds.length > 0) {
+                  console.log(`[Sync] Fetching ${missingImageIds.length} missing images from server to avoid massive reads...`);
+                  for (let i = 0; i < missingImageIds.length; i += 10) {
+                    const chunk = missingImageIds.slice(i, i + 10);
+                    await Promise.all(chunk.map(async id => {
+                      try {
+                        const snap = await getDoc(doc(db, 'users', uid, 'foodImages', id));
+                        if (snap.exists()) {
+                           const data = snap.data();
+                           imageMap[id] = { imageUrl: data.imageUrl, imageUrls: data.imageUrls || [] };
                         }
-                      } else {
-                        newUrls.push(url);
+                      } catch (e) {
+                         console.warn(`Failed to fetch image for ${id}`, e);
                       }
-                    }
-                    imageUrls = newUrls;
+                    }));
                   }
-
-                  if (needsUpdate || compressionAttemptedForThisDoc) {
-                    updatesToPush.push({ id: d.id, imageUrl, imageUrls, compressionAttempted: true });
-                  }
-
-                  imageMap[d.id] = { imageUrl, imageUrls };
-                }
-
-                if (updatesToPush.length > 0) {
-                  console.log(`[Auto-Recompress] Re-compressed ${updatesToPush.length} legacy large images on-the-fly. Syncing back to database...`);
-                  updatesToPush.forEach(up => {
-                    trackApiCall('firebase_write', `Firebase upload - Auto-compress ${up.id}`, auth.currentUser?.email || 'anonymous');
-                    setDoc(doc(db, 'users', uid, 'foodImages', up.id), sanitizeForFirestore({
-                      imageUrl: up.imageUrl || null,
-                      imageUrls: up.imageUrls || []
-                    })).catch(err => console.error("Auto-sync back error:", err));
-                  });
                 }
 
                 v2Foods = v2Foods.map(f => ({ ...f, ...imageMap[f.id] }));
@@ -1069,19 +1034,31 @@ export default function App() {
                 const missingImageFoods = v2Foods.filter(f => isImageMissing(f) && (!f.imageUrls || f.imageUrls.length === 0 || f.imageUrls.every(u => !u || u === '[image_removed_for_snapshot]')));
                 const hasMigratedImages = cloudProfile?.metadata?.legacyImagesMigrated || localProfile?.metadata?.legacyImagesMigrated;
                 if (missingImageFoods.length > 0 && !hasMigratedImages) {
-                    console.log("[Migration] Attempting to restore missing images from legacy foodLogs collection...");
+                    console.log(`[Migration] Attempting to restore ${missingImageFoods.length} missing images from legacy foodLogs collection individually...`);
                     try {
-                        const legacySnap = await getDocs(collection(db, 'users', uid, 'foodLogs'));
                         const recoveredUpdates: any[] = [];
-                        legacySnap.docs.forEach(d => {
-                            const data = d.data();
-                            const f = v2Foods.find(v => v.id === d.id);
-                            if (f && isImageMissing(f) && data.imageUrl && data.imageUrl !== '[image_removed_for_snapshot]') {
-                                f.imageUrl = data.imageUrl;
-                                f.imageUrls = data.imageUrls || [];
-                                recoveredUpdates.push({ id: d.id, imageUrl: data.imageUrl, imageUrls: data.imageUrls });
-                            }
-                        });
+                        
+                        // Fetch missing legacy images individually in chunks of 10 to prevent massive read spikes
+                        const missingIds = missingImageFoods.map(f => f.id);
+                        for (let i = 0; i < missingIds.length; i += 10) {
+                            const chunk = missingIds.slice(i, i + 10);
+                            await Promise.all(chunk.map(async id => {
+                                try {
+                                    const legacyDoc = await getDoc(doc(db, 'users', uid, 'foodLogs', id));
+                                    if (legacyDoc.exists()) {
+                                        const data = legacyDoc.data();
+                                        const f = v2Foods.find(v => v.id === id);
+                                        if (f && isImageMissing(f) && data.imageUrl && data.imageUrl !== '[image_removed_for_snapshot]') {
+                                            f.imageUrl = data.imageUrl;
+                                            f.imageUrls = data.imageUrls || [];
+                                            recoveredUpdates.push({ id, imageUrl: data.imageUrl, imageUrls: data.imageUrls });
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.warn(`Failed to fetch legacy image for ${id}`, e);
+                                }
+                            }));
+                        }
                         
                         if (recoveredUpdates.length > 0) {
                             console.log(`[Migration] Restored ${recoveredUpdates.length} images! Saving to foodImages...`);
@@ -1852,19 +1829,9 @@ export default function App() {
           setReport(loadedReport);
           
           // Load only from local cache on initial load/session load to prevent automatic Firebase calls.
-          // Firestore checks will happen ONLY when the user manually clicks "Sync Now" in the header,
-          // or exceptionally if a lightweight fallback was detected on startup.
+          // Firestore checks will happen ONLY when the user manually clicks "Sync Now" in the header.
           setSyncState('local');
           setIsAuthChecking(false);
-
-          if (parsedLocal && parsedLocal._isLightweightFallback) {
-            console.log("[Storage] Lightweight fallback detected on page load. Auto-triggering Firestore sync to restore images and complete data...");
-            setTimeout(() => {
-              checkForDbChanges(undefined, true).catch(err => {
-                console.error("[Storage] Auto-sync to recover from lightweight fallback failed:", err);
-              });
-            }, 500);
-          }
 
           // One-Time Legacy Migration & Real-Time onSnapshot setup
           const uid = user.uid;

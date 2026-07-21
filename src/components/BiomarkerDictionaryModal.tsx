@@ -1820,6 +1820,20 @@ I can analyze these, compare them with our database keys, and find standard mapp
         };
       });
 
+      // The reference set the agent compares candidates against: every already-approved
+      // key (built-in + custom biomarkers that don't have needsApproval), excluding
+      // whatever is currently in this batch so it's not comparing items against themselves.
+      const selectedKeySet = new Set(selectedKeys);
+      const approvedCustomEntries = Object.entries(profile.customBiomarkers || {})
+        .filter(([k, v]: [string, any]) => !v?.needsApproval && !selectedKeySet.has(k))
+        .map(([k, v]: [string, any]) => ({ key: k, name: v?.name || k, aliases: v?.aliases || [] }));
+      const existingKeysList = [
+        ...biomarkerDefinitions
+          .filter((d: any) => !selectedKeySet.has(d.key))
+          .map((d: any) => ({ key: d.key, name: d.name, aliases: d.aliases || [] })),
+        ...approvedCustomEntries
+      ];
+
       const sessionId = generateQueryId();
 
       trackApiCall('gemini', `Consolidate Names`);
@@ -1832,6 +1846,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
         body: JSON.stringify({
           inputText: userMsg?.content,
           selectedBiomarkers: selectedBiomarkerDetails,
+          existingKeys: existingKeysList,
           engine: nameConsolidationModel,
           customSystemInstruction: localStorage.getItem('custom_system_instruction_consolidate_names') || undefined
         })
@@ -1908,10 +1923,13 @@ I can analyze these, compare them with our database keys, and find standard mapp
       parsed.forEach((group: any, idx: number) => {
         const variantKeys: string[] = Array.isArray(group.variants) ? group.variants : [];
         const masterDetail = selectedBiomarkerDetails.find(d => variantKeys.includes(d.key)) || selectedBiomarkerDetails[0];
+        const isExisting = !!group.isExistingKey && !!group.existingMasterKey;
         seededEdits[idx] = {
           recommendedClinicalName: group.canonicalName || '',
-          recommendedUniqueKey: group.recommendedKey || '',
-          masterKey: masterDetail?.key || variantKeys[0] || '',
+          // When merging into an already-approved key, the target key is that existing
+          // key verbatim — never a newly invented one.
+          recommendedUniqueKey: isExisting ? group.existingMasterKey : (group.recommendedKey || ''),
+          masterKey: isExisting ? group.existingMasterKey : (masterDetail?.key || variantKeys[0] || ''),
           excludedKeys: {},
           unit: masterDetail?.unit || '',
           normalRange: masterDetail?.range || '',
@@ -3045,9 +3063,21 @@ I can analyze these, compare them with our database keys, and find standard mapp
                       };
                     });
                     const masterBio = groupBiomarkers.find((b: any) => b.key === edits.masterKey) || groupBiomarkers[0];
+                    const isExistingKeyGroup = !!group.isExistingKey && !!group.existingMasterKey;
 
                     return (
                       <div key={groupIdx} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden p-4 space-y-4">
+                        <div className="flex items-center gap-2">
+                          {isExistingKeyGroup ? (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800/40">
+                              Existing key — will merge into "{group.existingMasterKey}"
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-900/20 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/40">
+                              New biomarker — suggest new key
+                            </span>
+                          )}
+                        </div>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Recommended Name</label>

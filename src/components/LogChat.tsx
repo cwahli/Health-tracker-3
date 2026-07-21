@@ -1229,6 +1229,7 @@ ${logsText}`);
   const [showPastDiscussion, setShowPastDiscussion] = useState(false);
   const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const liveThoughtRef = useRef<HTMLDivElement>(null);
 
   const handleDeleteMessagePair = (messageId: string) => {
     setMessages(prev => {
@@ -1408,7 +1409,9 @@ ${logsText}`);
         }, 150);
       }
     } else if (isAnalyzing) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+      // Keep the live "Agent thought..." box pinned near the top of the viewport
+      // while it's still growing, instead of scrolling past it to the bottom.
+      (liveThoughtRef.current || messagesEndRef.current)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
   }, [isAnalyzing, messages, liveThoughts]);
 
@@ -3196,11 +3199,14 @@ ${JSON.stringify(profile, null, 2)}`);
                     if (!Renderer) return null;
                     return (
                       <>
-                        <AgentThoughtBox
-                          scoutScratchpad={msg.data?.agentResult?.scoutScratchpad}
-                          dietitianScratchpad={msg.data?.agentResult?.dietitianScratchpad}
-                          isLive={msg.isLive}
-                        />
+                        <div ref={msg.isLive ? liveThoughtRef : undefined}>
+                          <AgentThoughtBox
+                            scoutScratchpad={msg.data?.agentResult?.scoutScratchpad}
+                            dietitianScratchpad={msg.data?.agentResult?.dietitianScratchpad}
+                            isLive={msg.isLive}
+                            placeholderStep={msg.isLive && isAgent('food') ? ANALYZING_STEPS[analyzingStepIndex] : undefined}
+                          />
+                        </div>
                         <Renderer
                           msg={msg}
                           idx={idx}
@@ -3294,60 +3300,23 @@ ${JSON.stringify(profile, null, 2)}`);
         </>
       );
     })()}
-        {isAnalyzing && (
+        {isAnalyzing && !isAgent('food') && (
           <div className="flex gap-3 mr-auto max-w-[85%]">
             <div className="w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400 flex-shrink-0 animate-pulse">
               <Loader className="w-4 h-4 animate-spin text-indigo-600" />
             </div>
-            <div className="bg-white dark:bg-slate-800 rounded-2xl px-4 py-3 shadow-sm border border-slate-200 dark:border-slate-800/40 min-w-[250px]">
-              {isAgent('food') ? (
-                <div className="flex flex-col gap-2">
-                  <button 
-                    onClick={() => setIsThoughtsExpanded(!isThoughtsExpanded)}
-                    className="text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between font-medium hover:text-indigo-600 transition-colors w-full"
-                  >
-                    <span className="flex items-center gap-2">
-                      <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
-                      Agent thought...
-                    </span>
-                    {isThoughtsExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                  </button>
-                  {isThoughtsExpanded && (
-                    <div className="flex flex-col gap-3 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
-                      {!liveThoughts.scout && !liveThoughts.dietitian && (
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 italic animate-pulse px-1 flex items-center gap-1.5">
-                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping"></span>
-                          {ANALYZING_STEPS[analyzingStepIndex]}
-                        </p>
-                      )}
-                      {liveThoughts.scout && (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Vision Scout</span>
-                          <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg font-mono text-[11px] border border-slate-100 dark:border-slate-800">
-                            {liveThoughts.scout}
-                          </p>
-                        </div>
-                      )}
-                      {liveThoughts.dietitian && (
-                        <div className="flex flex-col gap-1">
-                          <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian</span>
-                          <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed bg-indigo-50/50 dark:bg-indigo-900/20 p-2 rounded-lg font-mono text-[11px] border border-indigo-100 dark:border-indigo-800/30">
-                            {liveThoughts.dietitian}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ) : (
-                <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 font-medium">
-                  {ANALYZING_STEPS[analyzingStepIndex]}
-                </p>
-              )}
+            <div className="px-4 py-3 min-w-[250px]">
+              <p className="text-xs text-slate-500 dark:text-slate-400 flex items-center gap-2 font-medium">
+                {ANALYZING_STEPS[analyzingStepIndex]}
+              </p>
             </div>
           </div>
         )}
         <div ref={messagesEndRef} />
+        {/* Reserve room so the live thought box (attached to the streaming message
+            above) can be scrolled to the top of the viewport instead of being
+            pushed off-screen while the answer is still growing. */}
+        <div aria-hidden="true" className="min-h-[45vh]" />
       </div>
 
         {/* Input Dock */}

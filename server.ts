@@ -5090,7 +5090,7 @@ ${cleanJson}`, explicitSessionId);
 app.post("/api/gemini/consolidate-names", async (req, res) => {
   try {
     const explicitSessionId = (req.headers["x-session-id"] as string) || "global";
-    const { inputText, selectedBiomarkers, engine, customSystemInstruction } = req.body;
+    const { inputText, selectedBiomarkers, existingKeys, engine, customSystemInstruction } = req.body;
     const modelId = engine || "gemini-3.1-flash-lite";
     const isStream = req.query.stream === 'true';
     if (isStream) {
@@ -5108,17 +5108,22 @@ app.post("/api/gemini/consolidate-names", async (req, res) => {
 
 === SYSTEM CONSTRAINTS ===
 - DO NOT perform, input, or output any form of medical categorization, standard medical grouping, or physiological classification.
+- You are given a reference list of ALREADY-APPROVED keys (EXISTING DICTIONARY below). For every group you form, you MUST check whether it is actually a duplicate/synonym of one of those already-approved keys.
+  * If it matches an existing key: set "isExistingKey" to true, set "existingMasterKey" to that exact existing key (copy it verbatim, do not invent a new one), and set "recommendedKey" to that same existing key. "variants" should list only the NEW candidate keys from the selected batch that should become aliases of it (do not include the existing key itself, since it isn't part of the selected batch).
+  * If nothing in the existing dictionary matches: set "isExistingKey" to false, "existingMasterKey" to null, and propose a new "recommendedKey" / "canonicalName" as before, with "variants" listing every selected-batch key that belongs in this new group.
 - You must return a raw, valid JSON object matching this exact schema. Do not include markdown wrappers.
 
 === OUTPUT SCHEMA ===
 {
-  "scratchpad": "Think step-by-step: compare the provided names and identify synonyms.",
+  "scratchpad": "Think step-by-step: compare the provided names against each other AND against the existing dictionary, and identify synonyms.",
   "consolidatedGroups": [
     {
       "canonicalName": "string (Recommended Clinical Name, e.g., 'Serum Albumin')",
       "recommendedKey": "string (unique key using snake_case, e.g., 'serum_albumin')",
-      "variants": ["array of strings containing the original keys that match this group"],
-      "rationale": "string (Why these are the same clinical biomarker)"
+      "variants": ["array of strings containing the original keys from the selected batch that match this group"],
+      "rationale": "string (Why these are the same clinical biomarker)",
+      "isExistingKey": false,
+      "existingMasterKey": null
     }
   ]
 }
@@ -5129,7 +5134,7 @@ app.post("/api/gemini/consolidate-names", async (req, res) => {
       systemInstruction = customSystemInstruction;
     }
 
-    const dynamicPromptText = `Biomarkers to process:\n${JSON.stringify(selectedBiomarkers, null, 2)}\n\nUSER DATA / CONVERSATION TEXT:
+    const dynamicPromptText = `Biomarkers to process (the selected batch — candidates for consolidation):\n${JSON.stringify(selectedBiomarkers, null, 2)}\n\nEXISTING DICTIONARY (already-approved keys — check every group against this list first; these are NOT candidates to be renamed, only possible merge targets):\n${JSON.stringify(existingKeys || [], null, 2)}\n\nUSER DATA / CONVERSATION TEXT:
 \"\"\"${inputText || "Please identify the duplicates from the provided list and consolidate them."}\"\"\"
 
 Please output a valid JSON object matching the requested schema.`;
@@ -5140,7 +5145,7 @@ Please output a valid JSON object matching the requested schema.`;
     const consolidateNamesSchema = {
       type: Type.OBJECT,
       properties: {
-        scratchpad: { type: Type.STRING, description: "Think step-by-step: compare the provided names, identify synonyms, determine the most universally recognized clinical name, and map variants." },
+        scratchpad: { type: Type.STRING, description: "Think step-by-step: compare the provided names against each other and against the existing dictionary, identify synonyms, determine the most universally recognized clinical name, and map variants." },
         consolidatedGroups: {
           type: Type.ARRAY,
           items: {
@@ -5149,7 +5154,9 @@ Please output a valid JSON object matching the requested schema.`;
               canonicalName: { type: Type.STRING },
               recommendedKey: { type: Type.STRING },
               variants: { type: Type.ARRAY, items: { type: Type.STRING } },
-              rationale: { type: Type.STRING }
+              rationale: { type: Type.STRING },
+              isExistingKey: { type: Type.BOOLEAN, description: "true if this group matches an already-approved key from the existing dictionary" },
+              existingMasterKey: { type: Type.STRING, description: "the exact matching key from the existing dictionary, copied verbatim, or omitted/empty if isExistingKey is false" }
             }
           }
         }
