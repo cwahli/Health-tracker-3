@@ -61,7 +61,7 @@ const StepItem = ({
   );
 };
 
-export const AgentThoughtBox = ({ scoutScratchpad, dietitianScratchpad, isLive, placeholderStep }: { scoutScratchpad?: string, dietitianScratchpad?: string, isLive?: boolean, placeholderStep?: string }) => {
+export const AgentThoughtBox = ({ scoutScratchpad, dietitianScratchpad, isLive, placeholderStep, hasImage }: { scoutScratchpad?: string, dietitianScratchpad?: string, isLive?: boolean, placeholderStep?: string, hasImage?: boolean }) => {
   const [isExpanded, setIsExpanded] = React.useState(!!isLive);
 
   React.useEffect(() => {
@@ -71,7 +71,7 @@ export const AgentThoughtBox = ({ scoutScratchpad, dietitianScratchpad, isLive, 
   const hasScratchpad = !!scoutScratchpad || !!dietitianScratchpad;
   if (!hasScratchpad && !placeholderStep) return null;
 
-  const isImageAnalysis = !!scoutScratchpad || (placeholderStep && placeholderStep.toLowerCase().includes("photo"));
+  const isImageAnalysis = hasImage ?? (!!scoutScratchpad || (placeholderStep && placeholderStep.toLowerCase().includes("photo")));
 
   // Derive step states
   let step1Status: 'completed' | 'active' | 'pending' = 'pending';

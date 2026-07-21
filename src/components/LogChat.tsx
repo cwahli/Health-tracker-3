@@ -1599,6 +1599,7 @@ ${logsText}`);
       isLive: true,
       agentType: isFood ? 'food' : (isAgent('food_idea') ? 'food_idea' : (agentType || 'agent1')),
       data: {
+        hasImage: selectedImages.length > 0,
         agentResult: {
           scoutScratchpad: '',
           dietitianScratchpad: ''
@@ -3269,6 +3270,7 @@ ${JSON.stringify(profile, null, 2)}`);
                             dietitianScratchpad={msg.isLive ? (liveThoughts.dietitian || msg.data?.agentResult?.dietitianScratchpad) : msg.data?.agentResult?.dietitianScratchpad}
                             isLive={msg.isLive}
                             placeholderStep={msg.isLive && isAgent('food') ? ANALYZING_STEPS[analyzingStepIndex] : undefined}
+                            hasImage={msg.data?.hasImage}
                           />
                         </div>
                         <Renderer
