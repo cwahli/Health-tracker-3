@@ -1015,8 +1015,12 @@ async function callUnifiedLLMInternal({
     tools: []
   };
 
-  // Enable native reasoning for models that support it (Gemini 2.5/3.5 Pro/Flash, excluding Lite models)
-  if (isJson && (normalizedModelId.includes("pro") || (normalizedModelId.includes("flash") && !normalizedModelId.includes("lite") && !normalizedModelId.includes("1.5")))) {
+  // Enable native reasoning for models that support it (Gemini 2.5/3.1/3.5 Pro/Flash, including 3.1 Flash Lite)
+  if (isJson && (
+    normalizedModelId.includes("pro") || 
+    normalizedModelId.includes("flash-lite") || 
+    (normalizedModelId.includes("flash") && !normalizedModelId.includes("1.5"))
+  )) {
     configObj.thinkingConfig = {
       thinkingBudget: 1024
     };
@@ -2011,7 +2015,9 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
             imagePayloads,
             responseMimeType: "application/json",
             onStream: isStream ? (chunk: string, isThought?: boolean) => {
-              if (!isThought) {
+              if (isThought) {
+                res.write(`data: ${JSON.stringify({ thought: chunk, stage: 'scout' })}\n\n`);
+              } else {
                 res.write(`data: ${JSON.stringify({ chunk, stage: 'scout' })}\n\n`);
               }
             } : undefined
