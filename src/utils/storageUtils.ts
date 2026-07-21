@@ -20,34 +20,11 @@ export const pruneLocalStorageToFreeSpace = () => {
             }
           } catch {}
         } else if (key.startsWith('health_cockpit_app_data_')) {
+          // DO NOT delete imageUrl or imageUrls from app data!
+          // If localStorage is full, remove key from localStorage so get() seamlessly uses high-capacity IndexedDB.
           try {
-            const data = JSON.parse(localStorage.getItem(key) || '{}');
-            let modified = false;
-            if (data && Array.isArray(data.foodLogs)) {
-              data.foodLogs = data.foodLogs.map((log: any) => {
-                if (log.imageUrl && log.imageUrl.startsWith('data:image/')) {
-                  delete log.imageUrl;
-                  modified = true;
-                }
-                if (Array.isArray(log.imageUrls)) {
-                  log.imageUrls = log.imageUrls.filter((url: string) => !url.startsWith('data:image/'));
-                  modified = true;
-                }
-                return log;
-              });
-              if (data.foodLogs.length > 100) {
-                data.foodLogs = data.foodLogs.slice(-50);
-                modified = true;
-              }
-            }
-            if (data && data.report) {
-              data.report = null;
-              modified = true;
-            }
-            if (modified) {
-              localStorage.setItem(key, JSON.stringify(data));
-              console.log(`[Storage] Compressed large app data key during pruning: ${key}`);
-            }
+            localStorage.removeItem(key);
+            console.log(`[Storage] Removed saturated key from localStorage to allow IndexedDB source of truth: ${key}`);
           } catch {}
         } else if (key.startsWith('chat_messages_') || key.startsWith('chat_payload_')) {
           keysToRemove.push(key);
@@ -111,22 +88,12 @@ export const set = async (key: string, val: any): Promise<void> => {
               localStorage.removeItem('_ls_saturated');
             }
           } catch (secondError) {
-            // If it still fails, only then do we fall back to lightweight version with images stripped
-            if (val && typeof val === 'object') {
-              const lightVal = { ...val, _isLightweightFallback: true };
-              if (Array.isArray(lightVal.foodLogs)) {
-                lightVal.foodLogs = lightVal.foodLogs.slice(-50).map((f: any) => {
-                  const { imageUrl, imageUrls, ...rest } = f;
-                  return rest;
-                });
-              }
-              if (lightVal.report) lightVal.report = null;
-              if (lightVal.biomarkerHistory && lightVal.biomarkerHistory.length > 50) {
-                lightVal.biomarkerHistory = lightVal.biomarkerHistory.slice(0, 10);
-              }
-              localStorage.setItem(key, JSON.stringify(lightVal));
-              console.log("[Storage] Saved lightweight fallback with stripped images after prune retry failed.");
-            }
+            // DO NOT save an image-stripped fallback to localStorage!
+            // Remove the key from localStorage so get() reads intact data from high-capacity IndexedDB.
+            try {
+              localStorage.removeItem(key);
+              console.log("[Storage] Removed key from localStorage on quota limit. Relying strictly on IndexedDB.");
+            } catch {}
           }
         } catch (fallbackError) {
           // Quietly rely on IndexedDB
