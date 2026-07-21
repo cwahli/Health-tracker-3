@@ -608,7 +608,7 @@ const getGeminiClient = () => {
   return new GoogleGenAI({
     apiKey: apiKey || "MOCK_KEY",
     httpOptions: {
-      timeout: 45000,
+      timeout: 120000,
       headers: {
         "User-Agent": "aistudio-build",
       },
@@ -5040,8 +5040,13 @@ app.post("/api/gemini/consolidate-names", async (req, res) => {
     const isStream = req.query.stream === 'true';
     if (isStream) {
       res.setHeader('Content-Type', 'text/event-stream');
-      res.setHeader('Cache-Control', 'no-cache');
+      res.setHeader('Cache-Control', 'no-cache, no-transform');
       res.setHeader('Connection', 'keep-alive');
+      res.setHeader('X-Accel-Buffering', 'no');
+      res.setHeader('Transfer-Encoding', 'chunked');
+      res.setHeader('X-Content-Type-Options', 'nosniff');
+      res.setHeader('Content-Encoding', 'none');
+      res.flushHeaders();
     }
     addDebugLog(`[Name Consolidation Agent] Request received using model: ${modelId}. Text length: ${inputText?.length || 0}. Biomarkers count: ${selectedBiomarkers?.length || 0}`, explicitSessionId);
 
@@ -5077,7 +5082,7 @@ Set "isExistingKey" to false.
 
 Set "existingMasterKey" to null.
 
-Propose a new "recommendedKey" and "canonicalName".
+Propose a new "recommendedKey" and "Name".
 
 Add the candidate name to "aliases".
 
@@ -5087,7 +5092,7 @@ scratchpad (string): MUST BE THE FIRST FIELD. Think step-by-step here: compare t
 
 consolidatedGroups (array of objects): A list containing your merged biomarker groups. Each object must contain:
 
-canonicalName (string): The recommended clinical name.
+Name (string): The recommended clinical name.
 
 recommendedKey (string): A unique key, formatted in snake_case.
 
@@ -5106,7 +5111,7 @@ You must strictly return a raw, valid JSON object matching exactly this structur
 "scratchpad": "",
 "consolidatedGroups": [
 {
-"canonicalName": "",
+"Name": "",
 "recommendedKey": "",
 "aliases": [],
 "rationale": "",
@@ -5138,27 +5143,29 @@ Please output a valid JSON object matching the requested schema.`;
           items: {
             type: Type.OBJECT,
             properties: {
-              canonicalName: { type: Type.STRING },
+              Name: { type: Type.STRING },
               recommendedKey: { type: Type.STRING },
               aliases: { type: Type.ARRAY, items: { type: Type.STRING } },
               rationale: { type: Type.STRING },
               isExistingKey: { type: Type.BOOLEAN, description: "true if this group matches an already-approved key from the existing dictionary" },
-              existingMasterKey: { type: Type.STRING, description: "the exact matching key from the existing dictionary, copied verbatim, or omitted/empty if isExistingKey is false" }
-            }
+              existingMasterKey: { type: Type.STRING, description: "the exact matching key from the existing dictionary, copied verbatim, or omitted/empty if isExistingKey is false", nullable: true }
+            },
+            required: ["Name", "recommendedKey", "aliases", "rationale", "isExistingKey", "existingMasterKey"]
           }
         }
       },
-      required: ["consolidatedGroups"]
+      required: ["scratchpad", "consolidatedGroups"]
     };
 
     const makeConsolidationCall = async () => {
-      const consolidationTimeout = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error("Name consolidation timed out after 30s. Model under high demand — please try again.")), 30000)
-      );
-      return await Promise.race([
-        callUnifiedLLM({
+      let timeoutId: NodeJS.Timeout;
+      const consolidationTimeout = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => reject(new Error("Name consolidation timed out after 115s. Model under high demand — please try again.")), 115000);
+      });
+      try {
+        const llmPromise = callUnifiedLLM({
           modelId,
-          systemInstruction: systemInstruction + "\n\nJSON STRUCTURED OUTPUT:\nYou must strictly return a JSON object. Do not add markdown wrappers. Put your step-by-step reasoning in the 'scratchpad' field FIRST, before any other field, unless you are already using extended/native thinking for this request — in that case you may leave 'scratchpad' brief or omit it.",
+          systemInstruction: systemInstruction,
           promptText: dynamicPromptText,
           responseMimeType: "application/json",
           responseSchema: consolidateNamesSchema,
@@ -5169,9 +5176,19 @@ Please output a valid JSON object matching the requested schema.`;
               res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
             }
           } : undefined
-        }),
-        consolidationTimeout
-      ]);
+        });
+        
+        // Prevent unhandled rejection if this promise settles after Promise.race finishes
+        llmPromise.catch(() => {});
+        
+        const result = await Promise.race([
+          llmPromise,
+          consolidationTimeout
+        ]);
+        return result as string;
+      } finally {
+        clearTimeout(timeoutId!);
+      }
     };
 
     let textOutput: string;

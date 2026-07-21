@@ -1928,7 +1928,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
         const def: any = profile.customBiomarkers?.[targetKeyForLookup] || biomarkerDefinitions.find((d: any) => d.key === targetKeyForLookup) || {};
 
         seededEdits[idx] = {
-          recommendedClinicalName: group.canonicalName || '',
+          recommendedClinicalName: group.Name || group.canonicalName || '',
           // When merging into an already-approved key, the target key is that existing
           // key verbatim — never a newly invented one.
           recommendedUniqueKey: isExisting ? group.existingMasterKey : (group.recommendedKey || ''),
@@ -3113,11 +3113,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                         {/* Status badge */}
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
-                            {keyExists ? (
-                              <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 dark:bg-amber-950/30 dark:text-amber-400 border border-amber-200 dark:border-amber-800/40">
-                                Existing Key — Will consolidate into "{targetKey}"
-                              </span>
-                            ) : (
+                            {!keyExists && (
                               <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-indigo-50 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 border border-indigo-200 dark:border-indigo-800/40">
                                 New Biomarker — Suggesting as a new key
                               </span>
@@ -3365,7 +3361,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                 <table className="w-full text-left border-collapse text-xs">
                                   <thead>
                                     <tr className="bg-slate-50/50 dark:bg-slate-950/20 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200 dark:border-slate-800">
-                                      <th className="py-2 px-4 w-1/4">Alias Name / Key</th>
+                                      <th className="py-2 px-4 w-1/4">name</th>
                                       <th className="py-2 px-4 w-1/5">Unit info</th>
                                       <th className="py-2 px-4 w-1/5">Range info</th>
                                       <th className="py-2 px-4 w-1/5">Description info</th>

@@ -644,16 +644,16 @@ For each matched group, determine:
 - Do NOT delete any data. Your sole purpose is to identify similar biomarkers and group them.
 - DO NOT perform, input, or output any form of medical categorization, standard medical grouping, or physiological classification. This is entirely handled programmatically by the website, and you must not attempt to modify or determine medical groupings.
 
-JSON Schema:
-{
-  "consolidatedGroups": [
+    JSON Schema:
     {
-      "canonicalName": "Recommended Clinical Name (e.g. Serum Albumin)",
-      "variants": ["original_biomarker_key_1", "original_biomarker_key_2"],
-      "rationale": "Why these are the same clinical biomarker"
-    }
-  ]
-}`;
+      "consolidatedGroups": [
+        {
+          "Name": "Recommended Clinical Name (e.g. Serum Albumin)",
+          "variants": ["original_biomarker_key_1", "original_biomarker_key_2"],
+          "rationale": "Why these are the same clinical biomarker"
+        }
+      ]
+    }`;
       defaultVariableData = `BIOMARKERS TO PROCESS:
 [
   {
