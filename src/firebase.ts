@@ -1,11 +1,11 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, GoogleAuthProvider, FacebookAuthProvider, TwitterAuthProvider, signInWithPopup, signOut as fbSignOut, setPersistence, browserLocalPersistence } from 'firebase/auth';
-import { getFirestore, doc, getDocFromServer, initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
+import { getFirestore, doc, getDocFromServer, initializeFirestore, memoryLocalCache } from 'firebase/firestore';
 import firebaseConfig from '../firebase-applet-config.json';
 
 const app = initializeApp(firebaseConfig);
 export const db = initializeFirestore(app, {
-  localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() })
+  localCache: memoryLocalCache()
 }, (firebaseConfig as any).firestoreDatabaseId);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
@@ -68,15 +68,28 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 // Validate connection on boot as requested in skill
 async function testConnection() {
   try {
-    const isExceeded = typeof window !== 'undefined' && window.localStorage && window.localStorage.getItem('firestore_quota_exceeded') === 'true';
+    let isExceeded = false;
+    let exceededTimeStr: string | null = null;
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        isExceeded = window.localStorage.getItem('firestore_quota_exceeded') === 'true';
+        exceededTimeStr = window.localStorage.getItem('firestore_quota_exceeded_time');
+      }
+    } catch (e) {
+      console.warn("localStorage access not available in testConnection:", e);
+    }
+
     if (isExceeded) {
-      const exceededTimeStr = window.localStorage?.getItem('firestore_quota_exceeded_time');
       if (exceededTimeStr) {
         const exceededTime = parseInt(exceededTimeStr, 10);
         // If 12 hours have passed, clear the flag to try again
         if (new Date().getTime() - exceededTime > 12 * 60 * 60 * 1000) {
-          window.localStorage.removeItem('firestore_quota_exceeded');
-          window.localStorage.removeItem('firestore_quota_exceeded_time');
+          try {
+            if (typeof window !== 'undefined' && window.localStorage) {
+              window.localStorage.removeItem('firestore_quota_exceeded');
+              window.localStorage.removeItem('firestore_quota_exceeded_time');
+            }
+          } catch (e) {}
           console.log("Firestore quota lockout expired. Retrying connection...");
         } else {
           console.log("Firestore connection test skipped: Quota is marked as exceeded.");
@@ -92,10 +105,12 @@ async function testConnection() {
     if (error instanceof Error) {
       const msg = error.message.toLowerCase();
       if (msg.includes('resource-exhausted') || msg.includes('quota') || msg.includes('limit exceeded')) {
-        if (typeof window !== 'undefined' && window.localStorage) {
-          window.localStorage.setItem('firestore_quota_exceeded', 'true');
-          window.localStorage.setItem('firestore_quota_exceeded_time', new Date().getTime().toString());
-        }
+        try {
+          if (typeof window !== 'undefined' && window.localStorage) {
+            window.localStorage.setItem('firestore_quota_exceeded', 'true');
+            window.localStorage.setItem('firestore_quota_exceeded_time', new Date().getTime().toString());
+          }
+        } catch (e) {}
         console.log("Firestore connection test: Quota limit exceeded.");
         return;
       }
