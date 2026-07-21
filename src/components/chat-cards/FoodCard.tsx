@@ -14,6 +14,29 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { ZoomableImage } from '../ZoomableImage';
 import { FoodScoutItemPreview, OnlineFoodImage } from './FoodScoutItemPreview';
 
+const FALLBACK_NUTRIENT_COLOR_PALETTE = [
+  'rgb(236, 72, 153)',  // pink
+  'rgb(20, 184, 166)',  // teal
+  'rgb(244, 63, 94)',   // rose
+  'rgb(132, 204, 22)',  // lime
+  'rgb(99, 102, 241)',  // indigo
+  'rgb(217, 119, 6)',   // amber
+  'rgb(14, 165, 233)',  // sky
+  'rgb(192, 38, 211)',  // fuchsia
+  'rgb(101, 163, 13)',  // olive green
+  'rgb(190, 24, 93)',   // deep pink
+  'rgb(2, 132, 199)',   // cyan-blue
+  'rgb(161, 98, 7)',    // brown-amber
+];
+
+const getFallbackNutrientColor = (key: string): string => {
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
+  }
+  return FALLBACK_NUTRIENT_COLOR_PALETTE[hash % FALLBACK_NUTRIENT_COLOR_PALETTE.length];
+};
+
 const StepItem = ({ 
   label, 
   status, 
@@ -1287,7 +1310,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                           // nutrient values (not a per-100g figure) — no weight-based scaling here.
                                           const totalVal = parsedVal;
                                           
-                                          const color = nutrientColors[key] || 'rgb(100, 116, 139)';
+                                          const color = nutrientColors[key] || getFallbackNutrientColor(key);
                                           const label = nutrientLabels[key] || (key.replace(/([A-Z])/g, ' $1').trim());
                                           const unit = nutrientUnits[key] || 'g';
 
@@ -2084,7 +2107,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                               const target = parseTarget(reportTarget, fallbackVal);
                               const consumedToday = dayLogs.reduce((acc, curr) => acc + (curr.nutrients?.[key] || 0), 0);
                               
-                              const color = nutrientColors[key] || 'rgb(100, 116, 139)'; // Slate fallback
+                              const color = nutrientColors[key] || getFallbackNutrientColor(key);
                               const label = nutrientLabels[key] || (key.replace(/([A-Z])/g, ' $1').trim());
                               const unit = nutrientUnits[key] || 'g';
                               return (

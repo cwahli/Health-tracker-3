@@ -4747,6 +4747,7 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
     Respond strictly with a JSON object conforming exactly to this structure (use camelCase):
     {
       "report": {
+        "scratchpad": "Your step-by-step clinical reasoning before finalizing the rest of the JSON, plain text.",
         "globalSummary": "High-level overview of current health trajectory.",
         "timelineToOptimal": "Estimated timeframe to stabilize at-risk markers.",
         "riskCategories": [
@@ -4784,7 +4785,8 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
     4c. Do not artificially limit each risk category's 'nutrientTargets' array to 1-2 items. Include every nutrient target that is clinically relevant to that specific category, even if that means 3, 4, or more entries.
     4d. If calorie intake itself is a primary lever for the user's risk profile (e.g. weight/BMI management, insulin resistance), you MUST include "calories" as its own entry in 'topNutrientTargets' with a target value and rationale — do not rely solely on 'generalNutrientTargets' for it.
     5. Think globally for the most relevant top nutrient to share. Do not share relative targets (e.g., 1.2g/kg); you MUST compute the absolute amount (e.g., body weight * 1.2g) and give the final exact number based on the user's profile weight. Choose the most effective constraint globally (e.g. general calorie restriction vs added sugar restriction) depending on the most critical risks. Also, specify the exact type of nutrient if relevant (e.g. soluble fiber vs total fiber).
-    6. For every risk category, set "level" to "high", "medium", or "low" based on how far the underlying biomarkers deviate from reference range and how clinically urgent the category is. This field is required and drives the app's risk color indicator.`;
+    6. For every risk category, set "level" to "high", "medium", or "low" based on how far the underlying biomarkers deviate from reference range and how clinically urgent the category is. This field is required and drives the app's risk color indicator.
+    7. Populate 'scratchpad' with your full reasoning process before you finalize the rest of the report. Do not write any text outside the single JSON object — all reasoning must live inside the 'scratchpad' field.`;
 
     const systemInstruction = "You are a world-class preventative cardiologist, endocrinologist, and clinical longevity researcher. Your response must be an exact single JSON matching the requested schema using strictly the allowed keys. Never add markdown wrappers.";
     const fullPromptSent = `System Instruction:\n${systemInstruction}\n\n${promptText}`;

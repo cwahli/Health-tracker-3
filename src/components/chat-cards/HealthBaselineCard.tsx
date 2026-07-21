@@ -3,6 +3,7 @@ import { AgentCardProps } from './types';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { AGENT_REGISTRY } from '../../utils/agentConfig';
 import { CheckCircle, XCircle, Activity, Target, Calendar, Check, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { AgentThoughtBox } from './FoodCard';
 
 export const HealthBaselineCard: React.FC<AgentCardProps> = ({
   msg,
@@ -30,6 +31,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
   const dailyActivities = Array.isArray(report.dailyActivities) ? report.dailyActivities : [];
   const generalNutrientTargets = report.generalNutrientTargets || {};
   const globalSummary = report.globalSummary || '';
+  const scratchpad = report.scratchpad || '';
   const timelineToOptimal = report.timelineToOptimal || '';
 
   const isHandled = (loggedMessageIds || []).includes(msg.id);
@@ -107,6 +109,10 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
               {agentConfig?.displayName || 'Health Baseline Analysis'}
             </h2>
           </div>
+
+          {scratchpad && (
+            <AgentThoughtBox dietitianScratchpad={scratchpad} isLive={false} hasImage={false} />
+          )}
 
           {globalSummary && (
             <div className="py-2">
