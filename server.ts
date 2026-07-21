@@ -2016,6 +2016,21 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
             promptText: message ? `Analyze this image and list the food items you see, taking into consideration the user's message: "${message}"` : "Analyze this image and list the food items you see.",
             imagePayloads,
             responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: {
+                scratchpad: { type: Type.STRING },
+                recommendedMode: { type: Type.STRING },
+                contentType: { type: Type.STRING },
+                items: { type: Type.ARRAY, items: { type: Type.OBJECT } },
+                scoutConfidenceRating: { type: Type.STRING },
+                scoutConfidenceComment: { type: Type.STRING },
+                scoutCookingMethod: { type: Type.STRING },
+                visionScoutRanAndReturnedItems: { type: Type.BOOLEAN },
+                queriesToSearch: { type: Type.ARRAY, items: { type: Type.STRING } }
+              },
+              propertyOrdering: ["scratchpad", "items", "recommendedMode", "contentType", "scoutConfidenceRating", "scoutConfidenceComment", "scoutCookingMethod", "queriesToSearch", "visionScoutRanAndReturnedItems"]
+            },
             onStream: isStream ? (chunk: string, isThought?: boolean) => {
               if (isThought) {
                 res.write(`data: ${JSON.stringify({ thought: chunk, stage: 'scout' })}\n\n`);
