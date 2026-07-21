@@ -400,7 +400,7 @@ export default function App() {
       foodIdeas: foodIdeas,
       report: snapReport
     };
-    safeSaveToLocalStorage(
+    await safeSaveToLocalStorage(
       getStorageKey(snapProfile?.email || profile?.email),
       restoredBundle
     );
@@ -998,14 +998,22 @@ export default function App() {
                 
                 // 1. Seed from local storage to avoid downloading identical images
                 localFoods.forEach(lf => {
-                  if (lf.imageUrl || (lf.imageUrls && lf.imageUrls.length > 0)) {
+                  const hasRealImage = lf.imageUrl && lf.imageUrl !== '[image_removed_for_snapshot]' && lf.imageUrl !== '';
+                  const hasRealUrls = lf.imageUrls && lf.imageUrls.length > 0 && lf.imageUrls.some(u => u && u !== '[image_removed_for_snapshot]' && u !== '');
+                  if (hasRealImage || hasRealUrls) {
                     imageMap[lf.id] = { imageUrl: lf.imageUrl, imageUrls: lf.imageUrls || [] };
                   }
                 });
 
                 // 2. Identify foods that are missing images locally
                 const missingImageIds = v2Foods
-                  .filter(f => !imageMap[f.id])
+                  .filter(f => {
+                    const mapped = imageMap[f.id];
+                    if (!mapped) return true;
+                    const isMissing = !mapped.imageUrl || mapped.imageUrl === '[image_removed_for_snapshot]' || mapped.imageUrl === '';
+                    const hasUrls = mapped.imageUrls && mapped.imageUrls.length > 0 && mapped.imageUrls.some((u: string) => u && u !== '[image_removed_for_snapshot]' && u !== '');
+                    return isMissing && !hasUrls;
+                  })
                   .map(f => f.id);
 
                 // 3. Fetch ONLY missing images individually
@@ -1018,7 +1026,11 @@ export default function App() {
                         const snap = await getDoc(doc(db, 'users', uid, 'foodImages', id));
                         if (snap.exists()) {
                            const data = snap.data();
-                           imageMap[id] = { imageUrl: data.imageUrl, imageUrls: data.imageUrls || [] };
+                           const hasDataRealImage = data && data.imageUrl && data.imageUrl !== '[image_removed_for_snapshot]';
+                           const hasDataRealUrls = data && data.imageUrls && data.imageUrls.length > 0 && data.imageUrls.some((u: string) => u && u !== '[image_removed_for_snapshot]');
+                           if (hasDataRealImage || hasDataRealUrls) {
+                             imageMap[id] = { imageUrl: data.imageUrl, imageUrls: data.imageUrls || [] };
+                           }
                         }
                       } catch (e) {
                          console.warn(`Failed to fetch image for ${id}`, e);
@@ -1048,7 +1060,9 @@ export default function App() {
                                     if (legacyDoc.exists()) {
                                         const data = legacyDoc.data();
                                         const f = v2Foods.find(v => v.id === id);
-                                        if (f && isImageMissing(f) && data.imageUrl && data.imageUrl !== '[image_removed_for_snapshot]') {
+                                        const hasLegacyRealImage = data && data.imageUrl && data.imageUrl !== '[image_removed_for_snapshot]';
+                                        const hasLegacyRealUrls = data && data.imageUrls && data.imageUrls.length > 0 && data.imageUrls.some((u: string) => u && u !== '[image_removed_for_snapshot]');
+                                        if (f && isImageMissing(f) && (hasLegacyRealImage || hasLegacyRealUrls)) {
                                             f.imageUrl = data.imageUrl;
                                             f.imageUrls = data.imageUrls || [];
                                             recoveredUpdates.push({ id, imageUrl: data.imageUrl, imageUrls: data.imageUrls });
@@ -1523,7 +1537,7 @@ export default function App() {
           report: cloudReport,
           lastSyncedAt: Date.now()
         };
-        safeSaveToLocalStorage(getStorageKey(mergedProfile?.email || profile?.email || auth.currentUser?.email), bundle);
+        await safeSaveToLocalStorage(getStorageKey(mergedProfile?.email || profile?.email || auth.currentUser?.email), bundle);
         // Add a small delay for delightful visual feedback
         await new Promise(resolve => setTimeout(resolve, 800));
         setSyncState((hasUnsynced && !forcePull) ? 'local' : 'synced');
@@ -1555,7 +1569,7 @@ export default function App() {
           dailyBenefits: localBenefits,
           report: localReport
         };
-        safeSaveToLocalStorage(getStorageKey(localProfile?.email || profile?.email || auth.currentUser?.email), bundle);
+        await safeSaveToLocalStorage(getStorageKey(localProfile?.email || profile?.email || auth.currentUser?.email), bundle);
         // Try syncing profile to cloud in background
         const tNewProfileId = logInteraction('upload', `users/${uid} (Restore Profile)`, localProfile);
         const localProfileForCloud = { ...localProfile };
@@ -1639,7 +1653,7 @@ export default function App() {
           dailyBenefits: initialBenefits,
           report: null
         };
-        safeSaveToLocalStorage(getStorageKey(newProfile?.email || profile?.email || auth.currentUser?.email), bundle);
+        await safeSaveToLocalStorage(getStorageKey(newProfile?.email || profile?.email || auth.currentUser?.email), bundle);
         // Add a small delay for delightful visual feedback
         await new Promise(resolve => setTimeout(resolve, 800));
         setSyncState('synced');
@@ -2171,7 +2185,7 @@ export default function App() {
       foodIdeas: currFoodIdeas,
       report: currReport
     };
-    safeSaveToLocalStorage(getStorageKey(updatedProfile?.email || profile?.email || auth.currentUser?.email), bundle);
+    await safeSaveToLocalStorage(getStorageKey(updatedProfile?.email || profile?.email || auth.currentUser?.email), bundle);
 
 
 
@@ -2278,11 +2292,15 @@ export default function App() {
             setBiomarkerHistory(sb);
           });
           const f = currFoods.find(item => item.id === specificUpdate.targetId);
-          if (f && (f.imageUrl || (f.imageUrls && f.imageUrls.length > 0))) {
-            await setDoc(doc(db, 'users', uid, 'foodImages', f.id), {
-              imageUrl: f.imageUrl || null,
-              imageUrls: f.imageUrls || []
-            }).catch(err => console.error(err));
+          if (f) {
+            const hasRealImage = f.imageUrl && f.imageUrl !== '[image_removed_for_snapshot]' && f.imageUrl !== '';
+            const hasRealUrls = f.imageUrls && f.imageUrls.length > 0 && f.imageUrls.some(u => u && u !== '[image_removed_for_snapshot]' && u !== '');
+            if (hasRealImage || hasRealUrls) {
+              await setDoc(doc(db, 'users', uid, 'foodImages', f.id), {
+                imageUrl: hasRealImage ? f.imageUrl : null,
+                imageUrls: f.imageUrls ? f.imageUrls.filter(u => u && u !== '[image_removed_for_snapshot]') : []
+              }).catch(err => console.error(err));
+            }
           }
         } else if (specificUpdate.type === 'biomarkerLog' && specificUpdate.targetId) {
           const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
@@ -2385,13 +2403,17 @@ export default function App() {
         };
 
         const foodImageTasks = currFoods
-          .filter(f => f.sync_state !== 'synced' && (f.imageUrl || (f.imageUrls && f.imageUrls.length > 0)))
+          .filter(f => f.sync_state !== 'synced' && (
+            (f.imageUrl && f.imageUrl !== '[image_removed_for_snapshot]' && f.imageUrl !== '') ||
+            (f.imageUrls && f.imageUrls.length > 0 && f.imageUrls.some(u => u && u !== '[image_removed_for_snapshot]'))
+          ))
           .map(f => {
             const cloudF = cloudFoods.find((cf: any) => cf.id === f.id);
             if (!cloudF || cloudF.imageUrl !== f.imageUrl || JSON.stringify(cloudF.imageUrls) !== JSON.stringify(f.imageUrls)) {
+              const hasRealImage = f.imageUrl && f.imageUrl !== '[image_removed_for_snapshot]' && f.imageUrl !== '';
               return () => setDoc(doc(db, 'users', uid, 'foodImages', f.id), {
-                imageUrl: f.imageUrl || null,
-                imageUrls: f.imageUrls || []
+                imageUrl: hasRealImage ? f.imageUrl : null,
+                imageUrls: f.imageUrls ? f.imageUrls.filter(u => u && u !== '[image_removed_for_snapshot]') : []
               }).catch(err => console.error("Food image sync error:", err));
             }
             return null;
@@ -2419,7 +2441,7 @@ export default function App() {
             reportPromise,
             foodImagePromise
           ]),
-          3000,
+          30000,
           'FullPush sync'
         ).catch(err => console.warn('Background sync warning:', err));
       } else {
@@ -2458,11 +2480,15 @@ export default function App() {
         };
 
         const foodImageTasks = currFoods
-          .filter(f => (f.imageUrl || (f.imageUrls && f.imageUrls.length > 0)) && (f.sync_state === 'new' || f.sync_state === 'update'))
+          .filter(f => (
+            ((f.imageUrl && f.imageUrl !== '[image_removed_for_snapshot]' && f.imageUrl !== '') ||
+             (f.imageUrls && f.imageUrls.length > 0 && f.imageUrls.some(u => u && u !== '[image_removed_for_snapshot]')))
+          ) && (f.sync_state === 'new' || f.sync_state === 'update'))
           .map(f => {
+            const hasRealImage = f.imageUrl && f.imageUrl !== '[image_removed_for_snapshot]' && f.imageUrl !== '';
             return () => setDoc(doc(db, 'users', uid, 'foodImages', f.id), {
-              imageUrl: f.imageUrl || null,
-              imageUrls: f.imageUrls || []
+              imageUrl: hasRealImage ? f.imageUrl : null,
+              imageUrls: f.imageUrls ? f.imageUrls.filter(u => u && u !== '[image_removed_for_snapshot]') : []
             }).catch(err => console.error(err));
           });
 
@@ -2493,7 +2519,7 @@ export default function App() {
         report: currReport,
         lastSyncedAt: Date.now()
       };
-      safeSaveToLocalStorage(getStorageKey(updatedProfile?.email || profile?.email || auth.currentUser?.email), finalBundle);
+      await safeSaveToLocalStorage(getStorageKey(updatedProfile?.email || profile?.email || auth.currentUser?.email), finalBundle);
       setSyncState('synced');
       completeInteraction(syncRootId, true, 0);
     } catch (e: any) {
@@ -2568,7 +2594,7 @@ export default function App() {
       report: resolvedReport,
       lastSyncedAt: now
     };
-    safeSaveToLocalStorage(getStorageKey(resolvedProfile?.email || profile?.email || auth.currentUser?.email), bundle);
+    await safeSaveToLocalStorage(getStorageKey(resolvedProfile?.email || profile?.email || auth.currentUser?.email), bundle);
 
     // 6. Push fully resolved bundle to Cloud Firestore (full push)
     try {

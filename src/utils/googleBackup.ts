@@ -326,15 +326,69 @@ export async function runBackupWorkflow(
     // Ignore accounts without valid emails or fields
     if (!profile.email) continue;
 
-    // Fetch food logs
-    trackApiCall('firebase_read', `Firestore Read - Backup: Fetch food logs (downloads user meal entries for backup ZIP generation)`);
-      const foodLogsSnap = await getDocs(collection(db, 'users', uid, 'foodLogs'));
-    const foodLogs = foodLogsSnap.docs.map(d => d.data());
+    // Fetch consolidated logs
+    let foodLogs: any[] = [];
+    let biomarkerHistory: any[] = [];
+    
+    trackApiCall('firebase_read', `Firestore Read - Backup: Fetch consolidated logs (downloads historical food and biomarker logs for backup ZIP generation)`);
+    const bucketsSnap = await getDocs(collection(db, 'users', uid, 'consolidated_logs'));
+    bucketsSnap.docs.forEach(docSnap => {
+      const data = docSnap.data();
+      if (data && data.logs) {
+        Object.values(data.logs).forEach((logInfo: any) => {
+          if (logInfo.type === 'food') {
+            foodLogs.push(logInfo.data);
+          } else if (logInfo.type === 'biomarker') {
+            biomarkerHistory.push(logInfo.data);
+          }
+        });
+      }
+    });
 
-    // Fetch biomarker history
-    trackApiCall('firebase_read', `Firestore Read - Backup: Fetch biomarker history (downloads blood/body biomarker recordings for backup ZIP generation)`);
-      const biomarkerHistorySnap = await getDocs(collection(db, 'users', uid, 'biomarkerHistory'));
-    const biomarkerHistory = biomarkerHistorySnap.docs.map(d => d.data());
+    // Also fetch legacy food logs and biomarker history in case they haven't migrated
+    trackApiCall('firebase_read', `Firestore Read - Backup: Fetch legacy food logs`);
+    const legacyFoodLogsSnap = await getDocs(collection(db, 'users', uid, 'foodLogs'));
+    legacyFoodLogsSnap.docs.forEach(d => {
+      const data = d.data();
+      const existingIdx = foodLogs.findIndex(f => f.id === data.id);
+      if (existingIdx === -1) {
+        foodLogs.push(data);
+      } else {
+        // Merge legacy images if missing
+        if (data.imageUrl && !foodLogs[existingIdx].imageUrl) foodLogs[existingIdx].imageUrl = data.imageUrl;
+        if (data.imageUrls && !foodLogs[existingIdx].imageUrls) foodLogs[existingIdx].imageUrls = data.imageUrls;
+      }
+    });
+
+    trackApiCall('firebase_read', `Firestore Read - Backup: Fetch legacy biomarker history`);
+    const legacyBioSnap = await getDocs(collection(db, 'users', uid, 'biomarkerHistory'));
+    legacyBioSnap.docs.forEach(d => {
+      const data = d.data();
+      if (!biomarkerHistory.some(b => b.id === data.id)) {
+        biomarkerHistory.push(data);
+      }
+    });
+
+    // Fetch images from foodImages collection
+    trackApiCall('firebase_read', `Firestore Read - Backup: Fetch food images`);
+    const foodImagesSnap = await getDocs(collection(db, 'users', uid, 'foodImages'));
+    const imageMap: Record<string, any> = {};
+    foodImagesSnap.docs.forEach(d => {
+      imageMap[d.id] = d.data();
+    });
+
+    // Merge images into foodLogs
+    foodLogs = foodLogs.map(f => {
+      const imgData = imageMap[f.id];
+      if (imgData) {
+        return {
+          ...f,
+          imageUrl: imgData.imageUrl || f.imageUrl,
+          imageUrls: imgData.imageUrls || f.imageUrls
+        };
+      }
+      return f;
+    });
 
     // Fetch actions, dailyBenefits, foodIdeas
     let actions: any[] = [];

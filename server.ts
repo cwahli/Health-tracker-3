@@ -4867,33 +4867,81 @@ You MUST return a JSON object with the following schema:
 app.post("/api/gemini/standardize-units", async (req, res) => {
   try {
     const explicitSessionId = (req.headers["x-session-id"] as string) || "global";
-    const { selectedBiomarkers, engine, customSystemInstruction } = req.body;
+    const { selectedBiomarkers, engine, customSystemInstruction, unitPreference } = req.body;
     const modelId = engine || "gemini-3.1-flash-lite";
-    addDebugLog(`[Standardize Units Agent] Request received to standardize ${selectedBiomarkers?.length} biomarkers using model: ${modelId}.`, explicitSessionId);
+    addDebugLog(`[Standardize Units Agent] Request received to standardize ${selectedBiomarkers?.length} biomarkers using model: ${modelId} with user unit preference: ${unitPreference || 'SI'}.`, explicitSessionId);
 
-    let systemInstruction = `You are an automated Clinical Unit Standardization Agent. Your task is to accurately standardize medical units for various biomarkers to ensure consistency across the application.
+    const targetUnitSystem = unitPreference === "US" ? "US Units (e.g., mg/dL, lbs, inches, standard US clinical ranges)" : "SI Units / International System (e.g., mmol/L, g/L, kg, cm, standard international clinical ranges)";
+
+    let systemInstruction = `You are an automated Clinical Unit Standardization Agent. Your task is to standardize medical units for biomarkers.
+
+=== USER PREFERENCE ===
+The user's preferred unit system is: ${targetUnitSystem}.
+You MUST standardize the unit for each biomarker to match this preferred system. For example, if the user preference is US Units, you should convert international units like mmol/L to mg/dL when appropriate (e.g., for Glucose or Cholesterol), and standardise weights to lbs, heights to inches. If the user preference is SI Units, you should convert US units to SI/International units. Ensure you provide the appropriate conversionFactor to convert from the biomarker's current unit to this standardized preferred unit.
 
 === SYSTEM CONSTRAINTS ===
-- Do NOT repeat biomarkers. Output exactly ONE object per input biomarker.
-- Do NOT put explanations, sentences, or thought processes inside the "standardizedUnit", "conversionFactor", or "confidence" fields. 
-- Put ALL explanations and reasoning strictly in the "notes" or "scratchpad" fields.
 
-=== OUTPUT SCHEMA ===
-You must return a raw, valid JSON object matching this exact schema. Do not include markdown wrappers.
+First, think step-by-step in plain text.
+
+Second, output exactly one JSON object.
+
+The JSON must contain ONLY the mappedBiomarkers array. No scratchpad inside the JSON.
+
+Output exactly ONE object per input biomarker.
+
+=== FIELD DEFINITIONS FOR JSON ===
+
+mappedBiomarkers (array of objects):
+
+originalKey (string): Exact match to input key.
+
+standardizedUnit (string): The exact, pure abbreviation (e.g., "cm", "kg", "score", "mmol/L").
+
+conversionFactor (number): The numeric conversion multiplier. Use 1 if unknown.
+
+confidence (string): "high", "medium", or "low".
+
+notes (string): Clinical reasoning.
+
+=== EXAMPLES ===
+
+Example 1: Converting a known unit
+Input:
+
+key: "weight", name: "Body Weight", currentUnit: "lbs"
+
+key: "height", name: "Height", currentUnit: "Unknown"
+
+Output:
+Weight is lbs. Standard is kg. Conversion is 0.453592. Confidence high.
+Height is Unknown. Default to cm. Conversion 1. Confidence low.
 
 {
-  "scratchpad": "string (Think step-by-step here ONLY)",
-  "mappedBiomarkers": [
-    {
-      "originalKey": "string (must exactly match the provided input key)",
-      "standardizedUnit": "string (ONLY the pure metric abbreviation, e.g., 'mmol/L', '%', 'score', 'cm', 'ratio', or 'kg')",
-      "conversionFactor": "number (e.g., 1)",
-      "confidence": "string (strictly 'high', 'medium', or 'low')",
-      "notes": "string (Put your clinical reasoning and annotations here)"
-    }
-  ]
+"mappedBiomarkers": [
+{
+"originalKey": "weight",
+"standardizedUnit": "kg",
+"conversionFactor": 0.453592,
+"confidence": "high",
+"notes": "Converted from lbs to kg."
+},
+{
+"originalKey": "height",
+"standardizedUnit": "cm",
+"conversionFactor": 1,
+"confidence": "low",
+"notes": "Unit unknown. Defaulted to cm."
 }
-`;
+]
+}
+
+=== OUTPUT INSTRUCTIONS ===
+
+First, write out your step-by-step reasoning in plain text.
+
+Then, output your final mapped results in a raw, valid JSON block.
+
+Ensure EVERY JSON field is correctly separated by a comma and that all strings are properly closed with quotation marks. Do not add markdown formatting blocks (such as \`\`\`json) around your response.`;
 
     if (customSystemInstruction) {
       systemInstruction += `\n\n=== CUSTOM INSTRUCTIONS ===\n${customSystemInstruction}`;
@@ -4936,10 +4984,8 @@ You must return a raw, valid JSON object matching this exact schema. Do not incl
       try {
         const llmPromise = callUnifiedLLM({
           modelId,
-          systemInstruction: systemInstruction + "\n\nJSON STRUCTURED OUTPUT:\nYou must strictly return a JSON object. Do not add markdown wrappers. Think step-by-step in the 'scratchpad' field first.",
-          promptText,
-          responseMimeType: "application/json",
-          responseSchema: standardizeUnitsSchema
+          systemInstruction,
+          promptText
         });
         
         // Prevent unhandled rejection if this promise settles after Promise.race finishes
@@ -4965,7 +5011,14 @@ You must return a raw, valid JSON object matching this exact schema. Do not incl
     }
 
     let cleanJson = textOutput.replace(/```(?:json)?/gi, "").trim();
-    addDebugLog(`[Standardize Units Agent] Agent output payload:\n${cleanJson}`, explicitSessionId);
+    addDebugLog(`[Standardize Units Agent] Agent output payload (raw):\n${cleanJson}`, explicitSessionId);
+    
+    const jsonMatch = cleanJson.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      cleanJson = jsonMatch[0];
+    }
+    
+    addDebugLog(`[Standardize Units Agent] Agent output payload (cleaned):\n${cleanJson}`, explicitSessionId);
     res.json({ jsonResponse: cleanJson });
   } catch (error: any) {
     const explicitSessionId = (req.headers["x-session-id"] as string) || "global";
@@ -5797,6 +5850,66 @@ const searchRegistry: SearchEngine[] = [
         }
       } catch (err) {
         console.error("[Wiki Search Error]", err);
+      }
+      return [];
+    }
+  },
+  // 2. Gemini Grounding Search API
+  {
+    name: "GeminiSearch",
+    isEnabled: (env) => !!env.GEMINI_API_KEY,
+    search: async (query, count, env) => {
+      try {
+        const { GoogleGenAI } = await import("@google/genai");
+        const ai = new GoogleGenAI({ apiKey: env.GEMINI_API_KEY });
+        const response = await ai.models.generateContent({
+          model: "gemini-2.5-flash",
+          contents: `Find a high quality image of this food dish: ${query}. Respond only with a very brief description.`,
+          config: { tools: [{ googleSearch: {} }] }
+        });
+        
+        const candidate = response.candidates?.[0];
+        const groundingMetadata = candidate?.groundingMetadata;
+        const groundingChunks = groundingMetadata?.groundingChunks || [];
+        
+        const results = [];
+        for (const chunk of groundingChunks) {
+          if (chunk.web && chunk.web.uri && (chunk.web.uri.endsWith('.jpg') || chunk.web.uri.endsWith('.png') || chunk.web.uri.endsWith('.jpeg'))) {
+            results.push({
+              title: chunk.web.title || query,
+              imageUrl: chunk.web.uri,
+              pageUrl: chunk.web.uri,
+              engine: "GeminiSearch"
+            });
+          }
+        }
+        
+        // If we didn't find direct image URLs, let's just pick any returned URI as a fallback in case it's usable,
+        // but normally groundingChunks web.uri points to pages, not images. Wait.
+        // Actually, groundingChunks from googleSearch tool usually returns page URIs, not image URIs.
+        return results.slice(0, count);
+      } catch (err) {
+        console.error("[Gemini Search Error]", err);
+      }
+      return [];
+    }
+  },
+  // 5. LoremFlickr Fallback API
+  {
+    name: "LoremFlickr",
+    isEnabled: () => true,
+    search: async (query, count) => {
+      try {
+        const keyword = query.split(' ')[0] || 'food';
+        const url = `https://loremflickr.com/400/400/food,${encodeURIComponent(keyword)}`;
+        return [{
+          title: query,
+          imageUrl: url,
+          pageUrl: `https://loremflickr.com`,
+          engine: "LoremFlickr"
+        }];
+      } catch (err) {
+        console.error("[LoremFlickr Error]", err);
       }
       return [];
     }

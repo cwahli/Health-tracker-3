@@ -399,7 +399,8 @@ const getFoodImageUrl = (foodName: string, suppliedUrl?: string) => {
   }
 
   // Universal healthy food generic fallback
-  return "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=400&auto=format&fit=crop&q=60";
+  const keyword = name.split(' ')[0] || 'food';
+  return `https://loremflickr.com/400/400/food,${encodeURIComponent(keyword)}`;
 };
 
 interface GroupItemsContainerProps {
@@ -616,7 +617,7 @@ export const FoodCard: React.FC<AgentCardProps & {
       const response = await fetch("/api/gemini/food-image-search", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query }),
+        body: JSON.stringify({ query, mode: "complete" }),
       });
       const data = await response.json();
       if (data.images && data.images.length > 0) {
@@ -989,7 +990,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                            src={resolvedImgSrc} 
                                            alt={item.keyword} 
                                            className="w-full h-full object-cover"
-                                           onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format'; }}
+                                           onError={(e) => { const t = e.target as HTMLImageElement; if (!t.src.includes('unsplash.com')) t.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format'; }}
                                          />
                                        )}
                                      </div>
@@ -1181,7 +1182,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                             onClick={() => {
                                               setPreviewState({ groupIdx: idx, itemIdx: 0, resolvedImgSrc });
                                             }}
-                                            onError={(e) => { (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format'; }}
+                                            onError={(e) => { const t = e.target as HTMLImageElement; if (!t.src.includes('unsplash.com')) t.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format'; }}
                                           />
                                         );
                                       }
@@ -1889,7 +1890,8 @@ export const FoodCard: React.FC<AgentCardProps & {
                                              alt={item.keyword} 
                                              className="w-full h-full object-cover"
                                              onError={(e) => {
-                                               (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format';
+                                               const t = e.target as HTMLImageElement;
+                                               if (!t.src.includes('unsplash.com')) t.src = 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=100&q=80&auto=format';
                                              }}
                                            />
                                          )}

@@ -409,16 +409,8 @@ export default function InsightsTab({
       });
     }
 
-    return Array.from(allKnownKeys).filter(k => {
-      if (excludeStandardized) {
-        if (profile.customBiomarkers?.[k]?.standardMedicalGrouping !== undefined) return false;
-        // Exclude built-in definitions that are already categorized
-        const builtIn = biomarkerDefinitions.find(d => d.key === k);
-        if (builtIn?.standardMedicalGrouping) return false;
-      }
-      return true;
-    });
-  }, [activeHistory, biomarkers, excludeStandardized, profile.customBiomarkers]);
+    return Array.from(allKnownKeys);
+  }, [activeHistory, biomarkers]);
 
   const [biomarkerBatches, setBiomarkerBatches] = React.useState<string[][]>(() => {
     try {
@@ -1911,7 +1903,52 @@ export default function InsightsTab({
                                   </button>
                                 </div>
                               </div>
-                              {[...batches.map((b, i) => ({ keys: b, idx: i.toString(), isCustom: false })), ...(customBatchKeys.length > 0 ? [{ keys: customBatchKeys, idx: 'custom', isCustom: true }] : [])].map(({ keys: batchKeys, idx: bIdx, isCustom }) => {
+                              {(() => {
+                                const agent1BatchesToShow = batches.map((b, i) => {
+                                  let keysToShow = b;
+                                  if (excludeStandardized) {
+                                    keysToShow = b.filter(k => {
+                                      if (profile.customBiomarkers?.[k]?.standardMedicalGrouping !== undefined) return false;
+                                      const builtIn = biomarkerDefinitions.find(d => d.key === k);
+                                      if (builtIn?.standardMedicalGrouping) return false;
+                                      return true;
+                                    });
+                                  }
+                                  return { keys: keysToShow, idx: i.toString(), isCustom: false };
+                                });
+
+                                const activeAgent1Batches = agent1BatchesToShow.filter(b => b.keys.length > 0 || approvedAgent1Batches[b.idx]);
+
+                                if (activeAgent1Batches.length === 0 && customBatchKeys.length === 0) {
+                                  return (
+                                    <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                                      <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
+                                      <h4 className="text-xs font-bold text-slate-850 dark:text-slate-200">All Biomarkers Standardized!</h4>
+                                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+                                        All of your <strong>{markerKeys.length}</strong> biomarkers match standard clinical nomenclature. There are no raw unstandardized biomarkers to clean.
+                                      </p>
+                                      <div className="mt-4 flex items-center justify-center gap-2">
+                                        <button
+                                          onClick={() => {
+                                            setExcludeStandardized(false);
+                                            localStorage.setItem('agent1_exclude_standardized', 'false');
+                                          }}
+                                          className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 cursor-pointer"
+                                        >
+                                          Show All Biomarkers
+                                        </button>
+                                        <button
+                                          onClick={() => setActiveStepIndex(2)}
+                                          className="px-3 py-1.5 bg-indigo-650 hover:bg-indigo-700 text-white rounded-lg text-[10px] font-bold cursor-pointer"
+                                        >
+                                          Go to Step 3: Data Review
+                                        </button>
+                                      </div>
+                                    </div>
+                                  );
+                                }
+
+                                return [...activeAgent1Batches, ...(customBatchKeys.length > 0 ? [{ keys: customBatchKeys, idx: 'custom', isCustom: true }] : [])].map(({ keys: batchKeys, idx: bIdx, isCustom }) => {
                                 const isApproved = approvedAgent1Batches[bIdx];
                                 const isAnalyzing = isAnalyzingAgent1Batch[bIdx];
                                 const result = agent1BatchResults[bIdx];
@@ -2399,9 +2436,10 @@ export default function InsightsTab({
                                     )}
                                   </div>
                                 );
-                              })}
-                            </div>
+                              })
+                            })()}
                           </div>
+                        </div>
                         )}
                       </div>
                     ) : step.id === 'data_review' ? (

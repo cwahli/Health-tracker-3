@@ -11,7 +11,7 @@ export const OnlineFoodImage: React.FC<{
   foodName, 
   fallbackSrc, 
   className,
-  searchMode = "light",
+  searchMode = "complete",
   prefetchedSrc
 }) => {
   const [src, setSrc] = React.useState<string>(prefetchedSrc || "");

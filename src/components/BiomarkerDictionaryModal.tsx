@@ -824,7 +824,7 @@ export default function BiomarkerDictionaryModal({
 
   // Clinical Unit Standardization Agent States
   const [isAgentMode, setIsAgentMode] = useState(false);
-  const [targetMetric, setTargetMetric] = useState<'si' | 'us'>('si');
+  const [targetMetric, setTargetMetric] = useState<'si' | 'us'>(() => (profile.unitPreference?.toLowerCase() as 'si' | 'us') || 'si');
   const [agentLoading, setAgentLoading] = useState(false);
   const [standardizationYaml, setStandardizationYaml] = useState<string | null>(null);
   const [standardizationSummary, setStandardizationSummary] = useState<any[] | null>(null);
@@ -982,11 +982,15 @@ export default function BiomarkerDictionaryModal({
       }
       
       const meta = getBiomarkerMetadata(k, profile.customBiomarkers?.[k]);
+      const def = profile.customBiomarkers?.[k] || biomarkerDefinitions.find((d: any) => d.key === k);
+      const unit = def?.unit || '';
+      const hasUnit = !!unit && unit.trim() !== '';
       
       // A biomarker has all medical tags if:
       // 1. It has a standardMedicalGrouping that is not empty/falsy, and NOT 'By Medical Practice' (Even 'Other' counts)
       // 2. It has riskCategories that is a non-empty array and does not just contain 'Uncategorized'
       // 3. It has potentialMedicalConditions that is a non-empty array
+      // 4. It has a non-empty unit of measurement
       const hasPractice = !!meta.standardMedicalGrouping && 
         meta.standardMedicalGrouping.trim() !== '' && 
         meta.standardMedicalGrouping !== 'By Medical Practice';
@@ -999,7 +1003,7 @@ export default function BiomarkerDictionaryModal({
         meta.potentialMedicalConditions.length > 0 && 
         meta.potentialMedicalConditions.some((c: string) => c.trim() !== '');
         
-      const hasAllMedicalTags = hasPractice && hasRisk && hasConditions;
+      const hasAllMedicalTags = hasPractice && hasRisk && hasConditions && hasUnit;
         
       if (hasAllMedicalTags) {
         keys.add(k);
@@ -1616,6 +1620,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
         body: JSON.stringify({
           selectedBiomarkers: selectedBiomarkerDetails,
           metricSystem: targetMetric,
+          unitPreference: profile.unitPreference || 'SI',
           engine: isMedicalCategorisationMode ? medicalCategoriseModel : standardizeModel,
           customSystemInstruction: localStorage.getItem(`custom_system_instruction_${agentKey}`) || undefined
         })
