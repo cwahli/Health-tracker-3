@@ -39,6 +39,7 @@ export const pruneLocalStorageToFreeSpace = () => {
 };
 
 export const get = async (key: string): Promise<any> => {
+  const isHeavyKey = key.startsWith('health_cockpit_app_data_') || key.startsWith('health_cockpit_snapshots_');
   try {
     const result = await Promise.race([
       idbGet(key),
@@ -47,65 +48,40 @@ export const get = async (key: string): Promise<any> => {
     if (result !== undefined) {
       return result;
     }
-    const val = localStorage.getItem(key);
-    return val ? JSON.parse(val) : undefined;
+    // Only fall back to localStorage for lightweight non-app-data keys
+    if (!isHeavyKey) {
+      const val = localStorage.getItem(key);
+      return val ? JSON.parse(val) : undefined;
+    }
+    return undefined;
   } catch (e) {
     console.log("get timeout/error (falling back to localStorage):", e);
     if (typeof window !== 'undefined') (window as any)._idbFailed = true;
-    try {
-      const val = localStorage.getItem(key);
-      return val ? JSON.parse(val) : undefined;
-    } catch {
-      return undefined;
+    if (!isHeavyKey) {
+      try {
+        const val = localStorage.getItem(key);
+        return val ? JSON.parse(val) : undefined;
+      } catch {
+        return undefined;
+      }
     }
+    return undefined;
   }
 };
 
 export const set = async (key: string, val: any): Promise<void> => {
   const isHeavyKey = key.startsWith('health_cockpit_app_data_') || key.startsWith('health_cockpit_snapshots_');
-  const isSaturated = typeof window !== 'undefined' && 
-    ((window as any)._localStorageSaturated === true || localStorage.getItem('_ls_saturated') === 'true');
-
-  if (!isSaturated || !isHeavyKey) {
+  // Heavy app data keys MUST be stored exclusively in high-capacity IndexedDB.
+  // Never leave frozen/stale JSON strings in localStorage that cause 5MB quota crashes.
+  if (isHeavyKey) {
+    try {
+      localStorage.removeItem(key); // Remove stale copy from localStorage
+    } catch {}
+  } else {
     try {
       localStorage.setItem(key, JSON.stringify(val));
-    } catch (localStorageError: any) {
-      if (isHeavyKey) {
-        if (typeof window !== 'undefined') {
-          (window as any)._localStorageSaturated = true;
-          try { localStorage.setItem('_ls_saturated', 'true'); } catch {}
-        }
-        console.log(`[Storage] localStorage quota reached. Transitioning to high-capacity IndexedDB for key: ${key}. No data will be lost.`);
-        
-        try {
-          pruneLocalStorageToFreeSpace();
-          // Try writing the full, uncorrupted val first after pruning
-          try {
-            localStorage.setItem(key, JSON.stringify(val));
-            console.log(`[Storage] Successfully saved full uncorrupted data to localStorage after pruning!`);
-            if (typeof window !== 'undefined') {
-              (window as any)._localStorageSaturated = false; // Reset saturation as we succeeded
-              localStorage.removeItem('_ls_saturated');
-            }
-          } catch (secondError) {
-            // DO NOT save an image-stripped fallback to localStorage!
-            // Remove the key from localStorage so get() reads intact data from high-capacity IndexedDB.
-            try {
-              localStorage.removeItem(key);
-              console.log("[Storage] Removed key from localStorage on quota limit. Relying strictly on IndexedDB.");
-            } catch {}
-          }
-        } catch (fallbackError) {
-          // Quietly rely on IndexedDB
-        }
-      } else {
-        try {
-          localStorage.setItem(key, JSON.stringify(val));
-        } catch {}
-      }
-    }
+    } catch {}
   }
-
   try {
     await Promise.race([
       idbSet(key, val),
