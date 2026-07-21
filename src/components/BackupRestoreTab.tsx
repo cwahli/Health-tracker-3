@@ -366,6 +366,12 @@ export default function BackupRestoreTab({ profile, foodLogs, biomarkerHistory, 
        } else {
          if (selectedFoods.has(f.id)) {
            existingMap.set(f.id, f);
+         } else {
+           const existing = existingMap.get(f.id);
+           if (existing) {
+             if (!existing.imageUrl && f.imageUrl && f.imageUrl !== "[image_removed_for_snapshot]") existing.imageUrl = f.imageUrl;
+             if ((!existing.imageUrls || existing.imageUrls.length === 0) && f.imageUrls && f.imageUrls.length > 0) existing.imageUrls = f.imageUrls;
+           }
          }
        }
      });

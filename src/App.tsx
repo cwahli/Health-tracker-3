@@ -1375,7 +1375,20 @@ export default function App() {
             // (do NOT just use filteredFoods — that drops local items the server doesn't have yet)
             const foodUnionMap = new Map(filteredFoods.map(f => [f.id, f]));
             filteredLocalFoods.forEach(localItem => {
-              if (!foodUnionMap.has(localItem.id)) {
+              const existing = foodUnionMap.get(localItem.id);
+              if (existing) {
+                // Preserve local image if cloud is missing image data
+                const existingHasImage = existing.imageUrl && existing.imageUrl !== "[image_removed_for_snapshot]" && existing.imageUrl !== "";
+                const localHasImage = localItem.imageUrl && localItem.imageUrl !== "[image_removed_for_snapshot]" && localItem.imageUrl !== "";
+                const existingHasUrls = existing.imageUrls && existing.imageUrls.length > 0;
+                const localHasUrls = localItem.imageUrls && localItem.imageUrls.length > 0;
+
+                foodUnionMap.set(localItem.id, {
+                  ...existing,
+                  imageUrl: existingHasImage ? existing.imageUrl : (localHasImage ? localItem.imageUrl : existing.imageUrl),
+                  imageUrls: existingHasUrls ? existing.imageUrls : (localHasUrls ? localItem.imageUrls : existing.imageUrls)
+                });
+              } else {
                 foodUnionMap.set(localItem.id, localItem);
               }
             });
@@ -1423,7 +1436,7 @@ export default function App() {
             filteredLocalFoods.forEach(localItem => {
               const existingIdx = mergedFoods.findIndex(m => m.id === localItem.id);
               if (existingIdx >= 0) {
-                // Keep whichever is newer
+                // Keep whichever is newer, but ALWAYS preserve local image data if cloud lacks it
                 if ((localItem.updated_at || 0) >= (mergedFoods[existingIdx].updated_at || 0)) {
                   mergedFoods[existingIdx] = {
                     ...mergedFoods[existingIdx],
@@ -1431,10 +1444,25 @@ export default function App() {
                     imageUrl: localItem.imageUrl || mergedFoods[existingIdx].imageUrl,
                     imageUrls: (localItem.imageUrls && localItem.imageUrls.length > 0) ? localItem.imageUrls : mergedFoods[existingIdx].imageUrls,
                   };
+                } else {
+                  // Cloud is newer, but we still need to preserve images if cloud is missing them
+                  const cloudItem = mergedFoods[existingIdx];
+                  const cloudHasImage = cloudItem.imageUrl && cloudItem.imageUrl !== "[image_removed_for_snapshot]" && cloudItem.imageUrl !== "";
+                  const localHasImage = localItem.imageUrl && localItem.imageUrl !== "[image_removed_for_snapshot]" && localItem.imageUrl !== "";
+                  const cloudHasUrls = cloudItem.imageUrls && cloudItem.imageUrls.length > 0;
+                  const localHasUrls = localItem.imageUrls && localItem.imageUrls.length > 0;
+                  const updatedCloudItem = { ...cloudItem };
+                  if (!cloudHasImage && localHasImage) {
+                    updatedCloudItem.imageUrl = localItem.imageUrl;
+                  }
+                  if (!cloudHasUrls && localHasUrls) {
+                    updatedCloudItem.imageUrls = localItem.imageUrls;
+                  }
+                  mergedFoods[existingIdx] = updatedCloudItem;
                 }
               } else {
                 // Local item not on server yet — keep it and mark for sync
-                mergedFoods.push({ ...localItem, sync_state: 'update' });
+                mergedFoods.push({ ...localItem, sync_state: "update" });
               }
             });
 
@@ -2132,6 +2160,19 @@ export default function App() {
       (specificUpdate?.type === 'biomarkerLog' && String(specificUpdate.targetId).startsWith('med_log_bmi_init_')) ||
       specificUpdate?.type === 'googleSteps');
 
+    const foodImagesToSave: { id: string; imageUrl?: string; imageUrls?: string[] }[] = [];
+    currFoods.forEach(f => {
+      const hasRealImage = f.imageUrl && f.imageUrl !== '[image_removed_for_snapshot]' && f.imageUrl !== '';
+      const hasRealUrls = f.imageUrls && f.imageUrls.length > 0 && f.imageUrls.some(u => u && u !== '[image_removed_for_snapshot]' && u !== '');
+      if (hasRealImage || hasRealUrls) {
+        foodImagesToSave.push({
+          id: f.id,
+          imageUrl: hasRealImage ? f.imageUrl : undefined,
+          imageUrls: f.imageUrls ? f.imageUrls.filter(u => u && u !== '[image_removed_for_snapshot]') : []
+        });
+      }
+    });
+
     let updatedProfile = currProfile;
     if (currProfile) {
       updatedProfile = {
@@ -2402,23 +2443,12 @@ export default function App() {
           }
         };
 
-        const foodImageTasks = currFoods
-          .filter(f => f.sync_state !== 'synced' && (
-            (f.imageUrl && f.imageUrl !== '[image_removed_for_snapshot]' && f.imageUrl !== '') ||
-            (f.imageUrls && f.imageUrls.length > 0 && f.imageUrls.some(u => u && u !== '[image_removed_for_snapshot]'))
-          ))
-          .map(f => {
-            const cloudF = cloudFoods.find((cf: any) => cf.id === f.id);
-            if (!cloudF || cloudF.imageUrl !== f.imageUrl || JSON.stringify(cloudF.imageUrls) !== JSON.stringify(f.imageUrls)) {
-              const hasRealImage = f.imageUrl && f.imageUrl !== '[image_removed_for_snapshot]' && f.imageUrl !== '';
-              return () => setDoc(doc(db, 'users', uid, 'foodImages', f.id), {
-                imageUrl: hasRealImage ? f.imageUrl : null,
-                imageUrls: f.imageUrls ? f.imageUrls.filter(u => u && u !== '[image_removed_for_snapshot]') : []
-              }).catch(err => console.error("Food image sync error:", err));
-            }
-            return null;
-          })
-          .filter((t): t is () => Promise<void> => t !== null);
+        const foodImageTasks = foodImagesToSave.map(imgData => {
+          return () => setDoc(doc(db, 'users', uid, 'foodImages', imgData.id), {
+            imageUrl: imgData.imageUrl || null,
+            imageUrls: imgData.imageUrls || []
+          }).catch(err => console.error("Food image sync error:", err));
+        });
 
         const foodImagePromise = chunkPromises(foodImageTasks, 5);
 
@@ -2479,18 +2509,13 @@ export default function App() {
           }
         };
 
-        const foodImageTasks = currFoods
-          .filter(f => (
-            ((f.imageUrl && f.imageUrl !== '[image_removed_for_snapshot]' && f.imageUrl !== '') ||
-             (f.imageUrls && f.imageUrls.length > 0 && f.imageUrls.some(u => u && u !== '[image_removed_for_snapshot]')))
-          ) && (f.sync_state === 'new' || f.sync_state === 'update'))
-          .map(f => {
-            const hasRealImage = f.imageUrl && f.imageUrl !== '[image_removed_for_snapshot]' && f.imageUrl !== '';
-            return () => setDoc(doc(db, 'users', uid, 'foodImages', f.id), {
-              imageUrl: hasRealImage ? f.imageUrl : null,
-              imageUrls: f.imageUrls ? f.imageUrls.filter(u => u && u !== '[image_removed_for_snapshot]') : []
-            }).catch(err => console.error(err));
-          });
+        const foodImageTasks = foodImagesToSave.map(imgData => {
+          return () => setDoc(doc(db, "users", uid, "foodImages", imgData.id), {
+            imageUrl: imgData.imageUrl || null,
+            imageUrls: imgData.imageUrls || []
+          }).catch(err => console.error("Food image sync error:", err));
+        });
+        await chunkPromises(foodImageTasks, 5);
 
         await withTimeout(
           Promise.all([
