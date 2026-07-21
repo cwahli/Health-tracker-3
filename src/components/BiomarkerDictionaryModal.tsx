@@ -1864,6 +1864,9 @@ I can analyze these, compare them with our database keys, and find standard mapp
             if (ev.startsWith("data: ")) {
               try {
                 const chunkData = JSON.parse(ev.slice(6));
+                if (chunkData.error) {
+                  throw new Error(chunkData.error);
+                }
                 if (chunkData.chunk) {
                   accumulatedText += chunkData.chunk;
                   const match = accumulatedText.match(/\"scratchpad\"\s*:\s*\"([^]*?)(\"|$)/);
@@ -1874,10 +1877,13 @@ I can analyze these, compare them with our database keys, and find standard mapp
                   setConsolidationLiveThought(prev => (prev || "") + chunkData.thought);
                 } else if (chunkData.final) {
                   data = chunkData.result;
-                } else if (chunkData.error) {
-                  throw new Error(chunkData.error);
                 }
-              } catch (e) { /* ignore malformed events */ }
+              } catch (e: any) {
+                if (e.message && !e.message.includes("Unexpected token") && !e.message.includes("JSON")) {
+                  throw e;
+                }
+                /* ignore malformed events */
+              }
             }
           }
         }

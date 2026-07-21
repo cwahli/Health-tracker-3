@@ -757,17 +757,7 @@ function robustParseJson(cleanJson: string): any {
 
 // Unified Multi-Provider LLM Router with automatic fallbacks & simulation modes
 async function callUnifiedLLM(args: any): Promise<any> {
-  try {
-    return await callUnifiedLLMInternal(args);
-  } catch (e: any) {
-    if (args.modelId === "gemini-3.1-flash-lite" && (e.message?.includes("503") || e.status === 503 || e.message?.toLowerCase().includes("demand") || e.message?.toLowerCase().includes("unavailable") || e.message?.includes("500"))) {
-      const explicitSessionId = logSessionStorage.getStore();
-      actualAddDebugLog(`[UnifiedLLM] High demand for ${args.modelId}. Falling back to gemini-2.5-flash.`, explicitSessionId);
-      args.modelId = "gemini-2.5-flash";
-      return await callUnifiedLLMInternal(args);
-    }
-    throw e;
-  }
+  return await callUnifiedLLMInternal(args);
 }
 
 async function callUnifiedLLMInternal({
@@ -1342,78 +1332,10 @@ async function callUnifiedLLMInternal({
         throw retryErr;
       }
     } else {
-      addDebugLog(`[UnifiedLLM] No googleSearch fallback available. Attempting REST API fallback to bypass SDK bugs...`);
-      try {
-        const restPayload = {
-          systemInstruction: { parts: [{ text: resolvedInstruction }] },
-          contents: [
-            { role: "user", parts: initialParts }
-          ],
-          generationConfig: {
-            responseMimeType: isJson ? "application/json" : "text/plain"
-          }
-        } as any;
-        
-        if (configObj.responseSchema) {
-          restPayload.generationConfig.responseSchema = configObj.responseSchema;
-        }
-        
-        if (enablePlaceIdTool) {
-          restPayload.tools = [{
-            functionDeclarations: [
-              {
-                name: "get_google_maps_place_id",
-                description: "Retrieves the exact Google Maps Place ID when given a business name and coordinates.",
-                parameters: {
-                  type: "OBJECT",
-                  properties: {
-                    business_name: { type: "STRING" },
-                    latitude: { type: "STRING" },
-                    longitude: { type: "STRING" }
-                  },
-                  required: ["business_name", "latitude", "longitude"]
-                }
-              }
-            ]
-          }];
-        }
-        
-        const restRes = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${targetGeminiModel}:generateContent?key=${process.env.GEMINI_API_KEY}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(restPayload),
-          signal: AbortSignal.timeout(45000)
-        });
-        if (!restRes.ok) {
-          let errMsg = `API request failed: ${restRes.status}`;
-          try { const errData = await restRes.json(); errMsg = errData.error?.message || errMsg; } catch {}
-          throw new Error(errMsg);
-        }
-        const data = await restRes.json();
-        return data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-      } catch (restErr: any) {
-        addDebugLog(`[UnifiedLLM] REST API fallback also failed: ${restErr.message}`);
-        throw err; // Throw the original SDK error if REST fails
-      }
+      throw err;
     }
   }
   } catch (err: any) {
-    if (modelId !== "gemini-3.1-flash-lite" && modelId !== "gemini-3.5-flash") {
-      addDebugLog(`[UnifiedLLM-Recovery] Error during primary execution of model "${modelId}": ${err.message || err}. Retrying with highly stable fallback gemini-3.5-flash...`);
-      return callUnifiedLLM({
-        modelId: "gemini-3.5-flash",
-        systemInstruction,
-        promptText,
-        imagePayload,
-        imagePayloads,
-        responseMimeType,
-        responseSchema,
-        googleSearch,
-        enablePlaceIdTool,
-        maxOutputTokens,
-        onStream
-      });
-    }
     throw err;
   }
 }
@@ -1597,10 +1519,12 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
 
   if (isStream) {
     res.setHeader('Content-Type', 'text/event-stream');
-    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
     res.setHeader('Transfer-Encoding', 'chunked');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Encoding', 'none');
     res.flushHeaders();
     hasSentHeaders = true;
 
@@ -5125,30 +5049,72 @@ app.post("/api/gemini/consolidate-names", async (req, res) => {
       addDebugLog(`[Name Consolidation Agent] User Prompt:\n${inputText}`, explicitSessionId);
     }
 
-    let systemInstruction = `You are an automated Name Consolidation Agent. Your task is to identify clinical biomarkers with similar, synonymous, or alias names from a selected list and group them together to make consolidation easy.
+    let systemInstruction = `You are an automated Name Consolidation Agent. Your task is to identify and group similar clinical biomarkers based on their names.
 
 === SYSTEM CONSTRAINTS ===
-- DO NOT perform, input, or output any form of medical categorization, standard medical grouping, or physiological classification.
-- You are given a reference list of ALREADY-APPROVED keys (EXISTING DICTIONARY below). For every group you form, you MUST check whether it is actually a duplicate/synonym of one of those already-approved keys.
-  * If it matches an existing key (for example, if a candidate name is "serum_sodium_mmol_l" or "serum_sodium" and the existing dictionary contains the key "sodium" or name "Sodium", they are synonymous): set "isExistingKey" to true, set "existingMasterKey" to that exact existing key verbatim (e.g., "sodium" — do not invent a new key, and do not use a candidate name like "serum_sodium" if it isn't in the EXISTING DICTIONARY), and set "recommendedKey" to that same existing key. "aliases" should list only the NEW candidate names from the selected batch that should become aliases of it (do not include the existing key itself, since it isn't part of the selected batch).
-  * If nothing in the existing dictionary matches: set "isExistingKey" to false, "existingMasterKey" to null, and propose a new "recommendedKey" / "canonicalName" as before, with "aliases" listing every selected-batch name that belongs in this new group.
-- You must return a raw, valid JSON object matching this exact schema. Do not include markdown wrappers.
 
-=== OUTPUT SCHEMA ===
+Do not perform any medical categorization or physiological classification.
+
+You are provided with an EXISTING DICTIONARY of approved keys.
+
+For each biomarker in the input batch:
+
+Check if it is a synonym or alias of an EXISTING DICTIONARY key (matching based on name or similar terminology).
+
+If a match is found:
+
+Set "isExistingKey" to true.
+
+Set "existingMasterKey" to the existing dictionary key.
+
+Set "recommendedKey" to the existing dictionary key.
+
+Add the candidate name to "aliases".
+
+If no match is found in the dictionary:
+
+Set "isExistingKey" to false.
+
+Set "existingMasterKey" to null.
+
+Propose a new "recommendedKey" and "canonicalName".
+
+Add the candidate name to "aliases".
+
+=== FIELD DEFINITIONS ===
+
+scratchpad (string): MUST BE THE FIRST FIELD. Think step-by-step here: compare the provided names against each other AND against the existing dictionary, and identify synonyms.
+
+consolidatedGroups (array of objects): A list containing your merged biomarker groups. Each object must contain:
+
+canonicalName (string): The recommended clinical name.
+
+recommendedKey (string): A unique key, formatted in snake_case.
+
+aliases (array of strings): A list of candidate names that are synonyms.
+
+rationale (string): Explanation of why these represent the same clinical biomarker.
+
+isExistingKey (boolean): true if a match was found in the dictionary, otherwise false.
+
+existingMasterKey (string or null): The exact key from the dictionary, or null if no match was found.
+
+=== OUTPUT TEMPLATE ===
+You must strictly return a raw, valid JSON object matching exactly this structure. Do not add markdown formatting blocks (such as \`\`\`json) around your response. Do not insert textual descriptions into the values.
+
 {
-  "scratchpad": "Think step-by-step: compare the provided names against each other AND against the existing dictionary, and identify synonyms.",
-  "consolidatedGroups": [
-    {
-      "canonicalName": "string (Recommended Clinical Name, e.g., 'Serum Albumin')",
-      "recommendedKey": "string (unique key using snake_case, e.g., 'serum_albumin')",
-      "aliases": ["array of strings containing the original names from the selected batch that match this group"],
-      "rationale": "string (Why these are the same clinical biomarker)",
-      "isExistingKey": false,
-      "existingMasterKey": null
-    }
-  ]
+"scratchpad": "",
+"consolidatedGroups": [
+{
+"canonicalName": "",
+"recommendedKey": "",
+"aliases": [],
+"rationale": "",
+"isExistingKey": false,
+"existingMasterKey": null
 }
-`;
+]
+}`;
 
     if (customSystemInstruction) {
       addDebugLog(`[Name Consolidation Agent] Overriding system instruction with custom version (${customSystemInstruction.length} chars).`, explicitSessionId);
@@ -5185,26 +5151,37 @@ Please output a valid JSON object matching the requested schema.`;
       required: ["consolidatedGroups"]
     };
 
-    const consolidationTimeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("Name consolidation timed out after 30s. Model under high demand — please try again.")), 30000)
-    );
-    const textOutput = await Promise.race([
-      callUnifiedLLM({
-        modelId,
-        systemInstruction: systemInstruction + "\n\nJSON STRUCTURED OUTPUT:\nYou must strictly return a JSON object. Do not add markdown wrappers. Put your step-by-step reasoning in the 'scratchpad' field FIRST, before any other field, unless you are already using extended/native thinking for this request — in that case you may leave 'scratchpad' brief or omit it.",
-        promptText: dynamicPromptText,
-        responseMimeType: "application/json",
-        responseSchema: consolidateNamesSchema,
-        onStream: isStream ? (chunk: string, isThought?: boolean) => {
-          if (isThought) {
-            res.write(`data: ${JSON.stringify({ thought: chunk })}\n\n`);
-          } else {
-            res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
-          }
-        } : undefined
-      }),
-      consolidationTimeout
-    ]);
+    const makeConsolidationCall = async () => {
+      const consolidationTimeout = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error("Name consolidation timed out after 30s. Model under high demand — please try again.")), 30000)
+      );
+      return await Promise.race([
+        callUnifiedLLM({
+          modelId,
+          systemInstruction: systemInstruction + "\n\nJSON STRUCTURED OUTPUT:\nYou must strictly return a JSON object. Do not add markdown wrappers. Put your step-by-step reasoning in the 'scratchpad' field FIRST, before any other field, unless you are already using extended/native thinking for this request — in that case you may leave 'scratchpad' brief or omit it.",
+          promptText: dynamicPromptText,
+          responseMimeType: "application/json",
+          responseSchema: consolidateNamesSchema,
+          onStream: isStream ? (chunk: string, isThought?: boolean) => {
+            if (isThought) {
+              res.write(`data: ${JSON.stringify({ thought: chunk })}\n\n`);
+            } else {
+              res.write(`data: ${JSON.stringify({ chunk })}\n\n`);
+            }
+          } : undefined
+        }),
+        consolidationTimeout
+      ]);
+    };
+
+    let textOutput: string;
+    try {
+      textOutput = await makeConsolidationCall();
+    } catch (firstErr: any) {
+      addDebugLog(`[Name Consolidation Agent] First attempt failed: ${firstErr.message}. Retrying once in 500ms...`, explicitSessionId);
+      await new Promise(resolve => setTimeout(resolve, 500));
+      textOutput = await makeConsolidationCall();
+    }
 
     let cleanJson = textOutput.trim();
     addDebugLog(`[Name Consolidation Agent] Agent output payload:\n${cleanJson}`, explicitSessionId);
