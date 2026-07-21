@@ -1601,6 +1601,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
     res.setHeader('Connection', 'keep-alive');
     res.setHeader('X-Accel-Buffering', 'no');
     res.setHeader('Transfer-Encoding', 'chunked');
+    res.flushHeaders();
     hasSentHeaders = true;
 
     const originalJson = res.json.bind(res);

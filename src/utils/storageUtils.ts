@@ -6,7 +6,7 @@ export const pruneLocalStorageToFreeSpace = () => {
   try {
     localStorage.removeItem('agent1_batch_results');
     localStorage.removeItem('batch_analysis_results');
-    localStorage.removeItem('agent_request_logs');
+    // DO NOT remove 'agent_request_logs' here; it is safely managed by agentLogsTracker and needed for the log viewer filter
     localStorage.removeItem('local_api_events');
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
