@@ -2028,6 +2028,10 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
           if (scoutResult.scratchpad) {
             scoutScratchpad = scoutResult.scratchpad;
             addDebugLog(`[Scout Scratchpad]\n${scoutResult.scratchpad}`);
+            if (isStream) {
+              const fakeChunk = `{"scoutScratchpad":${JSON.stringify(scoutScratchpad)}}`;
+              res.write(`data: ${JSON.stringify({ chunk: fakeChunk })}\n\n`);
+            }
           }
 
           visionScoutItems = scoutResult.items;
