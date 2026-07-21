@@ -2304,7 +2304,12 @@ export default function App() {
 
 
 
-    const profileForCloud = updatedProfile ? { ...updatedProfile } : null;
+    const profileForCloud = updatedProfile ? {
+      ...updatedProfile,
+      deletedFoodLogIds: updatedProfile.deletedFoodLogIds || profile?.deletedFoodLogIds || {},
+      deletedBiomarkerLogIds: updatedProfile.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {},
+      deletedCustomBiomarkerKeys: updatedProfile.deletedCustomBiomarkerKeys || profile?.deletedCustomBiomarkerKeys || {}
+    } : null;
     if (profileForCloud && profileForCloud.agentAnalyses) {
       delete profileForCloud.agentAnalyses;
     }
@@ -2393,7 +2398,7 @@ export default function App() {
         } else if (specificUpdate.type === 'profile') {
           const pId = logInteraction('upload', `users/${uid} (Profile)`, updatedProfile);
           await withTimeout(
-            setDoc(doc(db, 'users', uid), sanitizeForFirestore(profileForCloud))
+            setDoc(doc(db, 'users', uid), sanitizeForFirestore(profileForCloud), { merge: true })
               .then(() => completeInteraction(pId, true, JSON.stringify(updatedProfile).length))
               .catch(err => { completeInteraction(pId, false, 0, err.message); handleFirestoreError(err); console.error(err); }),
             2000,
@@ -2436,7 +2441,7 @@ export default function App() {
           await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
             setFoodLogs(sf); setBiomarkerHistory(sb);
           });
-          const profilePromise = setDoc(doc(db, 'users', uid), sanitizeForFirestore(profileForCloud)).catch(err => handleFirestoreError(err));
+          const profilePromise = setDoc(doc(db, 'users', uid), sanitizeForFirestore(profileForCloud), { merge: true }).catch(err => handleFirestoreError(err));
           await withTimeout(profilePromise, 3000, 'biomarkerLogsBatch');
         } else if (specificUpdate.type === 'actions') {
           const itemTrackId = logInteraction('upload', `users/${uid}/metadata/dashboard (Actions)`, null);
@@ -2501,7 +2506,7 @@ export default function App() {
         }
       } else if (specificUpdate && specificUpdate.type === 'fullPush') {
         const pId = logInteraction('upload', `users/${uid} (Profile)`, currProfile);
-        const profilePromise = setDoc(doc(db, 'users', uid), sanitizeForFirestore(profileForCloud))
+        const profilePromise = setDoc(doc(db, 'users', uid), sanitizeForFirestore(profileForCloud), { merge: true })
           .then(() => completeInteraction(pId, true, JSON.stringify(currProfile).length))
           .catch(err => { completeInteraction(pId, false, 0, err.message); handleFirestoreError(err); });
         
@@ -2573,7 +2578,7 @@ export default function App() {
       } else {
         // Multi-document sync (default when no specific update provided)
         const pId = logInteraction('upload', `users/${uid} (Profile)`, currProfile);
-        const profilePromise = setDoc(doc(db, 'users', uid), sanitizeForFirestore(profileForCloud))
+        const profilePromise = setDoc(doc(db, 'users', uid), sanitizeForFirestore(profileForCloud), { merge: true })
           .then(() => completeInteraction(pId, true, JSON.stringify(currProfile).length))
           .catch(err => { completeInteraction(pId, false, 0, err.message); handleFirestoreError(err); });
           
