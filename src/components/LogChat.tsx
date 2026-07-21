@@ -783,8 +783,12 @@ ${logsText}`);
           // holds the authoritative full copy of every conversation.
           console.warn("[Storage] localStorage quota reached while saving chat session. Pruning stale chat keys and retrying...");
           pruneLocalStorageToFreeSpace();
-          localStorage.setItem(`${chatStorageKey}_${userId}_${id}`, JSON.stringify(strippedMsgs));
-          if (payload) localStorage.setItem(`${payloadStorageKey}_${userId}_${id}`, JSON.stringify(payload));
+          try {
+            localStorage.setItem(`${chatStorageKey}_${userId}_${id}`, JSON.stringify(strippedMsgs));
+            if (payload) localStorage.setItem(`${payloadStorageKey}_${userId}_${id}`, JSON.stringify(payload));
+          } catch (retryErr) {
+            console.warn("[Storage] Quota exceeded in localStorage even after pruning. Bypassing safely as IndexedDB has the true copy.", retryErr);
+          }
         }
         
         // Also update the local list so the sidebar is completely in sync and beautiful
@@ -2430,11 +2434,11 @@ ${logsText}`);
               saveAgentRequestLog({
                  id: currentReqId,
                  timestamp: new Date().toISOString(),
-                 summary: `[Medical Analyze] Batch ${nextBatch} (Continue)`,
-                 logs: logsData.logs
-              });
-           }
-        }
+                                   summary: `[Medical Analyze] Batch ${nextBatch} (Continue)`,
+                  logs: logsData.logs
+               });
+            }
+         }
       } catch (e) {
         console.warn("Could not save agent request logs", e);
       }
@@ -2444,7 +2448,7 @@ ${logsText}`);
         throw new Error(`Server returned ${response.status}: ${errText}`);
       }
 
-      const contentType = response.headers.get("content-type"); let resData: any = {}; if (contentType && contentType.includes("text/event-stream")) { const reader = response.body?.getReader(); if (!reader) throw new Error("No stream reader available"); const decoder = new TextDecoder(); let accumulatedText = ""; while (true) { const { done, value } = await reader.read(); if (done) break; const chunkStr = decoder.decode(value, { stream: true }); const events = chunkStr.split("\n\n"); for (const ev of events) { if (ev.startsWith("data: ")) { try { const data = JSON.parse(ev.slice(6)); if (data.chunk) { accumulatedText += data.chunk; const scoutMatch = accumulatedText.match(/\"scoutScratchpad\"\s*:\s*\"([^]*?)(\"|$)/); const dietMatch = accumulatedText.match(/\"dietitianScratchpad\"\s*:\s*\"([^]*?)(\"|$)/); setMessages(prev => { const newMsgs = [...prev]; const lastMsg = newMsgs[newMsgs.length - 1]; if (lastMsg && lastMsg.role === "assistant" && lastMsg.isLive) { const updatedData = lastMsg.data ? { ...lastMsg.data } : {}; const updatedAgentResult = updatedData.agentResult ? { ...updatedData.agentResult } : {}; let hasChanges = false; if (scoutMatch) { updatedAgentResult.scoutScratchpad = scoutMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, "\""); hasChanges = true; } if (dietMatch) { updatedAgentResult.dietitianScratchpad = dietMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, "\""); hasChanges = true; } if (hasChanges) { return [ ...newMsgs.slice(0, newMsgs.length - 1), { ...lastMsg, data: { ...updatedData, agentResult: updatedAgentResult } } ]; } } return prev; }); } else if (data.final) { resData = data.result; } } catch (e) {} } } } } else { resData = await response.json(); }
+      const contentType = response.headers.get("content-type"); let resData: any = {}; if (contentType && contentType.includes("text/event-stream")) { const reader = response.body?.getReader(); if (!reader) throw new Error("No stream reader available"); const decoder = new TextDecoder(); let accumulatedText = ""; let accumulatedByStage: { scout: string, dietitian: string } = { scout: "", dietitian: "" }; while (true) { const { done, value } = await reader.read(); if (done) break; const chunkStr = decoder.decode(value, { stream: true }); const events = chunkStr.split("\n\n"); for (const ev of events) { if (ev.startsWith("data: ")) { try { const data = JSON.parse(ev.slice(6)); if (data.chunk) { accumulatedText += data.chunk; const stage: string = data.stage === 'scout' ? 'scout' : 'dietitian'; accumulatedByStage[stage as keyof typeof accumulatedByStage] += data.chunk; const scoutMatch = accumulatedByStage.scout.match(/\"scoutScratchpad\"\s*:\s*\"([^]*?)(\"|$)/) || accumulatedText.match(/\"scoutScratchpad\"\s*:\s*\"([^]*?)(\"|$)/); const dietMatch = accumulatedByStage.dietitian.match(/\"dietitianScratchpad\"\s*:\s*\"([^]*?)(\"|$)/) || accumulatedText.match(/\"dietitianScratchpad\"\s*:\s*\"([^]*?)(\"|$)/); setMessages(prev => { const newMsgs = [...prev]; const lastMsg = newMsgs[newMsgs.length - 1]; if (lastMsg && lastMsg.role === "assistant" && lastMsg.isLive) { const updatedData = lastMsg.data ? { ...lastMsg.data } : {}; const updatedAgentResult = updatedData.agentResult ? { ...updatedData.agentResult } : {}; let hasChanges = false; if (scoutMatch) { updatedAgentResult.scoutScratchpad = scoutMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, "\""); hasChanges = true; } if (dietMatch) { updatedAgentResult.dietitianScratchpad = dietMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, "\""); hasChanges = true; } if (hasChanges) { return [ ...newMsgs.slice(0, newMsgs.length - 1), { ...lastMsg, data: { ...updatedData, agentResult: updatedAgentResult } } ]; } } return prev; }); } else if (data.final) { resData = data.result; } } catch (e) {} } } } } else { resData = await response.json(); }
 
       setMessages(prev => prev.map(m => {
         if (m.id === msg.id) {
@@ -2653,11 +2657,11 @@ ${logsText}`);
               saveAgentRequestLog({
                  id: currentReqId,
                  timestamp: new Date().toISOString(),
-                 summary: `[Medical Analyze] Processing Step: ${step}`,
-                 logs: logsData.logs
-              });
-           }
-        }
+                                   summary: `[Medical Analyze] Processing Step: ${step}`,
+                  logs: logsData.logs
+               });
+            }
+         }
       } catch (e) {
         console.warn("Could not save agent request logs", e);
       }
@@ -2667,7 +2671,7 @@ ${logsText}`);
         throw new Error(`Server returned ${response.status}: ${errText}`);
       }
 
-      const contentType = response.headers.get("content-type"); let resData: any = {}; if (contentType && contentType.includes("text/event-stream")) { const reader = response.body?.getReader(); if (!reader) throw new Error("No stream reader available"); const decoder = new TextDecoder(); let accumulatedText = ""; while (true) { const { done, value } = await reader.read(); if (done) break; const chunkStr = decoder.decode(value, { stream: true }); const events = chunkStr.split("\n\n"); for (const ev of events) { if (ev.startsWith("data: ")) { try { const data = JSON.parse(ev.slice(6)); if (data.chunk) { accumulatedText += data.chunk; const scoutMatch = accumulatedText.match(/\"scoutScratchpad\"\s*:\s*\"([^]*?)(\"|$)/); const dietMatch = accumulatedText.match(/\"dietitianScratchpad\"\s*:\s*\"([^]*?)(\"|$)/); setMessages(prev => { const newMsgs = [...prev]; const lastMsg = newMsgs[newMsgs.length - 1]; if (lastMsg && lastMsg.role === "assistant" && lastMsg.isLive) { const updatedData = lastMsg.data ? { ...lastMsg.data } : {}; const updatedAgentResult = updatedData.agentResult ? { ...updatedData.agentResult } : {}; let hasChanges = false; if (scoutMatch) { updatedAgentResult.scoutScratchpad = scoutMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, "\""); hasChanges = true; } if (dietMatch) { updatedAgentResult.dietitianScratchpad = dietMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, "\""); hasChanges = true; } if (hasChanges) { return [ ...newMsgs.slice(0, newMsgs.length - 1), { ...lastMsg, data: { ...updatedData, agentResult: updatedAgentResult } } ]; } } return prev; }); } else if (data.final) { resData = data.result; } } catch (e) {} } } } } else { resData = await response.json(); }
+      const contentType = response.headers.get("content-type"); let resData: any = {}; if (contentType && contentType.includes("text/event-stream")) { const reader = response.body?.getReader(); if (!reader) throw new Error("No stream reader available"); const decoder = new TextDecoder(); let accumulatedText = ""; let accumulatedByStage: { scout: string, dietitian: string } = { scout: "", dietitian: "" }; while (true) { const { done, value } = await reader.read(); if (done) break; const chunkStr = decoder.decode(value, { stream: true }); const events = chunkStr.split("\n\n"); for (const ev of events) { if (ev.startsWith("data: ")) { try { const data = JSON.parse(ev.slice(6)); if (data.chunk) { accumulatedText += data.chunk; const stage: string = data.stage === 'scout' ? 'scout' : 'dietitian'; accumulatedByStage[stage as keyof typeof accumulatedByStage] += data.chunk; const scoutMatch = accumulatedByStage.scout.match(/\"scoutScratchpad\"\s*:\s*\"([^]*?)(\"|$)/) || accumulatedText.match(/\"scoutScratchpad\"\s*:\s*\"([^]*?)(\"|$)/); const dietMatch = accumulatedByStage.dietitian.match(/\"dietitianScratchpad\"\s*:\s*\"([^]*?)(\"|$)/) || accumulatedText.match(/\"dietitianScratchpad\"\s*:\s*\"([^]*?)(\"|$)/); setMessages(prev => { const newMsgs = [...prev]; const lastMsg = newMsgs[newMsgs.length - 1]; if (lastMsg && lastMsg.role === "assistant" && lastMsg.isLive) { const updatedData = lastMsg.data ? { ...lastMsg.data } : {}; const updatedAgentResult = updatedData.agentResult ? { ...updatedData.agentResult } : {}; let hasChanges = false; if (scoutMatch) { updatedAgentResult.scoutScratchpad = scoutMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, "\""); hasChanges = true; } if (dietMatch) { updatedAgentResult.dietitianScratchpad = dietMatch[1].replace(/\\n/g, "\n").replace(/\\\"/g, "\""); hasChanges = true; } if (hasChanges) { return [ ...newMsgs.slice(0, newMsgs.length - 1), { ...lastMsg, data: { ...updatedData, agentResult: updatedAgentResult } } ]; } } return prev; }); } else if (data.final) { resData = data.result; } } catch (e) {} } } } } else { resData = await response.json(); }
       
       const assistantMsg: ChatMessage & { agentTypeStep?: string } = {
         id: `msg_agent1_${step}_${Date.now()}`,
