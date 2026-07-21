@@ -1230,6 +1230,50 @@ ${logsText}`);
   const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const liveThoughtRef = useRef<HTMLDivElement>(null);
+  const chatWindowRef = useRef<HTMLDivElement>(null);
+  const initialOpenScrollDoneRef = useRef<boolean>(false);
+
+  const lastFoodMsg = React.useMemo(() => {
+    return [...messages].reverse().find(m => m.role === 'assistant' && m.agentType === 'food');
+  }, [messages]);
+
+  const scrollToLastFoodMessage = (smooth = false) => {
+    const container = chatWindowRef.current;
+    const target = document.getElementById("last-food-message");
+    if (container && target) {
+      let actualOffsetTop = 0;
+      let curr: HTMLElement | null = target;
+      while (curr && curr !== container) {
+        actualOffsetTop += curr.offsetTop;
+        curr = curr.offsetParent as HTMLElement | null;
+      }
+      container.scrollTo({
+        top: actualOffsetTop,
+        behavior: smooth ? 'smooth' : 'auto'
+      });
+    }
+  };
+
+  useEffect(() => {
+    if (!isOpen) {
+      initialOpenScrollDoneRef.current = false;
+    } else if (isOpen && isAgent('food') && !initialOpenScrollDoneRef.current) {
+      initialOpenScrollDoneRef.current = true;
+      const timer = setTimeout(() => {
+        scrollToLastFoodMessage(false);
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [isOpen, activeAgentKey, messages]);
+
+  useEffect(() => {
+    if (!isAnalyzing && isAgent('food')) {
+      const timer = setTimeout(() => {
+        scrollToLastFoodMessage(true);
+      }, 300);
+      return () => clearTimeout(timer);
+    }
+  }, [isAnalyzing, activeAgentKey]);
 
   const handleDeleteMessagePair = (messageId: string) => {
     setMessages(prev => {
@@ -1404,6 +1448,10 @@ ${logsText}`);
     if (!isAnalyzing && messages.length > 1) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg && lastMsg.role === 'assistant') {
+        if (isAgent('food')) {
+          // When the summary answer is shown, do not scroll down again
+          return;
+        }
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }, 150);
@@ -1998,6 +2046,20 @@ ${logsText}`);
                   // Native Gemini chain-of-thought stream (only used when a user manually
                   // upgrades an agent off lite). Separate from the JSON text chunk above.
                   setLiveThoughts(prev => ({ ...prev, [stage]: (prev[stage] || "") + data.thought }));
+                  setMessages(prev => {
+                    const newMsgs = [...prev];
+                    const lastMsg = newMsgs[newMsgs.length - 1];
+                    if (lastMsg && lastMsg.role === "assistant" && lastMsg.isLive) {
+                      const updatedData = lastMsg.data ? { ...lastMsg.data } : {};
+                      const updatedAgentResult = updatedData.agentResult ? { ...updatedData.agentResult } : {};
+                      updatedAgentResult[`${stage}Scratchpad`] = (updatedAgentResult[`${stage}Scratchpad`] || "") + data.thought;
+                      return [
+                        ...newMsgs.slice(0, newMsgs.length - 1),
+                        { ...lastMsg, data: { ...updatedData, agentResult: updatedAgentResult } }
+                      ];
+                    }
+                    return prev;
+                  });
                 } else if (data.final) {
                   resData = data.result;
                 }
@@ -2741,7 +2803,7 @@ ${logsText}`);
 
 
         {/* Chat Message Window */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50 dark:bg-slate-900/20">
+        <div ref={chatWindowRef} className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50/50 dark:bg-slate-900/20">
           
           {/* Data used by agent inline block */}
           {(isAgent('food') || isAgent('food_idea') || isAgent('medical')) && (
@@ -3106,12 +3168,14 @@ ${JSON.stringify(profile, null, 2)}`);
                   const isPast = idx < sessionStartIdx;
                   if (isPast && !showPastDiscussion) return null;
 
+                  const isLastFoodMsg = lastFoodMsg && msg.id === lastFoodMsg.id;
                   const isAss = msg.role === 'assistant';
                   if (isAss) {
 
                   return (
                 <div
                   key={msg.id}
+                  id={isLastFoodMsg ? "last-food-message" : undefined}
                   className="w-full space-y-2.5 px-1 min-w-0 relative group"
                 >
                   {!msg.id.startsWith('welcome_') && (
@@ -3201,8 +3265,8 @@ ${JSON.stringify(profile, null, 2)}`);
                       <>
                         <div ref={msg.isLive ? liveThoughtRef : undefined}>
                           <AgentThoughtBox
-                            scoutScratchpad={msg.data?.agentResult?.scoutScratchpad}
-                            dietitianScratchpad={msg.data?.agentResult?.dietitianScratchpad}
+                            scoutScratchpad={msg.isLive ? (liveThoughts.scout || msg.data?.agentResult?.scoutScratchpad) : msg.data?.agentResult?.scoutScratchpad}
+                            dietitianScratchpad={msg.isLive ? (liveThoughts.dietitian || msg.data?.agentResult?.dietitianScratchpad) : msg.data?.agentResult?.dietitianScratchpad}
                             isLive={msg.isLive}
                             placeholderStep={msg.isLive && isAgent('food') ? ANALYZING_STEPS[analyzingStepIndex] : undefined}
                           />
