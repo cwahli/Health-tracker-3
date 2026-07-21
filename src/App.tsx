@@ -1411,23 +1411,27 @@ export default function App() {
             
             // Union merge: start from server, add any local item not on server and not deleted
             // (do NOT just use filteredFoods — that drops local items the server doesn't have yet)
-            const foodUnionMap = new Map(filteredFoods.map(f => [f.id, f]));
-            filteredLocalFoods.forEach(localItem => {
-              const existing = foodUnionMap.get(localItem.id);
-              if (existing) {
-                // Preserve local image if cloud is missing image data
-                const existingHasImage = existing.imageUrl && existing.imageUrl !== "[image_removed_for_snapshot]" && existing.imageUrl !== "";
-                const localHasImage = localItem.imageUrl && localItem.imageUrl !== "[image_removed_for_snapshot]" && localItem.imageUrl !== "";
-                const existingHasUrls = existing.imageUrls && existing.imageUrls.length > 0;
-                const localHasUrls = localItem.imageUrls && localItem.imageUrls.length > 0;
-
-                foodUnionMap.set(localItem.id, {
-                  ...existing,
-                  imageUrl: existingHasImage ? existing.imageUrl : (localHasImage ? localItem.imageUrl : existing.imageUrl),
-                  imageUrls: existingHasUrls ? existing.imageUrls : (localHasUrls ? localItem.imageUrls : existing.imageUrls)
-                });
+            const foodUnionMap = new Map();
+            // 1. First populate with local items (including local additions/deletions)
+            filteredLocalFoods.forEach(l => foodUnionMap.set(l.id, l));
+            // 2. Merge server items, respecting deleted IDs and preserving local image payloads
+            filteredFoods.forEach(serverItem => {
+              if (deletedFoods[serverItem.id] || serverItem.sync_state === 'delete') return;
+              const existingLocal = foodUnionMap.get(serverItem.id);
+              if (!existingLocal) {
+                foodUnionMap.set(serverItem.id, serverItem);
               } else {
-                foodUnionMap.set(localItem.id, localItem);
+                const localHasImage = existingLocal.imageUrl && existingLocal.imageUrl !== "[image_removed_for_snapshot]" && existingLocal.imageUrl !== "";
+                const serverHasImage = serverItem.imageUrl && serverItem.imageUrl !== "[image_removed_for_snapshot]" && serverItem.imageUrl !== "";
+                const localHasUrls = existingLocal.imageUrls && existingLocal.imageUrls.length > 0;
+                const serverHasUrls = serverItem.imageUrls && serverItem.imageUrls.length > 0;
+                foodUnionMap.set(serverItem.id, {
+                  ...serverItem,
+                  ...existingLocal,
+                  // Keep server metadata but prioritize intact local base64 images
+                  imageUrl: localHasImage ? existingLocal.imageUrl : (serverHasImage ? serverItem.imageUrl : existingLocal.imageUrl),
+                  imageUrls: localHasUrls ? existingLocal.imageUrls : (serverHasUrls ? serverItem.imageUrls : existingLocal.imageUrls)
+                });
               }
             });
             mergedFoods = Array.from(foodUnionMap.values());
@@ -2374,7 +2378,7 @@ export default function App() {
             2000,
             'Profile write'
           );
-        } else if (specificUpdate.type === 'foodLog' && specificUpdate.targetId) {
+        } else if ((specificUpdate.type === 'foodLog' || specificUpdate.type === 'deleteFood') && specificUpdate.targetId) {
           const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
           const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {};
           await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
