@@ -217,26 +217,37 @@ export const safeSaveToLocalStorage = async (key: string, bundle: any) => {
 };
 
 /**
- * Retrieves app data for the target user key, falling back and merging 
- * with legacy un-suffixed keys ('health_cockpit_app_data', 'health_cockpit_app_data_guest')
- * to ensure restored ZIP images and legacy entries are never orphaned.
+ * Retrieves app data for the current user.
+ * If the primary key has food logs, returns it directly — no legacy merging.
+ * Only performs a one-time migration from legacy keys if the primary key has 0 food logs.
+ * This prevents deleted/old items from legacy keys from being continuously resurrected.
  */
 export const getAggregatedAppData = async (email?: string | null): Promise<any> => {
   const primaryKey = getStorageKey(email);
   const primaryData = (await get(primaryKey)) || {};
 
-  // Check legacy keys
+  // If primary key has food logs, trust it completely — do NOT merge legacy keys.
+  if (Array.isArray(primaryData.foodLogs) && primaryData.foodLogs.length > 0) {
+    return primaryData;
+  }
+
+  // One-time migration: primary key is empty, check legacy keys and migrate their data in.
   const legacyKey = 'health_cockpit_app_data';
   const guestKey = 'health_cockpit_app_data_guest';
 
   const legacyData = (await get(legacyKey)) || {};
   const guestData = (await get(guestKey)) || {};
 
-  const allLogsMap = new Map<string, any>();
+  const legacyFoods: any[] = legacyData.foodLogs || [];
+  const guestFoods: any[] = guestData.foodLogs || [];
 
-  // Helper to merge arrays preserving base64 images
-  const mergeLogs = (logs: any[]) => {
-    if (!Array.isArray(logs)) return;
+  if (legacyFoods.length === 0 && guestFoods.length === 0) {
+    return primaryData;
+  }
+
+  // Merge legacy and guest foods, preserving base64 images
+  const allLogsMap = new Map<string, any>();
+  const addLogs = (logs: any[]) => {
     logs.forEach(log => {
       if (!log || !log.id) return;
       const existing = allLogsMap.get(log.id);
@@ -245,29 +256,26 @@ export const getAggregatedAppData = async (email?: string | null): Promise<any> 
       } else {
         const existingHasImg = existing.imageUrl && existing.imageUrl !== '[image_removed_for_snapshot]';
         const logHasImg = log.imageUrl && log.imageUrl !== '[image_removed_for_snapshot]';
-        const existingHasUrls = existing.imageUrls && existing.imageUrls.length > 0;
-        const logHasUrls = log.imageUrls && log.imageUrls.length > 0;
-
         allLogsMap.set(log.id, {
           ...existing,
           ...log,
           imageUrl: logHasImg ? log.imageUrl : (existingHasImg ? existing.imageUrl : log.imageUrl),
-          imageUrls: logHasUrls ? log.imageUrls : (existingHasUrls ? existing.imageUrls : log.imageUrls)
+          imageUrls: (log.imageUrls && log.imageUrls.length > 0) ? log.imageUrls : existing.imageUrls
         });
       }
     });
   };
 
-  mergeLogs(legacyData.foodLogs);
-  mergeLogs(guestData.foodLogs);
-  mergeLogs(primaryData.foodLogs);
+  addLogs(legacyFoods);
+  addLogs(guestFoods);
 
-  const mergedFoodLogs = Array.from(allLogsMap.values());
+  const migratedFoods = Array.from(allLogsMap.values());
+  console.log(`[Storage] One-time migration: merging ${migratedFoods.length} food logs from legacy keys into primary key.`);
 
   return {
     ...legacyData,
     ...guestData,
     ...primaryData,
-    foodLogs: mergedFoodLogs.length > 0 ? mergedFoodLogs : (primaryData.foodLogs || [])
+    foodLogs: migratedFoods
   };
 };
