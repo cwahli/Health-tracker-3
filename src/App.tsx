@@ -1984,7 +1984,10 @@ export default function App() {
                 // source of truth for deletions and must be respected during migration,
                 // otherwise re-running this migration (e.g. after a failed completion
                 // write) brings deleted entries back from the old subcollections.
-                const migrationDeletedFoodIds = new Set<string>(Object.keys(loadedProfile?.deletedFoodLogIds || {}));
+                const migrationDeletedFoodIds = new Set<string>([
+                  ...Object.keys(loadedProfile?.deletedFoodLogIds || {}),
+                  ...Object.keys(profile?.deletedFoodLogIds || {})
+                ]);
                 const migrationDeletedBioIds = new Set<string>(Object.keys(loadedProfile?.deletedBiomarkerLogIds || {}));
 
                 const filteredLegacyFoods = legacyFoods.filter(lf => !migrationDeletedFoodIds.has(lf.id));
@@ -2028,9 +2031,22 @@ export default function App() {
                   });
                 }
                 
-                loadedProfile.metadata.legacyMigratedV2 = true; loadedProfile.metadata.legacyMigrated = true;
+                loadedProfile.metadata.legacyMigratedV2 = true; 
+                loadedProfile.metadata.legacyMigrated = true;
                 await setDoc(doc(db, 'users', uid), { metadata: { legacyMigratedV2: true, legacyMigrated: true } }, { merge: true });
                 setProfile({ ...loadedProfile });
+                
+                // Immediately persist legacyMigratedV2 flag to IndexedDB so refresh never re-scans legacy subcollections
+                const migrationBundle = {
+                  profile: loadedProfile,
+                  foodLogs: loadedFoods,
+                  biomarkers: loadedBiomarkers,
+                  biomarkerHistory: loadedHistory,
+                  actions: loadedActions,
+                  dailyBenefits: loadedBenefits,
+                  report: loadedReport
+                };
+                await safeSaveToLocalStorage(storageKey, migrationBundle);
               } catch (migErr) {
                 console.warn("[Migration] Failed to complete legacy migration:", migErr);
               }
@@ -2849,6 +2865,10 @@ export default function App() {
     } : null;
     if (updatedProfile) {
       setProfile(updatedProfile);
+    }
+    // Clean up legacy subcollection document in Firestore if it exists so legacy migration never resurrects it
+    if (auth.currentUser) {
+      deleteDoc(doc(db, 'users', auth.currentUser.uid, 'foodLogs', id)).catch(() => {});
     }
     await saveAndSync(updatedProfile, updatedFoods, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'deleteFood', targetId: id });
   };
