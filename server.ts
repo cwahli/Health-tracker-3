@@ -2628,6 +2628,7 @@ ${databaseMatches}
           nullable: true 
         }
       },
+      propertyOrdering: ["scratchpad", "mode", "message", "modificationCommand", "foodData", "comparison", "scoutItems"],
       required: ["mode", "message", "modificationCommand", "foodData", "comparison"]
     };
 

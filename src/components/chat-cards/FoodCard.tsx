@@ -14,7 +14,7 @@ import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { ZoomableImage } from '../ZoomableImage';
 import { FoodScoutItemPreview, OnlineFoodImage } from './FoodScoutItemPreview';
 
-const AgentThoughtBox = ({ scoutScratchpad, dietitianScratchpad, isLive }: { scoutScratchpad?: string, dietitianScratchpad?: string, isLive?: boolean }) => {
+export const AgentThoughtBox = ({ scoutScratchpad, dietitianScratchpad, isLive }: { scoutScratchpad?: string, dietitianScratchpad?: string, isLive?: boolean }) => {
   const [isExpanded, setIsExpanded] = React.useState(!!isLive);
   
   React.useEffect(() => {
@@ -916,12 +916,6 @@ export const FoodCard: React.FC<AgentCardProps & {
                            )}
                         </div>
                       )}
-
-                      <AgentThoughtBox 
-                        scoutScratchpad={msg.data?.agentResult?.scoutScratchpad}
-                        dietitianScratchpad={msg.data?.agentResult?.dietitianScratchpad}
-                        isLive={msg.isLive}
-                      />
 
                       {(msg.content || msg.data?.agentResult?.message) && (
                         <div className="text-[11.5px] text-slate-700 dark:text-slate-300 font-sans leading-relaxed text-left pb-3 whitespace-pre-line break-words">
@@ -1853,12 +1847,6 @@ export const FoodCard: React.FC<AgentCardProps & {
                           <span className="font-mono text-[10px] text-slate-400">{msg.data?.pendingFoodLog.date}</span>
                         </div>
                       </div>
-
-                      <AgentThoughtBox 
-                        scoutScratchpad={msg.data?.agentResult?.scoutScratchpad}
-                        dietitianScratchpad={msg.data?.agentResult?.dietitianScratchpad}
-                        isLive={msg.isLive}
-                      />
 
                       {(msg.content || msg.data?.agentResult?.message) && (
                         <div className="text-[11.5px] text-slate-700 dark:text-slate-300 font-sans leading-relaxed text-left py-2 border-b border-slate-100 dark:border-slate-800/50 whitespace-pre-line break-words">

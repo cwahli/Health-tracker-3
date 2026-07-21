@@ -1,6 +1,7 @@
 import {
  ErrorBoundary } from './ErrorBoundary';
 import { agentCardRegistry } from './chat-cards';
+import { AgentThoughtBox } from './chat-cards/FoodCard';
 import { trackApiCall, setActiveQueryId, generateQueryId } from '../utils/apiTracker';
 import { saveAgentRequestLog } from '../utils/agentLogsTracker';
 import React, { useState, useRef, useEffect } from 'react';
@@ -1565,6 +1566,11 @@ ${logsText}`);
     setSelectedImagesForAnalysis([]);
     setImageDates([]);
     setIsAnalyzing(true);
+    // Scroll immediately so the user can watch the agent's live thought process
+    // as soon as the request starts, instead of waiting for the final answer.
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    });
 
     try {
       let endpoint = '';
@@ -2297,6 +2303,12 @@ ${logsText}`);
 
   const handleContinueExtractionChunk = async (msg: any) => {
     setIsAnalyzing(true);
+    // Scroll immediately so the user can watch the agent's live thought process
+    // as soon as the request starts, instead of waiting for the final answer.
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    });
+
     try {
       const msgIndex = messages.findIndex(m => m.id === msg.id);
       const allUserText = messages.slice(0, msgIndex).filter(m => m.role === 'user').map(m => m.content).join('\n\n');
@@ -2503,6 +2515,12 @@ ${logsText}`);
 
   const handleAgent1Step = async (step: 'agent1_step2' | 'agent1_step3', msg: any) => {
     setIsAnalyzing(true);
+    // Scroll immediately so the user can watch the agent's live thought process
+    // as soon as the request starts, instead of waiting for the final answer.
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    });
+
     try {
       const lightProfile = profile ? { ...profile } as any : null;
       if (lightProfile) {
@@ -3177,41 +3195,48 @@ ${JSON.stringify(profile, null, 2)}`);
                     const Renderer = rendererType ? agentCardRegistry[rendererType] : null;
                     if (!Renderer) return null;
                     return (
-                      <Renderer
-                        msg={msg}
-                        idx={idx}
-                        messages={messages}
-                        report={report}
-                        foodLogs={activeFoodLogs}
-                        t={t}
-                        formatNutrientValue={formatNutrientValue}
-                        onLogFood={onLogFood}
-                        onLogFoodIdeas={onLogFoodIdeas}
-                        setLoggedMessageIds={setLoggedMessageIds}
-                        loggedMessageIds={loggedMessageIds}
-                        profile={profile}
-                        biomarkerHistory={activeHistory}
-                        isSelectingMode={isSelectingMode && selectingMsgId === msg.id}
-                        setIsSelectingMode={setIsSelectingMode}
-                        onEnterSelectingMode={() => setSelectingMsgId(msg.id)}
-                        selectedItemKeys={selectedItemKeys}
-                        setSelectedItemKeys={setSelectedItemKeys}
-                        actionRef={foodCardActionRef}
-                        handleAgent1Step={handleAgent1Step}
-                        handleContinueExtractionChunk={handleContinueExtractionChunk}
-                        onAgentFinish={onAgentFinish}
-                        handleSend={handleSend}
-                        setActiveInstructionAgentType={setActiveInstructionAgentType}
-                        setActiveInstructionPrompt={setActiveInstructionPrompt}
-                        setInputText={setInputText}
-                        fileInputRef={fileInputRef}
-                        onDeleteMessage={(id) => setMessages(prev => prev.filter(m => m.id !== id))}
-                        onLogMedical={onLogMedical}
-                        isAnalyzing={isAnalyzing}
-                        agentType={agentType}
-                        autoSendMessage={autoSendMessage}
-                        type={type}
-                      />
+                      <>
+                        <AgentThoughtBox
+                          scoutScratchpad={msg.data?.agentResult?.scoutScratchpad}
+                          dietitianScratchpad={msg.data?.agentResult?.dietitianScratchpad}
+                          isLive={msg.isLive}
+                        />
+                        <Renderer
+                          msg={msg}
+                          idx={idx}
+                          messages={messages}
+                          report={report}
+                          foodLogs={activeFoodLogs}
+                          t={t}
+                          formatNutrientValue={formatNutrientValue}
+                          onLogFood={onLogFood}
+                          onLogFoodIdeas={onLogFoodIdeas}
+                          setLoggedMessageIds={setLoggedMessageIds}
+                          loggedMessageIds={loggedMessageIds}
+                          profile={profile}
+                          biomarkerHistory={activeHistory}
+                          isSelectingMode={isSelectingMode && selectingMsgId === msg.id}
+                          setIsSelectingMode={setIsSelectingMode}
+                          onEnterSelectingMode={() => setSelectingMsgId(msg.id)}
+                          selectedItemKeys={selectedItemKeys}
+                          setSelectedItemKeys={setSelectedItemKeys}
+                          actionRef={foodCardActionRef}
+                          handleAgent1Step={handleAgent1Step}
+                          handleContinueExtractionChunk={handleContinueExtractionChunk}
+                          onAgentFinish={onAgentFinish}
+                          handleSend={handleSend}
+                          setActiveInstructionAgentType={setActiveInstructionAgentType}
+                          setActiveInstructionPrompt={setActiveInstructionPrompt}
+                          setInputText={setInputText}
+                          fileInputRef={fileInputRef}
+                          onDeleteMessage={(id) => setMessages(prev => prev.filter(m => m.id !== id))}
+                          onLogMedical={onLogMedical}
+                          isAnalyzing={isAnalyzing}
+                          agentType={agentType}
+                          autoSendMessage={autoSendMessage}
+                          type={type}
+                        />
+                      </>
                     );
                   })()}
                 </div>
@@ -3289,10 +3314,12 @@ ${JSON.stringify(profile, null, 2)}`);
                   </button>
                   {isThoughtsExpanded && (
                     <div className="flex flex-col gap-3 mt-2 pt-2 border-t border-slate-100 dark:border-slate-700/50">
-                      <p className="text-[11px] text-slate-500 dark:text-slate-400 italic animate-pulse px-1 flex items-center gap-1.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping"></span>
-                        {ANALYZING_STEPS[analyzingStepIndex]}
-                      </p>
+                      {!liveThoughts.scout && !liveThoughts.dietitian && (
+                        <p className="text-[11px] text-slate-500 dark:text-slate-400 italic animate-pulse px-1 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping"></span>
+                          {ANALYZING_STEPS[analyzingStepIndex]}
+                        </p>
+                      )}
                       {liveThoughts.scout && (
                         <div className="flex flex-col gap-1">
                           <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Vision Scout</span>

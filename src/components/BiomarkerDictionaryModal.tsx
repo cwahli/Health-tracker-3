@@ -1899,6 +1899,27 @@ I can analyze these, compare them with our database keys, and find standard mapp
       setConsolidationYaml(JSON.stringify(parsed, null, 2));
       setConsolidationGroups(parsed);
 
+      // Seed the edit form with the agent's own suggestions (canonical name, key, and a
+      // sensible master record) so the reviewer sees pre-filled fields instead of blanks.
+      // Unit/range/description are looked up locally from selectedBiomarkerDetails rather
+      // than trusted from the agent, consistent with this app's zero-hallucination rule for
+      // biomarker metadata.
+      const seededEdits: typeof groupEdits = {};
+      parsed.forEach((group: any, idx: number) => {
+        const variantKeys: string[] = Array.isArray(group.variants) ? group.variants : [];
+        const masterDetail = selectedBiomarkerDetails.find(d => variantKeys.includes(d.key)) || selectedBiomarkerDetails[0];
+        seededEdits[idx] = {
+          recommendedClinicalName: group.canonicalName || '',
+          recommendedUniqueKey: group.recommendedKey || '',
+          masterKey: masterDetail?.key || variantKeys[0] || '',
+          excludedKeys: {},
+          unit: masterDetail?.unit || '',
+          normalRange: masterDetail?.range || '',
+          description: masterDetail?.description || ''
+        };
+      });
+      setGroupEdits(seededEdits);
+
       // Capture and save agent debug logs for this request
       try {
         const logsRes = await fetch(`/api/gemini/debug-logs?sessionId=${sessionId}`);
@@ -1990,7 +2011,18 @@ I can analyze these, compare them with our database keys, and find standard mapp
         const targetKey = edits.recommendedUniqueKey;
         const targetName = edits.recommendedClinicalName;
 
-        const includedBiomarkers = group.biomarkers.filter((b: any) => !edits.excludedKeys[b.key]);
+        const groupBiomarkers = (Array.isArray(group.variants) ? group.variants : (group.biomarkers || []).map((b: any) => b.key)).map((k: string) => {
+          const def: any = profile.customBiomarkers?.[k] || biomarkerDefinitions.find((d: any) => d.key === k) || {};
+          return {
+            key: k,
+            name: def.name || k,
+            unit: def.unit || '',
+            range: def.normalRange || '',
+            description: def.description || '',
+            medicalGrouping: def.standardMedicalGrouping || def.medicalGrouping || ''
+          };
+        });
+        const includedBiomarkers = groupBiomarkers.filter((b: any) => !edits.excludedKeys[b.key]);
         if (includedBiomarkers.length === 0) continue;
 
         const masterBio = includedBiomarkers.find((b: any) => b.key === edits.masterKey) || includedBiomarkers[0];
@@ -3001,7 +3033,18 @@ I can analyze these, compare them with our database keys, and find standard mapp
                       excludedKeys: {}
                     };
 
-                    const masterBio = group.biomarkers?.find((b: any) => b.key === edits.masterKey) || group.biomarkers?.[0];
+                    const groupBiomarkers = (Array.isArray(group.variants) ? group.variants : (group.biomarkers || []).map((b: any) => b.key)).map((k: string) => {
+                      const def: any = profile.customBiomarkers?.[k] || biomarkerDefinitions.find((d: any) => d.key === k) || {};
+                      return {
+                        key: k,
+                        name: def.name || k,
+                        unit: def.unit || '',
+                        range: def.normalRange || '',
+                        description: def.description || '',
+                        medicalGrouping: def.standardMedicalGrouping || def.medicalGrouping || ''
+                      };
+                    });
+                    const masterBio = groupBiomarkers.find((b: any) => b.key === edits.masterKey) || groupBiomarkers[0];
 
                     return (
                       <div key={groupIdx} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden p-4 space-y-4">
@@ -3102,7 +3145,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                               </tr>
                             </thead>
                             <tbody>
-                              {group.biomarkers?.map((b: any, bIdx: number) => {
+                              {groupBiomarkers.map((b: any, bIdx: number) => {
                                 const isExcluded = !!edits.excludedKeys[b.key];
                                 const isMaster = edits.masterKey === b.key;
 
