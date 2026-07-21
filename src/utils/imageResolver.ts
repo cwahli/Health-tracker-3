@@ -1,46 +1,43 @@
 import { FoodLog } from '../types';
-
 /**
  * Resolves a potentially referenced image string.
- * If the string starts with "ref:", it finds the primary food log in the log array
- * and extracts its real, non-referenced image URL.
+ * Supports data:image/ URIs, HTTP URLs, and ref:ID cross-references.
+ * Fallbacks to parentLog.imageUrls[0] if img is missing.
  */
-export function resolveFoodImage(img: string | undefined, foodLogs: FoodLog[]): string | undefined {
-  if (!img || img === '[image_removed_for_snapshot]') return undefined;
-  if (!img.startsWith('ref:')) return img;
+export function resolveFoodImage(img: string | undefined | null, foodLogs: FoodLog[], parentLog?: FoodLog): string | undefined {
+  const targetImg = img || (parentLog?.imageUrls && parentLog.imageUrls.length > 0 ? parentLog.imageUrls[0] : undefined);
+  if (!targetImg || targetImg === '[image_removed_for_snapshot]') return undefined;
+  if (!targetImg.startsWith('ref:')) return targetImg;
   
-  const primaryId = img.replace('ref:', '');
+  const primaryId = targetImg.replace('ref:', '');
   const primaryLog = foodLogs.find(f => f.id === primaryId);
   if (primaryLog) {
-    // Return primaryLog's image. If that is also a ref, resolve it recursively
-    const baseImg = primaryLog.imageUrl;
+    const baseImg = primaryLog.imageUrl || primaryLog.imageUrls?.[0];
     if (baseImg) {
       if (!baseImg.startsWith('ref:')) {
         return baseImg;
       } else {
-        // Simple 1-level recursion to prevent infinite loops
         const nextId = baseImg.replace('ref:', '');
         const nextLog = foodLogs.find(f => f.id === nextId);
-        if (nextLog && nextLog.imageUrl && !nextLog.imageUrl.startsWith('ref:')) {
-          return nextLog.imageUrl;
+        const nextImg = nextLog?.imageUrl || nextLog?.imageUrls?.[0];
+        if (nextImg && !nextImg.startsWith('ref:')) {
+          return nextImg;
         }
       }
-    }
-    // Fallback to first URL in imageUrls
-    const firstUrl = primaryLog.imageUrls?.[0];
-    if (firstUrl && !firstUrl.startsWith('ref:')) {
-      return firstUrl;
     }
   }
   return undefined;
 }
-
 /**
  * Resolves an array of potentially referenced image strings.
  */
-export function resolveFoodImages(imgs: string[] | undefined, foodLogs: FoodLog[]): string[] {
-  if (!imgs || imgs.length === 0) return [];
+export function resolveFoodImages(imgs: string[] | undefined | null, foodLogs: FoodLog[], parentLog?: FoodLog): string[] {
+  let list = imgs && imgs.length > 0 ? [...imgs] : [];
+  if (list.length === 0 && parentLog?.imageUrl && parentLog.imageUrl !== '[image_removed_for_snapshot]') {
+    list = [parentLog.imageUrl];
+  }
+  if (list.length === 0) return [];
   
-  const resolved = imgs.map(img => resolveFoodImage(img, foodLogs)).filter((u): u is string => !!u);
+  const resolved = list.map(img => resolveFoodImage(img, foodLogs, parentLog)).filter((u): u is string => !!u);
   return resolved;
 }

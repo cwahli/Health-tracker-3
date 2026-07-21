@@ -812,8 +812,9 @@ export default function FoodHistoryTab({
           {filteredLogs.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage).map((log) => {
             const isExpanded = expandedLogId === log.id;
             const isEditing = editingLogId === log.id;
-            const resolvedImg = resolveFoodImage(log.imageUrl, activeFoodLogs);
-            const resolvedImgs = resolveFoodImages(log.imageUrls, activeFoodLogs);
+            const primaryImage = log.imageUrl || (log.imageUrls && log.imageUrls.length > 0 ? log.imageUrls[0] : undefined);
+            const resolvedImg = resolveFoodImage(primaryImage, activeFoodLogs, log);
+            const resolvedImgs = resolveFoodImages(log.imageUrls, activeFoodLogs, log);
             
             return (
               <div

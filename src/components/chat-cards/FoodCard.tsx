@@ -333,7 +333,9 @@ export const CroppedFoodImage: React.FC<CroppedFoodImageProps> = ({
 };
 
 const getFoodImageUrl = (foodName: string, suppliedUrl?: string) => {
-  if (suppliedUrl && suppliedUrl.startsWith('http')) return suppliedUrl;
+  if (suppliedUrl && (suppliedUrl.startsWith('http') || suppliedUrl.startsWith('data:image/') || suppliedUrl.startsWith('blob:'))) {
+    return suppliedUrl;
+  }
   
   const name = foodName.toLowerCase();
   
