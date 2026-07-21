@@ -986,13 +986,15 @@ export default function App() {
           if (localProfile?.agentAnalyses) {
             mergedProfile.agentAnalyses = localProfile.agentAnalyses;
           }
-          foods = localFoods;
+          // Apply deletion filter so deleted items don't survive a refresh via this fast path
+          const filteredSkipFoods = localFoods.filter(f => f.sync_state !== 'delete' && !deletedFoods[f.id]);
+          foods = filteredSkipFoods;
           const sanitizedLocal = sanitizeAndCleanLogs(localBioHistory).filter(b => !deletedBioLogs[b.id] || (b.updated_at || 0) > deletedBioLogs[b.id]);
           bioHistory = sanitizedLocal;
           acts = localActions;
           bens = localBenefits;
           cloudReport = localReport;
-          mergedFoods = localFoods;
+          mergedFoods = filteredSkipFoods;
           mergedBioHistory = sanitizedLocal;
           mergedActions = localActions;
           mergedBenefits = localBenefits;
