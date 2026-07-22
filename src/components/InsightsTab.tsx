@@ -60,6 +60,7 @@ interface InsightsTabProps {
   ) => void;
   onBatchConsolidate?: (mapping: { [key: string]: string }) => void;
   onAgentAnalysisSaved?: (agentType: string, agentResult: any) => Promise<void>;
+  onOpenFrontDesk?: () => void;
 }
 
 const STABLE_EMPTY_ARRAY: string[] = [];
@@ -1635,7 +1636,7 @@ export default function InsightsTab({
               <Stethoscope className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
             </div>
             <div>
-              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Health Front Desk</h3>
+              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Health Preparation Agent</h3>
               <p className="text-xs text-slate-500">Ask a question or find out what to do next</p>
             </div>
           </div>
@@ -1643,7 +1644,7 @@ export default function InsightsTab({
             onClick={onOpenFrontDesk}
             className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all"
           >
-            Ask Front Desk
+            Ask Health Prep
           </button>
         </div>
       )}

@@ -4418,9 +4418,9 @@ export default function App() {
         biomarkers={biomarkers}
         biomarkerHistory={biomarkerHistory}
         foodLogs={foodLogs}
-        onSaveProfile={(updatedP) => {
+        onSaveProfile={async (updatedP) => {
           setProfile(updatedP);
-          saveAndSync(updatedP, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'profile' });
+          await saveAndSync(updatedP, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'profile' });
         }}
         onAddBiomarkerLogs={async (logs) => {
           let updatedBiomarkers = { ...biomarkers };
@@ -4430,13 +4430,12 @@ export default function App() {
             updatedHistory.push({
               id: `bm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
               biomarkers: { [log.biomarker]: log.value },
-              date: log.date || new Date().toISOString().split('T')[0],
-              timestamp: new Date().toISOString()
+              date: log.date || new Date().toISOString().split('T')[0]
             });
           });
           setBiomarkers(updatedBiomarkers);
           setBiomarkerHistory(updatedHistory);
-          await saveAndSync(profile, foodLogs, updatedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarker', payload: logs });
+          await saveAndSync(profile, foodLogs, updatedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarkerLogsBatch', targetIds: updatedHistory.slice(-logs.length).map(l => l.id) });
         }}
 
       /></ErrorBoundary>

@@ -1451,21 +1451,12 @@ ${logsText}`);
     if (!isAnalyzing && messages.length > 1) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg && lastMsg.role === 'assistant') {
-  
-
-      if (isAgent('front_desk')) {
-        bodyData.profile = bodyData.userProfile;
-        bodyData.biomarkers = biomarkers;
-        bodyData.foodLogs = foodLogs;
-      }
-      if (isAgent('food')) {
           // When the summary answer is shown, do not scroll down again
           return;
         }
         setTimeout(() => {
           messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
         }, 150);
-      }
     } else if (isAnalyzing) {
       // Keep the live "Agent thought..." box pinned near the top of the viewport
       // while it's still growing, instead of scrolling past it to the bottom.

@@ -487,7 +487,7 @@ export default function Header({
             <button
               onClick={onOpenFrontDesk}
               className="p-2.5 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-650 dark:text-indigo-400 rounded-2xl transition-all flex items-center justify-center cursor-pointer hover:scale-[1.03]"
-              title="Health Front Desk"
+              title="Health Preparation Agent"
             >
               <Stethoscope className="w-5 h-5" />
             </button>

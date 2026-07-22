@@ -1515,13 +1515,13 @@ app.get("/api/gemini/instruction-preview", async (req, res) => {
 
 // Gemini Food Analyze Endpoint
 
-// Health Front Desk Agent
+// Health Preparation Agent
 app.post("/api/gemini/front-desk", async (req, res) => {
   try {
     const { message, profile, biomarkers, foodLogs } = req.body;
     
     const prompt = `
-You are the Health Front Desk Agent. Your job is to answer the user's questions regarding their health data, and guide them on what they should do next.
+You are the Health Preparation Agent. Your job is to answer the user's questions regarding their health data, and guide them on what they should do next.
 You have access to their profile, biomarkers, and food logs.
 
 <USER_DATA>
