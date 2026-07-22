@@ -4,7 +4,7 @@ import { UserProfile, FoodLog, RecommendationReport } from '../types';
 import { translations } from '../utils/translations';
 import { 
   Brain, Sparkles, AlertCircle, TrendingDown, BookOpen, Clock, Heart, 
-  CheckCircle, HelpCircle, Loader, ShieldCheck, Database, Check, X, ArrowRight, Activity, Send, ChevronDown, ChevronUp, Trash2, Lock, Archive, Search
+  CheckCircle, HelpCircle, Loader, ShieldCheck, Database, Check, X, ArrowRight, Activity, Send, ChevronDown, ChevronUp, Trash2, Lock, Archive, Search, Stethoscope
 } from 'lucide-react';
 import LLMSelector from './LLMSelector';
 import { GenericAgentResultView } from './AgentResultViews';
@@ -92,7 +92,8 @@ export default function InsightsTab({
   calibratingAgentType = null,
   onCombineBiomarkers,
   onBatchConsolidate,
-  onAgentAnalysisSaved
+  onAgentAnalysisSaved,
+  onOpenFrontDesk
 }: InsightsTabProps) {
   const t = translations[profile.language] || translations.en;
   const activeHistory = React.useMemo(() => (biomarkerHistory || []).filter(h => h.sync_state !== 'delete'), [biomarkerHistory]);
@@ -1626,6 +1627,27 @@ export default function InsightsTab({
       </div>
 
       {/* Multi-Agent Clinical Diagnostics Accordion Group */}
+      
+      {onOpenFrontDesk && (
+        <div className="bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-100 dark:border-indigo-900/50 rounded-2xl p-4 flex items-center justify-between mb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-indigo-100 dark:bg-indigo-900/60 rounded-xl">
+              <Stethoscope className="w-5 h-5 text-indigo-600 dark:text-indigo-400" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">Health Front Desk</h3>
+              <p className="text-xs text-slate-500">Ask a question or find out what to do next</p>
+            </div>
+          </div>
+          <button
+            onClick={onOpenFrontDesk}
+            className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all"
+          >
+            Ask Front Desk
+          </button>
+        </div>
+      )}
+
       <div id="agent-diagnostics-dashboard" className="space-y-4">
         <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800/50">
           <Sparkles className="w-5 h-5 text-indigo-600" />
@@ -2830,9 +2852,15 @@ export default function InsightsTab({
                             {/* Proposal Content */}
                             <div className="p-3 bg-slate-50/50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800/80 space-y-3">
                               <div className="flex items-center justify-between">
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[8px] font-bold bg-indigo-100/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 uppercase tracking-wider">
-                                  Agent Finding Proposal
-                                </span>
+                                {status === 'Done' ? (
+                                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[8px] font-bold bg-emerald-100/80 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
+                                    <Check className="w-2.5 h-2.5" /> Accepted
+                                  </span>
+                                ) : (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[8px] font-bold bg-indigo-100/50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 uppercase tracking-wider">
+                                    Agent Finding Proposal
+                                  </span>
+                                )}
                                 <span className="text-[9px] text-slate-400 font-mono">
                                   {new Date(latestAnalysis.date).toLocaleDateString()}
                                 </span>
@@ -2920,10 +2948,17 @@ export default function InsightsTab({
                             )}
 
                             {status === 'Done' && (
-                              <div className="pt-1">
+                              <div className="grid grid-cols-2 gap-2 pt-1">
+                                <button
+                                  onClick={() => onArchiveAnalysis?.(latestAnalysis.id)}
+                                  className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                >
+                                  <Archive className="w-3.5 h-3.5" />
+                                  Archive
+                                </button>
                                 <button
                                   onClick={() => onOpenAgentChat?.(step.agentType as any)}
-                                  className="w-full py-2.5 px-3 bg-slate-100 hover:bg-slate-150 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                  className="py-2.5 px-3 bg-slate-100 hover:bg-slate-150 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                                 >
                                   <Send className="w-3 h-3 text-slate-400" />
                                   Chat with agent

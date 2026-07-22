@@ -16,7 +16,7 @@ import FullScreenLogViewer from './FullScreenLogViewer';
 import ApiCallTrackerModal from './ApiCallTrackerModal';
 import UserManagementTab from './UserManagementTab';
 import BackupRestoreTab from './BackupRestoreTab';
-import { Activity } from 'lucide-react';
+import { Activity, Stethoscope } from 'lucide-react';
 import {
   getGoogleAccessToken,
   hasGoogleToken,
@@ -98,6 +98,7 @@ interface HeaderProps {
   dailyBenefits?: any[];
   report?: any;
   onSaveAndSync?: (profile: any, foodLogs: any[], biomarkers: any, biomarkerHistory: any[], actions: any[], dailyBenefits: any[], report: any, specificUpdate?: any) => Promise<void>;
+  onOpenFrontDesk?: () => void;
 }
 
 const getSessionId = (): string => {
@@ -134,7 +135,8 @@ export default function Header({
   actions,
   dailyBenefits,
   report,
-  onSaveAndSync
+  onSaveAndSync,
+  onOpenFrontDesk
 }: HeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [showThemeScreen, setShowThemeScreen] = useState(false);
@@ -480,6 +482,15 @@ export default function Header({
             >
               Sync: {lastSyncTime}
             </span>
+          )}
+          {onOpenFrontDesk && (
+            <button
+              onClick={onOpenFrontDesk}
+              className="p-2.5 bg-indigo-100 hover:bg-indigo-200 dark:bg-indigo-950 dark:hover:bg-indigo-900 text-indigo-650 dark:text-indigo-400 rounded-2xl transition-all flex items-center justify-center cursor-pointer hover:scale-[1.03]"
+              title="Health Front Desk"
+            >
+              <Stethoscope className="w-5 h-5" />
+            </button>
           )}
             <button
               onClick={() => setIsTrackerOpen(true)}

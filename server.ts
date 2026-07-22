@@ -608,7 +608,7 @@ const getGeminiClient = () => {
   return new GoogleGenAI({
     apiKey: apiKey || "MOCK_KEY",
     httpOptions: {
-      timeout: 120000,
+      timeout: 300000,
       headers: {
         "User-Agent": "aistudio-build",
       },
@@ -1514,6 +1514,85 @@ app.get("/api/gemini/instruction-preview", async (req, res) => {
 });
 
 // Gemini Food Analyze Endpoint
+
+// Health Front Desk Agent
+app.post("/api/gemini/front-desk", async (req, res) => {
+  try {
+    const { message, profile, biomarkers, foodLogs } = req.body;
+    
+    const prompt = `
+You are the Health Front Desk Agent. Your job is to answer the user's questions regarding their health data, and guide them on what they should do next.
+You have access to their profile, biomarkers, and food logs.
+
+<USER_DATA>
+Profile: ${JSON.stringify(profile)}
+Biomarkers: ${JSON.stringify(biomarkers)}
+Food Logs (Last 5): ${JSON.stringify(foodLogs ? foodLogs.slice(0, 5) : [])}
+</USER_DATA>
+
+If the user asks "What should I do?", analyze their data and see what is missing (e.g. missing age, weight, or missing biomarkers, or no food logs logged).
+Advise them on which of the 5 specialized agents to use:
+- Add Health Data
+- Review Biomarkers
+- Clinical Review
+- Health Planning
+- Medical Insights
+
+If the user gives you information to update their profile (like their weight, height, age, blood type), you MUST include a JSON block in your response to update the profile.
+Format for updating profile and adding biomarker logs:
+\`\`\`json
+{
+  "updatedProfile": {
+    "weight": 70,
+    "height": 175,
+    "age": 30
+  },
+  "newBiomarkerLogs": [
+    { "biomarker": "HbA1c", "value": 5.5, "unit": "%", "date": "2023-10-10" }
+  ]
+}
+\`\`\`
+Any fields you specify in the JSON will be merged into their profile. 
+
+Answer the user's message directly and concisely.
+
+User Message: ${message}
+`;
+
+    const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: prompt,
+      config: {
+        temperature: 0.2
+      }
+    });
+
+    const reply = response.text || "";
+    
+    // Parse updatedProfile if any
+    let updatedProfile = null;
+    let newBiomarkerLogs = null;
+    const jsonMatch = reply.match(/\`\`\`json\s*({[\s\S]*?})\s*```/);
+    if (jsonMatch) {
+      try {
+        const parsed = JSON.parse(jsonMatch[1]);
+        if (parsed.newBiomarkerLogs) {
+          newBiomarkerLogs = parsed.newBiomarkerLogs;
+        }
+        if (parsed.updatedProfile) {
+          updatedProfile = { ...profile, ...parsed.updatedProfile };
+        }
+      } catch(e) {}
+    }
+
+    res.json({ agentPrompt: prompt, text: reply.replace(/\`\`\`json[\s\S]*?\`\`\`/g, '').trim(), updatedProfile, newBiomarkerLogs, type: 'front_desk' });
+  } catch (err: any) {
+    console.error("Front Desk Error:", err);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 app.post("/api/gemini/food-analyze", async (req, res) => {
   const isStream = req.query.stream === 'true';
   let hasSentHeaders = false;
@@ -1549,6 +1628,19 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
 
   try {
     const { message, image, images, imageDates, history, userProfile, engine, biomarkersNeedingImprovement, remainingAllowance, userId, activeMeal, customSystemInstruction, customVariableData, foodLogs } = req.body;
+
+    const sendStreamEvent = (data: any) => {
+      if (isStream && hasSentHeaders) {
+        try {
+          res.write(`data: ${JSON.stringify(data)}\n\n`);
+        } catch (e) {}
+      }
+    };
+
+    const sendLog = (logType: string, stage: 'scout' | 'db_search' | 'dietitian', messageText: string, extra?: any) => {
+      addDebugLog(`[${logType}] ${messageText}`);
+      sendStreamEvent({ type: 'log', logType, stage, message: messageText, ...extra });
+    };
 
     const STANDARD_FOOD_FACTORS: {[key: string]: {calories: number, saturatedFat: number, sodium: number, protein: number, carbohydrates: number, totalFat: number}} = {
       steak: { calories: 2.5, saturatedFat: 0.05, sodium: 1.8, protein: 0.26, carbohydrates: 0.0, totalFat: 0.18 },
@@ -1933,12 +2025,15 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
     } else {
       const hasImage = imagePayloads && imagePayloads.length > 0;
       if (hasImage) {
+        sendStreamEvent({ type: 'status', stage: 'scout', status: 'started', message: 'Reading your photos...' });
+        const scoutPromptText = message ? `Analyze this image and list the food items you see, taking into consideration the user's message: "${message}"` : "Analyze this image and list the food items you see.";
+        sendLog('scout_instruction', 'scout', `Vision Scout Instruction dispatched (model: gemini-3.1-flash-lite). Prompt: "${scoutPromptText}"`);
         addDebugLog(`[Vision Scout] Running Stage 3 lightweight vision scout...`);
         try {
           const scoutOutput = await callUnifiedLLM({
             modelId: "gemini-3.1-flash-lite",
             systemInstruction: scoutSystemInstruction,
-            promptText: message ? `Analyze this image and list the food items you see, taking into consideration the user's message: "${message}"` : "Analyze this image and list the food items you see.",
+            promptText: scoutPromptText,
             imagePayloads,
             responseMimeType: "application/json",
             responseSchema: {
@@ -1947,20 +2042,50 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                 scratchpad: { type: Type.STRING },
                 recommendedMode: { type: Type.STRING },
                 contentType: { type: Type.STRING },
-                items: { type: Type.ARRAY, items: { type: Type.OBJECT } },
-                scoutConfidenceRating: { type: Type.STRING },
-                scoutConfidenceComment: { type: Type.STRING },
-                scoutCookingMethod: { type: Type.STRING },
-                visionScoutRanAndReturnedItems: { type: Type.BOOLEAN },
+                cookingMethod: { type: Type.STRING },
+                items: {
+                  type: Type.ARRAY,
+                  items: {
+                    type: Type.OBJECT,
+                    properties: {
+                      keyword: { type: Type.STRING, description: "Base food name in database-friendly English" },
+                      originalName: { type: Type.STRING, description: "Exact localized food name" },
+                      estimatedWeightGrams: { type: Type.NUMBER },
+                      weightReasoning: { type: Type.STRING },
+                      boundingBox2D: {
+                        type: Type.ARRAY,
+                        items: { type: Type.INTEGER },
+                        description: "4-element bounding box array [ymin, xmin, ymax, xmax] scale 0-1000"
+                      },
+                      components: {
+                        type: Type.ARRAY,
+                        items: {
+                          type: Type.OBJECT,
+                          properties: {
+                            searchQuery: { type: Type.STRING },
+                            volumePercentage: { type: Type.NUMBER }
+                          },
+                          required: ["searchQuery", "volumePercentage"]
+                        }
+                      },
+                      source: { type: Type.STRING },
+                      cookingMethod: { type: Type.STRING },
+                      itemConfidence: { type: Type.STRING },
+                      anomalyFlags: { type: Type.ARRAY, items: { type: Type.STRING } }
+                    },
+                    required: ["keyword", "originalName", "estimatedWeightGrams", "boundingBox2D"]
+                  }
+                },
                 queriesToSearch: { type: Type.ARRAY, items: { type: Type.STRING } }
               },
-              propertyOrdering: ["scratchpad", "items", "recommendedMode", "contentType", "scoutConfidenceRating", "scoutConfidenceComment", "scoutCookingMethod", "queriesToSearch", "visionScoutRanAndReturnedItems"]
+              required: ["scratchpad", "recommendedMode", "contentType", "items"],
+              propertyOrdering: ["scratchpad", "items", "recommendedMode", "contentType", "cookingMethod", "queriesToSearch"]
             },
             onStream: isStream ? (chunk: string, isThought?: boolean) => {
               if (isThought) {
-                res.write(`data: ${JSON.stringify({ thought: chunk, stage: 'scout' })}\n\n`);
+                sendStreamEvent({ type: 'stream', stage: 'scout', thought: chunk });
               } else {
-                res.write(`data: ${JSON.stringify({ chunk, stage: 'scout' })}\n\n`);
+                sendStreamEvent({ type: 'stream', stage: 'scout', chunk });
               }
             } : undefined
           });
@@ -1972,7 +2097,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
             addDebugLog(`[Scout Scratchpad]\n${scoutResult.scratchpad}`);
             if (isStream) {
               const fakeChunk = `{"scoutScratchpad":${JSON.stringify(scoutScratchpad)}}`;
-              res.write(`data: ${JSON.stringify({ chunk: fakeChunk })}\n\n`);
+              sendStreamEvent({ type: 'stream', stage: 'scout', chunk: fakeChunk });
             }
           }
 
@@ -1984,6 +2109,18 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
           scoutRecommendedMode = scoutResult.scoutRecommendedMode;
           queriesToSearch.push(...scoutResult.queriesToSearch);
           visionScoutRanAndReturnedItems = scoutResult.visionScoutRanAndReturnedItems;
+
+          const scoutItemsSummary = visionScoutItems.map((it: any) => ({
+            name: it.originalName || it.keyword,
+            keyword: it.keyword,
+            weight: it.estimatedWeightGrams
+          }));
+          const scoutItemsSummaryStr = scoutItemsSummary.map((i: any) => `${i.name} (~${i.weight}g)`).join(', ');
+
+          sendLog('scout_answer', 'scout', `Scout identified ${visionScoutItems.length} item(s): ${scoutItemsSummaryStr}`, {
+            items: scoutItemsSummary
+          });
+          sendStreamEvent({ type: 'status', stage: 'scout', status: 'completed', message: 'Vision Scout completed.' });
 
           addDebugLog(`[Vision Scout] Exploded high density rows into ${visionScoutItems.length} individual item(s) to process:`);
           visionScoutItems.forEach((item: any) => {
@@ -2049,6 +2186,8 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
     const shouldRunDbSearch = !isWeightModification && !isMenuScale && !isEvaluationScale && (visionScoutRanAndReturnedItems || (!hasImage && queriesToSearch.length > 0));
     if (shouldRunDbSearch && queriesToSearch.length > 0) {
       const uniqueQueries = Array.from(new Set(queriesToSearch));
+      sendStreamEvent({ type: 'status', stage: 'db_search', status: 'started', message: 'Searching nutrition databases...' });
+      sendLog('db_search', 'db_search', `Querying USDA & OpenFoodFacts databases for: [${uniqueQueries.join(', ')}]`);
       addDebugLog(`[Database Search] Performing USDA & OFF searches for queries: ${JSON.stringify(uniqueQueries)}`);
       const searchPromises = uniqueQueries.map(async (q) => {
         try {
@@ -2118,6 +2257,8 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       } else {
         databaseMatches = "No matches found in USDA or Open Food Facts databases for these queries.";
       }
+      sendLog('db_search_complete', 'db_search', `Found ${databaseMatchesArray.length} database match(es) across USDA & OpenFoodFacts.`);
+      sendStreamEvent({ type: 'status', stage: 'db_search', status: 'completed', message: 'Database search completed.' });
     }
 
     // Backend-Side Mathematical Macro Aggregation for Component-Level Decomposition
@@ -2700,6 +2841,9 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       maxOutputTokens: 8192 // Boosted to ensure all items fit
     };
 
+    sendStreamEvent({ type: 'status', stage: 'dietitian', status: 'started', message: 'Consulting clinical AI model...' });
+    sendLog('dietitian_instruction', 'dietitian', `Dietitian System Instruction & Patient Biomarkers payload dispatched (model: ${engine || 'gemini-3.1-flash-lite'}).`);
+
     let textOutput: string;
     let rawParsed: any;
     try {
@@ -2715,6 +2859,12 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
     if (rawParsed.scratchpad) {
       addDebugLog(`[Dietitian Scratchpad]\n${rawParsed.scratchpad}`);
     }
+
+    const dietitianScratchpad = rawParsed?.scratchpad || "";
+    sendLog('dietitian_answer', 'dietitian', rawParsed?.message || 'Dietitian generated clinical advice.', {
+      mode: rawParsed?.mode
+    });
+    sendStreamEvent({ type: 'status', stage: 'dietitian', status: 'completed', message: 'Dietitian evaluation completed.' });
 
     let mode = rawParsed.mode || "new_log";
 
@@ -4645,6 +4795,13 @@ app.post("/api/gemini/insight-analyze", async (req, res) => {
 
 app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
   try {
+    const isStream = req.query.stream === "true";
+    if (isStream) {
+      res.setHeader("Content-Type", "text/event-stream");
+      res.setHeader("Cache-Control", "no-cache");
+      res.setHeader("Connection", "keep-alive");
+    }
+
     const { profile, userProfile, biomarkerHistory, engine, refinement, calibratedInsights, outOfRangeBiomarkers } = req.body;
     const activeProfile = profile || userProfile || {};
     const sanitizedBiomarkerHistory = (biomarkerHistory || []).map((log: any) => {
@@ -4770,23 +4927,29 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
         "topNutrientTargets": [
           {"nutrientKey": "exact matching key", "targetValue": "1650", "rationale": "..."}
         ],
+        "topWeeklyNutrientTargets": [
+          {"nutrientKey": "exact matching key", "targetValue": "1000 IU", "rationale": "..."}
+        ],
         "generalNutrientTargets": {
-          "vitaminD": "1000 IU"
-        }
+          "vitaminK": "..."
+        },
+        "nutrientRankingRationale": "Ranked list of each suggested nutrient ordered from most to least important with rationale explaining why it is ranked this way."
       }
     }
     
     CRITICAL REQUIREMENTS:
-    1. Provide the top 3-6 priority nutrient targets in 'topNutrientTargets' with reason how it would help the risk category.
+    1. CORE NUTRIENTS RULE: 'topNutrientTargets' MUST strictly contain ONLY nutrients belonging to the Core nutrients list: (calories, solubleFibre, saturatedFat, protein, potassium, transFat, addedSugar, carbohydrates, totalFibre, sodium) that are recommended for the user.
+    1b. ADDITIONAL NUTRIENTS RULE: 'topWeeklyNutrientTargets' MUST strictly contain ONLY nutrients belonging to the Additional nutrients list: (unsaturatedFat, omega3, magnesium, calcium, iron, zinc, selenium, iodine, phosphorus, vitaminD, vitaminB12, folate, vitaminC, vitaminE, vitaminK, vitaminA, vitaminB6, thiamine, riboflavin, niacin) that are recommended for the user.
     2. Provide target values for ALL remaining applicable nutrient keys (approx 20+) in 'generalNutrientTargets'.
     3. CRITICAL: Your 'biomarkerTargets' array MUST explicitly include every single individual biomarker that was listed under 'Biomarkers at risk' for its respective risk category. Do not summarize or omit any at-risk biomarkers. Every risk category must also have at least 1 recommendation in terms of nutrient and activity target.
-    4. Consolidate the activity and nutrient targets. If an activity or nutrient target is required for multiple risk categories, reuse the same recommendation rather than creating a slightly different one.
-    4b. CRITICAL CONSISTENCY RULE: every single nutrientKey that appears in ANY risk category's own 'nutrientTargets' array MUST also appear at the report level — either in 'topNutrientTargets' (if it is one of the most important 3-6) or in 'generalNutrientTargets' (otherwise). Never introduce a nutrient at the category level that is absent from both report-level lists.
+    4. Consolidate the activity and nutrient targets. If an activity or nutrient target is required for multiple risk categories, reuse the same recommendation rather than creating a slightly different one. If a nutrient provide the same benefit with another, prioritise to only show the most relevant one. For example, "total fiber" and "soluble fibre" are both useful to help with high cholesterol, so just recommend the most relevant one in the nutrient target
+    4b. CRITICAL CONSISTENCY RULE: every single nutrientKey that appears in ANY risk category's own 'nutrientTargets' array MUST also appear at the report level — either in 'topNutrientTargets', 'topWeeklyNutrientTargets', or in 'generalNutrientTargets'. Never introduce a nutrient at the category level that is absent from all report-level lists.
     4c. Do not artificially limit each risk category's 'nutrientTargets' array to 1-2 items. Include every nutrient target that is clinically relevant to that specific category, even if that means 3, 4, or more entries.
     4d. If calorie intake itself is a primary lever for the user's risk profile (e.g. weight/BMI management, insulin resistance), you MUST include "calories" as its own entry in 'topNutrientTargets' with a target value and rationale — do not rely solely on 'generalNutrientTargets' for it.
     5. Think globally for the most relevant top nutrient to share. Do not share relative targets (e.g., 1.2g/kg); you MUST compute the absolute amount (e.g., body weight * 1.2g) and give the final exact number based on the user's profile weight. Choose the most effective constraint globally (e.g. general calorie restriction vs added sugar restriction) depending on the most critical risks. Also, specify the exact type of nutrient if relevant (e.g. soluble fiber vs total fiber).
     6. For every risk category, set "level" to "high", "medium", or "low" based on how far the underlying biomarkers deviate from reference range and how clinically urgent the category is. This field is required and drives the app's risk color indicator.
-    7. Populate 'scratchpad' with your full reasoning process before you finalize the rest of the report. Do not write any text outside the single JSON object — all reasoning must live inside the 'scratchpad' field.`;
+    7. Populate 'scratchpad' with your full reasoning process before you finalize the rest of the report. Do not write any text outside the single JSON object — all reasoning must live inside the 'scratchpad' field.
+    8. RANKING & ORDERING REQUIREMENT: You MUST order 'topNutrientTargets' and 'topWeeklyNutrientTargets' strictly from most important (#1) to least important based on clinical impact and urgency. In 'nutrientRankingRationale', list every suggested nutrient in order (1., 2., 3., etc.) from most to least important and provide a clear, detailed clinical rationale explaining why it is ranked in that exact position.`;
 
     const systemInstruction = "You are a world-class preventative cardiologist, endocrinologist, and clinical longevity researcher. Your response must be an exact single JSON matching the requested schema using strictly the allowed keys. Never add markdown wrappers.";
     const fullPromptSent = `System Instruction:\n${systemInstruction}\n\n${promptText}`;
@@ -4795,7 +4958,14 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
       modelId: engine || "gemini-3.1-pro",
       systemInstruction,
       promptText,
-      responseMimeType: "application/json"
+      responseMimeType: "application/json",
+      onStream: isStream ? (chunk: string, isThought?: boolean) => {
+        if (isThought) {
+          res.write(`data: ${JSON.stringify({ thought: chunk, stage: 'dietitian' })}\n\n`);
+        } else {
+          res.write(`data: ${JSON.stringify({ chunk, stage: 'dietitian' })}\n\n`);
+        }
+      } : undefined
     });
 
     let cleanJson = textOutput.replace(/```(?:json)?/gi, "").trim();
@@ -4813,13 +4983,27 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
     }
 
     parsedData.agentPrompt = `System Instruction:\nYou are a world-class preventative cardiologist, endocrinologist, and clinical longevity researcher. Your response must be an exact JSON matching the requested schema. Never add markdown wrappers.\n\n${promptText}`;
-    res.json({
-      ...parsedData,
-      apiCalls: [{ type: 'gemini', label: `Health Baseline Agent (${engine || 'gemini-3.1-flash-lite'})` }]
-    });
+    
+    if (isStream) {
+      res.write(`data: ${JSON.stringify({ final: true, result: {
+        ...parsedData,
+        apiCalls: [{ type: 'gemini', label: `Health Baseline Agent (${engine || 'gemini-3.1-flash-lite'})` }]
+      } })}\n\n`);
+      res.end();
+    } else {
+      res.json({
+        ...parsedData,
+        apiCalls: [{ type: 'gemini', label: `Health Baseline Agent (${engine || 'gemini-3.1-flash-lite'})` }]
+      });
+    }
   } catch (error: any) {
     console.error("[Health Baseline Analyze Error]:", error);
-    res.status(500).json({ error: "Failed to generate health baseline: " + error.message });
+    if (res.headersSent) {
+      res.write(`data: ${JSON.stringify({ error: "Failed to generate health baseline: " + error.message })}\n\n`);
+      res.end();
+    } else {
+      res.status(500).json({ error: "Failed to generate health baseline: " + error.message });
+    }
   }
 });
 app.post("/api/gemini/route-biomarker", async (req, res) => {

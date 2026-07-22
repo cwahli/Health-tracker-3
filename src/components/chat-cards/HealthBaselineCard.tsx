@@ -3,7 +3,8 @@ import { AgentCardProps } from './types';
 import { ErrorBoundary } from '../ErrorBoundary';
 import { AGENT_REGISTRY } from '../../utils/agentConfig';
 import { CheckCircle, XCircle, Activity, Target, Calendar, Check, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
-import { AgentThoughtBox } from './FoodCard';
+import { AgentThoughtBox, getNutrientColor } from './FoodCard';
+import { isCoreNutrient, isAdditionalNutrient } from '../../utils/nutrients';
 
 export const HealthBaselineCard: React.FC<AgentCardProps> = ({
   msg,
@@ -27,9 +28,84 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
 
   const riskCategories = Array.isArray(report.riskCategories) ? report.riskCategories : [];
   const biomarkerTargets = Array.isArray(report.biomarkerTargets) ? report.biomarkerTargets : [];
-  const nutrientTargets = Array.isArray(report.nutrientTargets) ? report.nutrientTargets : (Array.isArray(report.topNutrientTargets) ? report.topNutrientTargets : []);
+
+  const rawTopTargets = Array.isArray(report.topNutrientTargets) ? report.topNutrientTargets : [];
+  const rawTopWeekly = report.topWeeklyNutrientTargets || report.weeklyNutrientTargets || [];
+  const categoryTargets = riskCategories.flatMap((cat: any) => Array.isArray(cat.nutrientTargets) ? cat.nutrientTargets : []);
+
+  // Collect ALL recommended nutrient target items from agent
+  const recommendedItems: any[] = [];
+  const seenRecommendedKeys = new Set<string>();
+
+  const processItem = (item: any) => {
+    const rawKey = typeof item === 'string' ? item : (item?.nutrientKey || item?.key || '');
+    if (!rawKey) return;
+    const cleanKey = String(rawKey).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!cleanKey || seenRecommendedKeys.has(cleanKey)) return;
+    seenRecommendedKeys.add(cleanKey);
+    const val = typeof item === 'object' ? (item.targetValue || item.target || '') : (report.dailyNutrientTargets?.[rawKey] || '');
+    const rat = typeof item === 'object' ? (item.rationale || item.reasoning || '') : '';
+    recommendedItems.push({
+      nutrientKey: rawKey,
+      targetValue: val,
+      rationale: rat
+    });
+  };
+
+  if (Array.isArray(rawTopTargets)) rawTopTargets.forEach(processItem);
+  if (Array.isArray(rawTopWeekly)) rawTopWeekly.forEach(processItem);
+  else if (typeof rawTopWeekly === 'object' && rawTopWeekly !== null) {
+    Object.entries(rawTopWeekly).forEach(([rawKey, val]) => {
+      const valStr = typeof val === 'object' && val !== null ? (val as any).targetValue || (val as any).target || '' : String(val);
+      const ratStr = typeof val === 'object' && val !== null ? (val as any).rationale || '' : '';
+      processItem({ nutrientKey: rawKey, targetValue: valStr, rationale: ratStr });
+    });
+  }
+  categoryTargets.forEach(processItem);
+
+  // Split recommended targets strictly by Core vs Additional
+  const topNutrientTargetsList = recommendedItems.filter(item => isCoreNutrient(item.nutrientKey));
+  const topWeeklyNutrientTargetsList = recommendedItems.filter(item => isAdditionalNutrient(item.nutrientKey));
+
+  // Collect Additional Nutrient Targets (remaining general baseline targets)
+  const seenAdditionalKeys = new Set<string>();
+  const additionalNutrientTargetsList: any[] = [];
+  const generalTargetsObj = report.generalNutrientTargets || {};
+
+  const addAdditionalTarget = (rawKey: string, valStr?: string, ratStr?: string) => {
+    const cleanKey = String(rawKey).toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!cleanKey || seenRecommendedKeys.has(cleanKey) || seenAdditionalKeys.has(cleanKey)) return;
+    seenAdditionalKeys.add(cleanKey);
+    additionalNutrientTargetsList.push({
+      nutrientKey: rawKey,
+      targetValue: valStr || '',
+      rationale: ratStr || ''
+    });
+  };
+
+  if (Array.isArray(generalTargetsObj)) {
+    generalTargetsObj.forEach((item: any) => {
+      const rawKey = typeof item === 'string' ? item : (item?.nutrientKey || item?.key || '');
+      const val = typeof item === 'object' ? (item.targetValue || item.target || '') : String(item);
+      const rat = typeof item === 'object' ? (item.rationale || item.reasoning || '') : '';
+      addAdditionalTarget(rawKey, val, rat);
+    });
+  } else if (typeof generalTargetsObj === 'object' && generalTargetsObj !== null) {
+    Object.entries(generalTargetsObj).forEach(([rawKey, val]) => {
+      const valStr = typeof val === 'object' && val !== null ? (val as any).targetValue || (val as any).target || '' : String(val);
+      const ratStr = typeof val === 'object' && val !== null ? (val as any).rationale || '' : '';
+      addAdditionalTarget(rawKey, valStr, ratStr);
+    });
+  }
+
+  if (report.dailyNutrientTargets) {
+    Object.entries(report.dailyNutrientTargets).forEach(([rawKey, val]) => {
+      addAdditionalTarget(rawKey, String(val), '');
+    });
+  }
+
+
   const dailyActivities = Array.isArray(report.dailyActivities) ? report.dailyActivities : [];
-  const generalNutrientTargets = report.generalNutrientTargets || {};
   const globalSummary = report.globalSummary || '';
   const scratchpad = report.scratchpad || '';
   const timelineToOptimal = report.timelineToOptimal || '';
@@ -300,19 +376,86 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
           )}
 
           {/* Global Targets & Activities */}
-          {(nutrientTargets.length > 0 || dailyActivities.length > 0) && (
+          {(topNutrientTargetsList.length > 0 || topWeeklyNutrientTargetsList.length > 0 || additionalNutrientTargetsList.length > 0 || dailyActivities.length > 0) && (
             <div className="py-4 space-y-6">
-              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Global Action Plan</h3>
+              <div className="space-y-2">
+                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Global Action Plan</h3>
+                
+                {(() => {
+                  const rankingCopy = report.nutrientRankingRationale || 
+                    (report as any).rankingRationale || 
+                    (msg.data?.agentResult as any)?.nutrientRankingRationale || 
+                    (msg.data?.agentResult as any)?.report?.nutrientRankingRationale || 
+                    (msg.data?.agentResult as any)?.rankingRationale;
+                  
+                  const fallbackCopy = [...topNutrientTargetsList, ...topWeeklyNutrientTargetsList]
+                    .map((item, idx) => `${idx + 1}. ${item.nutrientKey.replace(/([A-Z])/g, ' $1').trim()}: ${item.rationale || 'Key priority based on clinical biomarker profile.'}`)
+                    .join('\n');
+
+                  const displayCopy = rankingCopy || (fallbackCopy.length > 0 ? fallbackCopy : null);
+
+                  if (!displayCopy) return null;
+
+                  return (
+                    <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                      {displayCopy}
+                    </div>
+                  );
+                })()}
+              </div>
               
-              {nutrientTargets.length > 0 && (
+              {topNutrientTargetsList.length > 0 && (
                 <div className="space-y-3 pt-2">
                   <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Top Nutrient Targets</div>
                   <div className="grid gap-3 sm:grid-cols-2">
-                    {nutrientTargets.map((nt: any, i: number) => (
+                    {topNutrientTargetsList.map((nt: any, i: number) => (
                       <div key={i} className="py-2">
                         <div className="flex justify-between items-start mb-1.5">
-                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 capitalize">{nt.nutrientKey}</span>
+                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 capitalize flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: getNutrientColor(nt.nutrientKey) }} />
+                            {nt.nutrientKey}
+                          </span>
                           <span className="text-sm font-bold text-emerald-600 dark:text-emerald-400 ml-2 text-right">{nt.targetValue}</span>
+                        </div>
+                        {(nt.rationale || nt.reasoning) && <div className="text-xs text-slate-500 leading-relaxed">{nt.rationale || nt.reasoning}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {topWeeklyNutrientTargetsList.length > 0 && (
+                <div className="space-y-3 pt-2">
+                  <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Top Weekly Nutrient Targets</div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {topWeeklyNutrientTargetsList.map((nt: any, i: number) => (
+                      <div key={i} className="py-2">
+                        <div className="flex justify-between items-start mb-1.5">
+                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 capitalize flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: getNutrientColor(nt.nutrientKey) }} />
+                            {nt.nutrientKey}
+                          </span>
+                          <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400 ml-2 text-right">{nt.targetValue}</span>
+                        </div>
+                        {(nt.rationale || nt.reasoning) && <div className="text-xs text-slate-500 leading-relaxed">{nt.rationale || nt.reasoning}</div>}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {additionalNutrientTargetsList.length > 0 && (
+                <div className="space-y-3 pt-2">
+                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Additional Nutrient Targets</div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {additionalNutrientTargetsList.map((nt: any, i: number) => (
+                      <div key={i} className="py-2">
+                        <div className="flex justify-between items-start mb-1.5">
+                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 capitalize flex items-center gap-1.5">
+                            <span className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: getNutrientColor(nt.nutrientKey) }} />
+                            {nt.nutrientKey}
+                          </span>
+                          <span className="text-sm font-bold text-slate-600 dark:text-slate-400 ml-2 text-right">{nt.targetValue}</span>
                         </div>
                         {(nt.rationale || nt.reasoning) && <div className="text-xs text-slate-500 leading-relaxed">{nt.rationale || nt.reasoning}</div>}
                       </div>
@@ -347,20 +490,6 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                 <span>Timeline to Optimal</span>
               </div>
               <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">{timelineToOptimal}</p>
-            </div>
-          )}
-
-          {Object.keys(generalNutrientTargets).length > 0 && (
-            <div className="py-4">
-              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100 mb-4">General Nutrient Targets</h3>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                {Object.entries(generalNutrientTargets).map(([key, value]: [string, any]) => (
-                  <div key={key} className="py-2 flex flex-col justify-center">
-                    <div className="text-[11px] font-bold text-slate-400 dark:text-slate-500 mb-1 capitalize tracking-wide">{key.replace(/([A-Z])/g, ' $1').trim()}</div>
-                    <div className="text-sm font-bold text-slate-800 dark:text-slate-200">{value}</div>
-                  </div>
-                ))}
-              </div>
             </div>
           )}
 

@@ -307,6 +307,9 @@ export interface FoodIdea {
 export interface RecommendationReport {
   timestamp: string;
   dailyNutrientTargets: { [key in keyof NutrientBreakdown]?: string } & { [key: string]: string | undefined };
+  generalNutrientTargets?: any;
+  weeklyNutrientTargets?: any;
+  topWeeklyNutrientTargets?: any;
   mostImportantNextStep: string;
   actions: HealthAction[];
   dailyBenefits: DailyBenefit[];
@@ -314,6 +317,7 @@ export interface RecommendationReport {
   healthRiskForecast: HealthRiskForecast;
   healthBaselineCategories?: any[]; // Stores accepted risk-category analysis
   topNutrientTargets?: string[];
+  nutrientRankingRationale?: string;
 }
 
 export interface ChatMessage {

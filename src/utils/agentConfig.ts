@@ -1,6 +1,6 @@
 import { ChatMessage } from '../types';
 
-export type AgentType = 'food' | 'medical' | 'food_idea' | 'daily_recommendation' | 'medical_extract' | 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent7' | 'data_review' | 'health_baseline';
+export type AgentType = 'food' | 'medical' | 'food_idea' | 'daily_recommendation' | 'medical_extract' | 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent7' | 'data_review' | 'health_baseline' | 'front_desk';
 
 export interface AgentConfig {
   id: AgentType;
@@ -122,6 +122,15 @@ export const AGENT_REGISTRY: Record<AgentType, AgentConfig> = {
     description: 'Formats insights and action plans into a cohesive report.',
     capabilities: ['report_generation', 'insight_card_view'],
     welcomeMessage: 'Hello! I am the Medical Literature Consensus agent. I scan PubMed and clinical trials to bring recent scientific debate to your context.',
+    rolloutStatus: 'unified',
+  },
+  front_desk: {
+    id: 'front_desk',
+    category: 'system',
+    displayName: 'Health Front Desk',
+    description: 'Answers general questions, routes users, and updates health data.',
+    capabilities: ['general_qa', 'routing', 'profile_update', 'biomarker_logging'],
+    welcomeMessage: 'Hello! I am your Health Front Desk Agent. How can I help you today? You can ask me about your health data, or I can help you update your profile. I can also direct you to one of our specialized agents.',
     rolloutStatus: 'unified',
   },
   health_baseline: {

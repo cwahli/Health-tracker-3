@@ -1,4 +1,5 @@
 import React from 'react';
+import { getNutrientColor } from '../utils/nutrition';
 
 interface NutrientPieChartProps {
   allowance: number;       // Daily allowance (e.g. 1500)
@@ -20,34 +21,11 @@ export const NutrientPieChart: React.FC<NutrientPieChartProps> = ({
   const C = Math.max(0, alreadyConsumed);
   const M = Math.max(0, mealValue);
 
-  // Map nutrient keys to colors
-  const getHighlightColorInfo = (key: string) => {
-    const k = key.toLowerCase();
-    if (k.includes('calor')) {
-      return {
-        bright: 'rgb(249, 115, 22)', // Orange
-        light: 'rgba(249, 115, 22, 0.2)',
-      };
-    }
-    if (k.includes('sat') || k.includes('fat')) {
-      return {
-        bright: 'rgb(234, 179, 8)', // Yellow
-        light: 'rgba(234, 179, 8, 0.2)',
-      };
-    }
-    if (k.includes('sodium') || k.includes('salt')) {
-      return {
-        bright: 'rgb(34, 197, 94)', // Green
-        light: 'rgba(34, 197, 94, 0.2)',
-      };
-    }
-    return {
-      bright: 'rgb(99, 102, 241)', // Default Indigo
-      light: 'rgba(99, 102, 241, 0.2)',
-    };
-  };
-
-  const { bright: highlightColor, light: consumedColor } = getHighlightColorInfo(nutrientKey);
+  // Map nutrient keys to colors using master getNutrientColor
+  const highlightColor = getNutrientColor(nutrientKey || '');
+  const consumedColor = highlightColor.startsWith('rgb(') && highlightColor.endsWith(')')
+    ? highlightColor.replace('rgb(', 'rgba(').replace(')', ', 0.2)')
+    : highlightColor;
 
   const pctC = (C / A) * 100;
   const pctM = (M / A) * 100;

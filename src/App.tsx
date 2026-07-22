@@ -11,9 +11,10 @@ import MedicalHistoryTab from './components/MedicalHistoryTab';
 import TrendsTab from './components/TrendsTab';
 import ConflictResolutionModal from './components/ConflictResolutionModal';
 import LogChat from './components/LogChat';
+
 import { translations } from './utils/translations';
 import { AVAILABLE_LLMS } from './utils/llm';
-import { PRIMARY_NUTRIENTS } from './utils/nutrients';
+import { PRIMARY_NUTRIENTS, isCoreNutrient, isAdditionalNutrient } from './utils/nutrients';
 import { getLocalFallbackReport } from './utils/fallbackReport';
 import { getDemoProfile, getDemoBiomarkerHistory, getDemoFoodLogs, getDemoReport } from './utils/demoData';
 import { getAvailableCredits, deductAgentCredits } from './utils/creditManager';
@@ -580,6 +581,7 @@ export default function App() {
   const [isManualFoodLogOpen, setIsManualFoodLogOpen] = useState(false);
   const [manualFoodLogError, setManualFoodLogError] = useState<string | null>(null);
   const [isMedicalChatOpen, setIsMedicalChatOpen] = useState(false);
+  const [isFrontDeskOpen, setIsFrontDeskOpen] = useState(false);
   const [activeAgentType, setActiveAgentType] = useState<'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'health_baseline' | 'agent7' | 'data_review' | null>(null);
   const [activeDataReviewBatchIdx, setActiveDataReviewBatchIdx] = useState<number | string | null>(null);
   const [activeDataReviewBatchKeys, setActiveDataReviewBatchKeys] = useState<string[]>([]);
@@ -4111,6 +4113,7 @@ export default function App() {
         actions={actions}
         dailyBenefits={dailyBenefits}
         report={report}
+        onOpenFrontDesk={() => setIsFrontDeskOpen(true)}
         setProfile={(p) => {
           setProfile(p);
           const bundle = {
@@ -4307,6 +4310,7 @@ export default function App() {
               }
             }}
             onAgentAnalysisSaved={handleAgentAnalysisSaved}
+            onOpenFrontDesk={() => setIsFrontDeskOpen(true)}
           />
         )}
         {activeTab === 'food' && (
@@ -4404,6 +4408,38 @@ export default function App() {
       {/* Bottom Material Tab Bar (Icons only) */}
       <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
       {/* Slide-over interactive dialogs */}
+      
+      <ErrorBoundary><LogChat type="front_desk"
+        profile={profile}
+        isOpen={isFrontDeskOpen}
+        selectedModelId={selectedModelId}
+        onChangeModelId={setSelectedModelId}
+        onClose={() => setIsFrontDeskOpen(false)}
+        biomarkers={biomarkers}
+        biomarkerHistory={biomarkerHistory}
+        foodLogs={foodLogs}
+        onSaveProfile={(updatedP) => {
+          setProfile(updatedP);
+          saveAndSync(updatedP, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'profile' });
+        }}
+        onAddBiomarkerLogs={async (logs) => {
+          let updatedBiomarkers = { ...biomarkers };
+          let updatedHistory = [...biomarkerHistory];
+          logs.forEach(log => {
+            updatedBiomarkers[log.biomarker] = log.value;
+            updatedHistory.push({
+              id: `bm_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+              biomarkers: { [log.biomarker]: log.value },
+              date: log.date || new Date().toISOString().split('T')[0],
+              timestamp: new Date().toISOString()
+            });
+          });
+          setBiomarkers(updatedBiomarkers);
+          setBiomarkerHistory(updatedHistory);
+          await saveAndSync(profile, foodLogs, updatedBiomarkers, updatedHistory, actions, dailyBenefits, report, { type: 'biomarker', payload: logs });
+        }}
+
+      /></ErrorBoundary>
       <ErrorBoundary><LogChat type="food"
         profile={profile}
         isOpen={isFoodChatOpen}
@@ -5162,9 +5198,7 @@ export default function App() {
 
              globalNutrientTargets.forEach((nt: any) => {
                if (nt.nutrientKey && nt.targetValue) {
-                 if (justifiedNutrientKeys.has(nt.nutrientKey.toLowerCase().trim())) {
-                   newDailyNutrientTargets[nt.nutrientKey] = nt.targetValue;
-                 }
+                 newDailyNutrientTargets[nt.nutrientKey] = nt.targetValue;
                }
              });
 
@@ -5218,10 +5252,43 @@ export default function App() {
              });
 
              currentReport.dailyNutrientTargets = newDailyNutrientTargets;
-             currentReport.topNutrientTargets = Array.isArray(data.topNutrientTargets) ? data.topNutrientTargets.map((nt: any) => nt.nutrientKey) : [];
+
+             const recommendedKeysSet = new Set<string>();
+             if (Array.isArray(data.topNutrientTargets)) {
+               data.topNutrientTargets.forEach((nt: any) => {
+                 const k = typeof nt === 'string' ? nt : (nt?.nutrientKey || nt?.key);
+                 if (k) recommendedKeysSet.add(k);
+               });
+             }
+             const rawWeeklyData = data.topWeeklyNutrientTargets || data.weeklyNutrientTargets;
+             if (Array.isArray(rawWeeklyData)) {
+               rawWeeklyData.forEach((nt: any) => {
+                 const k = typeof nt === 'string' ? nt : (nt?.nutrientKey || nt?.key);
+                 if (k) recommendedKeysSet.add(k);
+               });
+             } else if (typeof rawWeeklyData === 'object' && rawWeeklyData !== null) {
+               Object.keys(rawWeeklyData).forEach(k => recommendedKeysSet.add(k));
+             }
+             acceptedCategories.forEach((cat: any) => {
+               if (Array.isArray(cat.nutrientTargets)) {
+                 cat.nutrientTargets.forEach((nt: any) => {
+                   const k = nt?.nutrientKey || nt?.key;
+                   if (k) recommendedKeysSet.add(k);
+                 });
+               }
+             });
+
+             const topCoreKeys = Array.from(recommendedKeysSet).filter(isCoreNutrient);
+             const topWeeklyKeys = Array.from(recommendedKeysSet).filter(isAdditionalNutrient);
+
+             currentReport.topNutrientTargets = topCoreKeys;
+             currentReport.topWeeklyNutrientTargets = topWeeklyKeys;
+
              if (currentReport.topNutrientTargets.length > 0) {
                updatedProfile.topNutrientsToMonitor = currentReport.topNutrientTargets;
              }
+             currentReport.generalNutrientTargets = data.generalNutrientTargets;
+             currentReport.nutrientRankingRationale = data.nutrientRankingRationale;
              currentReport.healthBaselineCategories = acceptedCategories;
              
              setReport(currentReport);

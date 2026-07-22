@@ -77,8 +77,12 @@ CRITICAL RULES:
   Absolute Weights: If the user text provides a hard weight (e.g., "150g", "4 oz"), use that exact number, overriding visual volume entirely.
 
   Relative Quantities: If the user text provides a fraction, percentage, or piece count (e.g., "1/4 of", "half", "3 pieces"), you MUST first visually estimate the total weight of the specific whole item shown in the image. Then, apply the user's math to your visual estimate. NEVER apply user fractions to generic textbook averages; ground the math in the visual size of the actual food photographed.
-- SEMANTIC ALIGNMENT:
-  The English keyword you generate MUST biologically and semantically match the text you extracted in originalName. Do not hallucinate categories. If the originalName indicates a protein/meat (e.g., "Ikan" means fish), the keyword cannot be a vegetable (e.g., "bok choy"). If unsure of a translation, default to a generic category (e.g., "fish", "meat").
+- SEMANTIC ALIGNMENT & KEYWORD ACCURACY:
+  The English keyword you generate MUST biologically and semantically match the text you extracted in originalName and what is visually in the photo. Do not hallucinate categories or keys. If the originalName indicates a protein/meat (e.g., "Ikan" means fish), the keyword cannot be a vegetable. If unsure of a translation, default to a generic category (e.g., "fish", "meat").
+- CRITICAL LOCALIZATION DIRECTIVE:
+  For EVERY item in \`items\`, you MUST compute and provide \`boundingBox2D\` as a 4-element array of normalized integers \`[ymin, xmin, ymax, xmax]\` on a scale of 0 to 1000 (e.g. \`[150, 200, 800, 750]\`) tightly surrounding the food item or package in the image. NEVER omit \`boundingBox2D\` or default to \`[0, 0, 1000, 1000]\` unless the item genuinely spans the entire frame.
+- CRITICAL NON-EMPTY ITEMS MANDATE:
+  You MUST ALWAYS populate the \`items\` array with real JSON item objects whenever food items are present in the image. NEVER return an empty \`items\` list or top-level summary keys instead of populating \`items\`.
 JSON SCHEMA STRICT REQUIREMENT:
 Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers.
 {
@@ -87,8 +91,8 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
   "contentType": "visual | menu_or_poster | text",
   "items": [
     {
-      "keyword": "string (The core base item only. No toppings, flavors, or subcomponents. e.g., 'siomai dumpling', 'bread')",
-      "weightReasoning": "string",
+      "keyword": "string (The core base item only. No toppings, flavors, or subcomponents. e.g., 'siomai dumpling', 'pomfret fish')",
+      "weightReasoning": "string (A single short sentence explaining how you estimated the weight visually. Do NOT place long chain-of-thought analysis here. Put all detailed thinking in the top-level scratchpad.)",
       "estimatedWeightGrams": "number",
       "components": [
         {
@@ -99,7 +103,7 @@ Respond ONLY with a structured JSON format matching this schema exactly. Never a
       "originalName": "string",
       "visualIngredients": ["string"],
       "source": "label | visual",
-      "boundingBox2D": "[ymin, xmin, ymax, xmax]",
+      "boundingBox2D": [150, 200, 800, 750],
       "sourceImageIndex": 0,
       "ingredientsList": "string | null",
       "rawNutritionLabel": "{ 'servingSize': string, 'calories': number, 'protein': string, 'totalFat': string, 'saturatedFat': string, 'totalCarbohydrate': string, 'sugar': string, 'sodium': string }",

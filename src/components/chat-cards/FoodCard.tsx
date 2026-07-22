@@ -1,3 +1,4 @@
+import { formatMessageContent } from '../../utils/formatUtils';
 import { NutritionLabelTable } from "./NutritionLabelTable";
 import { trackApiCall } from '../../utils/apiTracker';
 import * as React from 'react';
@@ -6,7 +7,8 @@ import { Plus, Check, ChevronDown, ChevronUp, Sparkles, Search, X, Trash2, Eye, 
 import ImageSlider from '../ImageSlider';
 import { NutrientPieChart } from '../NutrientPieChart';
 
-import { nutrientDefinitions } from '../../utils/nutrition';
+import { nutrientDefinitions, getNutrientColor, MASTER_NUTRIENT_COLORS } from '../../utils/nutrition';
+export { getNutrientColor, MASTER_NUTRIENT_COLORS };
 import { PRIMARY_NUTRIENTS } from '../../utils/nutrients';
 import { FoodLog } from '../../types';
 import { resolveFoodImage } from '../../utils/imageResolver';
@@ -29,13 +31,7 @@ const FALLBACK_NUTRIENT_COLOR_PALETTE = [
   'rgb(161, 98, 7)',    // brown-amber
 ];
 
-const getFallbackNutrientColor = (key: string): string => {
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) {
-    hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
-  }
-  return FALLBACK_NUTRIENT_COLOR_PALETTE[hash % FALLBACK_NUTRIENT_COLOR_PALETTE.length];
-};
+// Re-exported from ../../utils/nutrition
 
 const StepItem = ({ 
   label, 
@@ -84,14 +80,40 @@ const StepItem = ({
   );
 };
 
-export const AgentThoughtBox = ({ scoutScratchpad, dietitianScratchpad, isLive, placeholderStep, hasImage }: { scoutScratchpad?: string, dietitianScratchpad?: string, isLive?: boolean, placeholderStep?: string, hasImage?: boolean }) => {
+export const AgentThoughtBox = ({ 
+  scoutScratchpad, 
+  dietitianScratchpad, 
+  isLive, 
+  placeholderStep, 
+  hasImage,
+  scoutInstruction,
+  scoutAnswer,
+  dbSearchLog,
+  dietitianInstruction,
+  dietitianAnswer,
+  activeStage,
+  stageStatus
+}: { 
+  scoutScratchpad?: string, 
+  dietitianScratchpad?: string, 
+  isLive?: boolean, 
+  placeholderStep?: string, 
+  hasImage?: boolean,
+  scoutInstruction?: string,
+  scoutAnswer?: string,
+  dbSearchLog?: string,
+  dietitianInstruction?: string,
+  dietitianAnswer?: string,
+  activeStage?: string,
+  stageStatus?: string
+}) => {
   const [isExpanded, setIsExpanded] = React.useState(!!isLive);
 
   React.useEffect(() => {
     setIsExpanded(!!isLive);
   }, [isLive]);
 
-  const hasScratchpad = !!scoutScratchpad || !!dietitianScratchpad;
+  const hasScratchpad = !!scoutScratchpad || !!dietitianScratchpad || !!activeStage;
   if (!hasScratchpad && !placeholderStep) return null;
 
   const isImageAnalysis = hasImage ?? (!!scoutScratchpad || (placeholderStep && placeholderStep.toLowerCase().includes("photo")));
@@ -107,16 +129,46 @@ export const AgentThoughtBox = ({ scoutScratchpad, dietitianScratchpad, isLive, 
     step2Status = 'completed';
     step3Status = 'completed';
     step4Status = 'completed';
-  } else {
+  } else if (activeStage) {
+    // Determine based on explicit activeStage
     if (isImageAnalysis) {
-      // Step 1: Reading your photos
+      if (activeStage === 'scout') {
+        step1Status = stageStatus === 'completed' ? 'completed' : 'active';
+        step2Status = 'pending';
+        step3Status = 'pending';
+        step4Status = 'pending';
+      } else if (activeStage === 'db_search') {
+        step1Status = 'completed';
+        step2Status = stageStatus === 'completed' ? 'completed' : 'active';
+        step3Status = 'pending';
+        step4Status = 'pending';
+      } else if (activeStage === 'dietitian') {
+        step1Status = 'completed';
+        step2Status = 'completed';
+        step3Status = 'completed';
+        step4Status = stageStatus === 'completed' ? 'completed' : 'active';
+      }
+    } else {
+      if (activeStage === 'db_search') {
+        step1Status = stageStatus === 'completed' ? 'completed' : 'active';
+        step2Status = 'pending';
+        step3Status = 'pending';
+        step4Status = 'pending';
+      } else if (activeStage === 'dietitian') {
+        step1Status = 'completed';
+        step2Status = 'completed';
+        step3Status = stageStatus === 'completed' ? 'completed' : 'active';
+        step4Status = 'pending';
+      }
+    }
+  } else {
+    // Fallback heuristic if explicit stages are not passed
+    if (isImageAnalysis) {
       if (scoutScratchpad || dietitianScratchpad) {
         step1Status = 'completed';
       } else {
         step1Status = 'active';
       }
-
-      // Step 2: Searching nutrition databases
       if (dietitianScratchpad) {
         step2Status = 'completed';
       } else if (scoutScratchpad) {
@@ -124,39 +176,27 @@ export const AgentThoughtBox = ({ scoutScratchpad, dietitianScratchpad, isLive, 
       } else {
         step2Status = 'pending';
       }
-
-      // Step 3: Checking your biomarker profile
       if (dietitianScratchpad) {
         step3Status = 'completed';
-      } else if (scoutScratchpad) {
-        step3Status = 'active';
       } else {
         step3Status = 'pending';
       }
-
-      // Step 4: Consulting clinical AI model
       if (dietitianScratchpad) {
         step4Status = 'active';
       } else {
         step4Status = 'pending';
       }
     } else {
-      // Text-only analysis
-      // Step 1: Gathering history
       if (dietitianScratchpad) {
         step1Status = 'completed';
       } else {
         step1Status = 'active';
       }
-
-      // Step 2: Checking biomarker profile
       if (dietitianScratchpad) {
         step2Status = 'completed';
       } else {
-        step2Status = 'active';
+        step2Status = 'pending';
       }
-
-      // Step 3: Consulting clinical AI model
       if (dietitianScratchpad) {
         step3Status = 'active';
       } else {
@@ -183,9 +223,15 @@ export const AgentThoughtBox = ({ scoutScratchpad, dietitianScratchpad, isLive, 
           <div className="flex flex-col gap-3 mt-2.5 pt-2 border-t border-slate-200/50 dark:border-slate-800/50 text-left">
             {isImageAnalysis ? (
               <>
-                <StepItem label="Reading your photos..." status={step1Status} />
-                
-                <StepItem label="Searching nutrition databases..." status={step2Status}>
+                <StepItem label="Reading your photos..." status={step1Status}>
+                  {scoutInstruction && (
+                    <div className="flex flex-col gap-1 mt-1 mb-2">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Vision Scout Instruction</span>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
+                        {scoutInstruction}
+                      </p>
+                    </div>
+                  )}
                   {scoutScratchpad && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Vision Scout Scratchpad</span>
@@ -194,9 +240,37 @@ export const AgentThoughtBox = ({ scoutScratchpad, dietitianScratchpad, isLive, 
                       </p>
                     </div>
                   )}
+                  {scoutAnswer && (
+                    <div className="flex flex-col gap-1 mt-1">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Vision Scout Result</span>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
+                        {scoutAnswer}
+                      </p>
+                    </div>
+                  )}
                 </StepItem>
                 
-                <StepItem label="Checking your biomarker profile..." status={step3Status} />
+                <StepItem label="Searching nutrition databases..." status={step2Status}>
+                  {dbSearchLog && (
+                    <div className="flex flex-col gap-1 mt-1">
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Database Log</span>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
+                        {dbSearchLog}
+                      </p>
+                    </div>
+                  )}
+                </StepItem>
+                
+                <StepItem label="Checking your biomarker profile..." status={step3Status}>
+                  {dietitianInstruction && (
+                    <div className="flex flex-col gap-1 mt-1">
+                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Instruction</span>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
+                        {dietitianInstruction}
+                      </p>
+                    </div>
+                  )}
+                </StepItem>
                 
                 <StepItem label="Consulting the clinical AI model..." status={step4Status}>
                   {dietitianScratchpad && (
@@ -207,18 +281,43 @@ export const AgentThoughtBox = ({ scoutScratchpad, dietitianScratchpad, isLive, 
                       </p>
                     </div>
                   )}
+                  {dietitianAnswer && (
+                    <div className="flex flex-col gap-1 mt-1">
+                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Result</span>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
+                        {dietitianAnswer}
+                      </p>
+                    </div>
+                  )}
                 </StepItem>
               </>
             ) : (
               <>
                 <StepItem label="Gathering your recent history..." status={step1Status} />
-                <StepItem label="Checking your biomarker profile..." status={step2Status} />
+                <StepItem label="Checking your biomarker profile..." status={step2Status}>
+                  {dietitianInstruction && (
+                    <div className="flex flex-col gap-1 mt-1">
+                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Instruction</span>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
+                        {dietitianInstruction}
+                      </p>
+                    </div>
+                  )}
+                </StepItem>
                 <StepItem label="Consulting the clinical AI model..." status={step3Status}>
                   {dietitianScratchpad && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Scratchpad</span>
                       <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
                         {dietitianScratchpad}
+                      </p>
+                    </div>
+                  )}
+                  {dietitianAnswer && (
+                    <div className="flex flex-col gap-1 mt-1">
+                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Result</span>
+                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
+                        {dietitianAnswer}
                       </p>
                     </div>
                   )}
@@ -1091,9 +1190,7 @@ export const FoodCard: React.FC<AgentCardProps & {
 
                       {(msg.content || msg.data?.agentResult?.message) && (
                         <div className="text-[11.5px] text-slate-700 dark:text-slate-300 font-sans leading-relaxed text-left pb-3 whitespace-pre-line break-words">
-                          {typeof (msg.content || msg.data?.agentResult?.message) === 'object' 
-                            ? JSON.stringify(msg.content || msg.data?.agentResult?.message) 
-                            : (msg.content || msg.data?.agentResult?.message)}
+                          {formatMessageContent(msg.content || msg.data?.agentResult?.message, msg)}
                         </div>
                       )}
 
@@ -1270,9 +1367,18 @@ export const FoodCard: React.FC<AgentCardProps & {
                                           return `${v.toFixed(2)}${u}`;
                                         };
                                         
-                                        // Respect the user's selected primary nutrients from their profile (defaults to calories, saturatedFat, sodium) to stay consistent with Mode A
-                                        const activeKeys = profile?.topNutrientsToMonitor || ['calories', 'saturatedFat', 'sodium'];
-                                        const keysToRender = activeKeys.filter(k => group.averageNutrients[k] !== undefined && group.averageNutrients[k] !== null);
+                                        // Respect report topNutrientTargets or profile topNutrientsToMonitor
+                                        const rawReportTargets = (report as any)?.topNutrientTargets || (report as any)?.nutrientTargets;
+                                        const reportKeys = Array.isArray(rawReportTargets) && rawReportTargets.length > 0
+                                          ? rawReportTargets.map((item: any) => typeof item === 'string' ? item : (item?.nutrientKey || item?.key || '')).filter(Boolean)
+                                          : null;
+                                        const activeKeys = reportKeys || profile?.topNutrientsToMonitor || ['calories', 'saturatedFat', 'sodium'];
+                                        const keysToRender = activeKeys.filter(k => {
+                                          if (!group.averageNutrients) return false;
+                                          if (group.averageNutrients[k] !== undefined && group.averageNutrients[k] !== null) return true;
+                                          const lower = String(k).toLowerCase().replace(/[^a-z0-9]/g, '');
+                                          return Object.keys(group.averageNutrients).some(gk => gk.toLowerCase().replace(/[^a-z0-9]/g, '') === lower);
+                                        });
 
                                         return keysToRender.map(key => {
                                           let val = group.averageNutrients[key];
@@ -1310,7 +1416,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                           // nutrient values (not a per-100g figure) — no weight-based scaling here.
                                           const totalVal = parsedVal;
                                           
-                                          const color = nutrientColors[key] || getFallbackNutrientColor(key);
+                                          const color = getNutrientColor(key);
                                           const label = nutrientLabels[key] || (key.replace(/([A-Z])/g, ' $1').trim());
                                           const unit = nutrientUnits[key] || 'g';
 
@@ -2023,9 +2129,7 @@ export const FoodCard: React.FC<AgentCardProps & {
 
                       {(msg.content || msg.data?.agentResult?.message) && (
                         <div className="text-[11.5px] text-slate-700 dark:text-slate-300 font-sans leading-relaxed text-left py-2 border-b border-slate-100 dark:border-slate-800/50 whitespace-pre-line break-words">
-                          {typeof (msg.content || msg.data?.agentResult?.message) === 'object' 
-                            ? JSON.stringify(msg.content || msg.data?.agentResult?.message) 
-                            : (msg.content || msg.data?.agentResult?.message)}
+                          {formatMessageContent(msg.content || msg.data?.agentResult?.message, msg)}
                         </div>
                       )}
 
@@ -2087,8 +2191,12 @@ export const FoodCard: React.FC<AgentCardProps & {
                           sodium: 'mg',
                           potassium: 'mg'
                         };
-                        // Read top nutrients from profile, fall back to default calories, satFat, sodium
-                        const activeKeys = profile?.topNutrientsToMonitor || ['calories', 'saturatedFat', 'sodium'];
+                        // Read top nutrients from report first, then profile, fall back to default
+                        const rawReportTargets = (report as any)?.topNutrientTargets || (report as any)?.nutrientTargets;
+                        const reportKeys = Array.isArray(rawReportTargets) && rawReportTargets.length > 0
+                          ? rawReportTargets.map((item: any) => typeof item === 'string' ? item : (item?.nutrientKey || item?.key || '')).filter(Boolean)
+                          : null;
+                        const activeKeys = reportKeys || profile?.topNutrientsToMonitor || ['calories', 'saturatedFat', 'sodium'];
                         const formatNutrientValue = (v: number, u: string) => {
                           if (v === null || v === undefined || isNaN(v)) return `— ${u}`;
                           const abs = Math.abs(v);
@@ -2099,28 +2207,47 @@ export const FoodCard: React.FC<AgentCardProps & {
                         };
                         return (
                           <div className="flex flex-wrap items-center gap-3 pt-2">
-                            {activeKeys.map((key) => {
-                              const valueInMeal = msg.data?.pendingFoodLog.nutrients?.[key];
+                            {activeKeys.map((rawKey) => {
+                              const key = String(rawKey);
+                              const lowerKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+                              const nutrientDef = nutrientDefinitions.find(n => n.key.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerKey);
+                              const lookupKey = nutrientDef?.key || key;
+
+                              const nutrientsObj = msg.data?.pendingFoodLog.nutrients || {};
+                              let valueInMeal = nutrientsObj[lookupKey] ?? nutrientsObj[key];
+                              if (valueInMeal === undefined || valueInMeal === null) {
+                                const foundK = Object.keys(nutrientsObj).find(k => k.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerKey);
+                                if (foundK) valueInMeal = nutrientsObj[foundK];
+                              }
                               if (valueInMeal === undefined || valueInMeal === null) return null;
-                              const reportTarget = report?.dailyNutrientTargets?.[key];
-                              const fallbackVal = defaultTargets[key] || 15;
+
+                              const reportTarget = report?.dailyNutrientTargets?.[lookupKey] || report?.dailyNutrientTargets?.[key];
+                              const fallbackVal = defaultTargets[lookupKey] || defaultTargets[key] || 15;
                               const target = parseTarget(reportTarget, fallbackVal);
-                              const consumedToday = dayLogs.reduce((acc, curr) => acc + (curr.nutrients?.[key] || 0), 0);
+                              const consumedToday = dayLogs.reduce((acc, curr) => {
+                                const logNutrients = curr.nutrients || {};
+                                let val = logNutrients[lookupKey] ?? logNutrients[key];
+                                if (val === undefined || val === null) {
+                                  const fk = Object.keys(logNutrients).find(k => k.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerKey);
+                                  if (fk) val = logNutrients[fk];
+                                }
+                                return acc + (val || 0);
+                              }, 0);
                               
-                              const color = nutrientColors[key] || getFallbackNutrientColor(key);
-                              const label = nutrientLabels[key] || (key.replace(/([A-Z])/g, ' $1').trim());
-                              const unit = nutrientUnits[key] || 'g';
+                              const color = getNutrientColor(lookupKey);
+                              const label = nutrientDef ? (nutrientDef.labels.en === 'Calories' ? 'Calories' : (nutrientDef.labels.en === 'Saturated Fat' ? 'Sat Fat' : nutrientDef.labels.en)) : (nutrientLabels[key] || key.replace(/([A-Z])/g, ' $1').trim());
+                              const unit = nutrientDef ? nutrientDef.unit : (nutrientUnits[key] || 'g');
                               return (
-                                <div key={key} className="flex items-center gap-1.5">
+                                <div key={key} className="flex items-center gap-1.5 shrink-0">
                                   <NutrientPieChart
                                     allowance={target}
                                     alreadyConsumed={consumedToday}
                                     mealValue={valueInMeal}
-                                    nutrientKey={key as any}
+                                    nutrientKey={lookupKey}
                                     size="sm"
                                   />
-                                  <span className={key === 'calories' ? "text-[11px] font-extrabold" : "text-[11px] font-bold"} style={{ color }}>
-                                    {key === 'calories' ? '' : `${label}: `}{formatNutrientValue(valueInMeal, unit)}
+                                  <span className={lookupKey === 'calories' ? "text-[11px] font-extrabold" : "text-[11px] font-bold"} style={{ color }}>
+                                    {lookupKey === 'calories' ? '' : `${label}: `}{formatNutrientValue(valueInMeal, unit)}
                                   </span>
                                 </div>
                               );

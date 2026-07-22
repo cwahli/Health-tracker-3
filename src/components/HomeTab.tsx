@@ -6,7 +6,7 @@ import { getBiomarkerStatus, getBiomarkerColor, getBiomarkerStatusLabel, biomark
 import { getAgentCalibration } from '../utils/agentCalibration';
 import { getCurrentDateInTimezone } from '../utils/dateUtils';
 import { standardizeUnit, reverseStandardizeUnit, formatNormalRange } from '../utils/unitConversion';
-import { PRIMARY_NUTRIENTS } from '../utils/nutrients';
+import { PRIMARY_NUTRIENTS, isCoreNutrient, isAdditionalNutrient } from '../utils/nutrients';
 import { nutrientDefinitions } from '../utils/nutrition';
 import { BiomarkerExpandedSection } from './BiomarkerExpandedSection';
 import ReviewBiomarkerModal from './ReviewBiomarkerModal';
@@ -356,6 +356,36 @@ export default function HomeTab({
     return averages;
   }, [viewTimeframe, todaysTotals, activeFoodLogs, todayStr]);
 
+  // Compute 7-day rolling total sums (for Weekly Targets)
+  const rolling7DayTotals = React.useMemo(() => {
+    const totals: { [key: string]: number } = {};
+    const parts = todayStr.split('-');
+    const todayDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    
+    const targetDates = new Set<string>();
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(todayDate);
+      d.setDate(todayDate.getDate() - i);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      targetDates.add(`${yyyy}-${mm}-${dd}`);
+    }
+    
+    const foodsInRange = activeFoodLogs.filter(f => targetDates.has(f.date));
+    
+    foodsInRange.forEach(f => {
+      if (f.nutrients) {
+        Object.keys(f.nutrients).forEach(k => {
+          const val = Number(f.nutrients[k]) || 0;
+          totals[k] = (totals[k] || 0) + val;
+        });
+      }
+    });
+    
+    return totals;
+  }, [activeFoodLogs, todayStr]);
+
   const toggleAction = (id: string) => {
     setActions(actions.map(act => act.id === id ? { ...act, completed: !act.completed } : act));
   };
@@ -480,9 +510,105 @@ export default function HomeTab({
     return breakdown.adjustedValue;
   }, [getRollingBreakdown]);
 
-  const topMonitoredKeys = (profile?.topNutrientsToMonitor && profile.topNutrientsToMonitor.length > 0)
-    ? profile.topNutrientsToMonitor
-    : PRIMARY_NUTRIENTS;
+  const topMonitoredKeys = React.useMemo(() => {
+    const rawKeys: string[] = [];
+    if (Array.isArray(report?.topNutrientTargets) && report.topNutrientTargets.length > 0) {
+      report.topNutrientTargets.forEach((k: any) => {
+        const strKey = typeof k === 'string' ? k : (k?.nutrientKey || k?.key);
+        if (strKey && !rawKeys.includes(strKey)) rawKeys.push(strKey);
+      });
+    }
+    const cats = report?.healthBaselineCategories || (report as any)?.riskCategories || [];
+    if (Array.isArray(cats)) {
+      cats.forEach((cat: any) => {
+        if (Array.isArray(cat.nutrientTargets)) {
+          cat.nutrientTargets.forEach((nt: any) => {
+            const strKey = typeof nt === 'string' ? nt : (nt?.nutrientKey || nt?.key);
+            if (strKey && isCoreNutrient(strKey) && !rawKeys.includes(strKey)) rawKeys.push(strKey);
+          });
+        }
+      });
+    }
+    if (profile?.topNutrientsToMonitor && profile.topNutrientsToMonitor.length > 0) {
+      profile.topNutrientsToMonitor.forEach(k => {
+        if (!rawKeys.includes(k)) rawKeys.push(k);
+      });
+    }
+    if (rawKeys.length === 0) {
+      PRIMARY_NUTRIENTS.forEach(k => rawKeys.push(k));
+    }
+    // Filter strictly to core nutrients while maintaining rank order
+    const coreOnly = rawKeys.filter(isCoreNutrient);
+    const set = new Set<string>();
+    coreOnly.forEach(k => set.add(k));
+    if (set.size === 0) {
+      PRIMARY_NUTRIENTS.forEach(k => set.add(k));
+    }
+    return Array.from(set);
+  }, [profile?.topNutrientsToMonitor, report]);
+
+  const topWeeklyNutrientKeys = React.useMemo(() => {
+    const rawKeys: string[] = [];
+    const rawWeekly = report?.topWeeklyNutrientTargets || report?.weeklyNutrientTargets || [];
+    if (Array.isArray(rawWeekly)) {
+      rawWeekly.forEach((item: any) => {
+        const k = typeof item === 'string' ? item : (item?.nutrientKey || item?.key);
+        if (k && !rawKeys.includes(k)) rawKeys.push(k);
+      });
+    } else if (typeof rawWeekly === 'object' && rawWeekly !== null) {
+      Object.keys(rawWeekly).forEach(k => { if (!rawKeys.includes(k)) rawKeys.push(k); });
+    }
+    if (Array.isArray(report?.topNutrientTargets)) {
+      report.topNutrientTargets.forEach((k: any) => {
+        const strKey = typeof k === 'string' ? k : (k?.nutrientKey || k?.key);
+        if (strKey && isAdditionalNutrient(strKey) && !rawKeys.includes(strKey)) rawKeys.push(strKey);
+      });
+    }
+    const cats = report?.healthBaselineCategories || (report as any)?.riskCategories || [];
+    if (Array.isArray(cats)) {
+      cats.forEach((cat: any) => {
+        if (Array.isArray(cat.nutrientTargets)) {
+          cat.nutrientTargets.forEach((nt: any) => {
+            const strKey = typeof nt === 'string' ? nt : (nt?.nutrientKey || nt?.key);
+            if (strKey && isAdditionalNutrient(strKey) && !rawKeys.includes(strKey)) rawKeys.push(strKey);
+          });
+        }
+      });
+    }
+    const additionalOnly = rawKeys.filter(isAdditionalNutrient);
+    const set = new Set<string>();
+    additionalOnly.forEach(k => {
+      if (!topMonitoredKeys.includes(k)) set.add(k);
+    });
+    return Array.from(set);
+  }, [report, topMonitoredKeys]);
+
+  const additionalNutrientKeys = React.useMemo(() => {
+    const keys: string[] = [];
+    const genObj = report?.generalNutrientTargets || {};
+    if (Array.isArray(genObj)) {
+      genObj.forEach((item: any) => {
+        const k = typeof item === 'string' ? item : (item?.nutrientKey || item?.key);
+        if (k && !keys.includes(k) && !topMonitoredKeys.includes(k) && !topWeeklyNutrientKeys.includes(k)) {
+          keys.push(k);
+        }
+      });
+    } else if (typeof genObj === 'object' && genObj !== null) {
+      Object.keys(genObj).forEach(k => {
+        if (!keys.includes(k) && !topMonitoredKeys.includes(k) && !topWeeklyNutrientKeys.includes(k)) {
+          keys.push(k);
+        }
+      });
+    }
+    if (report?.dailyNutrientTargets) {
+      Object.keys(report.dailyNutrientTargets).forEach(k => {
+        if (k !== 'steps' && !keys.includes(k) && !topMonitoredKeys.includes(k) && !topWeeklyNutrientKeys.includes(k)) {
+          keys.push(k);
+        }
+      });
+    }
+    return keys;
+  }, [report, topMonitoredKeys, topWeeklyNutrientKeys]);
 
   const baseCaloriesTarget = report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.calories, 1700) : 1800;
   const baseSatFatTarget = report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets.saturatedFat, 15) : 15;
@@ -724,7 +850,7 @@ export default function HomeTab({
         <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800/50">
           <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center gap-2">
             <Heart className="w-4 h-4 text-indigo-600" />
-            Today's Top Targets
+            Top Targets
           </h3>
           <span className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
             <Calendar className="w-3 h-3" /> {todayStr}
@@ -819,6 +945,81 @@ export default function HomeTab({
           </div>
         </div>
 
+        {/* Weekly Targets Section (Top Weekly Nutrient Targets x7 on 7-day rolling basis) */}
+        {topWeeklyNutrientKeys.length > 0 && (
+          <div id="dashboard-weekly-targets" className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800/50">
+            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800/50">
+              <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center gap-2">
+                <Calendar className="w-4 h-4 text-indigo-600" />
+                Weekly Targets
+              </h3>
+              <span className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
+                7-day rolling
+              </span>
+            </div>
+
+            <div className="space-y-3">
+              {topWeeklyNutrientKeys.map((key) => {
+                const reportTargetRaw = (report?.dailyNutrientTargets as any)?.[key] ?? (report?.generalNutrientTargets as any)?.[key] ?? defaultNutrientTargets[key];
+                const baseDailyTarget = parseTarget(reportTargetRaw, 0);
+                const weeklyTarget = baseDailyTarget * 7;
+                const actual7dRaw = Number(rolling7DayTotals[key] || 0);
+                const actual7d = formatValue(actual7dRaw);
+                const unit = parseUnit(reportTargetRaw, fallbackUnits[key] || 'mg');
+
+                const nutDef = nutrientDefinitions.find(n => n.key === key);
+                const label = nutDef?.labels?.en || key.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase());
+
+                const isLimit = ['addedSugar', 'saturatedFat', 'sodium', 'totalFat', 'transFat', 'cholesterol'].includes(key);
+                const isOver = isLimit && weeklyTarget > 0 && actual7dRaw > weeklyTarget;
+                const isMet = !isLimit && weeklyTarget > 0 && actual7dRaw >= weeklyTarget;
+
+                const pct = weeklyTarget > 0 ? (actual7dRaw / weeklyTarget) * 100 : 0;
+
+                return (
+                  <div key={key} className="space-y-1">
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span className="text-slate-700 dark:text-slate-300">{label}</span>
+                      {isOver ? (
+                        <span className="text-rose-500 font-bold font-mono">
+                          {formatValue(actual7dRaw - weeklyTarget)}{unit} over {weeklyTarget}{unit} / wk
+                        </span>
+                      ) : isMet ? (
+                        <span className="text-emerald-500 font-bold font-mono">
+                          {actual7d} / {weeklyTarget}{unit} / wk
+                        </span>
+                      ) : (
+                        <span className="text-slate-500 font-mono">
+                          {actual7d} / {weeklyTarget}{unit} / wk
+                        </span>
+                      )}
+                    </div>
+                    <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                      {isOver ? (
+                        <>
+                          <div 
+                            className="h-full bg-indigo-600 transition-all duration-500" 
+                            style={{ width: `${(weeklyTarget / actual7dRaw) * 100}%` }}
+                          />
+                          <div 
+                            className="h-full bg-rose-500 transition-all duration-500" 
+                            style={{ width: `${((actual7dRaw - weeklyTarget) / actual7dRaw) * 100}%` }}
+                          />
+                        </>
+                      ) : (
+                        <div 
+                          className={`h-full rounded-full transition-all duration-500 ${isMet ? 'bg-emerald-500' : 'bg-indigo-600'}`} 
+                          style={{ width: `${weeklyTarget > 0 ? Math.min(100, pct) : 0}%` }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {/* Expandable Targets Section */}
         {true && (
           <div>
@@ -841,10 +1042,9 @@ export default function HomeTab({
             </div>
 
             {showAllTargets && (() => {
-              const remainingEntries = Object.entries(report?.dailyNutrientTargets || defaultNutrientTargets).filter(([key]) => !topMonitoredKeys.includes(key) && key !== 'steps');
-              const CORE_KEYS = ['protein', 'carbohydrates', 'sugar', 'addedSugar', 'solubleFibre', 'fibre', 'potassium', 'unsaturatedFat', 'calcium', 'iron', 'cholesterol'];
-              const coreTargets = remainingEntries.filter(([key]) => CORE_KEYS.includes(key));
-              const additionalTargets = remainingEntries.filter(([key]) => !CORE_KEYS.includes(key));
+              const remainingEntries = Object.entries(report?.dailyNutrientTargets || defaultNutrientTargets).filter(([key]) => !topMonitoredKeys.includes(key) && key !== 'steps' && !topWeeklyNutrientKeys.includes(key));
+              const coreTargets = remainingEntries.filter(([key]) => isCoreNutrient(key));
+              const additionalTargets = remainingEntries.filter(([key]) => !isCoreNutrient(key));
 
               const renderTarget = ([key, val]: [string, any]) => {
                   const baseTarget = parseTarget(val, 0);

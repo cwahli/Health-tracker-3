@@ -107,7 +107,10 @@ export function getLocalFallbackReport(profile: UserProfile | null): Recommendat
         optimized5: "Restored LDL < 100 mg/dL, stabilized blood sugar in normal ranges, and kidney filtration preserved at healthy levels.",
         optimized10: "Plaque progression halted. Fully functional cardiovascular system and kidney values stabilized in the safe green zone.",
         optimized20: "Optimal cardiovascular performance. Healthy aging index score 95th percentile, active longevity with zero diabetic or renal complications."
-      }
+      },
+      topNutrientTargets: ["calories", "solubleFibre", "saturatedFat", "protein", "sodium", "carbohydrates"],
+      topWeeklyNutrientTargets: ["vitaminD", "omega3", "magnesium"],
+      nutrientRankingRationale: "Focusing on Saturated Fat restriction is your single most important clinical priority, as limiting saturated fats directly halts the overproduction of atherogenic LDL particles and vascular plaque buildup. Pairing this with increased Soluble Fibre binds intestinal cholesterol to accelerate lipid excretion and stabilize glucose spikes, creating a foundational baseline for metabolic stability. Managing overall Caloric intake, Sodium, and Protein provides essential protection for renal filtration (eGFR) and vascular pressure, but these serve as secondary supporting targets. Prioritizing saturated fat reduction and soluble fiber intake delivers the highest overall health leverage, addressing the root driver of cardiovascular risk far more effectively than isolated micronutrient adjustments."
     };
   }
 
@@ -183,6 +186,9 @@ export function getLocalFallbackReport(profile: UserProfile | null): Recommendat
       optimized5: "Pristine blood pressure levels, balanced lipid particles, and metabolic health completely optimized.",
       optimized10: "Robust vascular health, optimized glycemic control, and ideal weight targets maintained.",
       optimized20: "Healthy aging with minimal chronic disease probability and vibrant metabolic index."
-    }
+    },
+    topNutrientTargets: ["calories", "saturatedFat", "sodium", "protein", "solubleFibre", "carbohydrates"],
+    topWeeklyNutrientTargets: ["vitaminD", "omega3", "magnesium"],
+    nutrientRankingRationale: "Focusing on Saturated Fat restriction is your single most important clinical priority, as limiting saturated fats directly halts the overproduction of atherogenic LDL particles and vascular plaque buildup. Pairing this with increased Soluble Fibre binds intestinal cholesterol to accelerate lipid excretion and stabilize glucose spikes, creating a foundational baseline for metabolic stability. Managing overall Caloric intake, Sodium, and Protein provides essential protection for renal filtration (eGFR) and vascular pressure, but these serve as secondary supporting targets. Prioritizing saturated fat reduction and soluble fiber intake delivers the highest overall health leverage, addressing the root driver of cardiovascular risk far more effectively than isolated micronutrient adjustments."
   };
 }

@@ -6,4 +6,29 @@ export const NUTRIENT_KEYS = [
   "vitaminA", "vitaminB6", "thiamine", "riboflavin", "niacin"
 ];
 
+export const CORE_NUTRIENT_KEYS = [
+  "calories", "solubleFibre", "saturatedFat", "protein", "potassium", "transFat", "addedSugar", "carbohydrates", "totalFibre", "sodium"
+];
+
+export const ADDITIONAL_NUTRIENT_KEYS = [
+  "unsaturatedFat", "omega3", "magnesium", "calcium", "iron", "zinc", "selenium", "iodine", "phosphorus",
+  "vitaminD", "vitaminB12", "folate", "vitaminC", "vitaminE", "vitaminK", "vitaminA", "vitaminB6", "thiamine", "riboflavin", "niacin"
+];
+
 export const PRIMARY_NUTRIENTS = ["calories", "saturatedFat", "sodium"];
+
+export const isCoreNutrient = (key: string): boolean => {
+  if (!key) return false;
+  const clean = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (clean === 'carbs' || clean === 'fibre' || clean === 'calorie') return true;
+  return CORE_NUTRIENT_KEYS.some(k => k.toLowerCase().replace(/[^a-z0-9]/g, '') === clean);
+};
+
+export const isAdditionalNutrient = (key: string): boolean => {
+  if (!key) return false;
+  const clean = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+  if (['vitaminb9', 'vitaminb1', 'vitaminb2', 'vitaminb3', 'omega3fattyacids'].includes(clean)) return true;
+  return ADDITIONAL_NUTRIENT_KEYS.some(k => k.toLowerCase().replace(/[^a-z0-9]/g, '') === clean);
+};
+
+

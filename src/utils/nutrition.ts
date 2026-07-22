@@ -46,6 +46,77 @@ export const nutrientDefinitions: NutrientMeta[] = [
   { key: 'niacin', category: 'vitamin', unit: 'mg', labels: { en: 'Niacin (B3)', fr: 'Niacine (B3)', zh: '烟酸 (B3)', id: 'Niasin (B3)' } },
 ];
 
+export const MASTER_NUTRIENT_COLORS: { [key: string]: string } = {
+  // Core macros & energy
+  calories: 'rgb(249, 115, 22)',       // Orange
+  saturatedFat: 'rgb(234, 179, 8)',    // Amber/Yellow
+  transFat: 'rgb(185, 28, 28)',        // Dark Red
+  unsaturatedFat: 'rgb(132, 204, 22)', // Lime
+  totalFat: 'rgb(168, 85, 247)',       // Purple
+  sodium: 'rgb(34, 197, 94)',          // Emerald/Green
+  addedSugar: 'rgb(239, 68, 68)',      // Bright Red
+  protein: 'rgb(59, 130, 246)',        // Blue
+  carbohydrates: 'rgb(6, 182, 212)',   // Cyan
+  totalFibre: 'rgb(16, 185, 129)',     // Forest Green
+  solubleFibre: 'rgb(236, 72, 153)',   // Vibrant Pink
+  omega3: 'rgb(20, 184, 166)',         // Vibrant Teal
+  
+  // Minerals
+  potassium: 'rgb(139, 92, 246)',      // Violet
+  magnesium: 'rgb(244, 63, 94)',       // Rose
+  calcium: 'rgb(14, 165, 233)',        // Sky Blue
+  iron: 'rgb(217, 70, 239)',           // Magenta
+  zinc: 'rgb(217, 119, 6)',            // Dark Amber
+  selenium: 'rgb(234, 88, 12)',        // Deep Orange
+  iodine: 'rgb(109, 40, 217)',         // Indigo
+  phosphorus: 'rgb(74, 222, 128)',     // Light Green
+  
+  // Vitamins
+  vitaminD: 'rgb(250, 204, 21)',       // Bright Yellow
+  vitaminB12: 'rgb(192, 38, 211)',     // Fuchsia
+  folate: 'rgb(251, 113, 133)',        // Coral
+  vitaminC: 'rgb(251, 146, 60)',       // Light Orange
+  vitaminE: 'rgb(180, 83, 9)',         // Warm Brown
+  vitaminK: 'rgb(21, 128, 61)',        // Dark Green
+  vitaminA: 'rgb(225, 29, 72)',        // Crimson
+  vitaminB6: 'rgb(147, 51, 234)',      // Royal Purple
+  thiamine: 'rgb(45, 212, 191)',       // Turquoise
+  riboflavin: 'rgb(163, 230, 53)',     // Electric Lime
+  niacin: 'rgb(129, 140, 248)'         // Periwinkle
+};
+
+export const FALLBACK_NUTRIENT_COLOR_PALETTE = [
+  'rgb(99, 102, 241)',   // indigo
+  'rgb(236, 72, 153)',   // pink
+  'rgb(168, 85, 247)',   // purple
+  'rgb(20, 184, 166)',   // teal
+  'rgb(245, 158, 11)',   // amber
+  'rgb(14, 165, 233)',   // sky blue
+  'rgb(132, 204, 22)',   // lime
+  'rgb(244, 63, 94)',    // rose
+  'rgb(161, 98, 7)',    // brown-amber
+];
+
+export const getFallbackNutrientColor = (key: string): string => {
+  let hash = 0;
+  for (let i = 0; i < key.length; i++) {
+    hash = key.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % FALLBACK_NUTRIENT_COLOR_PALETTE.length;
+  return FALLBACK_NUTRIENT_COLOR_PALETTE[index];
+};
+
+export const getNutrientColor = (key: string): string => {
+  if (!key) return FALLBACK_NUTRIENT_COLOR_PALETTE[0];
+  if (MASTER_NUTRIENT_COLORS[key]) return MASTER_NUTRIENT_COLORS[key];
+  const lowerKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+  const matchedEntry = Object.keys(MASTER_NUTRIENT_COLORS).find(
+    k => k.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerKey
+  );
+  if (matchedEntry) return MASTER_NUTRIENT_COLORS[matchedEntry];
+  return getFallbackNutrientColor(key);
+};
+
 export const emptyNutrients = (): NutrientBreakdown => ({
   calories: 0,
   protein: 0,

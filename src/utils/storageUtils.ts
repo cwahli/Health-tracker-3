@@ -2,7 +2,6 @@ import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { UserProfile, FoodLog, BiomarkerLog, HealthAction, DailyBenefit, RecommendationReport, FoodIdea } from '../types';
 
 export const pruneLocalStorageToFreeSpace = () => {
-  console.log("Pruning localStorage to free up space...");
   try {
     localStorage.removeItem('agent1_batch_results');
     localStorage.removeItem('batch_analysis_results');
@@ -24,7 +23,6 @@ export const pruneLocalStorageToFreeSpace = () => {
           // If localStorage is full, remove key from localStorage so get() seamlessly uses high-capacity IndexedDB.
           try {
             localStorage.removeItem(key);
-            console.log(`[Storage] Removed saturated key from localStorage to allow IndexedDB source of truth: ${key}`);
           } catch {}
         } else if (key.startsWith('chat_messages_') || key.startsWith('chat_payload_')) {
           keysToRemove.push(key);
@@ -32,9 +30,8 @@ export const pruneLocalStorageToFreeSpace = () => {
       }
     }
     keysToRemove.forEach(k => localStorage.removeItem(k));
-    console.log(`Successfully pruned ${keysToRemove.length} chat keys from localStorage to reclaim space.`);
   } catch (e) {
-    console.error("Failed to prune localStorage:", e);
+    // Silent catch - IndexedDB holds primary authority
   }
 };
 

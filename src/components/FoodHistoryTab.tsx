@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { UserProfile, FoodLog, NutrientBreakdown, RecommendationReport } from '../types';
 import { translations } from '../utils/translations';
 import { Edit2, Trash2, Calendar, Search, ChevronDown, ChevronUp, Image as ImageIcon, Save, Check, Plus, Loader, X, Camera } from 'lucide-react';
-import { nutrientDefinitions } from '../utils/nutrition';
+import { nutrientDefinitions, getNutrientColor } from '../utils/nutrition';
 import { db, auth } from '../firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { compressMultipleImages } from '../utils/imageCompressor';
@@ -1233,8 +1233,12 @@ export default function FoodHistoryTab({
                           };
 
                           const defaultKeys = ['calories', 'saturatedFat', 'sodium'];
-                          const targetKeys = ((report as any)?.topNutrientTargets && (report as any).topNutrientTargets.length > 0) 
-                            ? (report as any).topNutrientTargets.slice(0, 6) 
+                          const rawTargets = (report as any)?.topNutrientTargets || (report as any)?.nutrientTargets || profile?.topNutrientsToMonitor;
+                          const targetKeys = Array.isArray(rawTargets) && rawTargets.length > 0
+                            ? rawTargets.map((item: any) => {
+                                if (typeof item === 'string') return item;
+                                return item?.nutrientKey || item?.key || '';
+                              }).filter(Boolean)
                             : defaultKeys;
                           const activeKeys = targetKeys;
 
@@ -1246,28 +1250,25 @@ export default function FoodHistoryTab({
 
                           return (
                             <div className="flex items-center gap-3 overflow-x-auto py-1 scrollbar-none flex-nowrap max-w-full text-left">
-                              {activeKeys.map((key: string) => {
-                                const allowance = report && report.dailyNutrientTargets ? parseTarget(report.dailyNutrientTargets[key], 1000) : 1000;
-                                const consumedBefore = logsBefore.reduce((acc, curr) => acc + ((curr.nutrients as any)?.[key] || 0), 0);
-                                const inMeal = (log.nutrients as any)?.[key] || 0;
-                                const nutrientDef = nutrientDefinitions.find(n => n.key === key);
-                                const unit = nutrientDef ? nutrientDef.unit : '';
+                              {activeKeys.map((rawKey: string) => {
+                                const key = String(rawKey);
+                                const lowerKey = key.toLowerCase().replace(/[^a-z0-9]/g, '');
+                                const nutrientDef = nutrientDefinitions.find(n => n.key.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerKey);
+                                const lookupKey = nutrientDef?.key || key;
 
-                                const getHighlightColor = (k: string) => {
-                                  const lower = k.toLowerCase();
-                                  if (lower.includes('calor')) return 'rgb(249, 115, 22)'; // Orange
-                                  if (lower.includes('sat') || lower.includes('fat')) return 'rgb(234, 179, 8)'; // Yellow
-                                  if (lower.includes('sodium') || lower.includes('salt')) return 'rgb(34, 197, 94)'; // Green
-                                  return 'rgb(99, 102, 241)'; // Indigo
-                                };
-                                const labelColor = getHighlightColor(key);
+                                const allowance = report && report.dailyNutrientTargets ? parseTarget((report.dailyNutrientTargets as any)[lookupKey] || (report.dailyNutrientTargets as any)[key], 1000) : 1000;
+                                const consumedBefore = logsBefore.reduce((acc, curr) => acc + ((curr.nutrients as any)?.[lookupKey] ?? (curr.nutrients as any)?.[key] ?? 0), 0);
+                                const inMeal = (log.nutrients as any)?.[lookupKey] ?? (log.nutrients as any)?.[key] ?? 0;
+                                const unit = nutrientDef ? nutrientDef.unit : 'g';
+
+                                const labelColor = getNutrientColor(lookupKey);
                                 const displayName = nutrientDef 
                                   ? (nutrientDef.labels.en === 'Calories' 
                                       ? 'Calories' 
                                       : (nutrientDef.labels.en === 'Saturated Fat' 
                                           ? 'Sat Fat' 
                                           : nutrientDef.labels.en)) 
-                                  : key;
+                                  : key.replace(/([A-Z])/g, ' $1').trim();
 
                                 return (
                                   <div key={key} className="flex items-center gap-1.5 shrink-0">
@@ -1275,11 +1276,11 @@ export default function FoodHistoryTab({
                                       allowance={allowance}
                                       alreadyConsumed={consumedBefore}
                                       mealValue={inMeal}
-                                      nutrientKey={key as any}
+                                      nutrientKey={lookupKey}
                                       size="sm"
                                     />
                                     <span className="text-[11px] font-extrabold" style={{ color: labelColor }}>
-                                      {displayName}: {inMeal} {unit}
+                                      {displayName}: {typeof inMeal === 'number' ? (inMeal >= 100 ? Math.round(inMeal) : inMeal.toFixed(inMeal >= 10 ? 1 : 2)) : inMeal} {unit}
                                     </span>
                                   </div>
                                 );

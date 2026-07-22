@@ -1,3 +1,4 @@
+import { formatMessageContent } from '../utils/formatUtils';
 import {
  ErrorBoundary } from './ErrorBoundary';
 import { agentCardRegistry } from './chat-cards';
@@ -381,6 +382,7 @@ interface LogChatProps {
   onAgentAnalysisSaved?: (agentType: string, agentResult:  any) => Promise<void>;
   onGoToManualEdit?: (errorMsg?: string) => void;
   onSaveProfile?: (profile: UserProfile) => Promise<void>;
+  onAddBiomarkerLogs?: (logs: any[]) => void;
   autoSendMessage?: string | null;
   dataReviewBatchIdx?: number | string | null;
   dataReviewBatchKeys?: string[];
@@ -423,6 +425,7 @@ export default function LogChat({
   onAgentAnalysisSaved,
   onGoToManualEdit,
   onSaveProfile,
+  onAddBiomarkerLogs,
   autoSendMessage = null,
   dataReviewBatchIdx = null,
   dataReviewBatchKeys = [],
@@ -778,16 +781,12 @@ ${logsText}`);
           localStorage.setItem(`${chatStorageKey}_${userId}_${id}`, JSON.stringify(strippedMsgs));
           if (payload) localStorage.setItem(`${payloadStorageKey}_${userId}_${id}`, JSON.stringify(payload));
         } catch (quotaErr) {
-          // Reuse the existing prune utility (already used elsewhere for the same purpose) to clear
-          // stale chat keys from localStorage before retrying. Safe because IndexedDB above already
-          // holds the authoritative full copy of every conversation.
-          console.warn("[Storage] localStorage quota reached while saving chat session. Pruning stale chat keys and retrying...");
           pruneLocalStorageToFreeSpace();
           try {
             localStorage.setItem(`${chatStorageKey}_${userId}_${id}`, JSON.stringify(strippedMsgs));
             if (payload) localStorage.setItem(`${payloadStorageKey}_${userId}_${id}`, JSON.stringify(payload));
           } catch (retryErr) {
-            console.warn("[Storage] Quota exceeded in localStorage even after pruning. Bypassing safely as IndexedDB has the true copy.", retryErr);
+            // Silently bypass as IndexedDB holds the primary full copy
           }
         }
         
@@ -1452,7 +1451,14 @@ ${logsText}`);
     if (!isAnalyzing && messages.length > 1) {
       const lastMsg = messages[messages.length - 1];
       if (lastMsg && lastMsg.role === 'assistant') {
-        if (isAgent('food')) {
+  
+
+      if (isAgent('front_desk')) {
+        bodyData.profile = bodyData.userProfile;
+        bodyData.biomarkers = biomarkers;
+        bodyData.foodLogs = foodLogs;
+      }
+      if (isAgent('food')) {
           // When the summary answer is shown, do not scroll down again
           return;
         }
@@ -1634,6 +1640,7 @@ ${logsText}`);
       else if (isAgent('food_idea')) endpoint = '/api/gemini/food-idea';
       else if (isAgent('daily_recommendation')) endpoint = '/api/gemini/daily-recommendation-chat';
       else if (isAgent('health_baseline')) endpoint = '/api/gemini/health-baseline-analyze';
+      else if (isAgent('front_desk')) endpoint = '/api/gemini/front-desk';
       else endpoint = '/api/gemini/medical-analyze';
 
       const lightProfile = profile ? { ...profile } as any : null;
@@ -1703,6 +1710,12 @@ ${logsText}`);
         if (bodyData[key] === undefined) delete bodyData[key];
       });
 
+
+      if (isAgent('front_desk')) {
+        bodyData.profile = bodyData.userProfile;
+        bodyData.biomarkers = biomarkers;
+        bodyData.foodLogs = (foodLogs || []).map(f => ({ name: f.name, date: f.date, nutrients: f.nutrients }));
+      }
       if (compareOnly) {
          bodyData.compareOnly = true;
          bodyData.compareItems = compareItems;
@@ -1954,7 +1967,7 @@ ${logsText}`);
       setLastSentPayload(displayPayload);
 
       let fetchEndpoint = endpoint;
-      if (endpoint === '/api/gemini/food-analyze') {
+      if (endpoint === '/api/gemini/food-analyze' || endpoint === '/api/gemini/health-baseline-analyze' || endpoint === '/api/gemini/medical-analyze') {
         fetchEndpoint += '?stream=true';
       }
 
@@ -1984,14 +1997,10 @@ ${logsText}`);
         const accumulatedByStage: Record<string, string> = { scout: "", dietitian: "" };
         let lineBuffer = "";
         const extractScratchpadText = (accumulated: string) => {
-          const index = accumulated.indexOf('"scratchpad"');
-          if (index === -1) return "";
+          const match = accumulated.match(/["'](?:scoutScratchpad|dietitianScratchpad|scratchpad)["']\s*:\s*"/i);
+          if (!match || match.index === undefined) return "";
           
-          const colonIndex = accumulated.indexOf(':', index + 12);
-          if (colonIndex === -1) return "";
-          
-          const startQuoteIndex = accumulated.indexOf('"', colonIndex + 1);
-          if (startQuoteIndex === -1) return "";
+          const startQuoteIndex = match.index + match[0].length - 1;
           
           let text = "";
           let escaped = false;
@@ -2006,6 +2015,9 @@ ${logsText}`);
             } else if (char === '\\') {
               escaped = true;
             } else if (char === '"') {
+              if (accumulated.length - i > 30) {
+                 text += "\n\n[Building structured JSON items...]";
+              }
               return text;
             } else {
               text += char;
@@ -2025,39 +2037,15 @@ ${logsText}`);
             if (ev.startsWith("data: ")) {
               try {
                 const data = JSON.parse(ev.slice(6));
-                const stage: string = data.stage === 'scout' ? 'scout' : 'dietitian';
-                if (data.chunk) {
-                  accumulatedByStage[stage] += data.chunk;
-                  const text = extractScratchpadText(accumulatedByStage[stage]);
-                  if (text) {
-                    setMessages(prev => {
-                      const newMsgs = [...prev];
-                      const lastMsg = newMsgs[newMsgs.length - 1];
-                      if (lastMsg && lastMsg.role === "assistant" && lastMsg.isLive) {
-                        const updatedData = lastMsg.data ? { ...lastMsg.data } : {};
-                        const updatedAgentResult = updatedData.agentResult ? { ...updatedData.agentResult } : {};
-                        updatedAgentResult[`${stage}Scratchpad`] = text;
-                        return [
-                          ...newMsgs.slice(0, newMsgs.length - 1),
-                          { ...lastMsg, data: { ...updatedData, agentResult: updatedAgentResult } }
-                        ];
-                      }
-                      return prev;
-                    });
-                    // Also update the live thoughts display in the analyzing bubble (real-time, no polling)
-                    setLiveThoughts(prev => ({ ...prev, [stage]: text }));
-                  }
-                } else if (data.thought) {
-                  // Native Gemini chain-of-thought stream (only used when a user manually
-                  // upgrades an agent off lite). Separate from the JSON text chunk above.
-                  setLiveThoughts(prev => ({ ...prev, [stage]: (prev[stage] || "") + data.thought }));
+                if (data.type === 'status') {
                   setMessages(prev => {
                     const newMsgs = [...prev];
                     const lastMsg = newMsgs[newMsgs.length - 1];
                     if (lastMsg && lastMsg.role === "assistant" && lastMsg.isLive) {
                       const updatedData = lastMsg.data ? { ...lastMsg.data } : {};
                       const updatedAgentResult = updatedData.agentResult ? { ...updatedData.agentResult } : {};
-                      updatedAgentResult[`${stage}Scratchpad`] = (updatedAgentResult[`${stage}Scratchpad`] || "") + data.thought;
+                      updatedAgentResult.activeStage = data.stage;
+                      updatedAgentResult.stageStatus = data.status;
                       return [
                         ...newMsgs.slice(0, newMsgs.length - 1),
                         { ...lastMsg, data: { ...updatedData, agentResult: updatedAgentResult } }
@@ -2065,6 +2053,70 @@ ${logsText}`);
                     }
                     return prev;
                   });
+                } else if (data.type === 'log') {
+                  setMessages(prev => {
+                    const newMsgs = [...prev];
+                    const lastMsg = newMsgs[newMsgs.length - 1];
+                    if (lastMsg && lastMsg.role === "assistant" && lastMsg.isLive) {
+                      const updatedData = lastMsg.data ? { ...lastMsg.data } : {};
+                      const updatedAgentResult = updatedData.agentResult ? { ...updatedData.agentResult } : {};
+                      if (data.logType === 'scout_instruction') updatedAgentResult.scoutInstruction = data.message;
+                      if (data.logType === 'scout_answer') {
+                        updatedAgentResult.scoutAnswer = data.message;
+                        if (data.items) updatedAgentResult.scoutItemsList = data.items;
+                      }
+                      if (data.logType === 'db_search') updatedAgentResult.dbSearchLog = data.message;
+                      if (data.logType === 'db_search_complete') updatedAgentResult.dbSearchLog = (updatedAgentResult.dbSearchLog ? updatedAgentResult.dbSearchLog + "\n" : "") + data.message;
+                      if (data.logType === 'dietitian_instruction') updatedAgentResult.dietitianInstruction = data.message;
+                      if (data.logType === 'dietitian_answer') updatedAgentResult.dietitianAnswer = data.message;
+
+                      return [
+                        ...newMsgs.slice(0, newMsgs.length - 1),
+                        { ...lastMsg, data: { ...updatedData, agentResult: updatedAgentResult } }
+                      ];
+                    }
+                    return prev;
+                  });
+                } else if (data.chunk || data.thought || data.type === 'stream') {
+                  const stage: string = data.stage === 'scout' ? 'scout' : 'dietitian';
+                  const chunkText = data.chunk || data.thought || '';
+                  if (data.thought) {
+                    setLiveThoughts(prev => ({ ...prev, [stage]: (prev[stage] || "") + chunkText }));
+                    setMessages(prev => {
+                      const newMsgs = [...prev];
+                      const lastMsg = newMsgs[newMsgs.length - 1];
+                      if (lastMsg && lastMsg.role === "assistant" && lastMsg.isLive) {
+                        const updatedData = lastMsg.data ? { ...lastMsg.data } : {};
+                        const updatedAgentResult = updatedData.agentResult ? { ...updatedData.agentResult } : {};
+                        updatedAgentResult[`${stage}Scratchpad`] = (updatedAgentResult[`${stage}Scratchpad`] || "") + chunkText;
+                        return [
+                          ...newMsgs.slice(0, newMsgs.length - 1),
+                          { ...lastMsg, data: { ...updatedData, agentResult: updatedAgentResult } }
+                        ];
+                      }
+                      return prev;
+                    });
+                  } else if (data.chunk) {
+                    accumulatedByStage[stage] += data.chunk;
+                    const text = extractScratchpadText(accumulatedByStage[stage]);
+                    if (text) {
+                      setMessages(prev => {
+                        const newMsgs = [...prev];
+                        const lastMsg = newMsgs[newMsgs.length - 1];
+                        if (lastMsg && lastMsg.role === "assistant" && lastMsg.isLive) {
+                          const updatedData = lastMsg.data ? { ...lastMsg.data } : {};
+                          const updatedAgentResult = updatedData.agentResult ? { ...updatedData.agentResult } : {};
+                          updatedAgentResult[`${stage}Scratchpad`] = text;
+                          return [
+                            ...newMsgs.slice(0, newMsgs.length - 1),
+                            { ...lastMsg, data: { ...updatedData, agentResult: updatedAgentResult } }
+                          ];
+                        }
+                        return prev;
+                      });
+                      setLiveThoughts(prev => ({ ...prev, [stage]: text }));
+                    }
+                  }
                 } else if (data.final) {
                   resData = data.result;
                 }
@@ -2121,10 +2173,32 @@ ${logsText}`);
         resData.batchBiomarkers = bodyData.batchBiomarkers;
       }
 
+      let messageText = resData.message || resData.text || '';
+      if (!messageText || (typeof messageText === 'string' && messageText.trim().startsWith('{'))) {
+        if (resData.report?.globalSummary) {
+          messageText = resData.report.globalSummary;
+        } else if (resData.globalSummary) {
+          messageText = resData.globalSummary;
+        } else if (resData.explanation) {
+          messageText = resData.explanation;
+        } else if (resData.report?.scratchpad) {
+          messageText = resData.report.scratchpad;
+        } else if (resData.scratchpad) {
+          messageText = resData.scratchpad;
+        }
+      }
+
+      if (resData.updatedProfile && onSaveProfile) {
+        onSaveProfile(resData.updatedProfile);
+      }
+      if (resData.newBiomarkerLogs && resData.newBiomarkerLogs.length > 0 && onAddBiomarkerLogs) {
+        onAddBiomarkerLogs(resData.newBiomarkerLogs);
+      }
+
       const assistantMsg: ChatMessage = {
         id: `msg_${Date.now() + 1}`,
         role: 'assistant',
-        content: resData.message || resData.text || '',
+        content: messageText,
         timestamp: new Date().toISOString(),
         agentResult: resData,
       };
@@ -3206,7 +3280,7 @@ ${JSON.stringify(profile, null, 2)}`);
                       ) : null}
                       
                       {msg.agentType !== 'food' && (
-                        <p className="whitespace-pre-line break-words">{typeof msg.content === 'object' ? JSON.stringify(msg.content) : msg.content}</p>
+                        <p className="whitespace-pre-line break-words">{formatMessageContent(msg.content, msg)}</p>
                       )}
 
                     </div>
@@ -3273,6 +3347,13 @@ ${JSON.stringify(profile, null, 2)}`);
                             isLive={msg.isLive}
                             placeholderStep={msg.isLive && isAgent('food') ? ANALYZING_STEPS[analyzingStepIndex] : undefined}
                             hasImage={msg.data?.hasImage}
+                            scoutInstruction={msg.data?.agentResult?.scoutInstruction}
+                            scoutAnswer={msg.data?.agentResult?.scoutAnswer}
+                            dbSearchLog={msg.data?.agentResult?.dbSearchLog}
+                            dietitianInstruction={msg.data?.agentResult?.dietitianInstruction}
+                            dietitianAnswer={msg.data?.agentResult?.dietitianAnswer}
+                            activeStage={msg.data?.agentResult?.activeStage}
+                            stageStatus={msg.data?.agentResult?.stageStatus}
                           />
                         </div>
                         <Renderer
@@ -3357,7 +3438,7 @@ ${JSON.stringify(profile, null, 2)}`);
                           {String(msg.content).split('\n\nCould you please')[1] ? 'Could you please' + String(msg.content).split('\n\nCould you please')[1] : ''}
                         </div>
                       ) : (
-                        <p className="whitespace-pre-line break-words">{typeof msg.content === 'object' ? JSON.stringify(msg.content) : msg.content}</p>
+                        <p className="whitespace-pre-line break-words">{formatMessageContent(msg.content, msg)}</p>
                       )}
                     </div>
                   </div>
