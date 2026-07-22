@@ -116,7 +116,7 @@ export function InteractivePlacesMap({
       return <Coffee className="w-5 h-5 text-amber-500" />;
     }
     if (name.includes("mart") || name.includes("store") || name.includes("toko")) {
-      return <Store className="w-5 h-5 text-blue-500" />;
+      return <Store className="w-5 h-5 text-indigo-500" />;
     }
     return <Utensils className="w-5 h-5 text-indigo-500" />;
   };

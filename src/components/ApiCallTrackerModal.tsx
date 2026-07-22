@@ -414,7 +414,7 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
                       {group.counts.usda > 0 && <span className="text-[9.5px] font-bold px-2 py-0.5 bg-amber-950/50 text-amber-400 border border-amber-900/25 rounded-md">USDA: {group.counts.usda}</span>}
                       {group.counts.brave > 0 && <span className="text-[9.5px] font-bold px-2 py-0.5 bg-sky-950/50 text-sky-400 border border-sky-900/25 rounded-md">Brave: {group.counts.brave}</span>}
                       {group.counts.unsplash > 0 && <span className="text-[9.5px] font-bold px-2 py-0.5 bg-emerald-950/50 text-emerald-400 border border-emerald-900/25 rounded-md">Unsplash: {group.counts.unsplash}</span>}
-                      {group.counts.wikipedia > 0 && <span className="text-[9.5px] font-bold px-2 py-0.5 bg-green-950/50 text-green-400 border border-green-900/25 rounded-md">Wiki: {group.counts.wikipedia}</span>}
+                      {group.counts.wikipedia > 0 && <span className="text-[9.5px] font-bold px-2 py-0.5 bg-emerald-950/50 text-emerald-400 border border-green-900/25 rounded-md">Wiki: {group.counts.wikipedia}</span>}
                       {(group.counts.firebase_read + group.counts.firebase_write + group.counts.firebase_delete) > 0 && (
                         <span className="text-[9.5px] font-bold px-2 py-0.5 bg-slate-900 text-slate-300 border border-slate-800 rounded-md">
                           Firebase: {group.counts.firebase_read + group.counts.firebase_write + group.counts.firebase_delete}
@@ -442,9 +442,9 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
                                 } else if (e.type === 'unsplash') {
                                   badgeClass = "text-emerald-400 bg-emerald-950/40 border border-emerald-800/40";
                                 } else if (e.type === 'wikipedia') {
-                                  badgeClass = "text-green-400 bg-green-950/40 border border-green-800/40";
+                                  badgeClass = "text-emerald-400 bg-emerald-950/40 border border-green-800/40";
                                 } else if (e.type === 'firebase_read') {
-                                  badgeClass = "text-blue-350 bg-blue-950/30 border border-blue-900/30";
+                                  badgeClass = "text-indigo-350 bg-indigo-950/30 border border-indigo-900/30";
                                 } else if (e.type === 'firebase_write') {
                                   badgeClass = "text-orange-400 bg-orange-950/30 border border-orange-900/30";
                                 } else if (e.type === 'firebase_delete') {

@@ -391,7 +391,7 @@ export default function TrendsTab({
     return { name: label, value: value.toFixed(1), unit: unit, target: targetText, bounds: { min: 0, max: Infinity }, statusText: text, color, key };
   }) : [];
   return (
-    <div className="space-y-5 pb-40 animation-fade-in max-w-md mx-auto px-[15px] mt-4 font-sans text-slate-900">
+    <div className="space-y-5 pb-40 animation-fade-in max-w-md mx-auto px-4 mt-4 font-sans text-slate-900">
       <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-4">
         <button onClick={() => setActiveSubTab('trends')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${activeSubTab === 'trends' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}>Trends</button>
         <button onClick={() => setActiveSubTab('summary')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${activeSubTab === 'summary' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}>Summary</button>
@@ -422,7 +422,7 @@ export default function TrendsTab({
                 navigator.clipboard.writeText(text);
                 const btn = document.getElementById('copy-summary-btn');
                 if (btn) {
-                  btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-green-500"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+                  btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-emerald-500"><polyline points="20 6 9 17 4 12"></polyline></svg>';
                   setTimeout(() => {
                     btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-slate-500 hover:text-indigo-600"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path></svg>';
                   }, 2000);

@@ -183,9 +183,9 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                             )}
 
                             {msg.mode === 'plan' && msg.planningDetails && (
-                              <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-xl border border-blue-100 dark:border-blue-800/30">
-                                <h5 className="text-[10px] uppercase font-bold text-blue-600 dark:text-blue-400 mb-2">Extraction Plan</h5>
-                                <div className="space-y-1.5 text-xs text-blue-800 dark:text-blue-200">
+                              <div className="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-xl border border-indigo-100 dark:border-indigo-800/30">
+                                <h5 className="text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-400 mb-2">Extraction Plan</h5>
+                                <div className="space-y-1.5 text-xs text-indigo-800 dark:text-indigo-200">
                                   <div className="flex justify-between">
                                     <span>Estimated Metrics:</span>
                                     <span className="font-mono font-bold">{msg.planningDetails.estimatedTotalMetrics || 'Unknown'}</span>

@@ -377,7 +377,7 @@ export default function ReviewBiomarkerModal({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-900/40 backdrop-blur-sm sm:p-4 p-0">
-      <div className="flex-1 bg-white dark:bg-slate-900 sm:rounded-[32px] rounded-none shadow-2xl flex flex-col overflow-hidden max-w-3xl w-full mx-auto relative border border-slate-200 dark:border-slate-800">
+      <div className="flex-1 bg-white dark:bg-slate-900 sm:rounded-3xl rounded-none shadow-2xl flex flex-col overflow-hidden max-w-3xl w-full mx-auto relative border border-slate-200 dark:border-slate-800">
         
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800/60 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md">

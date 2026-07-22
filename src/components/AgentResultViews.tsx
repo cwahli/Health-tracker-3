@@ -190,13 +190,13 @@ export const GenericAgentResultView: React.FC<{ rawResult: any }> = ({ rawResult
       {projections && Array.isArray(projections) && projections.length > 0 && (
         <div className="space-y-2.5 pt-1">
           <h5 className="font-bold text-xs uppercase tracking-wider text-slate-400 font-mono flex items-center gap-1.5">
-            <TrendingUp className="w-3.5 h-3.5 text-blue-500" />
+            <TrendingUp className="w-3.5 h-3.5 text-indigo-500" />
             Biological Projections & Timelines
           </h5>
-          <div className="bg-blue-50/10 dark:bg-blue-950/5 border border-blue-100/50 dark:border-blue-900/20 rounded-2xl p-4 space-y-2">
+          <div className="bg-indigo-50/10 dark:bg-indigo-950/5 border border-indigo-100/50 dark:border-indigo-900/20 rounded-2xl p-4 space-y-2">
             {projections.map((p: any, idx: number) => (
               <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
-                <ChevronRight className="w-4 h-4 text-blue-500 shrink-0 mt-0.5" />
+                <ChevronRight className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
                 <span>{p}</span>
               </div>
             ))}

@@ -676,7 +676,7 @@ const DictionaryItem = ({
                       <span 
                         key={i} 
                         onClick={() => onTagClick && onTagClick(c.trim())}
-                        className={`text-[9px] font-bold px-1.5 py-0.5 bg-blue-50 text-blue-600 dark:bg-blue-900/20 dark:text-blue-400 rounded-full border border-blue-100 dark:border-blue-900/30 flex items-center gap-1 ${onTagClick ? 'cursor-pointer hover:bg-blue-100 dark:hover:bg-blue-900/40' : ''}`}
+                        className={`text-[9px] font-bold px-1.5 py-0.5 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/20 dark:text-indigo-400 rounded-full border border-indigo-100 dark:border-indigo-900/30 flex items-center gap-1 ${onTagClick ? 'cursor-pointer hover:bg-indigo-100 dark:hover:bg-indigo-900/40' : ''}`}
                       >
                         <span className="text-[7.5px] uppercase tracking-wider opacity-60">Condition:</span>
                         {c.trim()}
@@ -4005,10 +4005,10 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                             <div className="flex flex-wrap gap-1">
                                               {/* Show deleted conditions */}
                                               {(originalDef?.potentialMedicalConditions || []).filter((c: string) => !(Array.isArray(parsedConds) ? parsedConds : []).includes(c)).map((c: string, i: number) => (
-                                                <span key={"del-"+i} className="px-1.5 py-0.5 border border-blue-200 dark:border-blue-900/30 text-slate-400 line-through rounded text-[10px]">{c}</span>
+                                                <span key={"del-"+i} className="px-1.5 py-0.5 border border-indigo-200 dark:border-indigo-900/30 text-slate-400 line-through rounded text-[10px]">{c}</span>
                                               ))}
                                               {(Array.isArray(parsedConds) ? parsedConds : []).map((c: string, i: number) => (
-                                                <span key={i} className="px-1.5 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-[10px]">{c}</span>
+                                                <span key={i} className="px-1.5 py-0.5 bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-400 rounded text-[10px]">{c}</span>
                                               ))}
                                             </div>
                                           </td>

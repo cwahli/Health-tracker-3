@@ -430,7 +430,7 @@ export default function FoodHistoryTab({
     <div className="space-y-4 pb-40 animation-fade-in max-w-md mx-auto px-0 mt-4 font-sans text-slate-900">
       
       {/* Search Input and Manual Entry Link */}
-      <div className="space-y-2 px-[15px]">
+      <div className="space-y-2 px-4">
         <div className="relative">
           <Search className="absolute left-3.5 top-3.5 w-4 h-4 text-slate-400" />
           <input
@@ -454,7 +454,7 @@ export default function FoodHistoryTab({
       {/* Manual Entry Form Dialog (Modal) */}
       {isManualEntryOpen && (
         <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animation-fade-in">
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-t-[32px] sm:rounded-[32px] max-h-[90vh] overflow-y-auto flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800">
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-y-auto flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800">
             {/* Modal Header */}
             <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3 sticky top-0 bg-white dark:bg-slate-900 z-10">
               <div className="flex items-center justify-between">
@@ -801,7 +801,7 @@ export default function FoodHistoryTab({
       )}
 
       {filteredLogs.length === 0 ? (
-        <div id="food-history-empty" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-[32px] p-8 text-center shadow-sm mx-[15px]">
+        <div id="food-history-empty" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-8 text-center shadow-sm mx-4">
           <ImageIcon className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
             {t.emptyHistory}
@@ -833,7 +833,7 @@ export default function FoodHistoryTab({
                   </div>
                 ) : null}
 
-                <div className="pt-4 space-y-3 px-[15px]">
+                <div className="pt-4 space-y-3 px-4">
                   {isEditing ? (
                     <div className="space-y-4">
                       <div className="border-b border-slate-100 dark:border-slate-800 pb-2">

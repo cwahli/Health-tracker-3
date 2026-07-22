@@ -493,7 +493,7 @@ export default function MedicalHistoryTab({
   };
 
   return (
-    <div className="space-y-4 pb-40 animation-fade-in max-w-md mx-auto px-[10px] mt-4 font-sans text-slate-900 dark:text-slate-100">
+    <div className="space-y-4 pb-40 animation-fade-in max-w-md mx-auto px-3 mt-4 font-sans text-slate-900 dark:text-slate-100">
       
       {/* Search Input */}
       <div className="relative">

@@ -172,7 +172,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4 transition-colors duration-200">
-      <div id="auth-card" className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-[32px] p-8 shadow-xl relative overflow-hidden transition-all">
+      <div id="auth-card" className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-8 shadow-xl relative overflow-hidden transition-all">
         {/* Decorative corner accent */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -mr-10 -mt-10" />
         
@@ -369,7 +369,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                 onClick={() => handleThirdPartyLogin('Facebook')}
                 className="py-2.5 px-3 border border-slate-200 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
               >
-                <span className="w-2.5 h-2.5 bg-blue-600 rounded-full" /> Facebook
+                <span className="w-2.5 h-2.5 bg-indigo-600 rounded-full" /> Facebook
               </button>
             </div>
           </form>

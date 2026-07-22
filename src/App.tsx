@@ -215,10 +215,89 @@ const getDynamicStyles = (profile: any) => {
   colorCss += `
     }
   `;
+
+  // Spacing, Corner Radius, and Shadows Design Tokens
+  const marginScale = profile.marginScale || 'normal';
+  const paddingScale = profile.paddingScale || 'normal';
+  const cornerRadius = profile.cornerRadius || 'normal';
+  const shadowScale = profile.shadowScale || 'normal';
+
+  const marginFactor = marginScale === 'compact' ? '0.75' : marginScale === 'relaxed' ? '1.25' : '1';
+  const paddingFactor = paddingScale === 'compact' ? '0.75' : paddingScale === 'relaxed' ? '1.25' : '1';
+  const radiusFactor = cornerRadius === 'none' ? '0' : cornerRadius === 'small' ? '0.5' : cornerRadius === 'large' ? '1.5' : cornerRadius === 'pill' ? '2.5' : '1';
+  const shadowFactor = shadowScale === 'none' ? '0' : shadowScale === 'light' ? '0.5' : shadowScale === 'heavy' ? '1.75' : '1';
+
+  let designTokensCss = `
+    :root {
+      --spacing-factor: ${paddingFactor} !important;
+      --margin-factor: ${marginFactor} !important;
+      --radius-factor: ${radiusFactor} !important;
+      --shadow-factor: ${shadowFactor} !important;
+    }
+    
+    /* Global Card & Button Roundness Overrides */
+    .rounded-sm { border-radius: calc(0.125rem * var(--radius-factor)) !important; }
+    .rounded, .rounded-md { border-radius: calc(0.375rem * var(--radius-factor)) !important; }
+    .rounded-lg { border-radius: calc(0.5rem * var(--radius-factor)) !important; }
+    .rounded-xl { border-radius: calc(0.75rem * var(--radius-factor)) !important; }
+    .rounded-2xl { border-radius: calc(1rem * var(--radius-factor)) !important; }
+    .rounded-3xl { border-radius: calc(1.5rem * var(--radius-factor)) !important; }
+    .rounded-full { border-radius: ${cornerRadius === 'none' ? '0 !important' : '9999px !important'}; }
+
+    /* Shadow scale overrides */
+    .shadow-sm { box-shadow: 0 1px 2px 0 rgba(0,0,0,calc(0.05 * var(--shadow-factor))) !important; }
+    .shadow, .shadow-md { box-shadow: 0 4px 6px -1px rgba(0,0,0,calc(0.08 * var(--shadow-factor))), 0 2px 4px -1px rgba(0,0,0,calc(0.04 * var(--shadow-factor))) !important; }
+    .shadow-lg { box-shadow: 0 10px 15px -3px rgba(0,0,0,calc(0.1 * var(--shadow-factor))), 0 4px 6px -2px rgba(0,0,0,calc(0.05 * var(--shadow-factor))) !important; }
+    .shadow-xl { box-shadow: 0 20px 25px -5px rgba(0,0,0,calc(0.1 * var(--shadow-factor))), 0 10px 10px -5px rgba(0,0,0,calc(0.04 * var(--shadow-factor))) !important; }
+    .shadow-2xl { box-shadow: 0 25px 50px -12px rgba(0,0,0,calc(0.25 * var(--shadow-factor))) !important; }
+
+    /* Dynamic Spacing scale classes */
+    .p-1 { padding: calc(0.25rem * var(--spacing-factor)) !important; }
+    .p-1.5 { padding: calc(0.375rem * var(--spacing-factor)) !important; }
+    .p-2 { padding: calc(0.5rem * var(--spacing-factor)) !important; }
+    .p-3 { padding: calc(0.75rem * var(--spacing-factor)) !important; }
+    .p-4 { padding: calc(1rem * var(--spacing-factor)) !important; }
+    .p-5 { padding: calc(1.25rem * var(--spacing-factor)) !important; }
+    .p-6 { padding: calc(1.5rem * var(--spacing-factor)) !important; }
+    .p-8 { padding: calc(2rem * var(--spacing-factor)) !important; }
+
+    .px-1 { padding-left: calc(0.25rem * var(--spacing-factor)) !important; padding-right: calc(0.25rem * var(--spacing-factor)) !important; }
+    .px-2 { padding-left: calc(0.5rem * var(--spacing-factor)) !important; padding-right: calc(0.5rem * var(--spacing-factor)) !important; }
+    .px-3 { padding-left: calc(0.75rem * var(--spacing-factor)) !important; padding-right: calc(0.75rem * var(--spacing-factor)) !important; }
+    .px-4 { padding-left: calc(1rem * var(--spacing-factor)) !important; padding-right: calc(1rem * var(--spacing-factor)) !important; }
+    .px-6 { padding-left: calc(1.5rem * var(--spacing-factor)) !important; padding-right: calc(1.5rem * var(--spacing-factor)) !important; }
+    
+    .py-1 { padding-top: calc(0.25rem * var(--spacing-factor)) !important; padding-bottom: calc(0.25rem * var(--spacing-factor)) !important; }
+    .py-2 { padding-top: calc(0.5rem * var(--spacing-factor)) !important; padding-bottom: calc(0.5rem * var(--spacing-factor)) !important; }
+    .py-3 { padding-top: calc(0.75rem * var(--spacing-factor)) !important; padding-bottom: calc(0.75rem * var(--spacing-factor)) !important; }
+    .py-4 { padding-top: calc(1rem * var(--spacing-factor)) !important; padding-bottom: calc(1rem * var(--spacing-factor)) !important; }
+    .py-6 { padding-top: calc(1.5rem * var(--spacing-factor)) !important; padding-bottom: calc(1.5rem * var(--spacing-factor)) !important; }
+
+    .m-1 { margin: calc(0.25rem * var(--margin-factor)) !important; }
+    .m-2 { margin: calc(0.5rem * var(--margin-factor)) !important; }
+    .m-3 { margin: calc(0.75rem * var(--margin-factor)) !important; }
+    .m-4 { margin: calc(1rem * var(--margin-factor)) !important; }
+    
+    .mt-1 { margin-top: calc(0.25rem * var(--margin-factor)) !important; }
+    .mt-2 { margin-top: calc(0.5rem * var(--margin-factor)) !important; }
+    .mt-3 { margin-top: calc(0.75rem * var(--margin-factor)) !important; }
+    .mt-4 { margin-top: calc(1rem * var(--margin-factor)) !important; }
+    .mt-6 { margin-top: calc(1.5rem * var(--margin-factor)) !important; }
+    .mt-8 { margin-top: calc(2rem * var(--margin-factor)) !important; }
+
+    .mb-1 { margin-bottom: calc(0.25rem * var(--margin-factor)) !important; }
+    .mb-2 { margin-bottom: calc(0.5rem * var(--margin-factor)) !important; }
+    .mb-3 { margin-bottom: calc(0.75rem * var(--margin-factor)) !important; }
+    .mb-4 { margin-bottom: calc(1rem * var(--margin-factor)) !important; }
+    .mb-6 { margin-bottom: calc(1.5rem * var(--margin-factor)) !important; }
+    .mb-8 { margin-bottom: calc(2rem * var(--margin-factor)) !important; }
+  `;
+
   return `
     ${fontSizeCss}
     ${fontCss}
     ${colorCss}
+    ${designTokensCss}
   `;
 };
 function isDeepEqual(obj1: any, obj2: any): boolean {

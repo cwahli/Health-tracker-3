@@ -1396,7 +1396,7 @@ export default function InsightsTab({
     const isSpecialUser = profile?.email?.toLowerCase() === 'chiwah.liu@gmail.com' || profile?.email?.toLowerCase() === 'cwah.liu@gmail.com';
 
     return (
-      <div className="space-y-10 pb-40 animation-fade-in max-w-md mx-auto px-[10px] mt-4 font-sans text-slate-900 dark:text-slate-100">
+      <div className="space-y-10 pb-40 animation-fade-in max-w-md mx-auto px-3 mt-4 font-sans text-slate-900 dark:text-slate-100">
         
         {/* Draft Heading Alert */}
         <div className="space-y-3 relative overflow-hidden">
@@ -1611,7 +1611,7 @@ export default function InsightsTab({
   const completedCount = steps.map((_, idx) => idx).filter(idx => getStepStatus(idx) === 'Done').length;
 
   return (
-    <div className="space-y-10 pb-40 animation-fade-in max-w-md mx-auto px-[10px] mt-4 font-sans text-slate-900 dark:text-slate-100">
+    <div className="space-y-10 pb-40 animation-fade-in max-w-md mx-auto px-3 mt-4 font-sans text-slate-900 dark:text-slate-100">
       
       {/* Global Progress Indicator */}
       <div className="space-y-2.5">
@@ -2167,9 +2167,9 @@ export default function InsightsTab({
                                               />
                                             </div>
 
-                                            <div className="bg-blue-50/40 dark:bg-blue-950/10 border border-blue-500/10 rounded-xl p-2.5 flex gap-2">
-                                              <Sparkles className="w-4 h-4 text-blue-500 flex-shrink-0 mt-0.5" />
-                                              <p className="text-[10px] text-blue-800 dark:text-blue-300 leading-relaxed">
+                                            <div className="bg-indigo-50/40 dark:bg-indigo-950/10 border border-indigo-500/10 rounded-xl p-2.5 flex gap-2">
+                                              <Sparkles className="w-4 h-4 text-indigo-500 flex-shrink-0 mt-0.5" />
+                                              <p className="text-[10px] text-indigo-800 dark:text-indigo-300 leading-relaxed">
                                                 Review the standardized terminologies, key matching, and metrics before approving the batch.
                                               </p>
                                             </div>
@@ -2982,7 +2982,7 @@ export default function InsightsTab({
 
       {/* Model Engine Selector & Run On-demand Button */}
       {hasProfileInfo && (
-        <div id="analysis-control-card" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-[32px] p-6 shadow-sm space-y-4">
+        <div id="analysis-control-card" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm space-y-4">
           <LLMSelector
             selectedModelId={selectedModelId}
             onChangeModelId={onChangeModelId}
@@ -3012,7 +3012,7 @@ export default function InsightsTab({
       {/* Confirmation Modal */}
       {showConfirm && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex flex-col justify-end sm:justify-center p-0 sm:p-4 animation-fade-in font-sans">
-          <div className="w-full max-w-md mx-auto bg-white dark:bg-slate-900 rounded-t-[32px] sm:rounded-[32px] flex flex-col shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800/80 transition-colors duration-200 p-6 space-y-4">
+          <div className="w-full max-w-md mx-auto bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl flex flex-col shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800/80 transition-colors duration-200 p-6 space-y-4">
             <div className="flex justify-between items-center">
               <h3 className="font-bold text-lg font-display text-slate-900 dark:text-slate-100">Confirm Analysis Data</h3>
               <button 
@@ -3114,7 +3114,7 @@ export default function InsightsTab({
         <div className="space-y-6">
           
           {/* Health Risk Forecasting Timelines - 5, 10, 20 Years */}
-          <div id="risk-timeline-card" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-[32px] p-6 shadow-sm space-y-4">
+          <div id="risk-timeline-card" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm space-y-4">
             <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center gap-1.5 font-display">
               <TrendingDown className="w-4 h-4 text-rose-500" />
               Cardiovascular & Renal Risk Forecasting
@@ -3166,7 +3166,7 @@ export default function InsightsTab({
           </div>
 
           {/* Core Medical Insights summarised bullet points */}
-          <div id="latest-insights-card" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-[32px] p-6 shadow-sm space-y-4">
+          <div id="latest-insights-card" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm space-y-4">
             <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center gap-1.5 font-display">
               <BookOpen className="w-4 h-4 text-indigo-600" />
               {t.latestInsights}
@@ -3197,7 +3197,7 @@ export default function InsightsTab({
         </div>
       ) : (
         /* Empty insights state */
-        <div id="insights-empty-state" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-[32px] p-8 text-center shadow-sm flex flex-col items-center">
+        <div id="insights-empty-state" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-8 text-center shadow-sm flex flex-col items-center">
           <Clock className="w-10 h-10 text-slate-300 dark:text-slate-700 mb-3" />
           <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
             {t.noDataInsight}
@@ -3208,7 +3208,7 @@ export default function InsightsTab({
 
       {fullscreenBatchIndex !== null && batchAnalysisResults[fullscreenBatchIndex] && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[60] flex items-center justify-center p-4 sm:p-6 md:p-10">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-[32px] w-full max-w-7xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animation-zoom-in">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-7xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animation-zoom-in">
             <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20">
               <div>
                 <h3 className="text-sm font-bold text-slate-950 dark:text-slate-100 font-display">

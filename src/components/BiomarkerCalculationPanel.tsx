@@ -331,10 +331,10 @@ export default function BiomarkerCalculationPanel({
 
           {/* Target Weight dotted line and label (right aligned if on left, left aligned if on right) */}
           <div
-            className="absolute -top-7 bottom-0 w-0.5 border-l-2 border-dotted border-blue-500 dark:border-blue-400 z-20"
+            className="absolute -top-7 bottom-0 w-0.5 border-l-2 border-dotted border-indigo-500 dark:border-indigo-400 z-20"
             style={{ left: `${targetPercent}%` }}
           >
-            <div className={`absolute top-0 bg-blue-600/95 dark:bg-blue-500/95 text-white text-[8px] px-1.5 py-0.5 rounded-md font-sans font-black whitespace-nowrap shadow-md ${targetIsLeft ? 'right-1.5 text-right' : 'left-1.5 text-left'}`}>
+            <div className={`absolute top-0 bg-indigo-600/95 dark:bg-indigo-500/95 text-white text-[8px] px-1.5 py-0.5 rounded-md font-sans font-black whitespace-nowrap shadow-md ${targetIsLeft ? 'right-1.5 text-right' : 'left-1.5 text-left'}`}>
               Target weight: {targetWeight} kg
             </div>
           </div>

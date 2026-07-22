@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { UserProfile, DbInteraction, QuotaData, FoodLog } from '../types';
 import { translations } from '../utils/translations';
 import { getAvailableCredits } from '../utils/creditManager';
+import { NutrientPieChart } from './NutrientPieChart';
 import {
   Eye, EyeOff, CloudLightning, CloudCheck, RefreshCw, LogOut, Check, ShieldCheck,
   Archive, FileSpreadsheet, KeyRound, Lock, Unlock, FileDown, FileUp, AlertTriangle,
@@ -29,9 +30,10 @@ import {
 } from '../utils/googleBackup';
 import { compressImage } from '../utils/imageCompressor';
 import { checkQuotaFlag } from '../utils/firestoreUtils';
+import { auditColors, auditFonts, auditDesignTokens, auditComponents, auditElements } from '../utils/themeRegistry';
 
 const ColorPickerField = ({ label, value, onChange }: { label: string, value: string, onChange: (v: string) => void }) => (
-  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-150 dark:border-slate-800 gap-2">
+  <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-2xl gap-2">
     <div className="min-w-0 text-left">
       <span className="block text-xs font-bold text-slate-800 dark:text-slate-200">{label}</span>
     </div>
@@ -140,6 +142,9 @@ export default function Header({
 }: HeaderProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [showThemeScreen, setShowThemeScreen] = useState(false);
+  const [themePreviewMode, setThemePreviewMode] = useState(false);
+  const [themeCompactMode, setThemeCompactMode] = useState(false);
+  const [themeActiveSection, setThemeActiveSection] = useState<'colors' | 'fonts' | 'tokens' | 'components' | 'elements' | 'presets'>('colors');
   const [showDbInteractionsOverlay, setShowDbInteractionsOverlay] = useState(false);
   const [dbOverlayViewMode, setDbOverlayViewMode] = useState<'admin' | 'user'>(() => {
     if (profile?.email?.toLowerCase().trim() !== 'cwah.liu@gmail.com') return 'user';
@@ -864,15 +869,50 @@ export default function Header({
 
       {/* Dedicated full-screen or elegant modal Theme Customizer Screen */}
       {showThemeScreen && createPortal((
-        <div id="theme-customizer-screen" className="fixed inset-0 z-[60] overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh] animation-fade-in text-slate-800 dark:text-slate-100">
+        <div id="theme-customizer-screen" className={`fixed inset-0 z-[60] p-4 pointer-events-none ${themePreviewMode ? 'flex lg:items-center items-start lg:justify-start justify-center' : 'overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center'}`}>
+          <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animation-fade-in text-slate-800 dark:text-slate-100 pointer-events-auto ${themePreviewMode ? 'lg:ml-4 mt-4 lg:mt-0' : ''} ${themeCompactMode ? 'max-h-[250px]' : 'max-h-[90vh]'}`}>
             {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Theme & Accent Settings</h2>
-                <p className="text-xs text-slate-450 dark:text-slate-400">Customize the typography and color styling of your portal</p>
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+              <div className="flex items-center gap-3 w-full sm:w-auto">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 hidden sm:block">Theme & Accent Settings</h2>
+                {themePreviewMode && (
+                  <select
+                    value={themeActiveSection}
+                    onChange={(e) => setThemeActiveSection(e.target.value as any)}
+                    className="text-sm font-semibold bg-white border border-slate-250 dark:border-slate-700 rounded-full px-3 py-1.5 text-slate-900 focus:outline-none cursor-pointer shadow-sm w-full sm:w-auto"
+                  >
+                    <option value="colors">🎨 Colours</option>
+                    <option value="fonts">🔤 Font</option>
+                    <option value="tokens">📐 Token</option>
+                    <option value="components">📦 Components</option>
+                    <option value="elements">🔗 Elements</option>
+                    <option value="presets">🔖 Presets</option>
+                  </select>
+                )}
               </div>
-              <div className="flex gap-2">
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                {themePreviewMode && (
+                  <button
+                    onClick={() => setThemeCompactMode(!themeCompactMode)}
+                    className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer mr-1"
+                    title={themeCompactMode ? "Expand" : "Compact Mode"}
+                  >
+                    {themeCompactMode ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                    )}
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setThemePreviewMode(!themePreviewMode);
+                    if (themeCompactMode) setThemeCompactMode(false);
+                  }}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer border ${themePreviewMode ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-300' : 'bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                >
+                  {themePreviewMode ? 'Exit Preview' : 'Preview'}
+                </button>
                 <button
                   onClick={() => {
                     if (onSaveProfile) {
@@ -893,300 +933,394 @@ export default function Header({
               </div>
             </div>
 
+            {/* Dynamic Section Dropdown Selector */}
+            {!themePreviewMode && (
+              <div className="px-6 py-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-shrink-0 text-left">
+                <select
+                  value={themeActiveSection}
+                  onChange={(e) => setThemeActiveSection(e.target.value as any)}
+                  className="text-sm font-semibold bg-white border border-slate-250 dark:border-slate-700 rounded-full px-4 py-2 text-slate-900 focus:outline-none cursor-pointer shadow-sm w-full sm:w-auto"
+                >
+                  <option value="colors">🎨 Colours ({auditColors.length} Items)</option>
+                  <option value="fonts">🔤 Font ({auditFonts.length} Sizes)</option>
+                  <option value="tokens">📐 Design Token ({auditDesignTokens.length} Factors)</option>
+                  <option value="components">📦 Components (4 Audited)</option>
+                  <option value="elements">🔗 Elements (9 Audited)</option>
+                  <option value="presets">🔖 Presets</option>
+                </select>
+              </div>
+            )}
+
             {/* Content scroll area */}
             <div className="p-6 overflow-y-auto space-y-6 text-left flex-1">
-              {/* Theme Reset Button */}
-              <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/40 border border-slate-150 dark:border-slate-800 rounded-2xl p-4">
-                <div className="space-y-0.5 text-left pr-4">
-                  <h4 className="text-sm font-bold text-slate-850 dark:text-slate-200">Reset Custom Theme</h4>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">Restore all application colors and typography back to defaults.</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setProfile({
-                    ...profile,
-                    themePalette: {
-                      button: '#4f46e5',
-                      background: '#f8fafc',
-                      border: '#e2e8f0',
-                      warning: '#f43f5e',
-                      caution: '#d97706',
-                      success: '#059669',
-                      text: '#1e293b',
-                      textSecondary: '#64748b',
-                      bgApp: '#f8fafc',
-                      bgCard: '#ffffff',
-                      neutralSetting: '#334155'
-                    }
-                  })}
-                  className="px-4 py-2 bg-slate-150 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold cursor-pointer transition-all shadow-sm shrink-0"
-                >
-                  Reset Theme
-                </button>
-              </div>
-
-              {/* Editable Color Pickers */}
-              <div className="space-y-4">
-                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Fine-Tune Colors (All App Accents)</span>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <ColorPickerField 
-                    label="Buttons & Highlights" 
-                    value={profile.themePalette?.button || '#4f46e5'} 
-                    onChange={(v) => setProfile({...profile, themePalette: {...(profile.themePalette || {}), button: v}})} 
-                  />
-                  <ColorPickerField 
-                    label="App Background" 
-                    value={profile.themePalette?.background || '#f8fafc'} 
-                    onChange={(v) => setProfile({...profile, themePalette: {...(profile.themePalette || {}), background: v, bgApp: v}})} 
-                  />
-                  <ColorPickerField 
-                    label="Card & Containers" 
-                    value={profile.themePalette?.bgCard || '#ffffff'} 
-                    onChange={(v) => setProfile({...profile, themePalette: {...(profile.themePalette || {}), bgCard: v}})} 
-                  />
-                  <ColorPickerField 
-                    label="Borders & Dividers" 
-                    value={profile.themePalette?.border || '#e2e8f0'} 
-                    onChange={(v) => setProfile({...profile, themePalette: {...(profile.themePalette || {}), border: v}})} 
-                  />
-                  <ColorPickerField 
-                    label="Primary Text" 
-                    value={profile.themePalette?.text || '#1e293b'} 
-                    onChange={(v) => setProfile({...profile, themePalette: {...(profile.themePalette || {}), text: v}})} 
-                  />
-                  <ColorPickerField 
-                    label="Secondary Text" 
-                    value={profile.themePalette?.textSecondary || '#64748b'} 
-                    onChange={(v) => setProfile({...profile, themePalette: {...(profile.themePalette || {}), textSecondary: v}})} 
-                  />
-                  <ColorPickerField 
-                    label="Severe Warnings (Rose)" 
-                    value={profile.themePalette?.warning || '#f43f5e'} 
-                    onChange={(v) => setProfile({...profile, themePalette: {...(profile.themePalette || {}), warning: v}})} 
-                  />
-                  <ColorPickerField 
-                    label="Caution / Moderate (Amber)" 
-                    value={profile.themePalette?.caution || '#d97706'} 
-                    onChange={(v) => setProfile({...profile, themePalette: {...(profile.themePalette || {}), caution: v}})} 
-                  />
-                  <ColorPickerField 
-                    label="Success Highlights (Green)" 
-                    value={profile.themePalette?.success || '#059669'} 
-                    onChange={(v) => setProfile({...profile, themePalette: {...(profile.themePalette || {}), success: v}})} 
-                  />
-                  <ColorPickerField 
-                    label="Neutral Accents" 
-                    value={profile.themePalette?.neutralSetting || '#334155'} 
-                    onChange={(v) => setProfile({...profile, themePalette: {...(profile.themePalette || {}), neutralSetting: v}})} 
-                  />
-                </div>
-              </div>
-
-              {/* Typography Customization */}
-              <div className="space-y-4 border-t border-slate-100 dark:border-slate-800/80 pt-4">
-                <span className="block text-xs font-bold text-slate-400 uppercase tracking-wider">Application Typography</span>
-                
-                <div className="space-y-3">
-                  {/* Typography Scales */}
-                  <div className="grid grid-cols-2 gap-3">
-                    <div className="space-y-1 text-left">
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400">Title Size</label>
-                      <select
-                        value={profile.fontSizeTitle || 'normal'}
-                        onChange={(e) => setProfile({ ...profile, fontSizeTitle: e.target.value as any })}
-                        className="w-full text-sm font-sans bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl px-3 py-2 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer"
-                      >
-                        <option value="small">Small (14px)</option>
-                        <option value="normal">Normal (16px)</option>
-                        <option value="large">Large (18px)</option>
-                        <option value="xl">XL (20px)</option>
-                        <option value="xxl">2XL (24px)</option>
-                        <option value="3xl">3XL (30px)</option>
-                        <option value="4xl">4XL (36px)</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1 text-left">
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400">Subtitle Size</label>
-                      <select
-                        value={profile.fontSizeSubtitle || 'normal'}
-                        onChange={(e) => setProfile({ ...profile, fontSizeSubtitle: e.target.value as any })}
-                        className="w-full text-sm font-sans bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl px-3 py-2 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer"
-                      >
-                        <option value="tiny">Tiny (12px)</option>
-                        <option value="small">Small (14px)</option>
-                        <option value="normal">Normal (16px)</option>
-                        <option value="large">Large (18px)</option>
-                        <option value="xl">XL (20px)</option>
-                        <option value="xxl">2XL (24px)</option>
-                        <option value="3xl">3XL (30px)</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1 text-left">
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400">Body / Desc Size</label>
-                      <select
-                        value={profile.fontSizeDescription || 'normal'}
-                        onChange={(e) => setProfile({ ...profile, fontSizeDescription: e.target.value as any })}
-                        className="w-full text-sm font-sans bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl px-3 py-2 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer"
-                      >
-                        <option value="tiny">Tiny (12px)</option>
-                        <option value="small">Small (14px)</option>
-                        <option value="normal">Normal (16px)</option>
-                        <option value="large">Large (18px)</option>
-                        <option value="xl">XL (20px)</option>
-                        <option value="xxl">2XL (24px)</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1 text-left">
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400">Body Small Size</label>
-                      <select
-                        value={profile.fontSizeBodySmall || 'small'}
-                        onChange={(e) => setProfile({ ...profile, fontSizeBodySmall: e.target.value as any })}
-                        className="w-full text-sm font-sans bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl px-3 py-2 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer"
-                      >
-                        <option value="tiny">Tiny (12px)</option>
-                        <option value="small">Small (14px)</option>
-                        <option value="normal">Normal (16px)</option>
-                        <option value="large">Large (18px)</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1 text-left">
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400">Subtitle Small Size</label>
-                      <select
-                        value={profile.fontSizeSubtitleSmall || 'small'}
-                        onChange={(e) => setProfile({ ...profile, fontSizeSubtitleSmall: e.target.value as any })}
-                        className="w-full text-sm font-sans bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl px-3 py-2 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer"
-                      >
-                        <option value="tiny">Tiny (12px)</option>
-                        <option value="small">Small (14px)</option>
-                        <option value="normal">Normal (16px)</option>
-                        <option value="large">Large (18px)</option>
-                        <option value="xl">XL (20px)</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1 text-left">
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400">Key Metric Size</label>
-                      <select
-                        value={profile.fontSizeKeyMetric || '4xl'}
-                        onChange={(e) => setProfile({ ...profile, fontSizeKeyMetric: e.target.value as any })}
-                        className="w-full text-sm font-sans bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl px-3 py-2 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer"
-                      >
-                        <option value="large">Large (18px)</option>
-                        <option value="xl">XL (20px)</option>
-                        <option value="xxl">2XL (24px)</option>
-                        <option value="3xl">3xl (30px)</option>
-                        <option value="4xl">4xl (36px)</option>
-                        <option value="5xl">5xl (48px)</option>
-                        <option value="6xl">6xl (60px)</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1 text-left">
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400">Smallest Size (XS)</label>
-                      <select
-                        value={profile.fontSizeXS || 'tiny'}
-                        onChange={(e) => setProfile({ ...profile, fontSizeXS: e.target.value as any })}
-                        className="w-full text-sm font-sans bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl px-3 py-2 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer"
-                      >
-                        <option value="tiny">Tiny (12px)</option>
-                        <option value="small">Small (14px)</option>
-                        <option value="normal">Normal (16px)</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1 text-left">
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400">Body Standard Size</label>
-                      <select
-                        value={profile.fontSizeBody || 'normal'}
-                        onChange={(e) => setProfile({ ...profile, fontSizeBody: e.target.value as any })}
-                        className="w-full text-sm font-sans bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl px-3 py-2 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer"
-                      >
-                        <option value="tiny">Tiny (12px)</option>
-                        <option value="small">Small (14px)</option>
-                        <option value="normal">Normal (16px)</option>
-                        <option value="large">Large (18px)</option>
-                        <option value="xl">XL (20px)</option>
-                      </select>
-                    </div>
-                    <div className="space-y-1 text-left col-span-2">
-                      <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400">Base Root Size</label>
-                      <select
-                        value={profile.fontSize || 'normal'}
-                        onChange={(e) => setProfile({ ...profile, fontSize: e.target.value as any })}
-                        className="w-full text-sm font-sans bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl px-3 py-2 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer"
-                      >
-                        <option value="tiny">Tiny (12px)</option>
-                        <option value="small">Small (14px)</option>
-                        <option value="normal">Normal (16px)</option>
-                        <option value="large">Large (18px)</option>
-                        <option value="xl">XL (20px)</option>
-                        <option value="xxl">2XL (24px)</option>
-                      </select>
-                    </div>
+              
+              {/* COLORS SECTION */}
+              {themeActiveSection === 'colors' && (
+                <div className="space-y-4">
+                  {/* Theme Reset Button */}
+                  <div className="flex justify-end items-center px-4 py-2">
+                    <button
+                      type="button"
+                      onClick={() => setProfile({
+                        ...profile,
+                        marginScale: undefined,
+                        paddingScale: undefined,
+                        cornerRadius: undefined,
+                        shadowScale: undefined,
+                        themePalette: undefined,
+                        fontSize: undefined,
+                        fontFamily: undefined,
+                        fontMono: undefined,
+                        fontSizeTitle: undefined,
+                        fontSizeSubtitle: undefined,
+                        fontSizeDescription: undefined,
+                        fontSizeBodySmall: undefined,
+                        fontSizeSubtitleSmall: undefined,
+                        fontSizeKeyMetric: undefined,
+                        fontSizeXS: undefined,
+                        fontSizeBody: undefined
+                      })}
+                      className="px-4 py-2 bg-slate-150 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold cursor-pointer transition-all shadow-sm shrink-0"
+                    >
+                      Reset Theme
+                    </button>
                   </div>
 
-                  {/* Sans-Serif Font Family Dropdown */}
-                  <div className="space-y-1 text-left">
-                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400">Primary Font Face (Sans-Serif)</label>
+                  {/* Editable Color Pickers */}
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    {auditColors.map((color) => {
+                      const activeVal = (profile.themePalette as any)?.[color.key] || color.defaultHex;
+                      return (
+                        <div key={color.key} className="flex flex-col items-center justify-center p-3 rounded-2xl gap-2 text-center shadow-sm">
+                          <span className="text-[11px] font-bold text-slate-800 dark:text-slate-100 min-h-[32px] flex items-center justify-center leading-tight">{color.label}</span>
+                          <input
+                            type="color"
+                            value={activeVal.startsWith('#') && activeVal.length === 7 ? activeVal : color.defaultHex}
+                            onChange={(e) => {
+                              const nextPalette = { ...(profile.themePalette || {}) };
+                              (nextPalette as any)[color.key] = e.target.value;
+                              if (color.key === 'background') {
+                                nextPalette.bgApp = e.target.value;
+                              }
+                              setProfile({ ...profile, themePalette: nextPalette });
+                            }}
+                            className="w-10 h-10 rounded-lg cursor-pointer overflow-hidden bg-transparent border border-slate-250 dark:border-slate-750 shrink-0"
+                            style={{ padding: 0, border: 'none' }}
+                          />
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
+              {/* FONTS SECTION */}
+              {themeActiveSection === 'fonts' && (
+                <div className="grid grid-cols-2 gap-3">
+                  {auditFonts.map((font) => {
+                    const activeVal = (profile as any)[font.fontSizeKey] || 'normal';
+                    return (
+                      <div key={font.key} className="p-3 rounded-2xl space-y-2 flex flex-col items-center justify-center">
+                        <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-100 text-center">{font.label}</span>
+                        <select
+                          value={activeVal}
+                          onChange={(e) => setProfile({ ...profile, [font.fontSizeKey]: e.target.value })}
+                          className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl px-2 py-1.5 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer text-center"
+                        >
+                          {font.options.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label.split(' ')[0]}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })}
+
+                  <div className="p-3 rounded-2xl space-y-2 flex flex-col items-center justify-center">
+                    <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-100 text-center">Sans Font</span>
                     <select
                       value={profile.fontFamily || 'Inter'}
                       onChange={(e) => setProfile({ ...profile, fontFamily: e.target.value })}
-                      className="w-full text-sm font-sans bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl px-3 py-2.5 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer"
+                      className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl px-2 py-1.5 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer text-center"
                     >
-                      <option value="Inter">Inter - Elegant Swiss utility</option>
-                      <option value="Space Grotesk">Space Grotesk - Neo-brutalist display</option>
-                      <option value="Outfit">Outfit - Warm geometric sans</option>
-                      <option value="Playfair Display">Playfair Display - Elegant Editorial Serif</option>
-                      <option value="Merriweather">Merriweather - Highly readable Serif</option>
-                      <option value="system-ui">System UI - Fast default system native</option>
+                      <option value="Inter">Inter</option>
+                      <option value="Space Grotesk">Space Grotesk</option>
+                      <option value="Outfit">Outfit</option>
+                      <option value="Playfair Display">Playfair</option>
+                      <option value="Merriweather">Merriweather</option>
+                      <option value="system-ui">System UI</option>
                     </select>
                   </div>
 
-                  {/* Monospace Font Family Dropdown */}
-                  <div className="space-y-1 text-left">
-                    <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400">Technical Font Face (Monospace)</label>
+                  <div className="p-3 rounded-2xl space-y-2 flex flex-col items-center justify-center">
+                    <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-100 text-center">Mono Font</span>
                     <select
                       value={profile.fontMono || 'JetBrains Mono'}
                       onChange={(e) => setProfile({ ...profile, fontMono: e.target.value })}
-                      className="w-full text-sm font-sans bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-2xl px-3 py-2.5 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer"
+                      className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl px-2 py-1.5 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer text-center"
                     >
-                      <option value="JetBrains Mono">JetBrains Mono - Clear code spacing</option>
-                      <option value="Courier New">Courier New - Traditional Typewriter</option>
+                      <option value="JetBrains Mono">JetBrains Mono</option>
+                      <option value="Courier New">Courier New</option>
                     </select>
                   </div>
                 </div>
-              </div>
+              )}
 
-              {/* Live Preview Box */}
-              <div className="border border-slate-200 dark:border-slate-800 rounded-3xl p-4 bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 space-y-4">
-                <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider text-left">Live Aesthetic Preview Sandbox</span>
-                <div className="p-4 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl space-y-4 text-left shadow-sm">
-                  <div className="space-y-1">
-                    <h4 className="text-lg font-bold font-display text-slate-900 dark:text-slate-100">Heading Title</h4>
-                    <h5 className="text-sm font-semibold text-slate-800 dark:text-slate-200">Subtitle Element</h5>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                      This is secondary description text demonstrating typography scaling and color weight pairing. This helps visualize spacing and readability.
-                    </p>
+              {/* DESIGN TOKENS SECTION */}
+              {themeActiveSection === 'tokens' && (
+                <div className="grid grid-cols-2 gap-3">
+                  {auditDesignTokens.map((token) => {
+                    const activeVal = (profile as any)[token.tokenKey] || token.defaultValue;
+                    return (
+                      <div key={token.key} className="p-3 rounded-2xl space-y-2 flex flex-col items-center justify-center">
+                        <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-100 text-center">{token.label}</span>
+                        <select
+                          value={activeVal}
+                          onChange={(e) => setProfile({ ...profile, [token.tokenKey]: e.target.value })}
+                          className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl px-2 py-1.5 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer text-center"
+                        >
+                          {token.options?.map((opt) => (
+                            <option key={opt.value} value={opt.value}>{opt.label.split(' ')[0]}</option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* COMPONENTS SECTION */}
+              {themeActiveSection === 'components' && (
+                <div className="grid grid-cols-1 gap-4">
+                  <div className="p-4 rounded-3xl flex flex-col gap-4">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Top Targets Progress Bar</span>
+                    <div className="space-y-4">
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">Calories</span>
+                          <span className="text-slate-500 font-mono">1500kcal / 2000kcal</span>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
+                          <div className="bg-indigo-500 h-2 rounded-full" style={{ width: '75%' }}></div>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">Protein</span>
+                          <span className="text-slate-500 font-mono">60g / 73g</span>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
+                          <div className="bg-emerald-500 h-2 rounded-full" style={{ width: '82%' }}></div>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">Saturated Fat</span>
+                          <span className="text-slate-500 font-mono">18g / 15g</span>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
+                          <div className="bg-rose-500 h-2 rounded-full" style={{ width: '100%' }}></div>
+                        </div>
+                      </div>
+                      
+                      <div className="space-y-1">
+                        <div className="flex justify-between text-xs mb-1">
+                          <span className="font-semibold text-slate-700 dark:text-slate-300">Sodium</span>
+                          <span className="text-slate-500 font-mono">1200mg / 2000mg</span>
+                        </div>
+                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
+                          <div className="bg-amber-500 h-2 rounded-full" style={{ width: '60%' }}></div>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                   
-                  <div className="flex flex-wrap gap-2">
-                    <span className="px-2 py-1 text-xs font-semibold text-rose-500 bg-rose-50 dark:bg-rose-950/30 rounded-lg border border-rose-100 dark:border-rose-900/50">Severe Alert</span>
-                    <span className="px-2 py-1 text-xs font-semibold text-amber-500 bg-amber-50 dark:bg-amber-950/30 rounded-lg border border-amber-100 dark:border-amber-900/50">Moderate</span>
-                    <span className="px-2 py-1 text-xs font-semibold text-emerald-500 bg-emerald-50 dark:bg-emerald-950/30 rounded-lg border border-emerald-100 dark:border-emerald-900/50">Healthy</span>
+                  <div className="p-4 rounded-3xl flex flex-col items-center justify-center gap-4">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider self-start">Nutrients Pie Chart</span>
+                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-4 w-full">
+                       <div className="flex flex-col items-center gap-2">
+                         <NutrientPieChart allowance={2000} alreadyConsumed={500} mealValue={400} nutrientKey="calories" size="lg" />
+                         <span className="text-[10px] font-semibold text-slate-500 uppercase">Calories</span>
+                       </div>
+                       <div className="flex flex-col items-center gap-2">
+                         <NutrientPieChart allowance={60} alreadyConsumed={20} mealValue={15} nutrientKey="protein" size="lg" />
+                         <span className="text-[10px] font-semibold text-slate-500 uppercase">Protein</span>
+                       </div>
+                       <div className="flex flex-col items-center gap-2">
+                         <NutrientPieChart allowance={300} alreadyConsumed={100} mealValue={80} nutrientKey="carbs" size="lg" />
+                         <span className="text-[10px] font-semibold text-slate-500 uppercase">Carbs</span>
+                       </div>
+                       <div className="flex flex-col items-center gap-2">
+                         <NutrientPieChart allowance={65} alreadyConsumed={20} mealValue={15} nutrientKey="fat" size="lg" />
+                         <span className="text-[10px] font-semibold text-slate-500 uppercase">Fat</span>
+                       </div>
+                       <div className="flex flex-col items-center gap-2">
+                         <NutrientPieChart allowance={20} alreadyConsumed={5} mealValue={2} nutrientKey="saturatedFat" size="lg" />
+                         <span className="text-[10px] font-semibold text-slate-500 uppercase">Sat Fat</span>
+                       </div>
+                       <div className="flex flex-col items-center gap-2">
+                         <NutrientPieChart allowance={2300} alreadyConsumed={1000} mealValue={400} nutrientKey="sodium" size="lg" />
+                         <span className="text-[10px] font-semibold text-slate-500 uppercase">Sodium</span>
+                       </div>
+                    </div>
                   </div>
 
-                  <div className="flex gap-3 pt-2">
-                    <button className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold transition-colors">
-                      Secondary
-                    </button>
-                    <button className="flex-1 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-colors">
-                      Primary Action
-                    </button>
+                  <div className="p-4 bg-slate-900 border-slate-800 rounded-3xl shadow-xl flex items-center justify-center h-24">
+                     <span className="text-white text-sm font-semibold tracking-wide">LogChat UI Placeholder</span>
+                  </div>
+                  <div className="p-4 rounded-3xl flex items-center justify-center h-24">
+                     <span className="text-slate-800 dark:text-slate-100 text-sm font-semibold">FoodCard Capsule</span>
+                  </div>
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/20 border-t border-slate-200 dark:border-slate-800 flex items-center justify-center h-24">
+                     <span className="text-slate-800 dark:text-slate-200 text-sm font-semibold">Biomarker Expanded Section</span>
                   </div>
                 </div>
-              </div>
+              )}
+
+              {/* ELEMENTS SECTION */}
+              {themeActiveSection === 'elements' && (
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-4 rounded-2xl flex flex-col items-center justify-center gap-3">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Primary Button</span>
+                    <button className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-semibold transition-all shadow-sm">Action</button>
+                  </div>
+                  <div className="p-4 rounded-2xl flex flex-col items-center justify-center gap-3">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Secondary Button</span>
+                    <button className="bg-slate-150 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 px-4 py-2 rounded-xl text-xs font-semibold transition-all">Secondary</button>
+                  </div>
+                  <div className="p-4 rounded-2xl flex flex-col items-center justify-center gap-3">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Form Select</span>
+                    <select className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-sm text-slate-800 dark:text-slate-100 w-32 focus:outline-none">
+                      <option>Option 1</option>
+                    </select>
+                  </div>
+                  <div className="p-4 rounded-2xl flex flex-col items-center justify-center gap-3">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Input Text</span>
+                    <input type="text" placeholder="Type here" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-1.5 text-sm text-slate-800 dark:text-slate-100 w-32 focus:outline-none" />
+                  </div>
+                  <div className="p-4 rounded-2xl flex flex-col items-center justify-center gap-3 col-span-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase">Status Badges</span>
+                    <div className="flex flex-wrap gap-2 justify-center">
+                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold border text-emerald-600 bg-emerald-50 border-emerald-200 dark:bg-emerald-950/30 dark:border-emerald-900/50">Success</span>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold border text-amber-600 bg-amber-50 border-amber-200 dark:bg-amber-950/30 dark:border-amber-900/50">Warning</span>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold border text-rose-600 bg-rose-50 border-rose-200 dark:bg-rose-950/30 dark:border-rose-900/50">Failure</span>
+                      <span className="px-2.5 py-1 rounded-full text-xs font-semibold border text-slate-600 bg-slate-100 border-slate-200 dark:text-slate-300 dark:bg-slate-800 dark:border-slate-700">Neutral</span>
+                    </div>
+                  </div>
+                  <div className="col-span-2 p-4 rounded-2xl flex flex-col gap-2">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase text-center">Paragraph Text</span>
+                    <p className="text-sm text-slate-600 dark:text-slate-400 text-center leading-relaxed font-sans">
+                      This is a block of standard paragraph text used throughout the application to convey descriptive guidelines.
+                    </p>
+                  </div>
+                </div>
+              )}
+
+              {/* PRESETS SECTION */}
+              {themeActiveSection === 'presets' && (
+                <div className="space-y-4">
+                  <div className="p-4 rounded-2xl space-y-4">
+                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">Saved Presets</h4>
+                    <div className="grid grid-cols-1 gap-2">
+                      <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">System Default</span>
+                        <button onClick={() => {
+                          setProfile({
+                            ...profile,
+                            marginScale: undefined,
+                            paddingScale: undefined,
+                            cornerRadius: undefined,
+                            shadowScale: undefined,
+                            themePalette: undefined,
+                            fontSize: undefined,
+                            fontFamily: undefined,
+                            fontMono: undefined,
+                            fontSizeTitle: undefined,
+                            fontSizeSubtitle: undefined,
+                            fontSizeDescription: undefined,
+                            fontSizeBodySmall: undefined,
+                            fontSizeSubtitleSmall: undefined,
+                            fontSizeKeyMetric: undefined,
+                            fontSizeXS: undefined,
+                            fontSizeBody: undefined
+                          });
+                        }} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-all">Apply Default</button>
+                      </div>
+                      {(profile.themePresets || []).map((preset: any, idx: number) => (
+                        <div key={idx} className="flex justify-between items-center bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{preset.name}</span>
+                          <div className="flex gap-2">
+                            <button onClick={() => {
+                              setProfile({
+                                ...profile,
+                                themePalette: preset.themePalette,
+                                fontSize: preset.fontSize,
+                                fontFamily: preset.fontFamily,
+                                fontMono: preset.fontMono,
+                                marginScale: preset.marginScale,
+                                paddingScale: preset.paddingScale,
+                                cornerRadius: preset.cornerRadius,
+                                shadowScale: preset.shadowScale,
+                                fontSizeTitle: preset.fontSizeTitle,
+                                fontSizeSubtitle: preset.fontSizeSubtitle,
+                                fontSizeDescription: preset.fontSizeDescription,
+                                fontSizeBodySmall: preset.fontSizeBodySmall,
+                                fontSizeSubtitleSmall: preset.fontSizeSubtitleSmall,
+                                fontSizeKeyMetric: preset.fontSizeKeyMetric,
+                                fontSizeXS: preset.fontSizeXS,
+                                fontSizeBody: preset.fontSizeBody
+                              });
+                            }} className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-lg text-xs font-semibold border border-indigo-200 dark:border-indigo-800 transition-all">Apply</button>
+                            <button onClick={() => {
+                              const newPresets = [...(profile.themePresets || [])];
+                              newPresets.splice(idx, 1);
+                              setProfile({ ...profile, themePresets: newPresets });
+                            }} className="px-2 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 rounded-lg text-xs font-semibold border border-rose-200 dark:border-rose-800 transition-all">Delete</button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                    
+                    <div className="flex gap-2 pt-3 border-t border-slate-200 dark:border-slate-700 mt-4">
+                       <input id="preset-name" type="text" placeholder="New Preset Name" className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none text-slate-800 dark:text-slate-100" />
+                       <button onClick={() => {
+                          const nameInput = document.getElementById('preset-name') as HTMLInputElement;
+                          if (!nameInput.value) return;
+                          const newPreset = {
+                            name: nameInput.value,
+                            themePalette: profile.themePalette,
+                            fontSize: profile.fontSize,
+                            fontFamily: profile.fontFamily,
+                            fontMono: profile.fontMono,
+                            marginScale: profile.marginScale,
+                            paddingScale: profile.paddingScale,
+                            cornerRadius: profile.cornerRadius,
+                            shadowScale: profile.shadowScale,
+                            fontSizeTitle: profile.fontSizeTitle,
+                            fontSizeSubtitle: profile.fontSizeSubtitle,
+                            fontSizeDescription: profile.fontSizeDescription,
+                            fontSizeBodySmall: profile.fontSizeBodySmall,
+                            fontSizeSubtitleSmall: profile.fontSizeSubtitleSmall,
+                            fontSizeKeyMetric: profile.fontSizeKeyMetric,
+                            fontSizeXS: profile.fontSizeXS,
+                            fontSizeBody: profile.fontSizeBody
+                          };
+                          setProfile({
+                            ...profile,
+                            themePresets: [...(profile.themePresets || []), newPreset]
+                          });
+                          nameInput.value = '';
+                       }} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition-all shrink-0 shadow-sm">Save Current</button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>
       ), document.body)}
+
 
       {/* Database Interactions Live Sync Overlay */}
       {showDbInteractionsOverlay && createPortal((
@@ -1520,13 +1654,13 @@ export default function Header({
 
               {/* Images Quota */}
               {dbOverlayViewMode === 'admin' && (
-                <div className="p-4 bg-blue-50/40 dark:bg-blue-950/20 border border-blue-100/30 rounded-2xl">
+                <div className="p-4 bg-indigo-50/40 dark:bg-indigo-950/20 border border-indigo-100/30 rounded-2xl">
                   <span className="block text-[10px] font-bold text-slate-400 dark:text-slate-550 uppercase tracking-wider mb-1">Database Images (5GB Limit)</span>
                   <div className="flex items-end justify-between">
                     <span className="text-lg font-mono font-semibold text-slate-900 dark:text-slate-100 relative z-10">
                       {foodLogs.reduce((acc, log) => acc + (log.imageUrls?.length || 0) + (log.imageUrl ? 1 : 0), 0)} Images
                     </span>
-                    <span className="text-xs font-bold text-blue-600 bg-blue-100 dark:bg-blue-900/40 px-1.5 py-0.5 rounded relative z-10">
+                    <span className="text-xs font-bold text-indigo-600 bg-indigo-100 dark:bg-indigo-900/40 px-1.5 py-0.5 rounded relative z-10">
                       {(foodLogs.reduce((acc, log) => acc + (log.imageUrl ? log.imageUrl.length : 0) + (log.imageUrls ? log.imageUrls.reduce((sum, img) => sum + img.length, 0) : 0), 0) / (1024 * 1024)).toFixed(2)} MB
                     </span>
                   </div>
@@ -1588,7 +1722,7 @@ export default function Header({
                             <td className="p-3">
                               <span className="block font-mono text-[10px] text-slate-400">{op.timestamp}</span>
                               <span className={`inline-block text-[9px] font-bold px-1.5 py-0.2 rounded-md ${
-                                op.type === 'upload' ? 'bg-blue-50 text-blue-600 dark:bg-blue-950/25 dark:text-blue-400' :
+                                op.type === 'upload' ? 'bg-indigo-50 text-indigo-600 dark:bg-indigo-950/25 dark:text-indigo-400' :
                                 op.type === 'download' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/25 dark:text-emerald-400' :
                                 op.type === 'delete' ? 'bg-rose-50 text-rose-600 dark:bg-rose-950/25 dark:text-rose-400' :
                                 'bg-amber-50 text-amber-600 dark:bg-amber-950/25 dark:text-amber-400'
@@ -1605,7 +1739,7 @@ export default function Header({
                             <td className="p-3 text-center">
                               <span className={`inline-block text-[10px] font-semibold px-2 py-0.5 rounded-full ${
                                 op.status === 'completed' ? 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-400' :
-                                op.status === 'pending' ? 'bg-blue-100 text-blue-700 dark:bg-blue-950/30 dark:text-blue-400 animate-pulse' :
+                                op.status === 'pending' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950/30 dark:text-indigo-400 animate-pulse' :
                                 'bg-rose-100 text-rose-700 dark:bg-rose-950/30 dark:text-rose-400'
                               }`}>
                                 {op.status} {op.status === 'pending' && op.startTimeMs ? `(${Math.floor((now - op.startTimeMs) / 1000)}s)` : ''}

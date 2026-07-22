@@ -113,6 +113,30 @@ Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Sessi
   - [x] **Phase 3c — Nutrient aggregation + modify support in server.ts** (Model: gemini-3.1-pro)
   - [x] **Phase 3d — FoodCard UI chip (Mode A only) in FoodCard.tsx** (Model: gemini-3.5-flash)
 
+### Design System & Theme Revamp (Roadmap)
+- [x] **Step 1: UI & Design Token Audit**
+  Review the entire website content and identify:
+  - All font sizes used.
+  - All colors used.
+  - Set of margins and paddings used (design tokens).
+  - Set of components used (e.g., table, unified modal, accordion, food answer, target chart).
+  - All elements such as buttons, paragraphs, links, etc.
+  - Anything else that doesn't fit the above categories.
+  *Output*: Provide an analysis of the audit with the entire list for each category. Do not implement anything yet.
+- [x] **Step 2: Theme Section Revamp**
+  Update the theme section on the user profile to include a dynamic dropdown to pick between various sections:
+  - **Colours**: All the website colors with a picker to edit.
+  - **Font**: All the different font sizes with weight and font type listed.
+  - **Design token**: All factors such as margin, padding, corner radius, etc. that are used.
+  - **Components**: All the components existing in the website.
+  - **Elements**: All the elements (buttons, paragraphs, etc.) in the website.
+  *Constraint*: It needs to be fully dynamic so that any new style, new color, font size, or component added in the website are automatically reflected.
+- [x] **Step 3: Component & Element Token Integration (Standard)**
+  Apply the new dynamic design tokens (colors, typography, spacing, corners, shadows) across all standard UI elements and major components across the app. 
+  *Constraint*: **Exclude `FoodCard` from this step.** Ensure the rest of the application is stable and the theme engine applies cleanly.
+- [ ] **Step 4: FoodCard Token Integration (High Risk)**
+  Only after Step 3 is fully working and verified, carefully apply the dynamic design tokens to the `FoodCard` component. This is the most complex component and must be done last to isolate and minimize risk.
+
 ### P0 — Critical
 - [x] **Fix (part 2): Mode D comparison-group rendering broke under category-block scout items**
   The part-1 adaptive-density Vision Scout prompt introduced category-block scout items (`estimatedWeightGrams: 0`, comma-separated multi-dish `originalName`). Three Mode D (evaluation/comparison) rendering paths assumed the old one-dish-per-scout-item shape and broke as a result. Exact find-and-replace instructions in `URGENT_FIX_2026-07-17-part2.md` (repo root): (1) `resolveComparisonGroups()` in `server.ts` now explodes a category block's comma-separated `originalName` into individual dish items instead of one giant merged chip. (2) `FoodCard.tsx`'s Mode D nutrient bar no longer multiplies `averageNutrients` by a weight-based scaling factor (was dividing by `estimatedWeightGrams: 0`, zeroing out every value) — `averageNutrients` is already a final total, not a per-100g figure. (3) `FoodCard.tsx` no longer fabricates a fake `rawNutritionLabel` from `averageNutrients` when a group has no matched scout items — that re-broke the part-1 "View Nutrition Labels" fix. Follow the fix doc exactly.

@@ -1,78 +1,84 @@
-export type Severity = 'Normal' | 'Borderline at risk' | 'At risk';
-
-export interface SimpleRangeCondition {
-  operator: '>=' | '<=' | '>' | '<';
-  value: number;
-  alias: string;
-  severity: Severity;
+export type Severity = 'Normal' | 'Borderline at risk' | 'At risk' | 'Critical' | string;
+export interface RangeConfig {
+  type?: 'simple' | 'bracket' | string;
+  conditions?: any[];
+  brackets?: any[];
+  filters?: any[];
+  range?: any;
 }
-
-export interface SimpleRange {
-  type: 'simple';
-  conditions: [SimpleRangeCondition, SimpleRangeCondition];
-}
-
-export interface BracketRangeCondition {
-  min: number | null;
-  max: number | null;
-  alias: string;
-  severity: Severity;
-}
-
-export interface BracketRange {
-  type: 'bracket';
-  brackets: BracketRangeCondition[];
-}
-
-export type RangeConfig = SimpleRange | BracketRange;
-
-export interface CustomRangeFilter {
-  ethnicity?: string;
-  gender?: string;
-  minAge?: number | '';
-  maxAge?: number | '';
-}
-
 export interface CustomRangeDef {
-  id: string;
-  filters: CustomRangeFilter;
-  range: RangeConfig;
+  id?: string;
+  key?: string;
   name?: string;
+  type?: string;
+  conditions?: any[];
+  brackets?: any[];
+  filters?: any[];
+  range?: any;
 }
-
-export interface AgentAnalysis {
-  id: string;
-  agentType: string;
-  date: string;
-  result: any;
-  archived?: boolean;
+export interface SimpleRange {
+  type?: 'simple' | string;
+  conditions?: any[];
 }
-
-export interface UserProfile {
-  topNutrientsToMonitor?: string[];
-  nickname: string;
-  photoUrl: string;
-  email: string;
-  age: number | '';
-  ethnicity: string;
-  weight: number | ''; // kg
-  unitPreference?: 'SI' | 'US';
-  height: number | ''; // cm
-  bloodType?: string;
+export interface BracketRange {
+  type?: 'bracket' | string;
+  brackets?: any[];
+}
+export interface CustomRangeFilter {
   gender?: string;
+  minAge?: number;
+  maxAge?: number;
+  ethnicity?: string;
+}
+export interface AgentAnalysis {
+  id?: string;
+  timestamp?: string;
+  agentId?: string;
+  summary?: string;
+  date?: string;
+  result?: any;
+  archived?: boolean;
+  agentType?: string;
+}
+export interface UserProfile {
+  email?: string;
+  nickname?: string;
+  photoUrl?: string;
+  age?: any;
+  gender?: string;
+  ethnicity?: string;
+  height?: any;
+  weight?: any;
+  bloodType?: string;
+  language?: string;
   timezone?: string;
-  language: 'en' | 'fr' | 'zh' | 'id';
-  fontSize?: 'tiny' | 'small' | 'normal' | 'large' | 'xl' | 'xxl';
-  fontSizeTitle?: 'tiny' | 'small' | 'normal' | 'large' | 'xl' | 'xxl' | '3xl' | '4xl';
-  fontSizeSubtitle?: 'tiny' | 'small' | 'normal' | 'large' | 'xl' | 'xxl' | '3xl';
-  fontSizeDescription?: 'tiny' | 'small' | 'normal' | 'large' | 'xl' | 'xxl';
-  fontSizeBodySmall?: 'tiny' | 'small' | 'normal' | 'large';
-  fontSizeSubtitleSmall?: 'tiny' | 'small' | 'normal' | 'large' | 'xl';
-  fontSizeKeyMetric?: 'tiny' | 'small' | 'normal' | 'large' | 'xl' | 'xxl' | '3xl' | '4xl' | '5xl' | '6xl';
-  fontSizeXS?: 'tiny' | 'small' | 'normal';
-  fontSizeBody?: 'tiny' | 'small' | 'normal' | 'large' | 'xl';
+  unitPreference?: string;
+  targetCalories?: any;
+  targetCarbs?: any;
+  targetFats?: any;
+  targetFibre?: any;
+  targetProtein?: any;
+  targetSaturatedFat?: any;
+  targetSodium?: any;
+  targetSugar?: any;
+  topNutrientsToMonitor?: string[];
+  
+  fontSize?: string;
+  fontSizeTitle?: string;
+  fontSizeSubtitle?: string;
+  fontSizeDescription?: string;
+  fontSizeBody?: string;
+  fontSizeBodySmall?: string;
+  fontSizeSubtitleSmall?: string;
+  fontSizeKeyMetric?: string;
+  fontSizeXS?: string;
   fontFamily?: string;
   fontMono?: string;
+  marginScale?: 'compact' | 'normal' | 'relaxed';
+  paddingScale?: 'compact' | 'normal' | 'relaxed';
+  cornerRadius?: 'none' | 'small' | 'normal' | 'large' | 'pill';
+  shadowScale?: 'none' | 'light' | 'normal' | 'heavy';
+  themePresets?: any[];
   themePalette?: {
     button?: string;
     background?: string;
@@ -228,7 +234,7 @@ export interface FoodLog {
 export interface BiomarkerValue {
   id: string;
   name: string;
-  value: number | string;
+  value: any;
   unit: string;
   category: string;
   status: 'normal' | 'low' | 'high' | 'critical' | 'unknown';
@@ -248,7 +254,7 @@ export interface ExtractedTestDetail {
 export interface BiomarkerLog {
   id: string;
   date: string; // YYYY-MM-DD
-  biomarkers: { [key: string]: number | string };
+  biomarkers: { [key: string]: any };
   note?: string;
   summary?: string;
   tests?: ExtractedTestDetail[];
