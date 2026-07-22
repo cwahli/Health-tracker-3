@@ -84,10 +84,10 @@ export default function ConflictResolutionModal({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col p-0 bg-slate-950/80 backdrop-blur-md animate-fade-in font-sans">
-      <div className="bg-white dark:bg-slate-900 w-full h-full shadow-2xl flex flex-col overflow-hidden">
+      <div className="bg-theme-bg-card w-full h-full shadow-2xl flex flex-col overflow-hidden">
         
         {/* Header */}
-        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
+        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-b border-theme-border flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-amber-500/10 text-amber-500 rounded-xl">
               <AlertTriangle className="w-5 h-5" />
@@ -96,7 +96,7 @@ export default function ConflictResolutionModal({
               <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100">
                 Resolve Synchronization Conflict
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-theme-text-secondary">
                 Edits were made on multiple devices. Select which data you want to keep.
               </p>
             </div>
@@ -131,12 +131,12 @@ export default function ConflictResolutionModal({
                 className={`relative cursor-pointer border rounded-2xl p-5 transition-all flex flex-col justify-between ${
                   biomarkerChoice === 'local'
                     ? 'border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/20 ring-2 ring-indigo-500/20'
-                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/25'
+                    : 'border-theme-border hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/25'
                 }`}
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                    <div className="flex items-center gap-2 text-theme-neutral">
                       <Laptop className="w-4 h-4 text-slate-500" />
                       <span className="text-sm font-bold">This Local Device</span>
                     </div>
@@ -148,11 +148,11 @@ export default function ConflictResolutionModal({
                   </div>
                   
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-theme-border">
                       <span className="text-slate-400 block mb-0.5">Biomarker Logs</span>
                       <strong className="text-base text-slate-800 dark:text-slate-100">{localBioHistory.length}</strong>
                     </div>
-                    <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-theme-border">
                       <span className="text-slate-400 block mb-0.5">Custom / Approved</span>
                       <strong className="text-base text-slate-800 dark:text-slate-100">
                         {localCustomCount} <span className="text-xs font-normal text-slate-500">({localToApproveCount} pending)</span>
@@ -166,9 +166,9 @@ export default function ConflictResolutionModal({
                       <span className="text-xs text-slate-400 block italic">No history logged</span>
                     ) : (
                       last3LocalBio.map((log, idx) => (
-                        <div key={idx} className="flex justify-between text-xs text-slate-600 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800/50 pb-1">
+                        <div key={idx} className="flex justify-between text-xs text-theme-text-secondary border-b border-theme-border/50 pb-1">
                           <span>{log.date}</span>
-                          <span className="font-mono text-slate-700 dark:text-slate-300">
+                          <span className="font-mono text-theme-neutral">
                             {Object.keys(log.biomarkers || {}).length} markers ({Object.keys(log.biomarkers || {}).slice(0, 2).join(', ')}...)
                           </span>
                         </div>
@@ -184,7 +184,7 @@ export default function ConflictResolutionModal({
                 className={`relative cursor-pointer border rounded-2xl p-5 transition-all flex flex-col justify-between ${
                   biomarkerChoice === 'cloud'
                     ? 'border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/20 ring-2 ring-indigo-500/20'
-                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/25'
+                    : 'border-theme-border hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/25'
                 }`}
               >
                 <div className="space-y-3">
@@ -201,11 +201,11 @@ export default function ConflictResolutionModal({
                   </div>
                   
                   <div className="grid grid-cols-2 gap-2 text-xs">
-                    <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-theme-border">
                       <span className="text-slate-400 block mb-0.5">Biomarker Logs</span>
                       <strong className="text-base text-slate-800 dark:text-slate-100">{cloudBioHistory.length}</strong>
                     </div>
-                    <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-theme-border">
                       <span className="text-slate-400 block mb-0.5">Custom / Approved</span>
                       <strong className="text-base text-slate-800 dark:text-slate-100">
                         {cloudCustomCount} <span className="text-xs font-normal text-slate-500">({cloudToApproveCount} pending)</span>
@@ -219,9 +219,9 @@ export default function ConflictResolutionModal({
                       <span className="text-xs text-slate-400 block italic">No history logged</span>
                     ) : (
                       last3CloudBio.map((log, idx) => (
-                        <div key={idx} className="flex justify-between text-xs text-slate-600 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800/50 pb-1">
+                        <div key={idx} className="flex justify-between text-xs text-theme-text-secondary border-b border-theme-border/50 pb-1">
                           <span>{log.date}</span>
-                          <span className="font-mono text-slate-700 dark:text-slate-300">
+                          <span className="font-mono text-theme-neutral">
                             {Object.keys(log.biomarkers || {}).length} markers ({Object.keys(log.biomarkers || {}).slice(0, 2).join(', ')}...)
                           </span>
                         </div>
@@ -253,12 +253,12 @@ export default function ConflictResolutionModal({
                 className={`relative cursor-pointer border rounded-2xl p-5 transition-all flex flex-col justify-between ${
                   foodChoice === 'local'
                     ? 'border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/20 ring-2 ring-indigo-500/20'
-                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/25'
+                    : 'border-theme-border hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/25'
                 }`}
               >
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300">
+                    <div className="flex items-center gap-2 text-theme-neutral">
                       <Laptop className="w-4 h-4 text-slate-500" />
                       <span className="text-sm font-bold">This Local Device</span>
                     </div>
@@ -269,7 +269,7 @@ export default function ConflictResolutionModal({
                     )}
                   </div>
                   
-                  <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                  <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-theme-border text-xs">
                     <span className="text-slate-400 block mb-0.5">Total Food Logs</span>
                     <strong className="text-base text-slate-800 dark:text-slate-100">{localFoods.length} entries</strong>
                   </div>
@@ -280,9 +280,9 @@ export default function ConflictResolutionModal({
                       <span className="text-xs text-slate-400 block italic">No food logged</span>
                     ) : (
                       last3LocalFoods.map((log, idx) => (
-                        <div key={idx} className="flex justify-between text-xs text-slate-600 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800/50 pb-1">
+                        <div key={idx} className="flex justify-between text-xs text-theme-text-secondary border-b border-theme-border/50 pb-1">
                           <span>{log.date}</span>
-                          <span className="truncate max-w-[150px] font-semibold text-slate-700 dark:text-slate-300">{log.name}</span>
+                          <span className="truncate max-w-[150px] font-semibold text-theme-neutral">{log.name}</span>
                           <span>{log.nutrients?.calories || 0} kcal</span>
                         </div>
                       ))
@@ -297,7 +297,7 @@ export default function ConflictResolutionModal({
                 className={`relative cursor-pointer border rounded-2xl p-5 transition-all flex flex-col justify-between ${
                   foodChoice === 'cloud'
                     ? 'border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/20 ring-2 ring-indigo-500/20'
-                    : 'border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/25'
+                    : 'border-theme-border hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-50/50 dark:hover:bg-slate-800/25'
                 }`}
               >
                 <div className="space-y-3">
@@ -313,7 +313,7 @@ export default function ConflictResolutionModal({
                     )}
                   </div>
                   
-                  <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800 text-xs">
+                  <div className="bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-theme-border text-xs">
                     <span className="text-slate-400 block mb-0.5">Total Food Logs</span>
                     <strong className="text-base text-slate-800 dark:text-slate-100">{cloudFoods.length} entries</strong>
                   </div>
@@ -324,9 +324,9 @@ export default function ConflictResolutionModal({
                       <span className="text-xs text-slate-400 block italic">No food logged</span>
                     ) : (
                       last3CloudFoods.map((log, idx) => (
-                        <div key={idx} className="flex justify-between text-xs text-slate-600 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800/50 pb-1">
+                        <div key={idx} className="flex justify-between text-xs text-theme-text-secondary border-b border-theme-border/50 pb-1">
                           <span>{log.date}</span>
-                          <span className="truncate max-w-[150px] font-semibold text-slate-700 dark:text-slate-300">{log.name}</span>
+                          <span className="truncate max-w-[150px] font-semibold text-theme-neutral">{log.name}</span>
                           <span>{log.nutrients?.calories || 0} kcal</span>
                         </div>
                       ))
@@ -341,10 +341,10 @@ export default function ConflictResolutionModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-t border-slate-200 dark:border-slate-800 flex items-center justify-end gap-3 shrink-0">
+        <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-t border-theme-border flex items-center justify-end gap-3 shrink-0">
           <button
             onClick={onClose}
-            className="px-4 py-2 border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-bold text-sm rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+            className="px-4 py-2 border border-theme-border text-theme-text-secondary font-bold text-sm rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
           >
             Resolve Later
           </button>
@@ -371,8 +371,8 @@ export default function ConflictResolutionModal({
 
       {expandedView && (
         <div className="absolute inset-0 z-50 bg-slate-900/60 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col border border-slate-200 dark:border-slate-800 animate-in fade-in zoom-in-95 duration-200">
-            <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+          <div className="bg-theme-bg-card rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col border border-theme-border animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between p-4 border-b border-theme-border">
               <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm">{expandedView.title}</h3>
               <button
                 onClick={() => setExpandedView(null)}
@@ -383,7 +383,7 @@ export default function ConflictResolutionModal({
             </div>
             <div className="p-4 overflow-y-auto max-h-[60vh] space-y-2">
               {expandedView.logs.map((log, idx) => (
-                <div key={idx} className="flex justify-between items-center text-sm text-slate-600 dark:text-slate-400 border-b border-slate-100 dark:border-slate-800/50 pb-2 mb-2 last:border-0 last:pb-0 last:mb-0">
+                <div key={idx} className="flex justify-between items-center text-sm text-theme-text-secondary border-b border-theme-border/50 pb-2 mb-2 last:border-0 last:pb-0 last:mb-0">
                   <span className="font-medium">{log.date}</span>
                   {expandedView.type === 'bio' ? (
                     <span className="font-mono text-xs text-slate-500 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
@@ -391,7 +391,7 @@ export default function ConflictResolutionModal({
                     </span>
                   ) : (
                     <div className="flex flex-col items-end">
-                      <span className="truncate max-w-[200px] font-semibold text-slate-700 dark:text-slate-300">{log.name}</span>
+                      <span className="truncate max-w-[200px] font-semibold text-theme-neutral">{log.name}</span>
                       <span className="text-xs">{log.nutrients?.calories || 0} kcal</span>
                     </div>
                   )}

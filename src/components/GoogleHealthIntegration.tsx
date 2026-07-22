@@ -176,10 +176,10 @@ export default function GoogleHealthIntegration({ profile }: GoogleHealthProps) 
   };
 
   return (
-    <div className="bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm space-y-3">
+    <div className="bg-slate-50 dark:bg-slate-800/40 border border-theme-border rounded-2xl p-4 shadow-sm space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Google Health</h3>
+          <h3 className="text-sm font-bold text-theme-text">Google Health</h3>
           <p className="text-xs text-slate-500">
             {googleSteps !== null 
               ? `Connected and syncing daily steps` 
@@ -204,7 +204,7 @@ export default function GoogleHealthIntegration({ profile }: GoogleHealthProps) 
       {googleSteps !== null && (
         <div className="space-y-3 mt-4">
           <div className="flex items-center justify-between bg-emerald-50/40 dark:bg-emerald-950/10 border border-emerald-500/10 p-3 rounded-xl">
-            <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">Today's Steps:</span>
+            <span className="text-xs font-semibold text-theme-text-secondary">Today's Steps:</span>
             <div className="flex items-center gap-2">
               <span className="text-base font-black text-emerald-600 dark:text-emerald-400 font-sans">{googleSteps}</span>
               <button
@@ -239,7 +239,7 @@ export default function GoogleHealthIntegration({ profile }: GoogleHealthProps) 
       )}
 
       {healthApiStatus && !healthApiStatus.includes("Successfully connected") && (
-        <div className="text-[11px] font-mono leading-relaxed bg-slate-50 dark:bg-slate-950/40 p-3 rounded-xl border border-slate-200/60 dark:border-slate-800/60 text-slate-500 mt-2">
+        <div className="text-[11px] font-mono leading-relaxed bg-theme-bg/40 p-3 rounded-xl border border-slate-200/60 dark:border-slate-800/60 text-slate-500 mt-2">
           {healthApiStatus}
         </div>
       )}

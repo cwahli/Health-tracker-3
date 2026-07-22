@@ -175,7 +175,7 @@ export default function BiomarkerCalculationPanel({
         </div>
 
         {agentCalibration && (
-          <div className="text-slate-900 dark:text-slate-100 font-medium leading-relaxed text-[11px] pb-3 border-b border-slate-100 dark:border-slate-800/60">
+          <div className="text-theme-text font-medium leading-relaxed text-[11px] pb-3 border-b border-theme-border/60">
             {agentCalibration.specificRiskContext || agentCalibration.description}
           </div>
         )}
@@ -185,7 +185,7 @@ export default function BiomarkerCalculationPanel({
             {baseDescription && (
               <div className="mb-4">
                 <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Description</span>
-                <p className="text-slate-700 dark:text-slate-300 font-medium leading-relaxed text-[11px]">
+                <p className="text-theme-neutral font-medium leading-relaxed text-[11px]">
                   {baseDescription}
                 </p>
               </div>
@@ -219,12 +219,12 @@ export default function BiomarkerCalculationPanel({
                   </div>
                 )}
                 
-                <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-normal pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-normal pt-1 border-t border-theme-border/60">
                   * Uses demographically adjusted reference ranges calibrated specifically for your profile. Active Calibrated Range: <strong className="font-mono text-slate-700 dark:text-slate-350">{agentCalibration.profileAdjustedNormalRange}</strong>.
                 </p>
               </div>
             ) : (
-          <div className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed">
+          <div className="text-[11px] text-theme-text-secondary leading-relaxed">
             <p className="mb-1">Uses static reference ranges from clinical guidelines.</p>
             {isEditingRange ? (
               <div className="flex items-center gap-2 mt-2">
@@ -248,7 +248,7 @@ export default function BiomarkerCalculationPanel({
                 </button>
                 <button 
                   onClick={() => setIsEditingRange(false)}
-                  className="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded text-[10px] font-bold"
+                  className="px-2 py-1 bg-slate-200 dark:bg-slate-700 text-theme-text-secondary rounded text-[10px] font-bold"
                 >
                   Cancel
                 </button>
@@ -256,7 +256,7 @@ export default function BiomarkerCalculationPanel({
             ) : (
               <p className="flex items-center gap-2 mt-1">
                 Custom normal range: 
-                <strong className="text-slate-700 dark:text-slate-300 font-mono">{profile.customBiomarkers?.[biomarkerKey]?.normalRange || 'Standard reference'}</strong>
+                <strong className="text-theme-neutral font-mono">{profile.customBiomarkers?.[biomarkerKey]?.normalRange || 'Standard reference'}</strong>
                 {onEditBiomarkerDef && (
                   <button 
                     onClick={() => {
@@ -276,8 +276,8 @@ export default function BiomarkerCalculationPanel({
         )}
 
         {isDetailsExpanded && (
-          <div className="mt-3 pt-3 border-t border-slate-200/50 dark:border-slate-800/50 space-y-2 text-[11px] text-slate-500 dark:text-slate-400 font-mono leading-relaxed">
-            <p>• Biomarker Key: <span className="text-slate-700 dark:text-slate-300">{biomarkerKey}</span></p>
+          <div className="mt-3 pt-3 border-t border-slate-200/50 dark:border-slate-800/50 space-y-2 text-[11px] text-theme-text-secondary font-mono leading-relaxed">
+            <p>• Biomarker Key: <span className="text-theme-neutral">{biomarkerKey}</span></p>
             {agentCalibration ? (
               <>
                 <p>• Calibration Source: AI Clinical Calibration Agent</p>
@@ -359,11 +359,11 @@ export default function BiomarkerCalculationPanel({
           {agentCalibration && (
             <div className="space-y-2 text-[11px]">
               {agentCalibration.specificRiskContext && (
-                <div className="text-slate-900 dark:text-slate-100 font-medium leading-relaxed bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-150 dark:border-slate-800">
+                <div className="text-theme-text font-medium leading-relaxed bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-150 dark:border-slate-800">
                   {agentCalibration.specificRiskContext}
                 </div>
               )}
-              <p className="text-slate-900 dark:text-slate-100 font-medium leading-relaxed bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-150 dark:border-slate-800">
+              <p className="text-theme-text font-medium leading-relaxed bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-150 dark:border-slate-800">
                 {agentCalibration.description}
               </p>
             </div>
@@ -376,8 +376,8 @@ export default function BiomarkerCalculationPanel({
             </div>
           )}
 
-          <div className="p-3.5 bg-white dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-xl space-y-3 text-xs font-mono leading-relaxed text-slate-600 dark:text-slate-300">
-            <div className="space-y-1.5 border-b border-slate-100 dark:border-slate-800 pb-2.5">
+          <div className="p-3.5 bg-white dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-xl space-y-3 text-xs font-mono leading-relaxed text-theme-text-secondary">
+            <div className="space-y-1.5 border-b border-theme-border pb-2.5">
               <span className="block text-[10px] font-extrabold uppercase text-slate-400 font-sans">Plain Logic Calculations:</span>
               <p>• Matched Profile Ethnicity: <span className="text-slate-800 dark:text-white font-semibold">{profile.ethnicity || 'Not set'}</span></p>
               <p>• Matched Profile Gender: <span className="text-slate-800 dark:text-white font-semibold">{profile.gender || 'Not set'}</span></p>
@@ -400,7 +400,7 @@ export default function BiomarkerCalculationPanel({
               <button
                 type="button"
                 onClick={handleKeepAsIs}
-                className="py-2.5 rounded-xl text-xs font-bold bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 transition-all cursor-pointer flex items-center justify-center gap-1.5"
+                className="py-2.5 rounded-xl text-xs font-bold bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-750 text-theme-neutral transition-all cursor-pointer flex items-center justify-center gap-1.5"
               >
                 Keep as is
               </button>

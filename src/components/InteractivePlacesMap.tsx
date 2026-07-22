@@ -152,19 +152,19 @@ export function InteractivePlacesMap({
   const hasMapLocations = ideas.some(idea => idea.lat && idea.lng);
 
   return (
-    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl overflow-hidden shadow-xl w-full max-w-full min-w-0 flex flex-col z-10">
+    <div className="bg-theme-bg-card border border-theme-border rounded-3xl overflow-hidden shadow-xl w-full max-w-full min-w-0 flex flex-col z-10">
       {/* Header */}
       {hasMapLocations ? (
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center gap-2">
+        <div className="p-4 border-b border-theme-border bg-slate-50/50 dark:bg-slate-900/50 flex items-center gap-2">
           <Compass className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-          <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm tracking-tight font-display">
+          <h4 className="font-bold text-theme-text text-sm tracking-tight font-display">
             What to Eat Near You — {neighborhood}
           </h4>
         </div>
       ) : (
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/50 flex items-center gap-2">
+        <div className="p-4 border-b border-theme-border bg-slate-50/50 dark:bg-slate-900/50 flex items-center gap-2">
           <Compass className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
-          <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm tracking-tight font-display">
+          <h4 className="font-bold text-theme-text text-sm tracking-tight font-display">
             Healthy Meal Ideas
           </h4>
         </div>
@@ -308,7 +308,7 @@ export function InteractivePlacesMap({
       {/* Structured Food Suggestions and Selection controls */}
       <div className="p-4 space-y-4">
         <div className="space-y-3">
-          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+          <p className="text-xs text-theme-text-secondary font-medium">
             Select the dishes you want to save to your local planner:
           </p>
           <div className="space-y-2">
@@ -320,7 +320,7 @@ export function InteractivePlacesMap({
                   className={`border rounded-xl p-3 transition-all ${
                     idx === activeIndex 
                       ? "border-indigo-500 bg-indigo-50/20 dark:bg-indigo-950/10" 
-                      : "border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/20"
+                      : "border-theme-border bg-slate-50/50 dark:bg-slate-900/20"
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -358,7 +358,7 @@ export function InteractivePlacesMap({
                           )}
                         </div>
                       </div>
-                      <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-relaxed">
+                      <p className="text-[11px] text-theme-text-secondary mt-1 leading-relaxed">
                         {idea.benefitExplanation}
                       </p>
                       
@@ -369,16 +369,16 @@ export function InteractivePlacesMap({
                           </span>
                         )}
                         {(userLocation && idea.lat && idea.lng) ? (
-                          <span className="bg-slate-200/60 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.5 rounded text-[9px] font-semibold border border-slate-300/30">
+                          <span className="bg-slate-200/60 dark:bg-slate-800 text-theme-text-secondary px-1.5 py-0.5 rounded text-[9px] font-semibold border border-slate-300/30">
                             {calculateDistance(userLocation[0], userLocation[1], idea.lat, idea.lng)} km away
                           </span>
                         ) : idea.distanceKm !== undefined && (
-                          <span className="bg-slate-200/60 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.5 rounded text-[9px] font-semibold border border-slate-300/30">
+                          <span className="bg-slate-200/60 dark:bg-slate-800 text-theme-text-secondary px-1.5 py-0.5 rounded text-[9px] font-semibold border border-slate-300/30">
                             {idea.distanceKm} km away
                           </span>
                         )}
                         {idea.tags.map((tag, tagIdx) => (
-                          <span key={tagIdx} className="bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded text-[9px] font-bold border border-slate-200 dark:border-slate-700">
+                          <span key={tagIdx} className="bg-white dark:bg-slate-800 text-theme-text-secondary px-1.5 py-0.5 rounded text-[9px] font-bold border border-theme-border">
                             {tag}
                           </span>
                         ))}

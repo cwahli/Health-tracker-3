@@ -191,7 +191,7 @@ export default function CombineBiomarkersModal({
       <div className="w-full h-full bg-white dark:bg-slate-950 flex flex-col shadow-2xl overflow-hidden">
         
         {/* Header */}
-        <div className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800/80 px-5 py-4 flex items-center justify-between">
+        <div className="bg-slate-50 dark:bg-slate-900/60 border-b border-theme-border/80 px-5 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 rounded-lg bg-indigo-600/10 flex items-center justify-center text-indigo-600">
               <Merge className="w-4 h-4" />
@@ -234,17 +234,17 @@ export default function CombineBiomarkersModal({
                   placeholder="Search other active biomarkers..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 dark:text-slate-100"
+                  className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-900/50 border border-theme-border rounded-xl text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 dark:text-slate-100"
                 />
               </div>
 
               {/* Group By Selector */}
-              <div className="flex items-center justify-between gap-2 border-t border-b border-slate-100 dark:border-slate-800 py-3">
+              <div className="flex items-center justify-between gap-2 border-t border-b border-theme-border py-3">
                 <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Group By:</span>
                 <select
                   value={groupType}
                   onChange={(e) => setGroupType(e.target.value as any)}
-                  className="px-2.5 py-1 text-xs font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                  className="px-2.5 py-1 text-xs font-semibold bg-theme-bg-card text-slate-700 dark:text-slate-200 border border-theme-border rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
                 >
                   {BIOMARKER_GROUPING_OPTIONS.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -297,14 +297,14 @@ export default function CombineBiomarkersModal({
                     };
 
                     return (
-                      <div key={groupName} className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50/20 dark:bg-slate-900/10">
+                      <div key={groupName} className="border border-theme-border rounded-2xl overflow-hidden bg-slate-50/20 dark:bg-slate-900/10">
                         <div 
                           onClick={toggleGroup}
-                          className="flex items-center justify-between p-3.5 bg-slate-50/80 dark:bg-slate-900/60 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 cursor-pointer select-none transition-colors border-b border-slate-100 dark:border-slate-800"
+                          className="flex items-center justify-between p-3.5 bg-slate-50/80 dark:bg-slate-900/60 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 cursor-pointer select-none transition-colors border-b border-theme-border"
                         >
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{groupName}</span>
-                            <span className="text-[10px] bg-slate-200/60 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-full font-bold">
+                            <span className="text-xs font-bold text-theme-neutral">{groupName}</span>
+                            <span className="text-[10px] bg-slate-200/60 dark:bg-slate-800 text-theme-text-secondary px-1.5 py-0.5 rounded-full font-bold">
                               {itemsInGroup.length}
                             </span>
                             {selectedInGroup.length > 0 && (
@@ -371,7 +371,7 @@ export default function CombineBiomarkersModal({
                       type="text"
                       value={editedKey}
                       onChange={(e) => setEditedKey(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-900 rounded-xl text-xs font-mono font-semibold focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100"
+                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-750 bg-theme-bg-card rounded-xl text-xs font-mono font-semibold focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100"
                       placeholder="e.g. hba1c"
                     />
                   </div>
@@ -383,7 +383,7 @@ export default function CombineBiomarkersModal({
                     type="text"
                     value={editedName}
                     onChange={(e) => setEditedName(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-900 rounded-xl text-xs font-semibold focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100"
+                    className="w-full px-3 py-2 border border-slate-200 dark:border-slate-750 bg-theme-bg-card rounded-xl text-xs font-semibold focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100"
                     placeholder="e.g. HbA1c"
                   />
                   </div>
@@ -398,7 +398,7 @@ export default function CombineBiomarkersModal({
                       type="text"
                       value={editedUnit}
                       onChange={(e) => setEditedUnit(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-900 rounded-xl text-xs font-semibold focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100"
+                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-750 bg-theme-bg-card rounded-xl text-xs font-semibold focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100"
                       placeholder="e.g. % or mg/dL"
                     />
                   </div>
@@ -410,7 +410,7 @@ export default function CombineBiomarkersModal({
                       type="text"
                       value={editedRange}
                       onChange={(e) => setEditedRange(e.target.value)}
-                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-750 bg-white dark:bg-slate-900 rounded-xl text-xs font-semibold focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100"
+                      className="w-full px-3 py-2 border border-slate-200 dark:border-slate-750 bg-theme-bg-card rounded-xl text-xs font-semibold focus:ring-1 focus:ring-indigo-500 text-slate-800 dark:text-slate-100"
                       placeholder="e.g. 4.0 - 5.6"
                     />
                   </div>
@@ -459,7 +459,7 @@ export default function CombineBiomarkersModal({
         </div>
 
         {/* Footer */}
-        <div className="bg-slate-50 dark:bg-slate-900/60 border-t border-slate-200 dark:border-slate-800/80 px-5 py-4 flex gap-3 justify-end">
+        <div className="bg-slate-50 dark:bg-slate-900/60 border-t border-theme-border/80 px-5 py-4 flex gap-3 justify-end">
           {step === 1 ? (
             <>
               {onReviewWithAgent && (
@@ -479,7 +479,7 @@ export default function CombineBiomarkersModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-2 bg-white dark:bg-slate-900 text-slate-500 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold hover:bg-slate-50"
+                className="px-4 py-2 bg-theme-bg-card text-slate-500 border border-theme-border rounded-xl text-xs font-bold hover:bg-slate-50"
               >
                 Cancel
               </button>
@@ -498,7 +498,7 @@ export default function CombineBiomarkersModal({
               <button
                 type="button"
                 onClick={() => setStep(1)}
-                className="px-4 py-2 bg-white dark:bg-slate-900 text-slate-500 border border-slate-200 dark:border-slate-800 rounded-xl text-xs font-bold hover:bg-slate-50"
+                className="px-4 py-2 bg-theme-bg-card text-slate-500 border border-theme-border rounded-xl text-xs font-bold hover:bg-slate-50"
               >
                 Back
               </button>

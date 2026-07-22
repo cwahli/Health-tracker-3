@@ -765,10 +765,10 @@ export default function HomeTab({
             <Sparkles className="w-8 h-8" />
           </div>
           <div className="space-y-1">
-            <h2 id="empty-state-title" className="text-xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100">
+            <h2 id="empty-state-title" className="text-xl font-extrabold tracking-tight text-theme-text">
               Welcome to Your Health Portal
             </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm mx-auto leading-relaxed">
+            <p className="text-xs text-theme-text-secondary max-w-sm mx-auto leading-relaxed">
               Your dashboard is ready! Log some records to calibrate your metabolic targets, nutrition recommendations, and biomarker risk assessments.
             </p>
           </div>
@@ -776,16 +776,16 @@ export default function HomeTab({
 
         <div className="space-y-4">
           {/* Option 1: Complete Profile */}
-          <div id="empty-state-profile-card" className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800 shadow-sm space-y-4">
+          <div id="empty-state-profile-card" className="p-5 bg-theme-bg-card rounded-2xl border border-slate-150 dark:border-slate-800 shadow-sm space-y-4">
             <div className="flex items-start gap-3">
               <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-xl shrink-0">
                 <Settings className="w-5 h-5" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                <h3 className="text-sm font-bold text-theme-text">
                   Complete Your Profile
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-normal">
+                <p className="text-xs text-theme-text-secondary leading-normal">
                   Add details like age, weight, height, ethnicity, and gender. This calibrates our medical and AI engines to calculate custom daily targets specifically for you.
                 </p>
               </div>
@@ -802,16 +802,16 @@ export default function HomeTab({
           </div>
 
           {/* Option 2: Log Food */}
-          <div id="empty-state-food-card" className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-150 dark:border-slate-800 shadow-sm space-y-4">
+          <div id="empty-state-food-card" className="p-5 bg-theme-bg-card rounded-2xl border border-slate-150 dark:border-slate-800 shadow-sm space-y-4">
             <div className="flex items-start gap-3">
               <div className="p-2.5 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400 rounded-xl shrink-0">
                 <Heart className="w-5 h-5" />
               </div>
               <div className="space-y-1">
-                <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                <h3 className="text-sm font-bold text-theme-text">
                   Log a Food or Meal
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 leading-normal">
+                <p className="text-xs text-theme-text-secondary leading-normal">
                   Type what you ate or speak naturally to get an automatic clinical breakdown, nutrient calculations, and personalized health recommendations.
                 </p>
               </div>
@@ -862,7 +862,7 @@ export default function HomeTab({
 
       {/* Nutrition Allowance Tracker Dashboard (MOVED UP just above Health Status & BMI) */}
       <div id="dashboard-nutrition-targets" className="space-y-4">
-        <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800/50">
+        <div className="flex justify-between items-center pb-2 border-b border-theme-border/50">
           <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center gap-2">
             <Heart className="w-4 h-4 text-indigo-600" />
             Top Targets
@@ -893,7 +893,7 @@ export default function HomeTab({
             return (
               <div key={key} className="space-y-1">
                 <div className="flex justify-between text-xs font-semibold">
-                  <span className="text-slate-700 dark:text-slate-300">{label}</span>
+                  <span className="text-theme-neutral">{label}</span>
                   {isOver ? (
                     <span className="text-rose-500 font-bold font-mono">
                       {formatValue(actual - adjustedTarget)}{unit} over {adjustedTarget}{unit} daily
@@ -934,7 +934,7 @@ export default function HomeTab({
           {/* Steps Bar */}
           <div className="space-y-1">
             <div className="flex justify-between text-xs font-semibold">
-              <span className="text-slate-700 dark:text-slate-300 flex items-center gap-1">
+              <span className="text-theme-neutral flex items-center gap-1">
                 <span>Steps</span>
                 {googleStepsAverage !== null && (
                   <span className="text-[10px] text-slate-400 font-normal">
@@ -962,8 +962,8 @@ export default function HomeTab({
 
         {/* Weekly Targets Section (Top Weekly Nutrient Targets x7 on 7-day rolling basis) */}
         {topWeeklyNutrientKeys.length > 0 && (
-          <div id="dashboard-weekly-targets" className="space-y-4 pt-4 border-t border-slate-100 dark:border-slate-800/50">
-            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800/50">
+          <div id="dashboard-weekly-targets" className="space-y-4 pt-4 border-t border-theme-border/50">
+            <div className="flex justify-between items-center pb-2 border-b border-theme-border/50">
               <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-indigo-600" />
                 Weekly Targets
@@ -994,7 +994,7 @@ export default function HomeTab({
                 return (
                   <div key={key} className="space-y-1">
                     <div className="flex justify-between text-xs font-semibold">
-                      <span className="text-slate-700 dark:text-slate-300">{label}</span>
+                      <span className="text-theme-neutral">{label}</span>
                       {isOver ? (
                         <span className="text-rose-500 font-bold font-mono">
                           {formatValue(actual7dRaw - weeklyTarget)}{unit} over {weeklyTarget}{unit} / wk
@@ -1038,7 +1038,7 @@ export default function HomeTab({
         {/* Expandable Targets Section */}
         {true && (
           <div>
-            <div className="flex items-center justify-between pt-2 border-t border-slate-100 dark:border-slate-800/30 mt-3">
+            <div className="flex items-center justify-between pt-2 border-t border-theme-border/30 mt-3">
               <button
                 onClick={() => setShowAllTargets(!showAllTargets)}
                 className="flex items-center gap-1 text-xs text-slate-400 hover:text-indigo-600 font-semibold cursor-pointer"
@@ -1082,9 +1082,9 @@ export default function HomeTab({
                   const formattedActual = formatValue(actual);
 
                   return (
-                    <div key={key} className="flex flex-col py-2 border-b border-slate-100 dark:border-slate-800/50 space-y-1">
+                    <div key={key} className="flex flex-col py-2 border-b border-theme-border/50 space-y-1">
                       <div className="flex justify-between items-start text-[10px] leading-tight">
-                        <span className="text-slate-500 dark:text-slate-400 font-bold capitalize truncate max-w-[80px]">
+                        <span className="text-theme-text-secondary font-bold capitalize truncate max-w-[80px]">
                           {key.replace(/([A-Z])/g, ' $1').trim()}
                         </span>
                         <span className="text-slate-400 dark:text-slate-500 font-semibold font-mono text-[9px] whitespace-nowrap">
@@ -1105,7 +1105,7 @@ export default function HomeTab({
                 <div className="mt-4 space-y-4 animation-slide-down">
                   {coreTargets.length > 0 && (
                     <div>
-                      <h4 className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mb-1 border-b border-slate-100 dark:border-slate-800/50 pb-1">Core Nutrients</h4>
+                      <h4 className="text-[10px] font-bold text-theme-neutral mb-1 border-b border-theme-border/50 pb-1">Core Nutrients</h4>
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         {coreTargets.map(renderTarget)}
                       </div>
@@ -1113,7 +1113,7 @@ export default function HomeTab({
                   )}
                   {additionalTargets.length > 0 && (
                     <div>
-                      <h4 className="text-[10px] font-bold text-slate-700 dark:text-slate-300 mb-1 border-b border-slate-100 dark:border-slate-800/50 pb-1">Additional Nutrients</h4>
+                      <h4 className="text-[10px] font-bold text-theme-neutral mb-1 border-b border-theme-border/50 pb-1">Additional Nutrients</h4>
                       <div className="grid grid-cols-2 gap-2 text-xs">
                         {additionalTargets.map(renderTarget)}
                       </div>
@@ -1129,10 +1129,10 @@ export default function HomeTab({
       {/* Settings Modal */}
       {isSettingsModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-sm bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-3xl p-6 shadow-xl space-y-5 max-h-[90vh] overflow-y-auto">
+          <div className="w-full max-w-sm bg-theme-bg-card border border-theme-border rounded-3xl p-6 shadow-xl space-y-5 max-h-[90vh] overflow-y-auto">
             {/* Header */}
-            <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800/50">
-              <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm flex items-center gap-2">
+            <div className="flex justify-between items-center pb-2 border-b border-theme-border/50">
+              <h3 className="font-bold text-theme-text text-sm flex items-center gap-2">
                 <Settings className="w-4 h-4 text-indigo-600" />
                 Target Budget Settings
               </h3>
@@ -1201,7 +1201,7 @@ export default function HomeTab({
                 <>
                   {/* Rolling Days */}
                   <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-bold text-slate-900 dark:text-slate-100">
+                    <div className="flex justify-between text-xs font-bold text-theme-text">
                       <span>Rolling Timeframe</span>
                       <span className="text-indigo-650 dark:text-indigo-400 font-mono">{rollingDays} Days</span>
                     </div>
@@ -1218,7 +1218,7 @@ export default function HomeTab({
 
                   {/* Authorization Limit % */}
                   <div className="space-y-1.5">
-                    <div className="flex justify-between text-xs font-bold text-slate-900 dark:text-slate-100">
+                    <div className="flex justify-between text-xs font-bold text-theme-text">
                       <span>Maximum Adjustment Limit</span>
                       <span className="text-indigo-650 dark:text-indigo-400 font-mono">{rollingAllowance}%</span>
                     </div>
@@ -1237,10 +1237,10 @@ export default function HomeTab({
               )}
 
               {/* Targets Section */}
-              <div className="space-y-3 border-t border-slate-100 dark:border-slate-800/50 pt-3">
+              <div className="space-y-3 border-t border-theme-border/50 pt-3">
                 <button
                   onClick={() => setIsTargetsExpanded(!isTargetsExpanded)}
-                  className="flex items-center justify-between w-full text-xs font-bold text-slate-900 dark:text-slate-100 cursor-pointer"
+                  className="flex items-center justify-between w-full text-xs font-bold text-theme-text cursor-pointer"
                 >
                   <span>Edit Nutrient Targets</span>
                   <ChevronDown className={`w-4 h-4 transition-transform ${isTargetsExpanded ? 'rotate-180' : ''}`} />
@@ -1277,7 +1277,7 @@ export default function HomeTab({
                                onUpdateReport(updatedReport);
                              }
                           }}
-                          className="w-full bg-slate-50 dark:bg-slate-950/45 border border-slate-150 dark:border-slate-800 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 outline-none"
+                          className="w-full bg-theme-bg/45 border border-slate-150 dark:border-slate-800 rounded-lg px-2 py-1 text-xs font-bold text-slate-700 dark:text-slate-200 outline-none"
                         />
                       </div>
                     ))}
@@ -1286,8 +1286,8 @@ export default function HomeTab({
               </div>
               
               {/* View Timeframe Selection */}
-              <div className="space-y-1.5 border-t border-slate-100 dark:border-slate-800/50 pt-3">
-                <div className="flex justify-between text-xs font-bold text-slate-900 dark:text-slate-100">
+              <div className="space-y-1.5 border-t border-theme-border/50 pt-3">
+                <div className="flex justify-between text-xs font-bold text-theme-text">
                   <span>Display View Timeframe</span>
                   <span className="text-indigo-650 dark:text-indigo-400 font-mono">
                     {viewTimeframe === '1' ? 'Today' : `Last ${viewTimeframe} Days`}
@@ -1296,7 +1296,7 @@ export default function HomeTab({
                 <select
                   value={viewTimeframe}
                   onChange={(e) => setViewTimeframe(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-950/45 border border-slate-150 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 outline-none cursor-pointer"
+                  className="w-full bg-theme-bg/45 border border-slate-150 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-bold text-slate-700 dark:text-slate-200 outline-none cursor-pointer"
                 >
                   <option value="1">Last 1 day (Today)</option>
                   <option value="7">Last 7 days</option>
@@ -1323,7 +1323,7 @@ export default function HomeTab({
       {/* Food Ideas Section */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
+          <h3 className="text-sm font-bold text-theme-text flex items-center gap-2">
             <Sparkles className="w-4 h-4 text-indigo-500" />
             Food Ideas
           </h3>
@@ -1338,17 +1338,17 @@ export default function HomeTab({
         {foodIdeas.length > 0 && (
           <div className="space-y-2">
             {foodIdeas.map(idea => (
-              <div key={idea.id} className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden">
+              <div key={idea.id} className="border border-theme-border rounded-xl overflow-hidden">
                 <button
                   onClick={() => setExpandedKey(expandedKey === idea.id ? null : idea.id)}
-                  className="w-full flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800/50 last:border-0 text-left hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-between py-3 border-b border-theme-border/50 last:border-0 text-left hover:bg-slate-50 dark:hover:bg-slate-800/80 transition-colors cursor-pointer"
                 >
                   <span className="font-bold text-sm text-slate-800 dark:text-slate-200">{idea.name}</span>
                   {expandedKey === idea.id ? <ChevronUp className="w-4 h-4 text-slate-400" /> : <ChevronDown className="w-4 h-4 text-slate-400" />}
                 </button>
                 {expandedKey === idea.id && (
                   <div className="py-4 space-y-4 animation-fade-in text-xs">
-                    <p className="text-slate-600 dark:text-slate-300 leading-relaxed font-medium">{idea.benefitExplanation}</p>
+                    <p className="text-theme-text-secondary leading-relaxed font-medium">{idea.benefitExplanation}</p>
                     
                      {idea.locationLink && (
                       <div className="space-y-3">
@@ -1357,7 +1357,7 @@ export default function HomeTab({
                             <MapPin className="w-3.5 h-3.5" /> {idea.placeName || "Find Nearby"}
                           </a>
                           {idea.distanceKm !== undefined && (
-                            <span className="text-[10px] bg-slate-200/60 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-1.5 py-0.5 rounded font-semibold border border-slate-300/30">
+                            <span className="text-[10px] bg-slate-200/60 dark:bg-slate-800 text-theme-text-secondary px-1.5 py-0.5 rounded font-semibold border border-slate-300/30">
                               {idea.distanceKm} km away
                             </span>
                           )}
@@ -1376,7 +1376,7 @@ export default function HomeTab({
                     )}
                     <div className="flex flex-wrap gap-1">
                       {idea.tags.map((tag, idx) => (
-                        <span key={idx} className="bg-white dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded text-[10px] font-bold border border-slate-200 dark:border-slate-700">
+                        <span key={idx} className="bg-white dark:bg-slate-800 text-theme-text-secondary px-2 py-0.5 rounded text-[10px] font-bold border border-theme-border">
                           {tag}
                         </span>
                       ))}
@@ -1400,7 +1400,7 @@ export default function HomeTab({
 
       {/* Health status to improve (Previously Health & BMI Summary) */}
       <div id="health-summary-section" className="space-y-5">
-        <div className="flex justify-between items-center pb-2 border-b border-slate-100 dark:border-slate-800/50">
+        <div className="flex justify-between items-center pb-2 border-b border-theme-border/50">
           <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center gap-2 font-display">
             <Heart className="w-4.5 h-4.5 text-indigo-600" />
             Health status to improve
@@ -1446,7 +1446,7 @@ export default function HomeTab({
                   
                   return (
                     <div key={category} className="space-y-4 mb-6 last:mb-0">
-                      <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pl-1 border-b border-slate-100 dark:border-slate-800 pb-2">{category}</h4>
+                      <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider pl-1 border-b border-theme-border pb-2">{category}</h4>
                       
                       {(() => {
                         const baselineCat = report?.healthBaselineCategories?.find((c: any) => 
@@ -1456,7 +1456,7 @@ export default function HomeTab({
                         );
                         if (baselineCat) {
                           return (
-                            <details className="group border border-slate-200 dark:border-slate-700/50 rounded-xl overflow-hidden mb-3">
+                            <details className="group border border-theme-border/50 rounded-xl overflow-hidden mb-3">
                               <summary className="cursor-pointer bg-slate-50 dark:bg-slate-800/50 px-4 py-3 flex items-center justify-between text-sm font-semibold text-slate-800 dark:text-slate-200 list-none" style={{ listStyle: 'none' }}>
                                 <div className="flex items-center gap-2">
                                   <Sparkles className="w-4 h-4 text-indigo-500" />
@@ -1464,10 +1464,10 @@ export default function HomeTab({
                                 </div>
                                 <ChevronDown className="w-4 h-4 text-slate-400 group-open:-rotate-180 transition-transform" />
                               </summary>
-                              <div className="p-4 bg-white dark:bg-slate-900 space-y-3">
+                              <div className="p-4 bg-theme-bg-card space-y-3">
                                 <div>
                                   <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Analysis</span>
-                                  <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">{baselineCat.analysis}</p>
+                                  <p className="text-sm text-theme-neutral leading-relaxed">{baselineCat.analysis}</p>
                                 </div>
                                 {baselineCat.unaddressedRisk && (
                                   <div className="bg-amber-50 dark:bg-amber-950/20 p-3 rounded-lg border border-amber-100 dark:border-amber-900/30">
@@ -1478,7 +1478,7 @@ export default function HomeTab({
                                 {baselineCat.biomarkerTargets && baselineCat.biomarkerTargets.length > 0 && (
                                   <div>
                                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider block mb-1">Biomarker Targets</span>
-                                    <ul className="list-disc list-inside text-sm text-slate-700 dark:text-slate-300 space-y-1">
+                                    <ul className="list-disc list-inside text-sm text-theme-neutral space-y-1">
                                       {baselineCat.biomarkerTargets.map((bt: any, idx: number) => (
                                         <li key={idx}><strong>{bt.name}</strong>: {bt.targetValue}</li>
                                       ))}
@@ -1509,7 +1509,7 @@ export default function HomeTab({
                               className={`p-3 text-left rounded-2xl border transition-all duration-200 cursor-pointer flex flex-col justify-between h-24 ${
                                 isExpanded
                                   ? 'bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-500 shadow-sm ring-1 ring-indigo-500'
-                                  : 'bg-slate-50 dark:bg-slate-950 border-slate-100 dark:border-slate-800/20 hover:bg-slate-100/50 dark:hover:bg-slate-800/30'
+                                  : 'bg-theme-bg border-theme-border/20 hover:bg-slate-100/50 dark:hover:bg-slate-800/30'
                               }`}
                             >
                               <div className="min-w-0 w-full">
@@ -1538,7 +1538,7 @@ export default function HomeTab({
 
                       {expandedInChunk && (
                         <div id={`biomarker-expanded-${expandedInChunk.key}`} className="overflow-hidden animation-fade-in mt-1">
-                          <div className="py-4 border-b border-slate-100 dark:border-slate-800/30 flex items-center justify-between">
+                          <div className="py-4 border-b border-theme-border/30 flex items-center justify-between">
                             <div>
                               <div className="flex items-center gap-1.5">
                                 <span className="font-size-body-small font-bold text-slate-800 dark:text-slate-200">
@@ -1546,7 +1546,7 @@ export default function HomeTab({
                                 </span>
                                 <span className="font-size-xs font-mono text-slate-400">({expandedInChunk.def.unit})</span>
                               </div>
-                              <p className="font-size-body-small text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                              <p className="font-size-body-small text-theme-text-secondary mt-0.5 font-medium">
                                 Normal range: {expandedInChunk.def.normalRange}
                               </p>
                             </div>
@@ -1586,7 +1586,7 @@ export default function HomeTab({
       })()}
             </div>
           ) : (
-            <div className="p-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center">
+            <div className="p-4 rounded-2xl border border-dashed border-theme-border text-center">
               <p className="text-xs text-slate-400 font-medium">All recorded biomarkers are within normal range! 🎉</p>
             </div>
           )}
@@ -1596,13 +1596,13 @@ export default function HomeTab({
       {/* Target Compliance score meters */}
       {distinctDaysOfData >= 7 && (
         <div id="compliance-card" className="grid grid-cols-2 gap-4">
-          <div className="border-r border-slate-100 dark:border-slate-800/50 pr-2 flex flex-col justify-between">
+          <div className="border-r border-theme-border/50 pr-2 flex flex-col justify-between">
             <span className="text-[10px] font-bold tracking-wider uppercase text-slate-400">7-Day Compliance</span>
             <div className="flex items-baseline gap-1 mt-1">
               <span id="score-7d-text" className="text-3xl font-black font-sans text-indigo-600">{complianceScore7Day}%</span>
               <span className="text-xs text-slate-400 font-medium">on target</span>
             </div>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 leading-tight">
+            <p className="text-[10px] text-theme-text-secondary mt-2 leading-tight">
               {complianceScore7Day >= 80 ? 'Excellent cardiovascular protection benefits.' : 'Steady effort will lower vascular risk markers.'}
             </p>
           </div>
@@ -1612,7 +1612,7 @@ export default function HomeTab({
               <span id="score-30d-text" className="text-3xl font-black font-sans text-indigo-700">{complianceScore30Day}%</span>
               <span className="text-xs text-slate-400 font-medium">overall</span>
             </div>
-            <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-2 leading-tight">
+            <p className="text-[10px] text-theme-text-secondary mt-2 leading-tight">
               Consistency reduces future atherosclerosis risks significantly.
             </p>
           </div>
@@ -1625,19 +1625,19 @@ export default function HomeTab({
           <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center justify-between">
             <span>Clinical Action Recommendations</span>
             {actions.length > 0 && (
-              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-semibold text-theme-text-secondary bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
                 {actions.filter(a => a.completed).length}/{actions.length} Completed
               </span>
             )}
           </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+          <p className="text-xs text-theme-text-secondary mt-1 font-medium">
             Discuss these priorities with your general practitioner (GP).
           </p>
         </div>
 
         <div className="space-y-3">
           {actions.length === 0 ? (
-            <div className="p-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
+            <div className="p-4 rounded-2xl border border-dashed border-theme-border text-center text-xs text-slate-400">
               No active clinical recommendations. Run the Health Planning Agent to generate custom diagnostic tasks.
             </div>
           ) : (
@@ -1652,12 +1652,12 @@ export default function HomeTab({
                   id={`action-item-${act.id}`}
                   className={`p-3.5 rounded-2xl border transition-all ${
                     act.completed 
-                      ? 'bg-slate-50/50 dark:bg-slate-800/10 border-slate-100 dark:border-slate-800/40 opacity-75' 
+                      ? 'bg-slate-50/50 dark:bg-slate-800/10 border-theme-border/40 opacity-75' 
                       : dynamicTag.status === 'overdue'
                         ? 'bg-rose-50/20 border-rose-200/60 dark:bg-rose-950/20 dark:border-rose-900/40'
                         : dynamicTag.status === 'due_soon'
                           ? 'bg-amber-50/20 border-amber-200/60 dark:bg-amber-950/20 dark:border-amber-900/40'
-                          : 'bg-white dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                          : 'bg-theme-bg-card/60 border-slate-200/70 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
                   }`}
                 >
                   {/* Collapsed Header View */}
@@ -1680,7 +1680,7 @@ export default function HomeTab({
                       className="flex-1 min-w-0 cursor-pointer space-y-2"
                     >
                       <div className="flex items-start justify-between gap-2">
-                        <span className={`text-xs font-bold leading-snug block ${act.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-slate-100'}`}>
+                        <span className={`text-xs font-bold leading-snug block ${act.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-theme-text'}`}>
                           {parsed.title}
                         </span>
                         <button 
@@ -1715,8 +1715,8 @@ export default function HomeTab({
 
                   {/* Expanded Detail View */}
                   {isExpanded && (
-                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-2.5 text-xs animate-fadeIn">
-                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                    <div className="mt-3 pt-3 border-t border-theme-border/80 space-y-2.5 text-xs animate-fadeIn">
+                      <p className="text-xs text-theme-text-secondary leading-relaxed font-medium">
                         {act.explanation}
                       </p>
 
@@ -1735,12 +1735,12 @@ export default function HomeTab({
                             ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300' 
                             : act.priority === 'medium'
                               ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200'
-                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                              : 'bg-slate-100 dark:bg-slate-800 text-theme-text-secondary'
                         }`}>
                           {(act.priority || 'medium').toUpperCase()} PRIORITY
                         </span>
 
-                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold uppercase tracking-wider text-theme-text-secondary">
                           {act.type === 'doctor' ? 'Medical Consultation' : act.type === 'test' ? 'Diagnostic Test' : 'Lifestyle Modification'}
                         </span>
 
@@ -1777,7 +1777,7 @@ export default function HomeTab({
           <button
             type="button"
             onClick={() => setShowAllActions(!showAllActions)}
-            className="w-full py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-semibold text-xs hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            className="w-full py-2.5 px-4 rounded-xl border border-theme-border text-theme-text-secondary font-semibold text-xs hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
           >
             <span>{showAllActions ? 'Show Less' : `View More (${sortedActions.length - 7} remaining)`}</span>
             {showAllActions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -1791,7 +1791,7 @@ export default function HomeTab({
           <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm">
             {t.dailyBenefits}
           </h3>
-          <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
+          <p className="text-xs text-theme-text-secondary mt-1 font-medium">
             Consistently executing these behaviors halts arterial plaque progression.
           </p>
         </div>
@@ -1802,7 +1802,7 @@ export default function HomeTab({
               key={ben.id}
               id={`benefit-item-${ben.id}`}
               onClick={() => toggleBenefit(ben.id)}
-              className="flex items-center justify-between py-3 border-b border-slate-100 dark:border-slate-800/50 last:border-0 cursor-pointer transition-all group"
+              className="flex items-center justify-between py-3 border-b border-theme-border/50 last:border-0 cursor-pointer transition-all group"
             >
               <div className="flex items-center gap-3">
                 <button className="text-slate-400 dark:text-slate-500 cursor-pointer">

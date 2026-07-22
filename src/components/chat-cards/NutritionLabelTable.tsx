@@ -145,26 +145,26 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
             return (
               <div
                 key={`nut-${i}`}
-                className="text-[10px] text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/80"
+                className="text-[10px] text-theme-text-secondary bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-xl border border-theme-border/80"
               >
                 <strong className="block text-slate-800 dark:text-slate-200 mb-2 font-display text-xs">
                   {item.originalName || item.keyword}
                 </strong>
 
                 <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-[10px]">
-                  <div className="font-medium text-slate-700 dark:text-slate-300">
+                  <div className="font-medium text-theme-neutral">
                     <span className="text-slate-400 font-normal">Weight:</span>{' '}
                     {missingWeight ? <span className="text-amber-500 font-bold">Unknown</span> : `${item.estimatedWeightGrams}g`}
                   </div>
                   {(item.rawNutritionLabel?.servingSize || item.nutritionFacts?.servingSize) && (
-                    <div className="font-medium text-slate-700 dark:text-slate-300">
+                    <div className="font-medium text-theme-neutral">
                       <span className="text-slate-400 font-normal">Serving Size:</span>{' '}
                       {item.rawNutritionLabel?.servingSize || item.nutritionFacts?.servingSize}
                     </div>
                   )}
                   {((item.rawNutritionLabel?.servingsPerContainer !== undefined && item.rawNutritionLabel?.servingsPerContainer !== null) || 
                     (item.nutritionFacts?.servingsPerContainer !== undefined && item.nutritionFacts?.servingsPerContainer !== null)) && (
-                    <div className="font-medium text-slate-700 dark:text-slate-300">
+                    <div className="font-medium text-theme-neutral">
                       <span className="text-slate-400 font-normal">Servings Per Container:</span>{' '}
                       {item.rawNutritionLabel?.servingsPerContainer !== undefined && item.rawNutritionLabel?.servingsPerContainer !== null 
                         ? item.rawNutritionLabel.servingsPerContainer 
@@ -173,17 +173,17 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
                   )}
                 </div>
 
-                <div className="overflow-x-auto rounded-lg border border-slate-200 dark:border-slate-700/50">
+                <div className="overflow-x-auto rounded-lg border border-theme-border/50">
                   <table className="w-full text-left border-collapse">
                     <thead>
                       <tr className="bg-slate-100/50 dark:bg-slate-800/50">
-                        <th className="py-1.5 px-2 font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
+                        <th className="py-1.5 px-2 font-bold text-theme-text-secondary border-b border-theme-border/50">
                           Nutrient
                         </th>
-                        <th className="py-1.5 px-2 font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50">
+                        <th className="py-1.5 px-2 font-bold text-theme-text-secondary border-b border-theme-border/50">
                           Original
                         </th>
-                        <th className="py-1.5 px-2 font-bold text-slate-500 dark:text-slate-400 border-b border-slate-200 dark:border-slate-700/50 whitespace-nowrap">
+                        <th className="py-1.5 px-2 font-bold text-theme-text-secondary border-b border-theme-border/50 whitespace-nowrap">
                           Total
                         </th>
                       </tr>
@@ -243,10 +243,10 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
 
                         return (
                           <tr key={k} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                            <td className="py-1.5 px-2 font-medium text-slate-700 dark:text-slate-300 capitalize">
+                            <td className="py-1.5 px-2 font-medium text-theme-neutral capitalize">
                               {k.replace(/([A-Z])/g, ' $1').trim()}
                             </td>
-                            <td className="py-1.5 px-2 text-slate-600 dark:text-slate-400 relative group/tooltip">
+                            <td className="py-1.5 px-2 text-theme-text-secondary relative group/tooltip">
                               <div className="flex items-center gap-1">
                                 {originalDisplay}
                                 {k.toLowerCase().includes('calories') && item.autoCorrectedCalories && (
@@ -275,8 +275,8 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
 
                 {item.ingredientsList && (
                   <div className="mt-2.5 p-2 bg-slate-100/60 dark:bg-slate-800/40 rounded-lg text-[9.5px] leading-normal border border-slate-200/40 dark:border-slate-700/30 text-left">
-                    <span className="font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider block mb-1 text-[8.5px]">📋 Ingredients / Komposisi:</span>
-                    <span className="text-slate-700 dark:text-slate-300 font-normal">{item.ingredientsList}</span>
+                    <span className="font-bold text-theme-text-secondary uppercase tracking-wider block mb-1 text-[8.5px]">📋 Ingredients / Komposisi:</span>
+                    <span className="text-theme-neutral font-normal">{item.ingredientsList}</span>
                   </div>
                 )}
 
@@ -318,7 +318,7 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
                   </div>
                 )}
                 {item._preservedAnomalyFlags && item._preservedAnomalyFlags.length > 0 && (
-                  <div className="mt-2 text-[10px] text-slate-500 dark:text-slate-400 font-sans px-1">
+                  <div className="mt-2 text-[10px] text-theme-text-secondary font-sans px-1">
                     Note: {item._preservedAnomalyFlags.join(', ')}
                   </div>
                 )}

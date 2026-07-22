@@ -126,7 +126,7 @@ export const FoodScoutItemPreview: React.FC<FoodScoutItemPreviewProps> = ({
         )}
       </div>
       <span className={`text-[10px] text-center font-medium leading-tight break-words w-full lowercase ${
-        isActive ? "text-indigo-600 dark:text-indigo-400 font-bold underline" : "text-slate-700 dark:text-slate-300"
+        isActive ? "text-indigo-600 dark:text-indigo-400 font-bold underline" : "text-theme-neutral"
       }`}>
         {name}
       </span>

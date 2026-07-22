@@ -239,14 +239,14 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
   const longTermGaps = gapList.map((item, originalIdx) => ({ item, originalIdx })).filter(({ item }) => item.category === 'long_term');
 
   return (
-    <div className="space-y-6 font-sans text-slate-900 dark:text-slate-100 text-left p-1">
+    <div className="space-y-6 font-sans text-theme-text text-left p-1">
       {/* Executive Summary Banner */}
       <div className="p-4 bg-indigo-50/60 dark:bg-indigo-950/30 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 space-y-2">
         <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 font-bold text-xs uppercase tracking-wider">
           <Stethoscope className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
           <span>Health Planning & Diagnostic Audit</span>
         </div>
-        <p className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed font-medium">
+        <p className="text-xs text-theme-neutral leading-relaxed font-medium">
           {summaryText}
         </p>
       </div>
@@ -254,11 +254,11 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
       {/* Retest & Value Accuracy Section */}
       <div className="space-y-3">
         <div>
-          <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+          <h4 className="font-bold text-xs uppercase tracking-wider text-theme-neutral flex items-center gap-1.5">
             <Clock className="w-3.5 h-3.5 text-amber-500" />
             <span>Biomarker Retests & Value Accuracy</span>
           </h4>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+          <p className="text-[11px] text-theme-text-secondary mt-0.5">
             Metrics that may have changed or require repeat testing to confirm baseline accuracy due to external factors (e.g., dehydration, acute exertion).
           </p>
         </div>
@@ -274,7 +274,7 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
                   className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
                     isSelected
                       ? 'bg-amber-50/40 dark:bg-amber-950/20 border-amber-200 dark:border-amber-800/50 shadow-sm'
-                      : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-60'
+                      : 'bg-theme-bg-card border-theme-border opacity-60'
                   }`}
                 >
                   <div className="flex items-start gap-3">
@@ -289,11 +289,11 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="flex flex-col gap-1">
                           <div className="flex items-center gap-2">
-                            <span className="font-bold text-xs text-slate-900 dark:text-slate-100">
+                            <span className="font-bold text-xs text-theme-text">
                               {safeStr(item.name)}
                             </span>
                             {(item.currentValue !== undefined && item.currentValue !== null) && (
-                              <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-[10px] font-mono font-bold text-slate-700 dark:text-slate-300">
+                              <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-[10px] font-mono font-bold text-theme-neutral">
                                 {safeStr(item.currentValue)} {safeStr(item.unit)}
                               </span>
                             )}
@@ -312,7 +312,7 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
                               item.priority === 'high'
                                 ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
                                 : item.priority === 'low'
-                                ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                                ? 'bg-slate-100 dark:bg-slate-800 text-theme-text-secondary border-theme-border'
                                 : 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
                             }`}>
                               {item.priority.toUpperCase()} PRIORITY
@@ -340,7 +340,7 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
                       )}
 
                       {item.reason && (
-                        <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                        <p className="text-[11px] text-theme-text-secondary leading-relaxed">
                           {safeStr(item.reason)}
                         </p>
                       )}
@@ -351,7 +351,7 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
             })}
           </div>
         ) : (
-          <div className="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 text-xs text-slate-500 italic">
+          <div className="p-3 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-theme-border text-xs text-slate-500 italic">
             No existing biomarker readings require re-testing or verification at this time.
           </div>
         )}
@@ -360,11 +360,11 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
       {/* Diagnostic & Risk Testing Gaps Section */}
       <div className="space-y-3 pt-2">
         <div>
-          <h4 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+          <h4 className="font-bold text-xs uppercase tracking-wider text-theme-neutral flex items-center gap-1.5">
             <ShieldAlert className="w-3.5 h-3.5 text-indigo-500" />
             <span>Diagnostic & Risk Testing Gaps</span>
           </h4>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+          <p className="text-[11px] text-theme-text-secondary mt-0.5">
             Recommended tests (existing or unentered markers) to uncover potential health risks for your specific demographic and biomarker profile.
           </p>
         </div>
@@ -386,7 +386,7 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
                     className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-indigo-50/40 dark:bg-indigo-950/20 border-indigo-200 dark:border-indigo-800/50 shadow-sm'
-                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-60'
+                        : 'bg-theme-bg-card border-theme-border opacity-60'
                     }`}
                   >
                     <div className="flex items-start gap-3">
@@ -399,7 +399,7 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
                       </button>
                       <div className="space-y-1 flex-1 min-w-0">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-bold text-xs text-slate-900 dark:text-slate-100">
+                          <span className="font-bold text-xs text-theme-text">
                             {safeStr(item.testName)}
                           </span>
                           <div className="flex items-center gap-1.5">
@@ -408,14 +408,14 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
                                 item.priority === 'high'
                                   ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
                                   : item.priority === 'low'
-                                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                                  ? 'bg-slate-100 dark:bg-slate-800 text-theme-text-secondary border-theme-border'
                                   : 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
                               }`}>
                                 {item.priority.toUpperCase()} PRIORITY
                               </span>
                             )}
                             {item.targetCondition && (
-                              <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-[9px] font-bold text-slate-600 dark:text-slate-300">
+                              <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-[9px] font-bold text-theme-text-secondary">
                                 {safeStr(item.targetCondition)}
                               </span>
                             )}
@@ -432,7 +432,7 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
                           </p>
                         )}
                         {item.reason && (
-                          <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                          <p className="text-[11px] text-theme-text-secondary leading-relaxed">
                             {safeStr(item.reason)}
                           </p>
                         )}
@@ -443,7 +443,7 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
               })}
             </div>
           ) : (
-            <div className="p-2.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 italic">
+            <div className="p-2.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-theme-border text-[11px] text-slate-500 italic">
               No short-term testing gaps flagged.
             </div>
           )}
@@ -451,7 +451,7 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
 
         {/* Long Term Risk (≥ 2 Years) */}
         <div className="space-y-2 pt-2">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-md inline-block">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-theme-text-secondary bg-slate-100 dark:bg-slate-800 px-2.5 py-0.5 rounded-md inline-block">
             Long-Term Risk Testing (&ge; 2 Years)
           </span>
 
@@ -466,20 +466,20 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
                     className={`p-3.5 rounded-2xl border transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-slate-50 dark:bg-slate-800/40 border-slate-300 dark:border-slate-700 shadow-sm'
-                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 opacity-60'
+                        : 'bg-theme-bg-card border-theme-border opacity-60'
                     }`}
                   >
                     <div className="flex items-start gap-3">
                       <button type="button" className="mt-0.5 text-slate-400 shrink-0">
                         {isSelected ? (
-                          <CheckCircle2 className="w-4 h-4 text-slate-700 dark:text-slate-300 fill-slate-700/10" />
+                          <CheckCircle2 className="w-4 h-4 text-theme-neutral fill-slate-700/10" />
                         ) : (
                           <Circle className="w-4 h-4" />
                         )}
                       </button>
                       <div className="space-y-1 flex-1 min-w-0">
                         <div className="flex flex-wrap items-center justify-between gap-2">
-                          <span className="font-bold text-xs text-slate-900 dark:text-slate-100">
+                          <span className="font-bold text-xs text-theme-text">
                             {item.testName}
                           </span>
                           <div className="flex items-center gap-1.5">
@@ -488,31 +488,31 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
                                 item.priority === 'high'
                                   ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border-rose-200 dark:border-rose-800'
                                   : item.priority === 'low'
-                                  ? 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-700'
+                                  ? 'bg-slate-100 dark:bg-slate-800 text-theme-text-secondary border-theme-border'
                                   : 'bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border-amber-200 dark:border-amber-800'
                               }`}>
                                 {item.priority.toUpperCase()} PRIORITY
                               </span>
                             )}
                             {item.targetCondition && (
-                              <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-[9px] font-bold text-slate-600 dark:text-slate-300">
+                              <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded-md text-[9px] font-bold text-theme-text-secondary">
                                 {item.targetCondition}
                               </span>
                             )}
                             {item.timeframe && (
-                              <span className="px-2 py-0.5 bg-slate-200/70 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-md text-[9px] font-bold">
+                              <span className="px-2 py-0.5 bg-slate-200/70 dark:bg-slate-800 text-theme-neutral rounded-md text-[9px] font-bold">
                                 {item.timeframe}
                               </span>
                             )}
                           </div>
                         </div>
                         {item.priorityReason && (
-                          <p className="text-[10px] font-medium text-slate-700 dark:text-slate-300 bg-slate-100/80 dark:bg-slate-800/80 p-1.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                          <p className="text-[10px] font-medium text-theme-neutral bg-slate-100/80 dark:bg-slate-800/80 p-1.5 rounded-lg border border-theme-border">
                             <span className="font-bold">Priority Rationale:</span> {item.priorityReason}
                           </p>
                         )}
                         {item.reason && (
-                          <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                          <p className="text-[11px] text-theme-text-secondary leading-relaxed">
                             {item.reason}
                           </p>
                         )}
@@ -523,7 +523,7 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
               })}
             </div>
           ) : (
-            <div className="p-2.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-slate-200 dark:border-slate-800 text-[11px] text-slate-500 italic">
+            <div className="p-2.5 bg-slate-50 dark:bg-slate-900/60 rounded-xl border border-theme-border text-[11px] text-slate-500 italic">
               No long-term testing gaps flagged.
             </div>
           )}
@@ -532,7 +532,7 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
 
       {/* Action Footer Button */}
       {onAcceptRecommendations && (
-        <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
+        <div className="pt-3 border-t border-theme-border">
           {hasSubmitted ? (
             <div className="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center justify-center gap-2">
               <Check className="w-4 h-4 text-emerald-600" />

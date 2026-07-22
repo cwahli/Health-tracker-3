@@ -63,7 +63,7 @@ const StepItem = ({
         </div>
         <span className={`text-[11px] font-sans font-medium transition-colors ${
           status === 'completed' 
-            ? 'text-slate-500 dark:text-slate-400' 
+            ? 'text-theme-text-secondary' 
             : status === 'active' 
               ? 'text-indigo-600 dark:text-indigo-400 font-semibold' 
               : 'text-slate-400 dark:text-slate-600'
@@ -72,7 +72,7 @@ const StepItem = ({
         </span>
       </div>
       {children && (
-        <div className="pl-6 border-l border-slate-200 dark:border-slate-800 ml-2 mt-0.5 pb-2 last:border-none">
+        <div className="pl-6 border-l border-theme-border ml-2 mt-0.5 pb-2 last:border-none">
           {children}
         </div>
       )}
@@ -211,7 +211,7 @@ export const AgentThoughtBox = ({
         <button
           type="button"
           onClick={() => setIsExpanded(!isExpanded)}
-          className="text-xs text-slate-700 dark:text-slate-300 flex items-center justify-between font-medium hover:text-indigo-600 transition-colors w-full focus:outline-none cursor-pointer"
+          className="text-xs text-theme-neutral flex items-center justify-between font-medium hover:text-indigo-600 transition-colors w-full focus:outline-none cursor-pointer"
         >
           <span className="flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
@@ -227,7 +227,7 @@ export const AgentThoughtBox = ({
                   {scoutInstruction && (
                     <div className="flex flex-col gap-1 mt-1 mb-2">
                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Vision Scout Instruction</span>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
+                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
                         {scoutInstruction}
                       </p>
                     </div>
@@ -235,7 +235,7 @@ export const AgentThoughtBox = ({
                   {scoutScratchpad && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Vision Scout Scratchpad</span>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
+                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
                         {scoutScratchpad}
                       </p>
                     </div>
@@ -243,7 +243,7 @@ export const AgentThoughtBox = ({
                   {scoutAnswer && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Vision Scout Result</span>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
+                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
                         {scoutAnswer}
                       </p>
                     </div>
@@ -254,7 +254,7 @@ export const AgentThoughtBox = ({
                   {dbSearchLog && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Database Log</span>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
+                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
                         {dbSearchLog}
                       </p>
                     </div>
@@ -265,7 +265,7 @@ export const AgentThoughtBox = ({
                   {dietitianInstruction && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Instruction</span>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
+                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
                         {dietitianInstruction}
                       </p>
                     </div>
@@ -276,7 +276,7 @@ export const AgentThoughtBox = ({
                   {dietitianScratchpad && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Scratchpad</span>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
+                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
                         {dietitianScratchpad}
                       </p>
                     </div>
@@ -284,7 +284,7 @@ export const AgentThoughtBox = ({
                   {dietitianAnswer && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Result</span>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
+                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
                         {dietitianAnswer}
                       </p>
                     </div>
@@ -298,7 +298,7 @@ export const AgentThoughtBox = ({
                   {dietitianInstruction && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Instruction</span>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
+                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
                         {dietitianInstruction}
                       </p>
                     </div>
@@ -308,7 +308,7 @@ export const AgentThoughtBox = ({
                   {dietitianScratchpad && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Scratchpad</span>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
+                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
                         {dietitianScratchpad}
                       </p>
                     </div>
@@ -316,7 +316,7 @@ export const AgentThoughtBox = ({
                   {dietitianAnswer && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Result</span>
-                      <p className="text-xs text-slate-600 dark:text-slate-400 whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
+                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
                         {dietitianAnswer}
                       </p>
                     </div>
@@ -1106,8 +1106,8 @@ export const FoodCard: React.FC<AgentCardProps & {
                            </button>
                          </div>
                       )}
-                      <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/50 pb-2 gap-2">
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm break-words flex flex-wrap items-center gap-1.5 w-full">
+                      <div className="flex items-center justify-between border-b border-theme-border/50 pb-2 gap-2">
+                        <h4 className="font-bold text-theme-text text-sm break-words flex flex-wrap items-center gap-1.5 w-full">
                           <span className="shrink-0">⚖️ Comparison:</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold break-words">
                             {(() => {
                               const val = msg.data?.agentResult?.comparison?.comparisonTitle || msg.data?.agentResult?.comparison?.keyNutrientConcern || 'Nutrients of Concern';
@@ -1119,7 +1119,7 @@ export const FoodCard: React.FC<AgentCardProps & {
 
                       {/* Shared Scout Items Row for Comparison Mode */}
                       {activeScoutItems.length > 0 && (
-                        <div className="bg-slate-50/50 dark:bg-slate-900/30 rounded-xl p-3 border border-slate-100 dark:border-slate-800/60 mb-2">
+                        <div className="bg-slate-50/50 dark:bg-slate-900/30 rounded-xl p-3 border border-theme-border/60 mb-2">
                            <div className="flex items-center justify-between mb-2">
                              <div className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                                <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
@@ -1232,7 +1232,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                       )}
 
                       {(msg.content || msg.data?.agentResult?.message) && (
-                        <div className="text-[11.5px] text-slate-700 dark:text-slate-300 font-sans leading-relaxed text-left pb-3 whitespace-pre-line break-words">
+                        <div className="text-[11.5px] text-theme-neutral font-sans leading-relaxed text-left pb-3 whitespace-pre-line break-words">
                           {formatMessageContent(msg.content || msg.data?.agentResult?.message, msg)}
                         </div>
                       )}
@@ -1243,7 +1243,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                           const lowerSuit = String(group.suitability || '').toLowerCase();
                           const isBest = lowerSuit.includes('safe') || lowerSuit.includes('best') || lowerSuit.includes('recommended') || lowerSuit.includes('good') || lowerSuit.includes('perfect');
                           
-                          let suitabilityClass = "text-slate-700 dark:text-slate-300";
+                          let suitabilityClass = "text-theme-neutral";
                           let suitabilityBadgeBg = "bg-slate-100 dark:bg-slate-800";
                           const isNegatedPositive = /not\s+(recommended|safe|good|best|low|least|safest|perfect)/i.test(lowerSuit);
                           const isNegativeLeast = /least\s+(suitable|recommended|safe|good|healthy|beneficial|ideal)/i.test(lowerSuit);
@@ -1394,7 +1394,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                 })()}
                                  {/* Top Nutrients for Mode D */}
                                 {group.averageNutrients && Object.keys(group.averageNutrients).length > 0 && (
-                                  <div className="py-2 border-t border-slate-100 dark:border-slate-800 mt-2">
+                                  <div className="py-2 border-t border-theme-border mt-2">
                                     <div className="flex flex-wrap gap-2 justify-start pb-2">
                                       {(() => {
                                         const defaultTargets: { [key: string]: number } = { calories: 2000, saturatedFat: 15, sodium: 1200, addedSugar: 30, totalFat: 65, protein: 50, carbohydrates: 250, totalFibre: 30 };
@@ -1486,13 +1486,13 @@ export const FoodCard: React.FC<AgentCardProps & {
                                 {/* Recommendation */}
                                 <div className="space-y-1.5 pt-1">
                                   {group.recommendation && (
-                                    <p className="text-[13px] text-slate-700 dark:text-slate-300 leading-snug bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-md border border-slate-100 dark:border-slate-800">
+                                    <p className="text-[13px] text-theme-neutral leading-snug bg-slate-50 dark:bg-slate-800/50 p-2.5 rounded-md border border-theme-border">
                                       {group.recommendation}
                                     </p>
                                   )}
                                 </div>
                                                          {/* Items in this bucket */}
-                                 <div className="pt-2 border-t border-slate-100 dark:border-slate-800/50">
+                                 <div className="pt-2 border-t border-theme-border/50">
                                    {(() => {
                                      const scoutType = (msg.data?.scoutContentType || '').toLowerCase();
                                      const isMenuOrPoster = scoutType === 'text' || scoutType === 'menu_or_poster';
@@ -1626,7 +1626,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                 return Object.entries(categorizedItems).map(([category, itemsArr]: [string, {item: any, itemIdx: number}[]], catIdx) => (
                                                   <div key={catIdx} className="w-full flex flex-col gap-2">
                                                     {category !== "Uncategorized" && (
-                                                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide border-b border-slate-100 dark:border-slate-800/50 pb-1 mt-1">
+                                                      <div className="text-[11px] font-bold text-slate-500 uppercase tracking-wide border-b border-theme-border/50 pb-1 mt-1">
                                                         {category}
                                                       </div>
                                                     )}
@@ -1714,13 +1714,13 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                               isSelected 
                                                                 ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 ring-2 ring-indigo-500/50 shadow-md font-bold scale-[1.02]' 
                                                                 : isSelectingMode 
-                                                                  ? 'border-slate-200 dark:border-slate-800 bg-slate-50/20 dark:bg-slate-900/10 hover:border-indigo-400 hover:bg-indigo-50/20 hover:scale-[1.01]' 
+                                                                  ? 'border-theme-border bg-slate-50/20 dark:bg-slate-900/10 hover:border-indigo-400 hover:bg-indigo-50/20 hover:scale-[1.01]' 
                                                                   : 'border-slate-200/60 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/40 hover:border-indigo-500/50 hover:bg-indigo-500/5 dark:hover:bg-indigo-500/10 hover:shadow'
                                                             }`}
                                                             onClick={() => chipOnClick()}
                                                           >
                                                             <div className="flex flex-col gap-1 w-full">
-                                                              <span className={`text-[10.5px] lowercase font-semibold leading-tight break-words text-left ${isSelected ? 'text-indigo-700 dark:text-indigo-300 font-bold' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                              <span className={`text-[10.5px] lowercase font-semibold leading-tight break-words text-left ${isSelected ? 'text-indigo-700 dark:text-indigo-300 font-bold' : 'text-theme-neutral'}`}>
                                                                 {itemDisplayName}
                                                                 {(item.confidenceRating === 'Low' || item.confidenceRating === 'Medium') && (
                                                                   <span className="block text-[9px] font-medium text-amber-600 dark:text-amber-400 mt-1 italic">
@@ -1791,7 +1791,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                                         return (
                                                                           <div 
                                                                             key={sIdx} 
-                                                                            className="w-full rounded-md overflow-hidden border border-slate-200 dark:border-slate-800 cursor-pointer hover:opacity-90 hover:ring-1 hover:ring-indigo-400 transition-all bg-black/5 flex flex-col"
+                                                                            className="w-full rounded-md overflow-hidden border border-theme-border cursor-pointer hover:opacity-90 hover:ring-1 hover:ring-indigo-400 transition-all bg-black/5 flex flex-col"
                                                                             onClick={() => setSearchPreview({ groupKey: fullItemKey, index: sIdx })}
                                                                           >
                                                                             <div className="h-24 sm:h-32 w-full flex-shrink-0">
@@ -1809,9 +1809,9 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                                     </div>
                                                                   </div>
                                                                 ) : (
-                                                                  <div className="flex flex-col items-center justify-center py-4 gap-2 text-center text-slate-500 dark:text-slate-400">
+                                                                  <div className="flex flex-col items-center justify-center py-4 gap-2 text-center text-theme-text-secondary">
                                                                     <Search className="w-5 h-5 text-slate-300 dark:text-slate-600" />
-                                                                    <span className="text-[11px] font-semibold text-slate-600 dark:text-slate-300">No images found</span>
+                                                                    <span className="text-[11px] font-semibold text-theme-text-secondary">No images found</span>
                                                                     <span className="text-[9.5px] text-slate-400 max-w-[200px]">
                                                                       No web images could be retrieved for "{itemDisplayName}".
                                                                     </span>
@@ -1963,7 +1963,7 @@ export const FoodCard: React.FC<AgentCardProps & {
 
 
                   {msg.data?.pendingFoodLog && (
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden font-sans">
+                    <div className="bg-white dark:bg-slate-800 border border-theme-border rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden font-sans">
                       {msg.data?.pendingFoodLog.dietitianUpdateSentence && (
                         <div className="bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/50 rounded-xl p-3 text-left font-sans text-xs text-indigo-800 dark:text-indigo-300 mb-2 flex items-start gap-2">
                           <span className="text-sm">💬</span>
@@ -2003,7 +2003,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                         if (displayedScoutItems.length === 0) return null;
                         return (
                           <div className="mb-6 text-left">
-                            <div className="flex items-center justify-between mb-3 border-b border-slate-100 dark:border-slate-800/50 pb-2 font-sans">
+                            <div className="flex items-center justify-between mb-3 border-b border-theme-border/50 pb-2 font-sans">
                               <div className="flex items-center gap-2">
                                 <span className="text-[10.5px] font-bold text-indigo-500 dark:text-indigo-400">
                                   🔍 Meal composition
@@ -2041,7 +2041,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                {displayedScoutItems.map((item: any, i: number) => {
                                  if (displayAsMenu) {
                                    return (
-                                     <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 text-slate-700 dark:text-slate-300">
+                                     <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 text-theme-neutral">
                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                                        <span className="text-[10px] font-bold">
                                          {showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
@@ -2174,8 +2174,8 @@ export const FoodCard: React.FC<AgentCardProps & {
                         );
                       })()}
 
-                      <div className="flex flex-col items-start border-b border-slate-100 dark:border-slate-800/50 pb-3 gap-2 text-left">
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-sm font-display leading-tight">
+                      <div className="flex flex-col items-start border-b border-theme-border/50 pb-3 gap-2 text-left">
+                        <h4 className="font-bold text-theme-text text-sm font-display leading-tight">
                           {msg.data?.pendingFoodLog.name}
                         </h4>
                         <div className="flex flex-wrap items-center gap-2">
@@ -2187,19 +2187,19 @@ export const FoodCard: React.FC<AgentCardProps & {
                       </div>
 
                       {(msg.content || msg.data?.agentResult?.message) && (
-                        <div className="text-[11.5px] text-slate-700 dark:text-slate-300 font-sans leading-relaxed text-left py-2 border-b border-slate-100 dark:border-slate-800/50 whitespace-pre-line break-words">
+                        <div className="text-[11.5px] text-theme-neutral font-sans leading-relaxed text-left py-2 border-b border-theme-border/50 whitespace-pre-line break-words">
                           {formatMessageContent(msg.content || msg.data?.agentResult?.message, msg)}
                         </div>
                       )}
 
                       <div className="text-[11.5px] space-y-2 text-slate-800 dark:text-slate-100 font-medium text-left font-sans leading-relaxed">
-                        <p><strong className="text-slate-900 dark:text-white">{t.composition}:</strong> {msg.data?.pendingFoodLog.composition}</p>
+                        <p><strong className="text-theme-text">{t.composition}:</strong> {msg.data?.pendingFoodLog.composition}</p>
                         {msg.data?.pendingFoodLog.cookingMethod && (
                           <p className="text-slate-700 dark:text-slate-400 italic">{msg.data?.pendingFoodLog.cookingMethod}</p>
                         )}
-                        <p><strong className="text-slate-900 dark:text-white">{t.benefits}:</strong> {msg.data?.pendingFoodLog.benefits}</p>
-                        {msg.data?.pendingFoodLog.risks && <p><strong className="text-slate-900 dark:text-white">{t.risks}:</strong> {msg.data?.pendingFoodLog.risks}</p>}
-                        <p><strong className="text-slate-900 dark:text-white">{t.impact}:</strong> {msg.data?.pendingFoodLog.healthImpact}</p>
+                        <p><strong className="text-theme-text">{t.benefits}:</strong> {msg.data?.pendingFoodLog.benefits}</p>
+                        {msg.data?.pendingFoodLog.risks && <p><strong className="text-theme-text">{t.risks}:</strong> {msg.data?.pendingFoodLog.risks}</p>}
+                        <p><strong className="text-theme-text">{t.impact}:</strong> {msg.data?.pendingFoodLog.healthImpact}</p>
                       </div>
 
                       {/* Dynamic Top Nutrients badges driven by User Profile configuration */}
@@ -2330,12 +2330,12 @@ export const FoodCard: React.FC<AgentCardProps & {
                           </button>
                           
                           {expandedTables[msg.id] && (
-                            <div className="mt-3 space-y-4 shadow-inner bg-slate-50/50 dark:bg-slate-900/30 p-3 rounded-2xl border border-slate-100 dark:border-slate-800/50 animation-fade-in text-left">
+                            <div className="mt-3 space-y-4 shadow-inner bg-slate-50/50 dark:bg-slate-900/30 p-3 rounded-2xl border border-theme-border/50 animation-fade-in text-left">
                               {/* A. Components breakdown table */}
                               {msg.data?.pendingFoodLog.itemsBreakdown && msg.data?.pendingFoodLog.itemsBreakdown.length > 0 && (
-                                <div className="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
-                                  <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
-                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider font-sans">
+                                <div className="border border-theme-border/80 rounded-xl overflow-hidden bg-theme-bg-card shadow-sm">
+                                  <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/60 border-b border-theme-border flex items-center justify-between">
+                                    <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider font-sans">
                                       📊 Component Contribution
                                     </span>
                                     {displayedScoutItems.some((i: any) => i.originalName && i.originalName.toLowerCase() !== (i.keyword || "").toLowerCase()) && (
@@ -2354,7 +2354,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                   <div className="overflow-x-auto">
                                     <table className="w-full text-left border-collapse text-[11px]">
                                       <thead>
-                                        <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 text-slate-500 dark:text-slate-400 font-bold">
+                                        <tr className="border-b border-theme-border bg-slate-50 dark:bg-slate-800/30 text-theme-text-secondary font-bold">
                                           <th className="p-2">Item Name</th>
                                           <th className="p-2 text-right">Weight</th>
                                           <th className="p-2 text-right">Calories</th>
@@ -2422,9 +2422,9 @@ export const FoodCard: React.FC<AgentCardProps & {
                               
                               
                               {/* B. Full 31-nutrient table */}
-                              <div className="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
-                                <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
-                                  <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider font-sans">
+                              <div className="border border-theme-border/80 rounded-xl overflow-hidden bg-theme-bg-card shadow-sm">
+                                <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/60 border-b border-theme-border">
+                                  <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider font-sans">
                                     📋 Comprehensive Nutrient Values (31 Nutrients)
                                   </span>
                                 </div>
@@ -2440,7 +2440,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                           .map((nut) => {
                                             const val = msg.data?.pendingFoodLog?.nutrients?.[nut.key];
                                             return (
-                                              <div key={nut.key} className="flex justify-between py-0.5 text-slate-600 dark:text-slate-350 border-b border-slate-100 dark:border-slate-800/30 last:border-b-0 sm:even:border-l sm:even:pl-4">
+                                              <div key={nut.key} className="flex justify-between py-0.5 text-slate-600 dark:text-slate-350 border-b border-theme-border/30 last:border-b-0 sm:even:border-l sm:even:pl-4">
                                                 <span className="text-slate-500 font-sans">{nut.labels[profile?.language || 'en'] || nut.labels.en}:</span>
                                                 <span className="font-semibold text-slate-800 dark:text-slate-100">
                                                   {val !== undefined ? `${val} ${nut.unit}` : `--`}
@@ -2463,7 +2463,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                           .map((nut) => {
                                             const val = msg.data?.pendingFoodLog?.nutrients?.[nut.key];
                                             return (
-                                              <div key={nut.key} className="flex justify-between py-0.5 text-slate-600 dark:text-slate-350 border-b border-slate-100 dark:border-slate-800/30 last:border-b-0 sm:even:border-l sm:even:pl-4">
+                                              <div key={nut.key} className="flex justify-between py-0.5 text-slate-600 dark:text-slate-350 border-b border-theme-border/30 last:border-b-0 sm:even:border-l sm:even:pl-4">
                                                 <span className="text-slate-500 font-sans">{nut.labels[profile?.language || 'en'] || nut.labels.en}:</span>
                                                 <span className="font-semibold text-slate-800 dark:text-slate-100">
                                                   {val !== undefined ? `${val} ${nut.unit}` : `--`}

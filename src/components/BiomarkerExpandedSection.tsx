@@ -194,7 +194,7 @@ export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> =
   };
 
   return (
-    <div className="p-4 bg-slate-50 dark:bg-slate-800/40 border-t border-slate-100 dark:border-slate-800/60 text-sm space-y-4">
+    <div className="p-4 bg-slate-50 dark:bg-slate-800/40 border-t border-theme-border/60 text-sm space-y-4">
       {/* Medical Insight block directly shown at the top of the expanded card */}
       <div className="p-4 bg-indigo-50/30 dark:bg-indigo-950/10 border border-indigo-100/50 dark:border-indigo-900/30 rounded-2xl">
         <div className="flex items-center gap-1.5 mb-2 text-indigo-600 dark:text-indigo-400 font-bold text-xs uppercase tracking-wider">
@@ -207,12 +207,12 @@ export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> =
       </div>
 
       {/* Collapsible More Details Accordion */}
-      <div className="border border-slate-200/60 dark:border-slate-800/60 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
+      <div className="border border-slate-200/60 dark:border-slate-800/60 rounded-xl overflow-hidden bg-theme-bg-card">
         <button
           onClick={() => setIsMoreDetailsExpanded(!isMoreDetailsExpanded)}
           className="w-full flex items-center justify-between p-3 bg-slate-50/50 dark:bg-slate-900/40 hover:bg-slate-100/50 dark:hover:bg-slate-850/45 cursor-pointer select-none transition-colors"
         >
-          <span className="text-xs font-bold text-slate-700 dark:text-slate-300">
+          <span className="text-xs font-bold text-theme-neutral">
             More Details
           </span>
           <span className="text-slate-400">
@@ -225,12 +225,12 @@ export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> =
         </button>
 
         {isMoreDetailsExpanded && (
-          <div className="p-4 border-t border-slate-100 dark:border-slate-800/40 space-y-4">
+          <div className="p-4 border-t border-theme-border/40 space-y-4">
             {/* Description */}
             {description && (
               <div>
                 <span className="block text-[10px] font-bold text-slate-450 uppercase tracking-wider mb-1">Description</span>
-                <p className="text-slate-600 dark:text-slate-300 text-xs leading-relaxed font-medium font-sans">
+                <p className="text-theme-text-secondary text-xs leading-relaxed font-medium font-sans">
                   {description}
                 </p>
               </div>
@@ -254,14 +254,14 @@ export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> =
             {def.benefitRisk && (
               <div className="p-3 bg-slate-50 dark:bg-slate-850/30 border border-slate-200/50 dark:border-slate-800/45 rounded-xl">
                 <span className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1 font-sans">Risk Assessment & Benefits</span>
-                <p className="text-slate-600 dark:text-slate-300 text-xs leading-relaxed font-medium font-sans">
+                <p className="text-theme-text-secondary text-xs leading-relaxed font-medium font-sans">
                   {def.benefitRisk}
                 </p>
               </div>
             )}
 
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/40">
+            <div className="flex flex-col sm:flex-row gap-2 pt-2 border-t border-theme-border/40">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -315,7 +315,7 @@ export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> =
                       e.stopPropagation();
                       setShowDeleteConfirm(false);
                     }}
-                    className="flex-1 py-2 px-3 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
+                    className="flex-1 py-2 px-3 bg-slate-100 dark:bg-slate-800 text-theme-neutral font-bold text-xs rounded-xl hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors cursor-pointer"
                   >
                     Cancel
                   </button>
@@ -331,7 +331,7 @@ export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> =
           <h4 className="text-xs font-bold text-slate-500 mb-2 flex items-center gap-1.5 uppercase tracking-wider">
             <LineChartIcon className="w-3.5 h-3.5" /> Trend
           </h4>
-          <div className="h-32 w-full bg-white dark:bg-slate-900 rounded-xl p-2 border border-slate-200 dark:border-slate-750">
+          <div className="h-32 w-full bg-theme-bg-card rounded-xl p-2 border border-slate-200 dark:border-slate-750">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={historyData}>
                 <XAxis dataKey="date" hide />
@@ -361,7 +361,7 @@ export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> =
               const testDetail = fullLog?.tests?.find(t => t.key === def.key);
               
               return (
-                <div key={h.logId} className="flex flex-col bg-white dark:bg-slate-900 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-800 space-y-1.5">
+                <div key={h.logId} className="flex flex-col bg-theme-bg-card px-3 py-2 rounded-lg border border-theme-border space-y-1.5">
                   <div className="flex items-center justify-between">
                     {editingLogId === h.logId ? (
                       <input 
@@ -421,7 +421,7 @@ export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> =
                   
                   {/* Additional extracted test fields if present */}
                   {testDetail && (
-                    <div className="text-[10px] space-y-1 text-slate-500 dark:text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800/40">
+                    <div className="text-[10px] space-y-1 text-theme-text-secondary pt-1 border-t border-theme-border/40">
                       {testDetail.originalTestName && testDetail.originalTestName !== def.name && (
                         <div>
                           <span className="font-medium">Original Name:</span> <span className="italic">{testDetail.originalTestName}</span>

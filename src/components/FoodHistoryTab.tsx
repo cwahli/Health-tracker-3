@@ -439,7 +439,7 @@ export default function FoodHistoryTab({
             placeholder="Search logged food items..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-2xl pl-10 pr-28 py-3 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm"
+            className="w-full bg-theme-bg-card border border-theme-border/80 rounded-2xl pl-10 pr-28 py-3 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 shadow-sm"
           />
           <button
             type="button"
@@ -454,15 +454,15 @@ export default function FoodHistoryTab({
       {/* Manual Entry Form Dialog (Modal) */}
       {isManualEntryOpen && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex flex-col p-0 animation-fade-in font-sans">
-          <div className="w-full h-full bg-white dark:bg-slate-900 flex flex-col shadow-2xl overflow-hidden">
+          <div className="w-full h-full bg-theme-bg-card flex flex-col shadow-2xl overflow-hidden">
             {/* Modal Header */}
-            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3 sticky top-0 bg-white dark:bg-slate-900 z-10 shrink-0">
+            <div className="px-5 py-4 border-b border-theme-border flex flex-col gap-3 sticky top-0 bg-theme-bg-card z-10 shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600">
                     <Edit2 className="w-4 h-4" />
                   </div>
-                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm">Manual Food Entry</h3>
+                  <h3 className="font-bold text-theme-text text-sm">Manual Food Entry</h3>
                 </div>
                 <button
                   type="button"
@@ -491,7 +491,7 @@ export default function FoodHistoryTab({
                     placeholder="e.g. Avocado Toast"
                     value={manualLog.name || ''}
                     onChange={(e) => setManualLog({ ...manualLog, name: e.target.value })}
-                    className="w-full text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                    className="w-full text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-xl px-3 py-2 text-theme-text focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -500,7 +500,7 @@ export default function FoodHistoryTab({
                     type="date"
                     value={manualLog.date || ''}
                     onChange={(e) => setManualLog({ ...manualLog, date: e.target.value })}
-                    className="w-full text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                    className="w-full text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-xl px-3 py-2 text-theme-text focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
                   />
                 </div>
               </div>
@@ -513,7 +513,7 @@ export default function FoodHistoryTab({
                     placeholder="e.g. 150"
                     value={manualLog.weightGrams || ''}
                     onChange={(e) => updateManualField('weightGrams', Number(e.target.value) || 0)}
-                    className="w-full text-xs font-mono bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                    className="w-full text-xs font-mono bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-xl px-3 py-2 text-theme-text focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -523,7 +523,7 @@ export default function FoodHistoryTab({
                     placeholder="e.g. 1 plate, 1 slice"
                     value={manualLog.quantity || ''}
                     onChange={(e) => updateManualField('quantity', e.target.value)}
-                    className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                    className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-xl px-3 py-2 text-theme-text focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
                   />
                 </div>
                 <div>
@@ -535,7 +535,7 @@ export default function FoodHistoryTab({
                     placeholder="e.g. 1, 1.5, 2"
                     value={manualLog.consumedAmount || ''}
                     onChange={(e) => updateManualField('consumedAmount', Number(e.target.value) || 0)}
-                    className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
+                    className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-xl px-3 py-2 text-theme-text focus:ring-2 focus:ring-indigo-500/20 focus:outline-none"
                   />
                 </div>
               </div>
@@ -547,7 +547,7 @@ export default function FoodHistoryTab({
                   placeholder="e.g. Avocado, whole wheat sourdough, pinch of red pepper flakes, olive oil"
                   value={manualLog.composition || ''}
                   onChange={(e) => setManualLog({ ...manualLog, composition: e.target.value })}
-                  className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500/20 focus:outline-none resize-none"
+                  className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-xl px-3 py-2 text-theme-text focus:ring-2 focus:ring-indigo-500/20 focus:outline-none resize-none"
                 />
               </div>
 
@@ -566,8 +566,8 @@ export default function FoodHistoryTab({
                             ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-500 text-emerald-600 dark:text-emerald-400 shadow-sm'
                             : rec === 'bad'
                               ? 'bg-rose-50 dark:bg-rose-950/30 border-rose-500 text-rose-600 dark:text-rose-400 shadow-sm'
-                              : 'bg-slate-100 dark:bg-slate-800 border-slate-400 text-slate-600 dark:text-slate-300 shadow-sm'
-                          : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-850'
+                              : 'bg-slate-100 dark:bg-slate-800 border-slate-400 text-theme-text-secondary shadow-sm'
+                          : 'bg-theme-bg-card border-theme-border text-theme-text-secondary hover:bg-slate-50 dark:hover:bg-slate-850'
                       }`}
                     >
                       {rec}
@@ -661,9 +661,9 @@ export default function FoodHistoryTab({
               </div>
 
               {/* Core 30 Nutrients editing inside Manual Entry */}
-              <div className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-slate-50/50 dark:bg-slate-900/30">
-                <div className="p-3 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between gap-2 bg-white dark:bg-slate-950">
-                  <label className="text-xs font-bold text-slate-600 dark:text-slate-400">Scale Portion:</label>
+              <div className="border border-theme-border rounded-2xl overflow-hidden bg-slate-50/50 dark:bg-slate-900/30">
+                <div className="p-3 border-b border-theme-border flex items-center justify-between gap-2 bg-white dark:bg-slate-950">
+                  <label className="text-xs font-bold text-theme-text-secondary">Scale Portion:</label>
                   <div className="flex items-center gap-1">
                     <span className="text-xs text-slate-400 font-mono">x</span>
                     <input
@@ -672,7 +672,7 @@ export default function FoodHistoryTab({
                       min="0.01"
                       value={manualMultiplier}
                       onChange={(e) => setManualMultiplier(e.target.value)}
-                      className="w-16 text-right px-2 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
+                      className="w-16 text-right px-2 py-1 bg-slate-50 dark:bg-slate-900 border border-theme-border rounded-lg text-xs font-mono font-bold text-theme-text focus:outline-none focus:ring-2 focus:ring-indigo-500/50"
                     />
                     <button
                       type="button"
@@ -697,7 +697,7 @@ export default function FoodHistoryTab({
                   </div>
                 </div>
                 <div className="p-3 bg-slate-100/50 dark:bg-slate-850 border-b border-slate-200 dark:border-slate-850">
-                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Nutrients (31 Nutrients)</span>
+                  <span className="text-xs font-bold text-theme-neutral">Nutrients (31 Nutrients)</span>
                 </div>
                 <div className="p-3 space-y-4 max-h-80 overflow-y-auto">
                   <div>
@@ -727,7 +727,7 @@ export default function FoodHistoryTab({
                                       };
                                       setManualLog({ ...manualLog, nutrients: updatedNutrients as NutrientBreakdown });
                                     }}
-                                    className="w-14 text-right px-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-xs font-mono font-bold text-slate-950 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    className="w-14 text-right px-1 bg-white dark:bg-slate-800 border border-theme-border rounded text-xs font-mono font-bold text-slate-950 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                   />
                                   <span className="text-[10px] text-slate-400 font-mono w-5">{nut.unit}</span>
                                 </div>
@@ -765,7 +765,7 @@ export default function FoodHistoryTab({
                                       };
                                       setManualLog({ ...manualLog, nutrients: updatedNutrients as NutrientBreakdown });
                                     }}
-                                    className="w-14 text-right px-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-xs font-mono font-bold text-slate-950 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                                    className="w-14 text-right px-1 bg-white dark:bg-slate-800 border border-theme-border rounded text-xs font-mono font-bold text-slate-950 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
                                   />
                                   <span className="text-[10px] text-slate-400 font-mono w-5">{nut.unit}</span>
                                 </div>
@@ -780,7 +780,7 @@ export default function FoodHistoryTab({
             </div>
 
             {/* Modal Footer */}
-            <div className="p-5 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2 bg-slate-50 dark:bg-slate-900/40">
+            <div className="p-5 border-t border-theme-border flex justify-end gap-2 bg-slate-50 dark:bg-slate-900/40">
               <button
                 type="button"
                 onClick={() => setIsManualEntryOpen(false)}
@@ -801,9 +801,9 @@ export default function FoodHistoryTab({
       )}
 
       {filteredLogs.length === 0 ? (
-        <div id="food-history-empty" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-8 text-center shadow-sm mx-4">
+        <div id="food-history-empty" className="bg-theme-bg-card border border-theme-border/80 rounded-3xl p-8 text-center shadow-sm mx-4">
           <ImageIcon className="w-10 h-10 text-slate-300 dark:text-slate-700 mx-auto mb-3" />
-          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+          <p className="text-xs text-theme-text-secondary leading-relaxed font-medium">
             {t.emptyHistory}
           </p>
         </div>
@@ -820,7 +820,7 @@ export default function FoodHistoryTab({
               <div
                 key={log.id}
                 id={`food-log-item-${log.id}`}
-                className="overflow-hidden transition-all border-b border-slate-200 dark:border-slate-800 pb-4 mb-4"
+                className="overflow-hidden transition-all border-b border-theme-border pb-4 mb-4"
               >
                 {/* Large visual rendering of attached meal images */}
                 {(resolvedImgs.length > 0 || resolvedImg) ? (
@@ -836,7 +836,7 @@ export default function FoodHistoryTab({
                 <div className="pt-4 space-y-3 px-4">
                   {isEditing ? (
                     <div className="space-y-4">
-                      <div className="border-b border-slate-100 dark:border-slate-800 pb-2">
+                      <div className="border-b border-theme-border pb-2">
                         <h4 className="text-xs font-mono uppercase tracking-wider text-slate-400 font-bold text-left">Editing Food Log Details</h4>
                       </div>
 
@@ -849,7 +849,7 @@ export default function FoodHistoryTab({
                               type="text"
                               value={editLogState?.name || ''}
                               onChange={(e) => updateField('name', e.target.value)}
-                              className="w-full text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white"
+                              className="w-full text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-xl px-3 py-2 text-theme-text"
                             />
                           </div>
                           <div>
@@ -858,7 +858,7 @@ export default function FoodHistoryTab({
                               type="date"
                               value={editLogState?.date ? editLogState.date.substring(0, 10) : ''}
                               onChange={(e) => updateField('date', e.target.value)}
-                              className="w-full text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white"
+                              className="w-full text-xs font-semibold bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-xl px-3 py-2 text-theme-text"
                             />
                           </div>
                         </div>
@@ -870,7 +870,7 @@ export default function FoodHistoryTab({
                               type="number"
                               value={editLogState?.weightGrams ?? ''}
                               onChange={(e) => updateField('weightGrams', Number(e.target.value) || 0)}
-                              className="w-full text-xs font-mono bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white"
+                              className="w-full text-xs font-mono bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-xl px-3 py-2 text-theme-text"
                             />
                           </div>
                           <div>
@@ -879,7 +879,7 @@ export default function FoodHistoryTab({
                               type="text"
                               value={editLogState?.quantity || ''}
                               onChange={(e) => updateField('quantity', e.target.value)}
-                              className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white"
+                              className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-xl px-3 py-2 text-theme-text"
                             />
                           </div>
                           <div>
@@ -890,7 +890,7 @@ export default function FoodHistoryTab({
                               min="0"
                               value={editLogState?.consumedAmount || ''}
                               onChange={(e) => updateField('consumedAmount', Number(e.target.value) || 0)}
-                              className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white"
+                              className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-xl px-3 py-2 text-theme-text"
                             />
                           </div>
                         </div>
@@ -901,7 +901,7 @@ export default function FoodHistoryTab({
                             rows={2}
                             value={editLogState?.composition || ''}
                             onChange={(e) => updateField('composition', e.target.value)}
-                            className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white"
+                            className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-xl px-3 py-2 text-theme-text"
                           />
                         </div>
 
@@ -1014,7 +1014,7 @@ export default function FoodHistoryTab({
                               value={editLogState?.recommendation || ''}
                               onChange={(e) => updateField('recommendation', e.target.value)}
                               placeholder="e.g., Heart-healthy with minimal oil and low-sodium broth"
-                              className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500/30 font-semibold"
+                              className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-xl px-3 py-2 text-theme-text focus:outline-none focus:ring-1 focus:ring-indigo-500/30 font-semibold"
                             />
                           </div>
                         </div>
@@ -1025,7 +1025,7 @@ export default function FoodHistoryTab({
                             rows={2}
                             value={editLogState?.benefits || ''}
                             onChange={(e) => updateField('benefits', e.target.value)}
-                            className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white"
+                            className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-xl px-3 py-2 text-theme-text"
                           />
                         </div>
 
@@ -1035,7 +1035,7 @@ export default function FoodHistoryTab({
                             rows={2}
                             value={editLogState?.risks || ''}
                             onChange={(e) => updateField('risks', e.target.value)}
-                            className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white"
+                            className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-xl px-3 py-2 text-theme-text"
                           />
                         </div>
 
@@ -1045,7 +1045,7 @@ export default function FoodHistoryTab({
                             rows={2}
                             value={editLogState?.healthImpact || ''}
                             onChange={(e) => updateField('healthImpact', e.target.value)}
-                            className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-slate-900 dark:text-white"
+                            className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-xl px-3 py-2 text-theme-text"
                           />
                         </div>
                       </div>
@@ -1062,7 +1062,7 @@ export default function FoodHistoryTab({
                               min="0.01"
                               value={editMultiplier}
                               onChange={(e) => setEditMultiplier(e.target.value)}
-                              className="w-14 text-right px-1 py-0.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded text-xs font-mono font-bold text-slate-900 dark:text-white focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                              className="w-14 text-right px-1 py-0.5 bg-theme-bg-card border border-theme-border rounded text-xs font-mono font-bold text-theme-text focus:outline-none focus:ring-1 focus:ring-indigo-500"
                             />
                             <button
                               type="button"
@@ -1107,7 +1107,7 @@ export default function FoodHistoryTab({
                                             step="any"
                                             value={val === 0 ? '' : val}
                                             onChange={(e) => updateNutrient(nut.key as any, Number(e.target.value) || 0)}
-                                            className="w-14 text-right px-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-xs font-mono font-bold text-slate-950 dark:text-slate-100"
+                                            className="w-14 text-right px-1 bg-white dark:bg-slate-800 border border-theme-border rounded text-xs font-mono font-bold text-slate-950 dark:text-slate-100"
                                           />
                                           <span className="text-[10px] text-slate-400 font-mono w-5">{nut.unit}</span>
                                         </div>
@@ -1138,7 +1138,7 @@ export default function FoodHistoryTab({
                                             step="any"
                                             value={val === 0 ? '' : val}
                                             onChange={(e) => updateNutrient(nut.key as any, Number(e.target.value) || 0)}
-                                            className="w-14 text-right px-1 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded text-xs font-mono font-bold text-slate-950 dark:text-slate-100"
+                                            className="w-14 text-right px-1 bg-white dark:bg-slate-800 border border-theme-border rounded text-xs font-mono font-bold text-slate-950 dark:text-slate-100"
                                           />
                                           <span className="text-[10px] text-slate-400 font-mono w-5">{nut.unit}</span>
                                         </div>
@@ -1181,7 +1181,7 @@ export default function FoodHistoryTab({
                     <>
                       <div className="flex justify-between items-start">
                         <div className="min-w-0 flex-1 text-left">
-                          <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm truncate">
+                          <h3 className="font-bold text-theme-text text-sm truncate">
                             {log.name}
                           </h3>
                           
@@ -1216,7 +1216,7 @@ export default function FoodHistoryTab({
                         </div>
                       </div>
 
-                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium text-left">
+                      <p className="text-xs text-theme-text-secondary leading-relaxed font-medium text-left">
                         {log.healthImpact}
                       </p>
 
@@ -1301,22 +1301,22 @@ export default function FoodHistoryTab({
 
                       {/* Detailed 30 Nutrients Panel & AI Diagnostics */}
                       {isExpanded && (
-                        <div className="space-y-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 animation-slide-down">
+                        <div className="space-y-4 pt-3 border-t border-theme-border/60 animation-slide-down">
                           {/* Weight & Portion Details inside Show-Hide */}
                           <div className="flex flex-wrap items-center gap-3 text-xs bg-slate-50 dark:bg-slate-900/40 rounded-xl p-3 text-left">
-                            <span className="text-slate-500 dark:text-slate-400 font-medium">Weight:</span>
+                            <span className="text-theme-text-secondary font-medium">Weight:</span>
                             <span className="font-semibold text-slate-850 dark:text-slate-200">{log.weightGrams}g</span>
                             {log.quantity && (
                               <>
                                 <span className="text-slate-300 dark:text-slate-700">|</span>
-                                <span className="text-slate-500 dark:text-slate-400 font-medium">Serving Size:</span>
+                                <span className="text-theme-text-secondary font-medium">Serving Size:</span>
                                 <span className="font-semibold text-slate-850 dark:text-slate-200">{log.quantity}</span>
                               </>
                             )}
                             {log.consumedAmount && log.consumedAmount !== 1 && (
                               <>
                                 <span className="text-slate-300 dark:text-slate-700">|</span>
-                                <span className="text-slate-500 dark:text-slate-400 font-medium">Consumed:</span>
+                                <span className="text-theme-text-secondary font-medium">Consumed:</span>
                                 <span className="font-semibold text-emerald-600 dark:text-emerald-400">{log.consumedAmount}x</span>
                               </>
                             )}
@@ -1374,7 +1374,7 @@ export default function FoodHistoryTab({
                                     .map((nut) => {
                                       const val = log.nutrients ? log.nutrients[nut.key] : undefined;
                                       return (
-                                        <div key={nut.key} className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800/20 text-left">
+                                        <div key={nut.key} className="flex justify-between py-1 border-b border-theme-border/20 text-left">
                                           <span className="text-slate-400 font-medium truncate max-w-[120px]">
                                             {nut.labels[profile.language] || nut.labels.en}
                                           </span>
@@ -1398,7 +1398,7 @@ export default function FoodHistoryTab({
                                     .map((nut) => {
                                       const val = log.nutrients ? log.nutrients[nut.key] : undefined;
                                       return (
-                                        <div key={nut.key} className="flex justify-between py-1 border-b border-slate-100 dark:border-slate-800/20 text-left">
+                                        <div key={nut.key} className="flex justify-between py-1 border-b border-theme-border/20 text-left">
                                           <span className="text-slate-400 font-medium truncate max-w-[120px]">
                                             {nut.labels[profile.language] || nut.labels.en}
                                           </span>
@@ -1426,16 +1426,16 @@ export default function FoodHistoryTab({
                               )}
 
                               {Array.isArray(log.itemsBreakdown) && log.itemsBreakdown.length > 0 && (
-                                <div className="border border-slate-200 dark:border-slate-800/80 rounded-xl overflow-hidden bg-white dark:bg-slate-900 shadow-sm">
-                                  <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/60 border-b border-slate-200 dark:border-slate-800">
-                                    <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+                                <div className="border border-theme-border/80 rounded-xl overflow-hidden bg-theme-bg-card shadow-sm">
+                                  <div className="px-3 py-1.5 bg-slate-50 dark:bg-slate-800/60 border-b border-theme-border">
+                                    <span className="text-[10px] font-bold text-theme-text-secondary uppercase tracking-wider">
                                       📊 Component Contribution
                                     </span>
                                   </div>
                                   <div className="overflow-x-auto">
                                     <table className="w-full text-left border-collapse text-[11px]">
                                       <thead>
-                                        <tr className="border-b border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/30 text-slate-500 dark:text-slate-400 font-bold">
+                                        <tr className="border-b border-theme-border bg-slate-50 dark:bg-slate-800/30 text-theme-text-secondary font-bold">
                                           <th className="p-2">Item Name</th>
                                           <th className="p-2 text-right">Weight</th>
                                           <th className="p-2 text-right">Calories</th>
@@ -1454,7 +1454,7 @@ export default function FoodHistoryTab({
                                           return (
                                             <tr 
                                               key={itemIdx} 
-                                              className="border-b last:border-b-0 border-slate-100 dark:border-slate-800 text-slate-750 dark:text-slate-200 font-medium hover:bg-slate-50 dark:hover:bg-slate-800/20"
+                                              className="border-b last:border-b-0 border-theme-border text-slate-750 dark:text-slate-200 font-medium hover:bg-slate-50 dark:hover:bg-slate-800/20"
                                             >
                                               <td className="p-2 font-semibold text-xs leading-normal whitespace-normal break-words max-w-[180px]" title={item.name}>
                                                 {item.name}
@@ -1499,7 +1499,7 @@ export default function FoodHistoryTab({
               >
                 Previous
               </button>
-              <span className="text-sm font-medium text-slate-500 dark:text-slate-400">
+              <span className="text-sm font-medium text-theme-text-secondary">
                 Page {currentPage} of {Math.ceil(filteredLogs.length / itemsPerPage)}
               </span>
               <button 

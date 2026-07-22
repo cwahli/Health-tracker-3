@@ -1069,7 +1069,7 @@ export default function InsightsTab({
       <div className="mt-3">
         <button 
           onClick={() => toggleAgentHistory(agentType)}
-          className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
+          className="text-[11px] text-theme-text-secondary font-medium flex items-center gap-1 hover:text-slate-700 dark:hover:text-slate-200 transition-colors cursor-pointer"
         >
           {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
           Last analysis on {dateObj.toLocaleDateString()} ({timeStr})
@@ -1077,7 +1077,7 @@ export default function InsightsTab({
         {isExpanded && (
           <div className="mt-2 space-y-2">
             {prevAnalyses.map(item => (
-              <div key={item.id} className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-xl relative group">
+              <div key={item.id} className="p-3 bg-slate-50 dark:bg-slate-800/40 border border-theme-border rounded-xl relative group">
                 <p className="text-[10px] font-bold text-slate-400 mb-1">{new Date(item.date).toLocaleString()}</p>
                 {['agent1', 'agent2', 'agent3', 'agent4'].includes(agentType) && item.result ? (
                   <div className="mt-2">
@@ -1108,24 +1108,24 @@ export default function InsightsTab({
                   </div>
                 ) : agentType === 'data_accuracy' ? (
                   <div className="mt-2 space-y-2 text-xs text-left">
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-2.5 rounded-lg">
-                      <p className="font-semibold text-slate-500 dark:text-slate-400">User Input:</p>
+                    <div className="bg-theme-bg-card border border-theme-border p-2.5 rounded-lg">
+                      <p className="font-semibold text-theme-text-secondary">User Input:</p>
                       <p className="text-slate-800 dark:text-slate-200 mt-1 italic whitespace-pre-wrap">"{item.result?.inputText}"</p>
                     </div>
-                    <div className="bg-indigo-50/50 dark:bg-indigo-950/15 border border-indigo-100/50 dark:border-indigo-900/30 p-2.5 rounded-lg text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-wrap">
+                    <div className="bg-indigo-50/50 dark:bg-indigo-950/15 border border-indigo-100/50 dark:border-indigo-900/30 p-2.5 rounded-lg text-theme-neutral leading-relaxed whitespace-pre-wrap">
                       <p className="font-semibold text-indigo-800 dark:text-indigo-400 mb-1">Agent Explanation:</p>
                       {item.result?.explanation}
                     </div>
                   </div>
                 ) : (
-                  <div className={`text-[10px] text-slate-700 dark:text-slate-300 font-mono overflow-auto ${agentType === 'agent1' ? 'max-h-96' : 'max-h-32'}`}>
+                  <div className={`text-[10px] text-theme-neutral font-mono overflow-auto ${agentType === 'agent1' ? 'max-h-96' : 'max-h-32'}`}>
                     <pre>{typeof item.result === 'string' ? item.result : (() => { try { return JSON.stringify(item.result, null, 2); } catch (e) { return String(item.result); } })()}</pre>
                   </div>
                 )}
                 {onDeleteAnalysis && (
                   <button
                     onClick={(e) => { e.stopPropagation(); onDeleteAnalysis(item.id); }}
-                    className="absolute top-2 right-2 p-1.5 text-slate-400 hover:text-red-500 transition-opacity cursor-pointer bg-white dark:bg-slate-900 rounded-lg shadow-sm border border-slate-200 dark:border-slate-800"
+                    className="absolute top-2 right-2 p-1.5 text-slate-400 hover:text-red-500 transition-opacity cursor-pointer bg-theme-bg-card rounded-lg shadow-sm border border-theme-border"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                   </button>
@@ -1396,7 +1396,7 @@ export default function InsightsTab({
     const isSpecialUser = profile?.email?.toLowerCase() === 'chiwah.liu@gmail.com' || profile?.email?.toLowerCase() === 'cwah.liu@gmail.com';
 
     return (
-      <div className="space-y-10 pb-40 animation-fade-in max-w-md mx-auto px-3 mt-4 font-sans text-slate-900 dark:text-slate-100">
+      <div className="space-y-10 pb-40 animation-fade-in max-w-md mx-auto px-3 mt-4 font-sans text-theme-text">
         
         {/* Draft Heading Alert */}
         <div className="space-y-3 relative overflow-hidden">
@@ -1404,21 +1404,21 @@ export default function InsightsTab({
             <Sparkles className="w-5 h-5 text-amber-500 animate-pulse" />
             <span className="text-[10px] font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200/20 px-2 py-0.5 rounded-full">Prevention Draft</span>
           </div>
-          <h2 className="text-xl font-extrabold tracking-tight font-display text-slate-900 dark:text-slate-100 leading-tight">Interactive Target Review</h2>
-          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
+          <h2 className="text-xl font-extrabold tracking-tight font-display text-theme-text leading-tight">Interactive Target Review</h2>
+          <p className="text-xs text-theme-text-secondary leading-relaxed">
             Our preventative algorithms generated customized clinical guidelines tailored specifically to your biochemistry. Please review and approve these targets to sync them directly to your dashboard.
           </p>
         </div>
 
         {/* SECTION 1: Data Taken Into Account */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800/50 pb-3">
+          <div className="flex items-center gap-2 border-b border-theme-border/50 pb-3">
             <Database className="w-4 h-4 text-indigo-600" />
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 font-display">1. Source Clinical Data Analyzed</h3>
+            <h3 className="text-sm font-bold text-theme-text font-display">1. Source Clinical Data Analyzed</h3>
           </div>
           
           <div className="grid grid-cols-2 gap-3 text-xs">
-            <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800/20">
+            <div className="p-3 bg-theme-bg rounded-2xl border border-theme-border/20">
               <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">User Profile</span>
               <span className="font-semibold block">{profile.age}yo, {profile.ethnicity || 'Unknown Ethnicity'}</span>
               <span className="text-[10px] text-slate-500 mt-0.5 block">{profile.weight} kg | {profile.height} cm</span>
@@ -1429,14 +1429,14 @@ export default function InsightsTab({
               )}
             </div>
 
-            <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800/20">
+            <div className="p-3 bg-theme-bg rounded-2xl border border-theme-border/20">
               <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Nutrition Inputs</span>
               <span className="font-semibold block">{foodLogs.length} logged entries</span>
               <span className="text-[10px] text-slate-500 mt-0.5 block">Recent eating patterns</span>
             </div>
           </div>
 
-          <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800/20 space-y-2.5">
+          <div className="p-4 bg-theme-bg rounded-2xl border border-theme-border/20 space-y-2.5">
             <div className="flex items-center justify-between">
               <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">Checked Biomarker Values</span>
               <span className="text-[10px] text-slate-400">{Object.keys(biomarkers).length} logged</span>
@@ -1450,7 +1450,7 @@ export default function InsightsTab({
                 </summary>
                 <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-center text-[11px]">
                   {Object.entries(biomarkers).map(([k, v]) => (
-                    <div key={k} className="py-1 px-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-150 dark:border-slate-800/60 overflow-hidden">
+                    <div key={k} className="py-1 px-2 bg-theme-bg-card rounded-lg border border-slate-150 dark:border-slate-800/60 overflow-hidden">
                       <span className="block text-[9px] text-slate-400 font-semibold truncate" title={k}>{k.replace(/_/g, ' ').toUpperCase()}</span>
                       <span className="font-bold text-indigo-600 font-mono">
                         {v}
@@ -1473,29 +1473,29 @@ export default function InsightsTab({
 
         {/* SECTION 2: Proposed Daily Nutrient Targets */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800/50 pb-3">
+          <div className="flex items-center gap-2 border-b border-theme-border/50 pb-3">
             <Activity className="w-4 h-4 text-indigo-600" />
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 font-display">2. Proposed Nutrient Recommendations</h3>
+            <h3 className="text-sm font-bold text-theme-text font-display">2. Proposed Nutrient Recommendations</h3>
           </div>
 
           <div className="space-y-2.5">
-            <div className="flex items-center justify-between text-xs py-2 px-3 bg-slate-50 dark:bg-slate-950 rounded-xl">
+            <div className="flex items-center justify-between text-xs py-2 px-3 bg-theme-bg rounded-xl">
               <span className="font-semibold text-slate-700 dark:text-slate-350">Calories</span>
-              <span className="font-mono font-bold text-slate-900 dark:text-white">{draftReport.dailyNutrientTargets.calories || '1,800 kcal'}</span>
+              <span className="font-mono font-bold text-theme-text">{draftReport.dailyNutrientTargets.calories || '1,800 kcal'}</span>
             </div>
-            <div className="flex items-center justify-between text-xs py-2 px-3 bg-slate-50 dark:bg-slate-950 rounded-xl">
+            <div className="flex items-center justify-between text-xs py-2 px-3 bg-theme-bg rounded-xl">
               <span className="font-semibold text-slate-700 dark:text-slate-350">Saturated Fat</span>
               <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{draftReport.dailyNutrientTargets.saturatedFat || 'under 15 g'}</span>
             </div>
-            <div className="flex items-center justify-between text-xs py-2 px-3 bg-slate-50 dark:bg-slate-950 rounded-xl">
+            <div className="flex items-center justify-between text-xs py-2 px-3 bg-theme-bg rounded-xl">
               <span className="font-semibold text-slate-700 dark:text-slate-350">Sodium</span>
               <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{draftReport.dailyNutrientTargets.sodium || 'under 1,200 mg'}</span>
             </div>
-            <div className="flex items-center justify-between text-xs py-2 px-3 bg-slate-50 dark:bg-slate-950 rounded-xl">
+            <div className="flex items-center justify-between text-xs py-2 px-3 bg-theme-bg rounded-xl">
               <span className="font-semibold text-slate-700 dark:text-slate-350">Protein</span>
-              <span className="font-mono font-bold text-slate-900 dark:text-white">{draftReport.dailyNutrientTargets.protein || '90-100 g'}</span>
+              <span className="font-mono font-bold text-theme-text">{draftReport.dailyNutrientTargets.protein || '90-100 g'}</span>
             </div>
-            <div className="flex items-center justify-between text-xs py-2 px-3 bg-slate-50 dark:bg-slate-950 rounded-xl">
+            <div className="flex items-center justify-between text-xs py-2 px-3 bg-theme-bg rounded-xl">
               <span className="font-semibold text-slate-700 dark:text-slate-350">Soluble Fibre</span>
               <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{draftReport.dailyNutrientTargets.solubleFibre || '10-15 g'}</span>
             </div>
@@ -1504,9 +1504,9 @@ export default function InsightsTab({
 
         {/* SECTION 3: Action Plan / What Target User Should Do */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800/50 pb-3">
+          <div className="flex items-center gap-2 border-b border-theme-border/50 pb-3">
             <Heart className="w-4 h-4 text-rose-500" />
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 font-display">3. Preventative Action Checklist</h3>
+            <h3 className="text-sm font-bold text-theme-text font-display">3. Preventative Action Checklist</h3>
           </div>
 
           <div className="space-y-3.5">
@@ -1514,13 +1514,13 @@ export default function InsightsTab({
               <div key={idx} className="flex gap-2 text-xs">
                 <div className="w-1.5 h-1.5 rounded-full bg-rose-500 mt-1.5 flex-shrink-0" />
                 <div className="space-y-0.5">
-                  <span className="font-bold text-slate-900 dark:text-white block">{act.task}</span>
+                  <span className="font-bold text-theme-text block">{act.task}</span>
                   <span className="text-[10px] text-slate-500 leading-normal block">{act.explanation}</span>
                 </div>
               </div>
             ))}
 
-            <div className="border-t border-slate-100 dark:border-slate-800/40 my-3 pt-3" />
+            <div className="border-t border-theme-border/40 my-3 pt-3" />
 
             <div className="space-y-2">
               <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Recommended Habit Modifiers</span>
@@ -1536,9 +1536,9 @@ export default function InsightsTab({
 
         {/* SECTION 4: Risk Forecast Comparison */}
         <div className="space-y-4">
-          <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800/50 pb-3">
+          <div className="flex items-center gap-2 border-b border-theme-border/50 pb-3">
             <TrendingDown className="w-4 h-4 text-rose-500" />
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 font-display">4. 10-Year Clinical Forecast</h3>
+            <h3 className="text-sm font-bold text-theme-text font-display">4. 10-Year Clinical Forecast</h3>
           </div>
 
           <div className="space-y-3 text-xs leading-relaxed">
@@ -1555,7 +1555,7 @@ export default function InsightsTab({
         </div>
 
         {/* REFINEMENT CHAT PANEL */}
-        <div className="border border-slate-200 dark:border-slate-800 rounded-2xl p-3 flex items-center gap-2">
+        <div className="border border-theme-border rounded-2xl p-3 flex items-center gap-2">
           <input 
             type="text" 
             placeholder="Refine this recommendation..." 
@@ -1611,7 +1611,7 @@ export default function InsightsTab({
   const completedCount = steps.map((_, idx) => idx).filter(idx => getStepStatus(idx) === 'Done').length;
 
   return (
-    <div className="space-y-10 pb-40 animation-fade-in max-w-md mx-auto px-3 mt-4 font-sans text-slate-900 dark:text-slate-100">
+    <div className="space-y-10 pb-40 animation-fade-in max-w-md mx-auto px-3 mt-4 font-sans text-theme-text">
       
       {/* Global Progress Indicator */}
       <div className="space-y-2.5">
@@ -1650,7 +1650,7 @@ export default function InsightsTab({
       )}
 
       <div id="agent-diagnostics-dashboard" className="space-y-4">
-        <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800/50">
+        <div className="flex items-center gap-2 pb-3 border-b border-theme-border/50">
           <Sparkles className="w-5 h-5 text-indigo-600" />
           <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center gap-2">
             Clinical Multi-Agent Pipeline
@@ -1695,7 +1695,7 @@ export default function InsightsTab({
                     </span>
                     
                     <div className="space-y-0.5">
-                      <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs flex items-center gap-1.5">
+                      <h4 className="font-bold text-theme-text text-xs flex items-center gap-1.5">
                         {step.title}
                       </h4>
                       {/* Dynamic Summary */}
@@ -1726,7 +1726,7 @@ export default function InsightsTab({
                 {activeStepIndex === index && (
                   <div className="mt-3.5 pl-0 space-y-4 animation-fade-in">
                     {step.description && (
-                      <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                      <p className="text-xs text-theme-text-secondary leading-relaxed">
                         {step.description}
                       </p>
                     )}
@@ -1734,7 +1734,7 @@ export default function InsightsTab({
                     {/* Value Proposition Box */}
                     <div className="p-3 bg-indigo-50/20 dark:bg-indigo-950/10 rounded-2xl border border-indigo-100/30 dark:border-indigo-900/10">
                       <span className="block text-[8px] font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider mb-1">CLINICAL VALUE PROPOSITION</span>
-                      <p className="text-[11px] text-slate-900 dark:text-white leading-relaxed font-medium">
+                      <p className="text-[11px] text-theme-text leading-relaxed font-medium">
                         {step.valueProposition}
                       </p>
                     </div>
@@ -1782,7 +1782,7 @@ export default function InsightsTab({
                                         <div className="flex items-center gap-2">
                                           <Activity className={`w-3.5 h-3.5 ${hasAtLeastOne ? 'text-emerald-500' : 'text-slate-400'}`} />
                                           <div className="flex flex-col">
-                                            <span className={`text-[11px] font-bold ${hasAtLeastOne ? 'text-slate-900 dark:text-slate-100' : 'text-slate-500 dark:text-slate-400'}`}>
+                                            <span className={`text-[11px] font-bold ${hasAtLeastOne ? 'text-theme-text' : 'text-theme-text-secondary'}`}>
                                               {item.name}
                                             </span>
                                             {item.type === 'biomarker_category' && (
@@ -1830,12 +1830,12 @@ export default function InsightsTab({
                       /* Interactive Data Cleaning / Standardization Batch-by-Batch UI */
                       <div className="space-y-4">
                         {batches.length === 0 ? (
-                          <div className="p-4 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 text-slate-500 text-xs">
+                          <div className="p-4 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-theme-border text-slate-500 text-xs">
                             No biomarkers available. Please add some health data first in Step 1.
                           </div>
                         ) : (
                           <div className="space-y-4 text-left">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800/60 pb-3 mb-2">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-theme-border/60 pb-3 mb-2">
                               <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                                 Biomarker Standardization Batches ({batchSize} items max)
                               </span>
@@ -1882,9 +1882,9 @@ export default function InsightsTab({
                             </div>
                             
                             <div className="space-y-3">
-                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-2xl border border-slate-100 dark:border-slate-800/80 mb-2">
-                                <div className="text-[11px] text-slate-500 dark:text-slate-400 font-medium flex flex-wrap items-center gap-2">
-                                  <span>Standardized: <span className="font-bold text-indigo-600 dark:text-indigo-400">{Object.keys(approvedAgent1Batches).filter(k => approvedAgent1Batches[k]).length}</span> of <span className="font-bold text-slate-700 dark:text-slate-300">{batches.length}</span> batches.</span>
+                              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-2xl border border-theme-border/80 mb-2">
+                                <div className="text-[11px] text-theme-text-secondary font-medium flex flex-wrap items-center gap-2">
+                                  <span>Standardized: <span className="font-bold text-indigo-600 dark:text-indigo-400">{Object.keys(approvedAgent1Batches).filter(k => approvedAgent1Batches[k]).length}</span> of <span className="font-bold text-theme-neutral">{batches.length}</span> batches.</span>
                                   {excludeStandardized && (
                                     <span className="bg-amber-100 dark:bg-amber-950/40 text-amber-850 dark:text-amber-300 px-2 py-0.5 rounded-full text-[9px] font-semibold border border-amber-200/30 flex items-center gap-1">
                                       Refinement Active
@@ -1908,7 +1908,7 @@ export default function InsightsTab({
                                       setExcludeStandardized(next);
                                       localStorage.setItem('agent1_exclude_standardized', String(next));
                                     }}
-                                    className={`px-3 py-1.5 text-[10px] font-bold rounded-lg border transition-colors cursor-pointer ${excludeStandardized ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300' : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                    className={`px-3 py-1.5 text-[10px] font-bold rounded-lg border transition-colors cursor-pointer ${excludeStandardized ? 'bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300' : 'bg-slate-50 dark:bg-slate-900/40 border-theme-border text-theme-text-secondary hover:bg-slate-100 dark:hover:bg-slate-800'}`}
                                     title={excludeStandardized ? "Showing only unstandardized biomarkers. Click to show all." : "Showing all biomarkers. Click to hide already standardized ones."}
                                   >
                                     {excludeStandardized ? 'Filter: Unstandardized Only' : 'Filter: Show All'}
@@ -1944,10 +1944,10 @@ export default function InsightsTab({
 
                                 if (activeAgent1Batches.length === 0 && customBatchKeys.length === 0) {
                                   return (
-                                    <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">
+                                    <div className="p-8 text-center bg-slate-50 dark:bg-slate-900/40 rounded-2xl border border-dashed border-theme-border">
                                       <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto mb-2" />
                                       <h4 className="text-xs font-bold text-slate-850 dark:text-slate-200">All Biomarkers Standardized!</h4>
-                                      <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 max-w-md mx-auto">
+                                      <p className="text-[10px] text-theme-text-secondary mt-1 max-w-md mx-auto">
                                         All of your <strong>{markerKeys.length}</strong> biomarkers match standard clinical nomenclature. There are no raw unstandardized biomarkers to clean.
                                       </p>
                                       <div className="mt-4 flex items-center justify-center gap-2">
@@ -1956,7 +1956,7 @@ export default function InsightsTab({
                                             setExcludeStandardized(false);
                                             localStorage.setItem('agent1_exclude_standardized', 'false');
                                           }}
-                                          className="px-3 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-[10px] font-bold text-slate-700 dark:text-slate-300 hover:bg-slate-50 cursor-pointer"
+                                          className="px-3 py-1.5 bg-theme-bg-card border border-theme-border rounded-lg text-[10px] font-bold text-theme-neutral hover:bg-slate-50 cursor-pointer"
                                         >
                                           Show All Biomarkers
                                         </button>
@@ -1986,7 +1986,7 @@ export default function InsightsTab({
                                         ? 'bg-emerald-50/10 border-emerald-500/20' 
                                         : result 
                                         ? 'bg-indigo-50/5 border-indigo-500/20'
-                                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                                        : 'bg-theme-bg-card border-theme-border'
                                     }`}
                                   >
                                     <div className="flex items-center justify-between">
@@ -2001,7 +2001,7 @@ export default function InsightsTab({
                                           <Database className="w-4 h-4" />
                                         </div>
                                         <div className="text-left">
-                                          <h5 className="text-[12px] font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                                          <h5 className="text-[12px] font-bold text-theme-text flex items-center gap-2">
                                             {isCustom ? 'Custom Test Batch' : `Batch ${parseInt(bIdx as string) + 1}`}
                                           </h5>
                                           <p 
@@ -2039,7 +2039,7 @@ export default function InsightsTab({
 
                                     {/* Expanded Batch Details */}
                                     {isExpanded && (
-                                      <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800/60 space-y-3">
+                                      <div className="mt-4 pt-3 border-t border-theme-border/60 space-y-3">
                                         {/* Biomarkers in this batch */}
                                         <div>
                                           <span className="block text-[9px] font-bold text-slate-400 uppercase tracking-wider mb-2">
@@ -2052,9 +2052,9 @@ export default function InsightsTab({
                                               return (
                                                 <div 
                                                   key={`${key}_${kIdx}`}
-                                                  className="px-2.5 py-1 bg-slate-50 dark:bg-slate-900 border border-slate-100 dark:border-slate-800/60 rounded-lg text-[10px] font-medium text-slate-700 dark:text-slate-300 flex items-center gap-1.5"
+                                                  className="px-2.5 py-1 bg-slate-50 dark:bg-slate-900 border border-theme-border/60 rounded-lg text-[10px] font-medium text-theme-neutral flex items-center gap-1.5"
                                                 >
-                                                  <span className="font-bold text-slate-900 dark:text-white">
+                                                  <span className="font-bold text-theme-text">
                                                     {(key ? String(key).replace(/_/g, ' ').toUpperCase() : '')}
                                                   </span>
                                                   <span className="font-mono text-[9px] text-slate-400 bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded">
@@ -2469,12 +2469,12 @@ export default function InsightsTab({
                       /* Interactive Data Review / Calibration Batch-by-Batch UI */
                       <div className="space-y-4">
                         {batches.length === 0 ? (
-                          <div className="p-4 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 text-slate-500 text-xs">
+                          <div className="p-4 text-center bg-slate-50 dark:bg-slate-900 rounded-2xl border border-theme-border text-slate-500 text-xs">
                             No biomarkers available. Please add some health data first in Step 1.
                           </div>
                         ) : (
                           <div className="space-y-4 text-left">
-                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 dark:border-slate-800/60 pb-3 mb-2">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-theme-border/60 pb-3 mb-2">
                               <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">
                                 Biomarker Calibration Batches ({batchSize} items max)
                               </span>
@@ -2538,7 +2538,7 @@ export default function InsightsTab({
                                         ? 'bg-emerald-50/10 border-emerald-500/20' 
                                         : result 
                                         ? 'bg-indigo-50/5 border-indigo-500/20'
-                                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800'
+                                        : 'bg-theme-bg-card border-theme-border'
                                     }`}
                                   >
                                     {/* Collapsible Header */}
@@ -2552,7 +2552,7 @@ export default function InsightsTab({
                                       className="flex items-start justify-between cursor-pointer select-none"
                                     >
                                       <div className="min-w-0 flex-1">
-                                        <h5 className="text-xs font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                                        <h5 className="text-xs font-bold text-theme-text flex items-center gap-1.5">
                                           <span>{isCustom ? 'Custom Test Batch' : `Batch ${bIdx + 1}`}</span>
                                           <span 
                                             className="text-[10px] font-mono text-slate-400 font-normal"
@@ -2628,7 +2628,7 @@ export default function InsightsTab({
                                                         {missingUnitBiomarkers.map(bm => (
                                                           <div key={bm.key} className="flex items-center justify-between gap-2 text-[11px] py-1 border-b border-dashed border-amber-100/50 last:border-0">
                                                             <div className="flex flex-col min-w-0">
-                                                              <span className="font-bold text-slate-700 dark:text-slate-300 truncate max-w-[150px]" title={bm.name}>{bm.name}</span>
+                                                              <span className="font-bold text-theme-neutral truncate max-w-[150px]" title={bm.name}>{bm.name}</span>
                                                               <span className="text-[9px] font-mono text-slate-400">Key: {bm.mappedKey || bm.key}</span>
                                                             </div>
                                                             <button
@@ -2678,7 +2678,7 @@ export default function InsightsTab({
                                           <div className="space-y-4">
                                             {/* Summary message */}
                                             <div className="p-3 bg-indigo-50/30 dark:bg-indigo-950/15 border border-indigo-100/30 dark:border-indigo-950/20 rounded-xl text-left">
-                                              <p className="text-[11px] text-slate-900 dark:text-slate-100 leading-relaxed font-medium">
+                                              <p className="text-[11px] text-theme-text leading-relaxed font-medium">
                                                 {(result.message || 'Calibration completed successfully.').replace(/Clinical review for a ([\w\s-]+)\.\s*/i, '')}
                                               </p>
                                             </div>
@@ -2809,11 +2809,11 @@ export default function InsightsTab({
                             <Sparkles className="w-4 h-4 text-indigo-500 flex-shrink-0 mt-0.5" />
                             <div className="space-y-1">
                               <span className="block text-xs font-bold text-indigo-600 dark:text-indigo-400">WHAT TO EXPECT & CLINICAL VALUE</span>
-                              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+                              <p className="text-[11px] text-theme-text-secondary leading-normal">
                                 This module will analyze your {step.title.toLowerCase()} when unlocked.
                               </p>
-                              <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-normal">
-                                <strong>Value:</strong> <span className="text-slate-900 dark:text-white font-medium">{step.valueProposition}</span>
+                              <p className="text-[11px] text-theme-neutral leading-normal">
+                                <strong>Value:</strong> <span className="text-theme-text font-medium">{step.valueProposition}</span>
                               </p>
                               <p className="text-[11px] text-slate-450 dark:text-slate-500 leading-normal italic pt-1">
                                 (Will become fully operational once prior steps are approved.)
@@ -2851,7 +2851,7 @@ export default function InsightsTab({
                         {(status === 'To review' || status === 'Done') && latestAnalysis && (
                           <div className="space-y-4 pt-1">
                             {/* Proposal Content */}
-                            <div className="p-3 bg-slate-50/50 dark:bg-slate-900/40 rounded-2xl border border-slate-100 dark:border-slate-800/80 space-y-3">
+                            <div className="p-3 bg-slate-50/50 dark:bg-slate-900/40 rounded-2xl border border-theme-border/80 space-y-3">
                               <div className="flex items-center justify-between">
                                 {status === 'Done' ? (
                                   <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[8px] font-bold bg-emerald-100/80 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">
@@ -2869,7 +2869,7 @@ export default function InsightsTab({
 
                               {/* Specific view rendering based on agent type */}
                               {['agent1', 'agent2', 'agent3', 'agent4'].includes(step.agentType!) && latestAnalysis.result ? (
-                                <div className="overflow-hidden rounded-xl border border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-950">
+                                <div className="overflow-hidden rounded-xl border border-theme-border bg-white dark:bg-slate-950">
                                   <AgentResultTable
                                     agentType={step.agentType! as 'agent1' | 'agent2' | 'agent3' | 'agent4'}
                                     agentResult={latestAnalysis.result}
@@ -2896,7 +2896,7 @@ export default function InsightsTab({
                                   <GenericAgentResultView rawResult={latestAnalysis.result} />
                                 </div>
                               ) : (
-                                <div className="text-[10px] text-slate-700 dark:text-slate-300 font-mono bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-100 dark:border-slate-850 max-h-32 overflow-auto">
+                                <div className="text-[10px] text-theme-neutral font-mono bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-100 dark:border-slate-850 max-h-32 overflow-auto">
                                   <pre>{typeof latestAnalysis.result === 'string' ? latestAnalysis.result : JSON.stringify(latestAnalysis.result, null, 2)}</pre>
                                 </div>
                               )}
@@ -2906,7 +2906,7 @@ export default function InsightsTab({
                               <div className={`grid grid-cols-1 ${hasStepSomethingToApprove(step, latestAnalysis) ? 'md:grid-cols-3' : 'md:grid-cols-2'} gap-2 pt-1`}>
                                 <button
                                   onClick={() => onArchiveAnalysis?.(latestAnalysis.id)}
-                                  className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                  className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-theme-text-secondary rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                                 >
                                   <Archive className="w-3.5 h-3.5" />
                                   Archive
@@ -2952,7 +2952,7 @@ export default function InsightsTab({
                               <div className="grid grid-cols-2 gap-2 pt-1">
                                 <button
                                   onClick={() => onArchiveAnalysis?.(latestAnalysis.id)}
-                                  className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                                  className="py-2.5 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-theme-text-secondary rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                                 >
                                   <Archive className="w-3.5 h-3.5" />
                                   Archive
@@ -2982,7 +2982,7 @@ export default function InsightsTab({
 
       {/* Model Engine Selector & Run On-demand Button */}
       {hasProfileInfo && (
-        <div id="analysis-control-card" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm space-y-4">
+        <div id="analysis-control-card" className="bg-theme-bg-card border border-theme-border/80 rounded-3xl p-6 shadow-sm space-y-4">
           <LLMSelector
             selectedModelId={selectedModelId}
             onChangeModelId={onChangeModelId}
@@ -3012,9 +3012,9 @@ export default function InsightsTab({
       {/* Confirmation Modal */}
       {showConfirm && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex flex-col justify-end sm:justify-center p-0 sm:p-4 animation-fade-in font-sans">
-          <div className="w-full max-w-md mx-auto bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl flex flex-col shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800/80 transition-colors duration-200 p-6 space-y-4">
+          <div className="w-full max-w-md mx-auto bg-theme-bg-card rounded-t-3xl sm:rounded-3xl flex flex-col shadow-2xl overflow-hidden border border-theme-border/80 transition-colors duration-200 p-6 space-y-4">
             <div className="flex justify-between items-center">
-              <h3 className="font-bold text-lg font-display text-slate-900 dark:text-slate-100">Confirm Analysis Data</h3>
+              <h3 className="font-bold text-lg font-display text-theme-text">Confirm Analysis Data</h3>
               <button 
                 onClick={() => setShowConfirm(false)}
                 className="w-8 h-8 flex items-center justify-center rounded-full bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition-colors"
@@ -3022,11 +3022,11 @@ export default function InsightsTab({
                 <X className="w-4 h-4" />
               </button>
             </div>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-theme-text-secondary">
               The following information will be used to generate your personalized health diagnostic:
             </p>
             <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800/20">
+              <div className="p-3 bg-theme-bg rounded-2xl border border-theme-border/20">
                 <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">User Profile</span>
                 <span className="font-semibold block">{profile.age}yo, {profile.ethnicity || 'Unknown Ethnicity'}</span>
                 {profile.weight && profile.height ? (() => {
@@ -3045,14 +3045,14 @@ export default function InsightsTab({
                 )}
               </div>
 
-              <div className="p-3 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800/20">
+              <div className="p-3 bg-theme-bg rounded-2xl border border-theme-border/20">
                 <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider mb-1">Nutrition Inputs</span>
                 <span className="font-semibold block">{foodLogs.length} logged entries</span>
                 <span className="text-[10px] text-slate-500 mt-0.5 block">Recent eating patterns</span>
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-800/20 space-y-2.5">
+            <div className="p-4 bg-theme-bg rounded-2xl border border-theme-border/20 space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="block text-[10px] text-slate-400 font-bold uppercase tracking-wider">Checked Biomarker Values</span>
                 <span className="text-[10px] text-slate-400">{Object.keys(biomarkers).length} logged</span>
@@ -3066,7 +3066,7 @@ export default function InsightsTab({
                   </summary>
                   <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-2 text-center text-[11px]">
                     {Object.entries(biomarkers).map(([k, v]) => (
-                      <div key={k} className="py-1 px-2 bg-white dark:bg-slate-900 rounded-lg border border-slate-150 dark:border-slate-800/60 overflow-hidden">
+                      <div key={k} className="py-1 px-2 bg-theme-bg-card rounded-lg border border-slate-150 dark:border-slate-800/60 overflow-hidden">
                         <span className="block text-[9px] text-slate-400 font-semibold truncate" title={k}>{k.replace(/_/g, ' ').toUpperCase()}</span>
                         <span className="font-bold text-indigo-600 font-mono">
                           {v}
@@ -3114,7 +3114,7 @@ export default function InsightsTab({
         <div className="space-y-6">
           
           {/* Health Risk Forecasting Timelines - 5, 10, 20 Years */}
-          <div id="risk-timeline-card" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm space-y-4">
+          <div id="risk-timeline-card" className="bg-theme-bg-card border border-theme-border/80 rounded-3xl p-6 shadow-sm space-y-4">
             <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center gap-1.5 font-display">
               <TrendingDown className="w-4 h-4 text-rose-500" />
               Cardiovascular & Renal Risk Forecasting
@@ -3122,7 +3122,7 @@ export default function InsightsTab({
 
             <div className="space-y-4">
               {/* 5 Year Forecast */}
-              <div className="border-l-2 border-slate-200 dark:border-slate-800 pl-3.5 relative">
+              <div className="border-l-2 border-theme-border pl-3.5 relative">
                 <span className="absolute left-[-5px] top-1.5 w-2 h-2 rounded-full bg-slate-400" />
                 <span className="text-xs font-bold text-slate-400 font-mono">5 Years Timeline</span>
                 <div className="mt-1 space-y-1.5 text-xs font-medium">
@@ -3136,7 +3136,7 @@ export default function InsightsTab({
               </div>
 
               {/* 10 Year Forecast */}
-              <div className="border-l-2 border-slate-200 dark:border-slate-800 pl-3.5 relative">
+              <div className="border-l-2 border-theme-border pl-3.5 relative">
                 <span className="absolute left-[-5px] top-1.5 w-2 h-2 rounded-full bg-slate-400" />
                 <span className="text-xs font-bold text-slate-400 font-mono">10 Years Timeline</span>
                 <div className="mt-1 space-y-1.5 text-xs font-medium">
@@ -3150,7 +3150,7 @@ export default function InsightsTab({
               </div>
 
               {/* 20 Year Forecast */}
-              <div className="border-l-2 border-slate-200 dark:border-slate-800 pl-3.5 relative">
+              <div className="border-l-2 border-theme-border pl-3.5 relative">
                 <span className="absolute left-[-5px] top-1.5 w-2 h-2 rounded-full bg-slate-400" />
                 <span className="text-xs font-bold text-slate-400 font-mono">20 Years Timeline</span>
                 <div className="mt-1 space-y-1.5 text-xs font-medium">
@@ -3166,7 +3166,7 @@ export default function InsightsTab({
           </div>
 
           {/* Core Medical Insights summarised bullet points */}
-          <div id="latest-insights-card" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-6 shadow-sm space-y-4">
+          <div id="latest-insights-card" className="bg-theme-bg-card border border-theme-border/80 rounded-3xl p-6 shadow-sm space-y-4">
             <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center gap-1.5 font-display">
               <BookOpen className="w-4 h-4 text-indigo-600" />
               {t.latestInsights}
@@ -3174,11 +3174,11 @@ export default function InsightsTab({
 
             <div className="space-y-4">
               {report.latestInsights.map((insight, idx) => (
-                <div key={idx} className="space-y-1 bg-slate-50 dark:bg-slate-950 p-4 rounded-2xl border border-slate-100 dark:border-slate-800/20">
-                  <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs">
+                <div key={idx} className="space-y-1 bg-theme-bg p-4 rounded-2xl border border-theme-border/20">
+                  <h4 className="font-bold text-theme-text text-xs">
                     {insight.title}
                   </h4>
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed mt-0.5 font-medium">
+                  <p className="text-[11px] text-theme-text-secondary leading-relaxed mt-0.5 font-medium">
                     {insight.summary}
                   </p>
                   <a
@@ -3197,9 +3197,9 @@ export default function InsightsTab({
         </div>
       ) : (
         /* Empty insights state */
-        <div id="insights-empty-state" className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-8 text-center shadow-sm flex flex-col items-center">
+        <div id="insights-empty-state" className="bg-theme-bg-card border border-theme-border/80 rounded-3xl p-8 text-center shadow-sm flex flex-col items-center">
           <Clock className="w-10 h-10 text-slate-300 dark:text-slate-700 mb-3" />
-          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
+          <p className="text-xs text-theme-text-secondary leading-relaxed font-medium">
             {t.noDataInsight}
           </p>
         </div>
@@ -3208,8 +3208,8 @@ export default function InsightsTab({
 
       {fullscreenBatchIndex !== null && batchAnalysisResults[fullscreenBatchIndex] && (
         <div className="fixed inset-0 bg-slate-950/85 backdrop-blur-md z-[60] flex items-center justify-center p-4 sm:p-6 md:p-10">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-7xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animation-zoom-in">
-            <div className="flex items-center justify-between px-6 py-5 border-b border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20">
+          <div className="bg-theme-bg-card border border-theme-border rounded-3xl w-full max-w-7xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animation-zoom-in">
+            <div className="flex items-center justify-between px-6 py-5 border-b border-theme-border bg-slate-50/50 dark:bg-slate-950/20">
               <div>
                 <h3 className="text-sm font-bold text-slate-950 dark:text-slate-100 font-display">
                   Batch {fullscreenBatchIndex + 1} Full-Screen Calibrated Reference Table
@@ -3243,7 +3243,7 @@ export default function InsightsTab({
               />
             </div>
             
-            <div className="px-6 py-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950/20 flex justify-end">
+            <div className="px-6 py-4 border-t border-theme-border bg-slate-50/50 dark:bg-slate-950/20 flex justify-end">
               <button
                 type="button"
                 onClick={() => setFullscreenBatchIndex(null)}
@@ -3260,10 +3260,10 @@ export default function InsightsTab({
       {showCustomBatchModal && (
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex flex-col p-0 animation-fade-in font-sans">
           <div className="w-full h-full bg-white dark:bg-slate-950 flex flex-col shadow-xl overflow-hidden">
-            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60">
+            <div className="px-5 py-4 border-b border-theme-border bg-slate-50 dark:bg-slate-900/60">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100">Test Custom Batch</h3>
+                  <h3 className="text-sm font-bold text-theme-text">Test Custom Batch</h3>
                   <div className="flex items-center gap-2 mt-0.5">
                     <span className="text-[10px] text-slate-500">Pick any biomarker to test data cleaning</span>
                     <span className="text-[10px] font-bold bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.25 rounded-md">
@@ -3282,7 +3282,7 @@ export default function InsightsTab({
                   placeholder="Search biomarkers..."
                   value={customBatchSearch}
                   onChange={e => setCustomBatchSearch(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-950 border border-theme-border rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-indigo-500"
                 />
               </div>
 
@@ -3292,7 +3292,7 @@ export default function InsightsTab({
                 <select
                   value={batchGroupType}
                   onChange={(e) => setBatchGroupType(e.target.value as any)}
-                  className="px-2.5 py-1 text-xs font-semibold bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-800 rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
+                  className="px-2.5 py-1 text-xs font-semibold bg-theme-bg-card text-slate-700 dark:text-slate-200 border border-theme-border rounded-lg focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shadow-sm"
                 >
                   {BIOMARKER_GROUPING_OPTIONS.map(opt => (
                     <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -3347,14 +3347,14 @@ export default function InsightsTab({
                   };
 
                   return (
-                    <div key={groupName} className="border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/20 dark:bg-slate-900/10">
+                    <div key={groupName} className="border border-theme-border rounded-xl overflow-hidden bg-slate-50/20 dark:bg-slate-900/10">
                       <div 
                         onClick={toggleGroup}
-                        className="flex items-center justify-between p-3 bg-slate-50/80 dark:bg-slate-900/60 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 cursor-pointer select-none transition-colors border-b border-slate-100 dark:border-slate-800"
+                        className="flex items-center justify-between p-3 bg-slate-50/80 dark:bg-slate-900/60 hover:bg-slate-100/60 dark:hover:bg-slate-800/60 cursor-pointer select-none transition-colors border-b border-theme-border"
                       >
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-700 dark:text-slate-300">{groupName}</span>
-                          <span className="text-[10px] bg-slate-200/60 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-full font-bold">
+                          <span className="text-xs font-bold text-theme-neutral">{groupName}</span>
+                          <span className="text-[10px] bg-slate-200/60 dark:bg-slate-800 text-theme-text-secondary px-1.5 py-0.5 rounded-full font-bold">
                             {keysInGroup.length}
                           </span>
                           {selectedInGroup.length > 0 && (
@@ -3381,7 +3381,7 @@ export default function InsightsTab({
                                     return updated;
                                   });
                                 }}
-                                className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-colors ${isSelected ? 'bg-indigo-50/30 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800' : 'bg-white dark:bg-slate-900 border-slate-100 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
+                                className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-colors ${isSelected ? 'bg-indigo-50/30 border-indigo-200 dark:bg-indigo-900/20 dark:border-indigo-800' : 'bg-theme-bg-card border-slate-100 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-800/60'}`}
                               >
                                 <div className="flex items-center gap-2">
                                   <div className={`w-4 h-4 rounded-md border flex items-center justify-center ${isSelected ? 'bg-indigo-600 border-indigo-600' : 'border-slate-300 dark:border-slate-700'}`}>
@@ -3401,7 +3401,7 @@ export default function InsightsTab({
               })()}
             </div>
             
-            <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60 flex justify-end gap-2">
+            <div className="p-4 border-t border-theme-border bg-slate-50 dark:bg-slate-900/60 flex justify-end gap-2">
               <button 
                 type="button" 
                 onClick={() => {

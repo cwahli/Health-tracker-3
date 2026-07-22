@@ -53,7 +53,7 @@ export const GenericAgentResultView: React.FC<{ rawResult: any }> = ({ rawResult
   return (
     <div className="space-y-4 text-slate-800 dark:text-slate-200">
       {message && (
-        <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed bg-indigo-50/40 dark:bg-indigo-950/20 p-3 rounded-xl border border-indigo-100/50 dark:border-indigo-900/30">
+        <p className="text-xs text-theme-text-secondary leading-relaxed bg-indigo-50/40 dark:bg-indigo-950/20 p-3 rounded-xl border border-indigo-100/50 dark:border-indigo-900/30">
           {message}
         </p>
       )}
@@ -65,15 +65,15 @@ export const GenericAgentResultView: React.FC<{ rawResult: any }> = ({ rawResult
             <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
             Contextualized Normal Ranges
           </h5>
-          <div className="overflow-x-auto bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
+          <div className="overflow-x-auto bg-theme-bg-card border border-theme-border rounded-2xl shadow-sm">
             <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800 text-left">
-              <thead className="bg-slate-50 dark:bg-slate-950">
+              <thead className="bg-theme-bg">
                 <tr>
-                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Biomarker</th>
-                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Your Value</th>
-                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Personalized Range</th>
-                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Status</th>
-                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Context</th>
+                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-theme-text-secondary">Biomarker</th>
+                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-theme-text-secondary">Your Value</th>
+                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-theme-text-secondary">Personalized Range</th>
+                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-theme-text-secondary">Status</th>
+                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-theme-text-secondary">Context</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -85,7 +85,7 @@ export const GenericAgentResultView: React.FC<{ rawResult: any }> = ({ rawResult
                     <td className="px-4 py-3.5 text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                       {bm.userValue}
                     </td>
-                    <td className="px-4 py-3.5 text-xs font-mono text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                    <td className="px-4 py-3.5 text-xs font-mono text-theme-text-secondary whitespace-nowrap">
                       {bm.profileAdjustedNormalRange}
                     </td>
                     <td className="px-4 py-3.5">
@@ -97,7 +97,7 @@ export const GenericAgentResultView: React.FC<{ rawResult: any }> = ({ rawResult
                         {bm.status || 'Unknown'}
                       </span>
                     </td>
-                    <td className="px-4 py-3.5 text-xs text-slate-600 dark:text-slate-400 max-w-sm md:max-w-md break-words leading-relaxed">
+                    <td className="px-4 py-3.5 text-xs text-theme-text-secondary max-w-sm md:max-w-md break-words leading-relaxed">
                       {bm.description}
                       {bm.specificRiskContext && (
                         <div className="mt-1.5 text-[10px] text-amber-600 dark:text-amber-400 font-medium bg-amber-50 dark:bg-amber-950/30 p-2 rounded-lg border border-amber-100/50 dark:border-amber-900/20">
@@ -120,14 +120,14 @@ export const GenericAgentResultView: React.FC<{ rawResult: any }> = ({ rawResult
             <Apple className="w-3.5 h-3.5 text-emerald-500" />
             Precision Nutrition Allowances
           </h5>
-          <div className="overflow-x-auto bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm">
+          <div className="overflow-x-auto bg-theme-bg-card border border-theme-border rounded-2xl shadow-sm">
             <table className="min-w-full divide-y divide-slate-100 dark:divide-slate-800 text-left">
-              <thead className="bg-slate-50 dark:bg-slate-950">
+              <thead className="bg-theme-bg">
                 <tr>
-                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Nutrient</th>
-                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Allowance Target</th>
-                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Clinical Rationale</th>
-                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Duration</th>
+                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-theme-text-secondary">Nutrient</th>
+                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-theme-text-secondary">Allowance Target</th>
+                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-theme-text-secondary">Clinical Rationale</th>
+                  <th scope="col" className="px-4 py-3 text-xs font-bold uppercase tracking-wider text-theme-text-secondary">Duration</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -144,7 +144,7 @@ export const GenericAgentResultView: React.FC<{ rawResult: any }> = ({ rawResult
                       <td className="px-4 py-3.5 text-xs font-mono font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                         {target.value} {target.unit}
                       </td>
-                      <td className="px-4 py-3.5 text-xs text-slate-600 dark:text-slate-400 max-w-sm md:max-w-md break-words">
+                      <td className="px-4 py-3.5 text-xs text-theme-text-secondary max-w-sm md:max-w-md break-words">
                         {target.reason}
                       </td>
                       <td className="px-4 py-3.5 text-xs text-slate-500 dark:text-slate-500 font-mono whitespace-nowrap">
@@ -166,7 +166,7 @@ export const GenericAgentResultView: React.FC<{ rawResult: any }> = ({ rawResult
             <ClipboardList className="w-3.5 h-3.5 text-indigo-500" />
             Prescribed Movement Protocol
           </h5>
-          <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-800 p-4 divide-y divide-slate-100 dark:divide-slate-800 shadow-sm">
+          <div className="bg-theme-bg-card rounded-2xl border border-theme-border p-4 divide-y divide-slate-100 dark:divide-slate-800 shadow-sm">
             {activityChecklist.map((item: any, idx: number) => (
               <div key={idx} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
                 <div className="flex items-center gap-2">
@@ -177,7 +177,7 @@ export const GenericAgentResultView: React.FC<{ rawResult: any }> = ({ rawResult
                     {item.habit}
                   </span>
                 </div>
-                <span className="text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 px-2 py-0.5 rounded-lg">
+                <span className="text-[10px] font-mono font-bold bg-slate-100 dark:bg-slate-800 text-theme-text-secondary px-2 py-0.5 rounded-lg">
                   {item.target}
                 </span>
               </div>
@@ -195,7 +195,7 @@ export const GenericAgentResultView: React.FC<{ rawResult: any }> = ({ rawResult
           </h5>
           <div className="bg-indigo-50/10 dark:bg-indigo-950/5 border border-indigo-100/50 dark:border-indigo-900/20 rounded-2xl p-4 space-y-2">
             {projections.map((p: any, idx: number) => (
-              <div key={idx} className="flex items-start gap-2.5 text-xs text-slate-700 dark:text-slate-300 leading-relaxed">
+              <div key={idx} className="flex items-start gap-2.5 text-xs text-theme-neutral leading-relaxed">
                 <ChevronRight className="w-4 h-4 text-indigo-500 shrink-0 mt-0.5" />
                 <span>{p}</span>
               </div>
@@ -207,7 +207,7 @@ export const GenericAgentResultView: React.FC<{ rawResult: any }> = ({ rawResult
       {/* Agent 7: Scientific Database Search */}
       {insights && Array.isArray(insights) && insights.length > 0 && (
         <>
-          <div className="flex items-center justify-between py-1 bg-slate-100 dark:bg-slate-800/80 px-3 rounded-xl border border-slate-200 dark:border-slate-700/60">
+          <div className="flex items-center justify-between py-1 bg-slate-100 dark:bg-slate-800/80 px-3 rounded-xl border border-theme-border/60">
             <span className="text-[10px] font-mono font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
               Scientific Database Search
             </span>
@@ -220,17 +220,17 @@ export const GenericAgentResultView: React.FC<{ rawResult: any }> = ({ rawResult
             {insights.map((item: any, idx: number) => (
               <div 
                 key={idx} 
-                className="p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl shadow-sm space-y-3 hover:border-slate-200 dark:hover:border-slate-700 transition-colors"
+                className="p-4 bg-theme-bg-card border border-theme-border rounded-2xl shadow-sm space-y-3 hover:border-slate-200 dark:hover:border-slate-700 transition-colors"
               >
                 <div className="flex items-start justify-between gap-3">
-                  <h5 className="font-bold text-xs text-slate-900 dark:text-slate-100 leading-snug">
+                  <h5 className="font-bold text-xs text-theme-text leading-snug">
                     {item.title}
                   </h5>
-                  <span className="text-[9px] font-mono text-slate-400 font-semibold uppercase shrink-0 px-1.5 py-0.5 rounded bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-900">
+                  <span className="text-[9px] font-mono text-slate-400 font-semibold uppercase shrink-0 px-1.5 py-0.5 rounded bg-theme-bg border border-slate-100 dark:border-slate-900">
                     Pub. {idx + 1}
                   </span>
                 </div>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed bg-slate-50 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-100/50 dark:border-slate-900/10">
+                <p className="text-[10px] text-theme-text-secondary leading-relaxed bg-theme-bg p-2.5 rounded-xl border border-slate-100/50 dark:border-slate-900/10">
                   {item.summary}
                 </p>
                 {item.link && (

@@ -287,7 +287,7 @@ export default function ImageSlider({ images = [], singleImage, altText }: Image
         onMouseLeave={handleMouseLeave}
         onMouseUp={handleMouseUp}
         onMouseMove={handleMouseMove}
-        className="w-full flex overflow-x-auto snap-x snap-mandatory scrollbar-none bg-slate-50 dark:bg-slate-950/30 scroll-smooth cursor-grab active:cursor-grabbing select-none"
+        className="w-full flex overflow-x-auto snap-x snap-mandatory scrollbar-none bg-theme-bg/30 scroll-smooth cursor-grab active:cursor-grabbing select-none"
       >
         {allImages.map((img, idx) => {
           const orientation = orientations[img] || 'landscape';
@@ -338,7 +338,7 @@ export default function ImageSlider({ images = [], singleImage, altText }: Image
           <button
             type="button"
             onClick={slidePrev}
-            className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 border border-slate-200/50 dark:border-slate-800/50 text-slate-700 dark:text-slate-300 shadow-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer focus:opacity-100 z-10"
+            className="absolute left-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 border border-slate-200/50 dark:border-slate-800/50 text-theme-neutral shadow-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer focus:opacity-100 z-10"
             title="Previous image"
           >
             <ChevronLeft className="w-4 h-4" />
@@ -346,7 +346,7 @@ export default function ImageSlider({ images = [], singleImage, altText }: Image
           <button
             type="button"
             onClick={slideNext}
-            className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 border border-slate-200/50 dark:border-slate-800/50 text-slate-700 dark:text-slate-300 shadow-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer focus:opacity-100 z-10"
+            className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-full bg-white/80 dark:bg-slate-900/80 hover:bg-white dark:hover:bg-slate-800 border border-slate-200/50 dark:border-slate-800/50 text-theme-neutral shadow-lg transition-all opacity-0 group-hover:opacity-100 cursor-pointer focus:opacity-100 z-10"
             title="Next image"
           >
             <ChevronRight className="w-4 h-4" />

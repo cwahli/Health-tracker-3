@@ -672,7 +672,7 @@ export const getBiomarkerColor = (status: 'normal' | 'low' | 'high' | 'critical'
     case 'low': return 'text-amber-500 bg-amber-50 dark:bg-amber-950/30';
     case 'high': return 'text-amber-500 bg-amber-50 dark:bg-amber-950/30';
     case 'critical': return 'text-rose-500 bg-rose-50 dark:bg-rose-950/30';
-    default: return 'text-slate-400 bg-slate-50 dark:bg-slate-950/30';
+    default: return 'text-slate-400 bg-theme-bg/30';
   }
 };
 export const getBiomarkerBorderColor = (status: 'normal' | 'low' | 'high' | 'critical' | 'unknown'): string => {

@@ -163,8 +163,8 @@ export const BiomarkerRangeBuilder: React.FC<BiomarkerRangeBuilderProps> = ({ ra
   };
 
   return (
-    <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden mt-4 bg-slate-50 dark:bg-slate-900">
-      <div className="flex border-b border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950">
+    <div className="border border-theme-border rounded-xl overflow-hidden mt-4 bg-slate-50 dark:bg-slate-900">
+      <div className="flex border-b border-theme-border bg-white dark:bg-slate-950">
         <button
           type="button"
           className={`flex-1 py-2 text-xs font-bold transition-colors ${activeTab === 'normal' ? 'text-indigo-600 border-b-2 border-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
@@ -194,9 +194,9 @@ export const BiomarkerRangeBuilder: React.FC<BiomarkerRangeBuilderProps> = ({ ra
         {activeTab === 'custom' && (
           <div className="space-y-4">
             {customRanges.map((cr, idx) => (
-              <div key={cr.id} className="border border-slate-200 dark:border-slate-700 rounded-lg p-3 bg-white dark:bg-slate-950">
-                <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-100 dark:border-slate-800">
-                  <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">Custom Range Override #{idx + 1}</h4>
+              <div key={cr.id} className="border border-theme-border rounded-lg p-3 bg-white dark:bg-slate-950">
+                <div className="flex justify-between items-center mb-3 pb-2 border-b border-theme-border">
+                  <h4 className="text-xs font-bold text-theme-neutral">Custom Range Override #{idx + 1}</h4>
                   <button type="button" onClick={() => {
                     const next = [...customRanges];
                     next.splice(idx, 1);
@@ -217,7 +217,7 @@ export const BiomarkerRangeBuilder: React.FC<BiomarkerRangeBuilderProps> = ({ ra
                         next[idx].name = e.target.value;
                         updateCustomRanges(next);
                       }}
-                      className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2.5 py-1.5 text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500"
+                      className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-theme-border rounded px-2.5 py-1.5 text-slate-800 dark:text-slate-200 outline-none focus:border-indigo-500"
                       placeholder="e.g. Chinese Lipid Guidelines"
                     />
                   </div>
@@ -230,7 +230,7 @@ export const BiomarkerRangeBuilder: React.FC<BiomarkerRangeBuilderProps> = ({ ra
                         next[idx].filters.gender = e.target.value;
                         updateCustomRanges(next);
                       }}
-                      className="w-full text-xs bg-slate-50 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5"
+                      className="w-full text-xs bg-slate-50 border border-theme-border rounded px-2 py-1.5"
                     >
                       <option value="">Any</option>
                       <option value="male">Male</option>
@@ -246,7 +246,7 @@ export const BiomarkerRangeBuilder: React.FC<BiomarkerRangeBuilderProps> = ({ ra
                         next[idx].filters.ethnicity = e.target.value;
                         updateCustomRanges(next);
                       }}
-                      className="w-full text-xs bg-slate-50 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5"
+                      className="w-full text-xs bg-slate-50 border border-theme-border rounded px-2 py-1.5"
                     >
                       <option value="">Any</option>
                       <option value="asian">Asian</option>
@@ -266,7 +266,7 @@ export const BiomarkerRangeBuilder: React.FC<BiomarkerRangeBuilderProps> = ({ ra
                         next[idx].filters.minAge = e.target.value ? Number(e.target.value) : '';
                         updateCustomRanges(next);
                       }}
-                      className="w-full text-xs bg-slate-50 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5"
+                      className="w-full text-xs bg-slate-50 border border-theme-border rounded px-2 py-1.5"
                       placeholder="e.g. 18"
                     />
                   </div>
@@ -280,7 +280,7 @@ export const BiomarkerRangeBuilder: React.FC<BiomarkerRangeBuilderProps> = ({ ra
                         next[idx].filters.maxAge = e.target.value ? Number(e.target.value) : '';
                         updateCustomRanges(next);
                       }}
-                      className="w-full text-xs bg-slate-50 border border-slate-200 dark:border-slate-700 rounded px-2 py-1.5"
+                      className="w-full text-xs bg-slate-50 border border-theme-border rounded px-2 py-1.5"
                       placeholder="e.g. 65"
                     />
                   </div>
@@ -326,7 +326,7 @@ export const BiomarkerRangeBuilder: React.FC<BiomarkerRangeBuilderProps> = ({ ra
 const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onChange: (r?: RangeConfig) => void, title?: string }> = ({ range, normalRangeStr, onChange, title }) => {
   return (
     <div className="space-y-3">
-      {title && <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">{title}</h4>}
+      {title && <h4 className="text-xs font-bold text-theme-neutral">{title}</h4>}
       
       {!range ? (
         <div className="flex gap-2">
@@ -339,7 +339,7 @@ const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onCh
                 if (str.match(/^([\d.]+)\s*-\s*([\d.]+)(?:\s+.*)?$/)) type = 'bracket';
                 onChange(parseNormalRangeStr(normalRangeStr, type as 'simple' | 'bracket'));
               }}
-              className="flex-1 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-50 text-indigo-600 dark:text-indigo-400"
+              className="flex-1 py-2 bg-white dark:bg-slate-800 border border-theme-border rounded-lg text-xs font-semibold hover:bg-slate-50 text-indigo-600 dark:text-indigo-400"
             >
               Edit Range Configuration
             </button>
@@ -348,14 +348,14 @@ const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onCh
               <button
                 type="button"
                 onClick={() => onChange(defaultSimpleRange)}
-                className="flex-1 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-50"
+                className="flex-1 py-2 bg-white dark:bg-slate-800 border border-theme-border rounded-lg text-xs font-semibold hover:bg-slate-50"
               >
                 Create Simple Range
               </button>
               <button
                 type="button"
                 onClick={() => onChange(defaultBracketRange)}
-                className="flex-1 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-semibold hover:bg-slate-50"
+                className="flex-1 py-2 bg-white dark:bg-slate-800 border border-theme-border rounded-lg text-xs font-semibold hover:bg-slate-50"
               >
                 Create Bracket Range
               </button>
@@ -371,7 +371,7 @@ const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onCh
                 if (e.target.value === 'simple') onChange(parseNormalRangeStr(normalRangeStr, 'simple'));
                 else onChange(parseNormalRangeStr(normalRangeStr, 'bracket'));
               }}
-              className="text-xs font-bold bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded px-2 py-1"
+              className="text-xs font-bold bg-slate-100 dark:bg-slate-800 border border-theme-border rounded px-2 py-1"
             >
               <option value="simple">Simple Range</option>
               <option value="bracket">Bracket Range</option>
@@ -386,7 +386,7 @@ const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onCh
           </div>
 
           {range.type === 'simple' && (
-            <div className="space-y-2 bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+            <div className="space-y-2 bg-white dark:bg-slate-800 p-3 rounded-lg border border-theme-border">
               <div className="flex items-center gap-2">
                 <select
                   value={range.conditions[0].operator}
@@ -400,7 +400,7 @@ const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onCh
                     if (e.target.value === '<') next.conditions[1].operator = '>=';
                     onChange(next);
                   }}
-                  className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs"
+                  className="bg-slate-50 dark:bg-slate-900 border border-theme-border rounded px-2 py-1 text-xs"
                 >
                   <option value=">=">&gt;=</option>
                   <option value="<=">&lt;=</option>
@@ -417,7 +417,7 @@ const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onCh
                     next.conditions[1].value = val;
                     onChange(next);
                   }}
-                  className="w-16 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs"
+                  className="w-16 bg-slate-50 dark:bg-slate-900 border border-theme-border rounded px-2 py-1 text-xs"
                 />
                 <span className="text-xs font-semibold text-slate-500">is</span>
                 <input
@@ -429,7 +429,7 @@ const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onCh
                     next.conditions[0].alias = e.target.value;
                     onChange(next);
                   }}
-                  className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs"
+                  className="flex-1 bg-slate-50 dark:bg-slate-900 border border-theme-border rounded px-2 py-1 text-xs"
                 />
                 <select
                   value={range.conditions[0].severity}
@@ -438,7 +438,7 @@ const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onCh
                     next.conditions[0].severity = e.target.value as any;
                     onChange(next);
                   }}
-                  className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-[10px] font-bold"
+                  className="bg-slate-50 dark:bg-slate-900 border border-theme-border rounded px-2 py-1 text-[10px] font-bold"
                 >
                   {SEVERITY_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
@@ -448,7 +448,7 @@ const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onCh
                 <span className="w-12 text-center text-[10px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded">
                   {range.conditions[1].operator}
                 </span>
-                <span className="w-16 text-center text-xs font-bold text-slate-600 dark:text-slate-300">
+                <span className="w-16 text-center text-xs font-bold text-theme-text-secondary">
                   {range.conditions[1].value}
                 </span>
                 <span className="text-xs font-semibold text-slate-500">is</span>
@@ -461,7 +461,7 @@ const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onCh
                     next.conditions[1].alias = e.target.value;
                     onChange(next);
                   }}
-                  className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs"
+                  className="flex-1 bg-slate-50 dark:bg-slate-900 border border-theme-border rounded px-2 py-1 text-xs"
                 />
                 <select
                   value={range.conditions[1].severity}
@@ -470,7 +470,7 @@ const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onCh
                     next.conditions[1].severity = e.target.value as any;
                     onChange(next);
                   }}
-                  className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-[10px] font-bold"
+                  className="bg-slate-50 dark:bg-slate-900 border border-theme-border rounded px-2 py-1 text-[10px] font-bold"
                 >
                   {SEVERITY_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                 </select>
@@ -481,7 +481,7 @@ const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onCh
           {range.type === 'bracket' && (
             <div className="space-y-2">
               {range.brackets.map((br, i) => (
-                <div key={i} className="flex flex-wrap items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-lg border border-slate-200 dark:border-slate-700">
+                <div key={i} className="flex flex-wrap items-center gap-2 bg-white dark:bg-slate-800 p-2 rounded-lg border border-theme-border">
                   <span className="text-[10px] font-bold text-slate-400">From</span>
                   <input
                     type="number"
@@ -492,7 +492,7 @@ const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onCh
                       next.brackets[i].min = e.target.value === '' ? null : Number(e.target.value);
                       onChange(next);
                     }}
-                    className="w-16 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs"
+                    className="w-16 bg-slate-50 dark:bg-slate-900 border border-theme-border rounded px-2 py-1 text-xs"
                   />
                   <span className="text-[10px] font-bold text-slate-400">to</span>
                   <input
@@ -504,7 +504,7 @@ const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onCh
                       next.brackets[i].max = e.target.value === '' ? null : Number(e.target.value);
                       onChange(next);
                     }}
-                    className="w-16 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs"
+                    className="w-16 bg-slate-50 dark:bg-slate-900 border border-theme-border rounded px-2 py-1 text-xs"
                   />
                   <span className="text-xs font-semibold text-slate-500">=</span>
                   <input
@@ -516,7 +516,7 @@ const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onCh
                       next.brackets[i].alias = e.target.value;
                       onChange(next);
                     }}
-                    className="flex-1 min-w-[80px] bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-xs"
+                    className="flex-1 min-w-[80px] bg-slate-50 dark:bg-slate-900 border border-theme-border rounded px-2 py-1 text-xs"
                   />
                   <select
                     value={br.severity}
@@ -525,7 +525,7 @@ const RangeEditor: React.FC<{ range?: RangeConfig, normalRangeStr?: string, onCh
                       next.brackets[i].severity = e.target.value as any;
                       onChange(next);
                     }}
-                    className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-[10px] font-bold"
+                    className="bg-slate-50 dark:bg-slate-900 border border-theme-border rounded px-2 py-1 text-[10px] font-bold"
                   >
                     {SEVERITY_OPTIONS.map(o => <option key={o} value={o}>{o}</option>)}
                   </select>

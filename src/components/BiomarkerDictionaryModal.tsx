@@ -331,7 +331,7 @@ const DictionaryItem = ({
                     <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Key (snake_case)</label>
                     <input 
                       type="text" 
-                      className="w-full text-sm font-mono text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none focus:border-indigo-500"
+                      className="w-full text-sm font-mono text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-theme-border rounded px-2 py-1 outline-none focus:border-indigo-500"
                       value={editState.key}
                       onChange={e => setEditState({...editState, key: e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, '')})}
                     />
@@ -340,7 +340,7 @@ const DictionaryItem = ({
                     <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Name</label>
                     <input 
                       type="text" 
-                      className="w-full text-sm font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none focus:border-indigo-500"
+                      className="w-full text-sm font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-theme-border rounded px-2 py-1 outline-none focus:border-indigo-500"
                       value={editState.name}
                       onChange={e => setEditState({...editState, name: e.target.value})}
                       autoFocus
@@ -358,7 +358,7 @@ const DictionaryItem = ({
                       return (
                         <div className="flex flex-col gap-1">
                           <select 
-                            className="w-full text-xs font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none focus:border-indigo-500"
+                            className="w-full text-xs font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-theme-border rounded px-2 py-1 outline-none focus:border-indigo-500"
                             value={isCustom ? "custom" : editState.unit}
                             onChange={e => {
                               if (e.target.value === "custom") {
@@ -375,7 +375,7 @@ const DictionaryItem = ({
                           {isCustom && (
                             <input 
                               type="text" 
-                              className="w-full mt-1 text-xs font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none focus:border-indigo-500"
+                              className="w-full mt-1 text-xs font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-theme-border rounded px-2 py-1 outline-none focus:border-indigo-500"
                               value={editState.unit.trim()}
                               onChange={e => setEditState({...editState, unit: e.target.value})}
                               placeholder="Enter custom unit"
@@ -391,7 +391,7 @@ const DictionaryItem = ({
                     <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Normal Range</label>
                     <input 
                       type="text" 
-                      className="w-full text-xs font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none focus:border-indigo-500"
+                      className="w-full text-xs font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-theme-border rounded px-2 py-1 outline-none focus:border-indigo-500"
                       value={editState.normalRange}
                       onChange={e => handleNormalRangeChange(e.target.value)}
                     />
@@ -411,7 +411,7 @@ const DictionaryItem = ({
                   <label className="block text-[10px] font-bold text-slate-500 mb-1 uppercase">Medical Grouping</label>
                   <div className="flex gap-2 mb-1">
                     <select
-                      className="flex-1 text-xs font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none focus:border-indigo-500"
+                      className="flex-1 text-xs font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-theme-border rounded px-2 py-1 outline-none focus:border-indigo-500"
                       value={allGroupings.includes(editState.standardMedicalGrouping) || !editState.standardMedicalGrouping ? editState.standardMedicalGrouping : 'custom'}
                       onChange={e => {
                         if (e.target.value !== 'custom') setEditState({...editState, standardMedicalGrouping: e.target.value});
@@ -428,7 +428,7 @@ const DictionaryItem = ({
                       <input 
                         type="text"
                         placeholder="Custom grouping"
-                        className="flex-1 text-xs font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none focus:border-indigo-500"
+                        className="flex-1 text-xs font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-theme-border rounded px-2 py-1 outline-none focus:border-indigo-500"
                         value={editState.standardMedicalGrouping}
                         onChange={e => setEditState({...editState, standardMedicalGrouping: e.target.value})}
                       />
@@ -458,7 +458,7 @@ const DictionaryItem = ({
                     </div>
                     <input 
                       type="text" 
-                      className="w-full text-xs font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none focus:border-indigo-500"
+                      className="w-full text-xs font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-theme-border rounded px-2 py-1 outline-none focus:border-indigo-500"
                       value={editState.riskCategories}
                       onChange={e => setEditState({...editState, riskCategories: e.target.value})}
                       placeholder="Custom (comma sep)"
@@ -487,7 +487,7 @@ const DictionaryItem = ({
                     </div>
                     <input 
                       type="text" 
-                      className="w-full text-xs font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 outline-none focus:border-indigo-500"
+                      className="w-full text-xs font-medium text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-theme-border rounded px-2 py-1 outline-none focus:border-indigo-500"
                       value={editState.potentialMedicalConditions}
                       onChange={e => setEditState({...editState, potentialMedicalConditions: e.target.value})}
                       placeholder="Custom (comma sep)"
@@ -563,7 +563,7 @@ const DictionaryItem = ({
                   </div>
                 )}
                 <div className="flex flex-wrap items-center gap-2 mt-1">
-                  <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
+                  <span className="text-[10px] font-mono text-theme-text-secondary bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
                     Key: {itemKey}
                   </span>
                   {logsCount > 0 && (
@@ -588,9 +588,9 @@ const DictionaryItem = ({
                     Missing Unit - Update Required
                   </div>
                 ) : (
-                  <div className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                    <span className="font-semibold text-slate-700 dark:text-slate-300">Unit:</span> {initialUnit} 
-                    {initialNormalRange && <span className="ml-2"><span className="font-semibold text-slate-700 dark:text-slate-300">Range:</span> {initialNormalRange}</span>}
+                  <div className="mt-2 text-xs text-theme-text-secondary">
+                    <span className="font-semibold text-theme-neutral">Unit:</span> {initialUnit} 
+                    {initialNormalRange && <span className="ml-2"><span className="font-semibold text-theme-neutral">Range:</span> {initialNormalRange}</span>}
                     {(customDef?.rangeConfig || displayCustomRanges?.length > 0) && (
                       <span className="ml-2 text-[10px] font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 px-1.5 py-0.5 rounded">
                         Structured Ranges Active
@@ -601,7 +601,7 @@ const DictionaryItem = ({
 
                 {/* Demographic Overrides List */}
                 {displayCustomRanges && displayCustomRanges.length > 0 && (
-                  <div className="mt-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-lg p-2.5 border border-slate-100 dark:border-slate-800/80 space-y-1.5">
+                  <div className="mt-2.5 bg-slate-50 dark:bg-slate-900/40 rounded-lg p-2.5 border border-theme-border/80 space-y-1.5">
                     <div className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center gap-1">
                       <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></span>
                       Demographic Overrides ({displayCustomRanges.length})
@@ -647,7 +647,7 @@ const DictionaryItem = ({
                         return (
                           <div key={i} className="py-1 flex items-center justify-between text-[11px] gap-2 first:pt-0 last:pb-0">
                             <div className="flex flex-col gap-0.5">
-                              <span className="font-semibold text-slate-700 dark:text-slate-300">{cr.name}</span>
+                              <span className="font-semibold text-theme-neutral">{cr.name}</span>
                               <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">{filterLabel}</span>
                             </div>
                             <div className="font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50/50 dark:bg-indigo-950/20 px-2 py-0.5 rounded border border-indigo-100/30 dark:border-indigo-900/20 font-bold">
@@ -686,9 +686,9 @@ const DictionaryItem = ({
                 )}
 
                 {itemLogs && itemLogs.length > 0 && (
-                  <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/40">
+                  <div className="mt-2.5 pt-2 border-t border-theme-border/40">
                     <div className="flex items-center justify-between gap-2">
-                      <div className="text-xs text-slate-500 dark:text-slate-400">
+                      <div className="text-xs text-theme-text-secondary">
                         Latest Log: <span className="font-bold text-slate-800 dark:text-slate-200">{itemLogs[0].value} {initialUnit}</span> <span className="text-[10px] text-slate-400 dark:text-slate-500">({itemLogs[0].date})</span>
                       </div>
                       {itemLogs.length > 1 && (
@@ -706,9 +706,9 @@ const DictionaryItem = ({
                     </div>
                     
                     {isHistoryExpanded && itemLogs.length > 1 && (
-                      <div className="mt-2 space-y-1 bg-slate-50 dark:bg-slate-950/40 p-2 rounded-lg border border-slate-100 dark:border-slate-800 max-h-32 overflow-y-auto">
+                      <div className="mt-2 space-y-1 bg-theme-bg/40 p-2 rounded-lg border border-theme-border max-h-32 overflow-y-auto">
                         {itemLogs.map((log: any, idx: number) => (
-                          <div key={idx} className="flex justify-between items-center text-[11px] font-mono py-0.5 border-b border-slate-100/30 dark:border-slate-800/20 last:border-0 text-slate-600 dark:text-slate-400">
+                          <div key={idx} className="flex justify-between items-center text-[11px] font-mono py-0.5 border-b border-slate-100/30 dark:border-slate-800/20 last:border-0 text-theme-text-secondary">
                             <span>{log.date}</span>
                             <span className="font-bold text-slate-800 dark:text-slate-200">{log.value} {initialUnit}</span>
                           </div>
@@ -2245,10 +2245,10 @@ I can analyze these, compare them with our database keys, and find standard mapp
 
   return (
     <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-0">
-      <div className="bg-white dark:bg-slate-900 w-full h-full flex flex-col overflow-hidden">
+      <div className="bg-theme-bg-card w-full h-full flex flex-col overflow-hidden">
         
         {/* MODAL HEADER */}
-        <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
+        <div className="p-4 sm:p-5 border-b border-theme-border flex justify-between items-center bg-slate-50 dark:bg-slate-900">
           <div className="flex items-center gap-3">
             {(isChatMode || isAgentMode || isDataAccuracyMode || isNameConsolidationMode) && (
               <button 
@@ -2267,7 +2267,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
               <h2 className="text-lg font-bold text-slate-800 dark:text-slate-100 font-sans tracking-tight">
                 {isChatMode ? "Route Agent Chat" : isAgentMode ? (isMedicalCategorisationMode ? "Clinical Categorisation Agent" : "Clinical Unit Standardization Agent") : isDataAccuracyMode ? "Data Accuracy Agent" : isNameConsolidationMode ? "Name Consolidation Agent" : isBatchPasteMode ? "Batch Consolidation" : "Biomarker Dictionary"}
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-theme-text-secondary">
                 {isChatMode 
                   ? `Discussing standard mappings for ${selectedKeys.length} selected biomarkers` 
                   : isAgentMode
@@ -2282,18 +2282,18 @@ I can analyze these, compare them with our database keys, and find standard mapp
               </p>
             </div>
           </div>
-          <button onClick={onClose} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors text-slate-500 dark:text-slate-400">
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-full transition-colors text-theme-text-secondary">
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* DATA ACCURACY MODE LAYOUT */}
         {isDataAccuracyMode ? (
-          <div className="flex-1 flex flex-col overflow-y-auto bg-slate-50 dark:bg-slate-950">
+          <div className="flex-1 flex flex-col overflow-y-auto bg-theme-bg">
             {/* Top side: Chat agent thread */}
-            <div className={`flex flex-col shrink-0 ${accuracyComparisonResults ? 'h-[400px] border-b border-slate-200 dark:border-slate-800' : 'h-full'}`}>
+            <div className={`flex flex-col shrink-0 ${accuracyComparisonResults ? 'h-[400px] border-b border-theme-border' : 'h-full'}`}>
               {/* Data Accuracy Engine Settings */}
-              <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 p-3 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between shrink-0">
+              <div className="bg-theme-bg-card border-b border-theme-border p-3 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between shrink-0">
                 <div className="w-full sm:w-56">
                   <LLMSelector
                     selectedModelId={dataAccuracyModel}
@@ -2313,14 +2313,14 @@ I can analyze these, compare them with our database keys, and find standard mapp
                     <button
                       type="button"
                       onClick={() => setShowDataAccuracyHistory(!showDataAccuracyHistory)}
-                      className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer flex items-center gap-1 border-l border-slate-200 dark:border-slate-700 pl-3 ml-2"
+                      className="text-xs text-indigo-600 dark:text-indigo-400 font-bold hover:underline cursor-pointer flex items-center gap-1 border-l border-theme-border pl-3 ml-2"
                     >
                       <span>📜 {showDataAccuracyHistory ? 'Active Chat' : `Past Logs (${profile.agentAnalyses.filter(a => a.agentType === 'data_accuracy').length})`}</span>
                     </button>
                   )}
                   {dataAccuracyMessages.length > 1 && (
                     showResetChatConfirm ? (
-                      <div className="flex items-center gap-1.5 ml-2 border-l border-slate-200 dark:border-slate-700 pl-3">
+                      <div className="flex items-center gap-1.5 ml-2 border-l border-theme-border pl-3">
                         <span className="text-[10px] text-rose-500 font-bold">Clear chat?</span>
                         <button
                           type="button"
@@ -2368,7 +2368,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                           e.stopPropagation();
                           setShowResetChatConfirm(true);
                         }}
-                        className="text-xs text-rose-600 dark:text-rose-400 font-bold hover:underline cursor-pointer flex items-center gap-1 ml-2 border-l border-slate-200 dark:border-slate-700 pl-3"
+                        className="text-xs text-rose-600 dark:text-rose-400 font-bold hover:underline cursor-pointer flex items-center gap-1 ml-2 border-l border-theme-border pl-3"
                       >
                         <span>🗑️ Reset Chat</span>
                       </button>
@@ -2378,7 +2378,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
               </div>
 
               {/* Optional selected biomarkers filter reminder */}
-              <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 p-2.5 flex flex-wrap gap-1.5 max-h-20 overflow-y-auto shrink-0 text-xs font-medium">
+              <div className="bg-theme-bg-card border-b border-theme-border p-2.5 flex flex-wrap gap-1.5 max-h-20 overflow-y-auto shrink-0 text-xs font-medium">
                 <span className="text-slate-500 font-bold self-center mr-1">Ontology Scope:</span>
                 {selectedKeys.length > 0 ? (
                   selectedKeys.map(k => (
@@ -2395,7 +2395,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
               {showDataAccuracyHistory ? (
                 <div className="flex-1 overflow-y-auto p-4 space-y-4">
                   <div className="flex items-center justify-between border-b border-slate-150 dark:border-slate-800 pb-2.5 mb-2">
-                    <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300">Data Accuracy Log History ({profile.agentAnalyses?.filter(a => a.agentType === 'data_accuracy').length || 0})</h4>
+                    <h4 className="text-xs font-bold text-theme-neutral">Data Accuracy Log History ({profile.agentAnalyses?.filter(a => a.agentType === 'data_accuracy').length || 0})</h4>
                     <button 
                       onClick={() => setShowDataAccuracyHistory(false)}
                       className="text-xs text-indigo-600 hover:underline cursor-pointer font-bold"
@@ -2407,8 +2407,8 @@ I can analyze these, compare them with our database keys, and find standard mapp
                     .filter(a => a.agentType === 'data_accuracy')
                     .sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)))
                     .map(log => (
-                      <div key={log.id} className="p-3.5 bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 rounded-xl relative group shadow-sm space-y-2.5">
-                        <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-1.5">
+                      <div key={log.id} className="p-3.5 bg-theme-bg-card border border-slate-150 dark:border-slate-800 rounded-xl relative group shadow-sm space-y-2.5">
+                        <div className="flex justify-between items-center border-b border-theme-border pb-1.5">
                           <span className="text-[10px] font-bold text-slate-400 font-mono">
                             {new Date(log.date).toLocaleString()}
                           </span>
@@ -2447,13 +2447,13 @@ I can analyze these, compare them with our database keys, and find standard mapp
                           )}
                         </div>
                         <div className="space-y-2 text-xs">
-                          <div className="bg-slate-50 dark:bg-slate-950 p-2.5 rounded-lg border border-slate-100 dark:border-slate-800">
-                            <p className="font-bold text-slate-500 dark:text-slate-400 mb-1">User Input:</p>
+                          <div className="bg-theme-bg p-2.5 rounded-lg border border-theme-border">
+                            <p className="font-bold text-theme-text-secondary mb-1">User Input:</p>
                             <p className="text-slate-800 dark:text-slate-200 whitespace-pre-wrap font-mono text-[11px] leading-relaxed">{log.result?.inputText}</p>
                           </div>
                           <div className="bg-indigo-50/30 dark:bg-indigo-950/15 p-2.5 rounded-lg border border-indigo-100/30 dark:border-indigo-900/10">
                             <p className="font-bold text-indigo-700 dark:text-indigo-400 mb-1">Analysis Explanation:</p>
-                            <p className="text-slate-700 dark:text-slate-300 whitespace-pre-wrap text-[11px] leading-relaxed">{log.result?.explanation}</p>
+                            <p className="text-theme-neutral whitespace-pre-wrap text-[11px] leading-relaxed">{log.result?.explanation}</p>
                           </div>
                           {log.result?.comparisonResults && log.result.comparisonResults.length > 0 && (
                             <button
@@ -2496,7 +2496,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                         <div className={`max-w-[85%] rounded-2xl p-4 shadow-sm ${
                           msg.role === 'user'
                             ? 'bg-indigo-600 text-white rounded-br-none'
-                            : 'bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none'
+                            : 'bg-theme-bg-card border border-theme-border text-slate-800 dark:text-slate-200 rounded-bl-none'
                         }`}>
                           <div className="text-xs font-semibold opacity-70 mb-1">
                             {msg.role === 'user' ? 'You' : 'Data Accuracy Agent'}
@@ -2509,7 +2509,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                     ))}
                     {dataAccuracyLoading && (
                       <div className="flex justify-start">
-                        <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex items-center gap-2 text-slate-500">
+                        <div className="bg-theme-bg-card border border-theme-border rounded-2xl p-4 shadow-sm flex items-center gap-2 text-slate-500">
                           <Loader className="w-4 h-4 animate-spin text-indigo-500" />
                           <span className="text-xs font-medium">Comparing and checking logs for differences...</span>
                         </div>
@@ -2519,7 +2519,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                   </div>
 
                   {/* Chat Input form area */}
-                  <div className="bg-white dark:bg-slate-900 border-t border-slate-150 dark:border-slate-800 p-3 shrink-0 flex flex-col">
+                  <div className="bg-theme-bg-card border-t border-slate-150 dark:border-slate-800 p-3 shrink-0 flex flex-col">
                     {/* Uploaded Files Tag Area */}
                     {accuracyUploadedFiles.length > 0 && (
                       <div className="flex flex-wrap gap-1.5 mb-2.5">
@@ -2536,7 +2536,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                     <div className="flex gap-2">
                       <button
                         onClick={() => fileInputRef2.current?.click()}
-                        className="p-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-500 dark:text-slate-400 border border-slate-200 dark:border-slate-700 rounded-xl transition-colors shrink-0"
+                        className="p-2.5 bg-slate-50 dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-theme-text-secondary border border-theme-border rounded-xl transition-colors shrink-0"
                         title="Upload lab report files, data text, or images"
                       >
                         <Paperclip className="w-4.5 h-4.5" />
@@ -2555,7 +2555,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                         onChange={e => setDataAccuracyInput(e.target.value)}
                         onKeyDown={e => e.key === 'Enter' && handleSendDataAccuracy()}
                         placeholder="Enter biomarker info (e.g. HbA1c 5.8% on 2026-07-01)..."
-                        className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-sm outline-none focus:border-indigo-500 dark:focus:border-indigo-500 text-slate-800 dark:text-slate-200 font-medium"
+                        className="flex-1 bg-theme-bg border border-theme-border rounded-xl px-4 py-2 text-sm outline-none focus:border-indigo-500 dark:focus:border-indigo-500 text-slate-800 dark:text-slate-200 font-medium"
                       />
                       <button
                         onClick={handleSendDataAccuracy}
@@ -2572,14 +2572,14 @@ I can analyze these, compare them with our database keys, and find standard mapp
 
             {/* Bottom side: Interactive Comparison Panel */}
             {accuracyComparisonResults && (
-              <div className="w-full flex flex-col bg-white dark:bg-slate-900 shrink-0 min-h-[500px]">
-                <div className="p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50 sticky top-0 z-10 backdrop-blur">
+              <div className="w-full flex flex-col bg-theme-bg-card shrink-0 min-h-[500px]">
+                <div className="p-5 border-b border-theme-border flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/50 sticky top-0 z-10 backdrop-blur">
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                    <h3 className="text-sm font-bold text-theme-text flex items-center gap-1.5">
                       <CheckSquare className="w-4 h-4 text-emerald-500" />
                       Data Resolution Panel
                     </h3>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">Compare and resolve differences. Select what to keep.</p>
+                    <p className="text-[11px] text-theme-text-secondary mt-0.5">Compare and resolve differences. Select what to keep.</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {showDiscardResultsConfirm ? (
@@ -2620,7 +2620,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                           e.stopPropagation();
                           setShowDiscardResultsConfirm(true);
                         }}
-                        className="px-3 py-2 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                        className="px-3 py-2 border border-theme-border hover:bg-slate-50 dark:hover:bg-slate-800 text-theme-text-secondary text-xs font-bold rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
                       >
                         <Trash className="w-3.5 h-3.5 text-rose-500" />
                         <span>Discard Results</span>
@@ -2642,13 +2642,13 @@ I can analyze these, compare them with our database keys, and find standard mapp
                     acc[curr.key].push(curr);
                     return acc;
                   }, {})).map(([bKey, items]: [string, any]) => (
-                    <div key={bKey} className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm bg-white dark:bg-slate-900">
-                      <div className="p-3 bg-slate-100 dark:bg-slate-800/80 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+                    <div key={bKey} className="border border-theme-border rounded-xl overflow-hidden shadow-sm bg-theme-bg-card">
+                      <div className="p-3 bg-slate-100 dark:bg-slate-800/80 border-b border-theme-border flex items-center justify-between">
                         <div className="flex flex-col text-left">
                           <span className="text-sm font-bold text-slate-800 dark:text-slate-100">{items[0]?.name?.current !== 'N/A' ? items[0]?.name?.current : bKey}</span>
                           <span className="text-[10px] text-slate-500 font-mono">key: {bKey}</span>
                         </div>
-                        <span className="px-2 py-1 bg-white dark:bg-slate-900 rounded-md text-[10px] font-bold text-slate-500 shadow-sm border border-slate-200 dark:border-slate-700">
+                        <span className="px-2 py-1 bg-theme-bg-card rounded-md text-[10px] font-bold text-slate-500 shadow-sm border border-theme-border">
                           {items.length} Log(s)
                         </span>
                       </div>
@@ -2706,9 +2706,9 @@ I can analyze these, compare them with our database keys, and find standard mapp
                         {/* Details Grid (only rendered if selected) */}
                         {isRowSelected && (
                           <div className="p-3 space-y-3">
-                            <table className="w-full text-xs font-medium text-slate-600 dark:text-slate-400 border-collapse">
+                            <table className="w-full text-xs font-medium text-theme-text-secondary border-collapse">
                               <thead>
-                                <tr className="border-b border-slate-100 dark:border-slate-800/80 text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
+                                <tr className="border-b border-theme-border/80 text-[10px] text-slate-500 font-semibold uppercase tracking-wider">
                                   <th className="pb-1.5 text-left font-bold w-1/5">Field</th>
                                   <th className="pb-1.5 text-left font-bold w-2/5">Database Moment</th>
                                   <th className="pb-1.5 text-left font-bold w-2/5">Shared Value</th>
@@ -2725,7 +2725,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                       className={`px-2 py-1.5 rounded-lg text-left w-11/12 border transition-all cursor-pointer ${
                                         selects.name === 'current' 
                                           ? 'border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-bold ring-2 ring-indigo-500/20' 
-                                          : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-500'
+                                          : 'border-theme-border bg-theme-bg-card hover:bg-slate-50 text-slate-500'
                                       }`}
                                     >
                                       <div className="flex items-center gap-1.5">
@@ -2742,7 +2742,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                       className={`px-2 py-1.5 rounded-lg text-left w-11/12 border transition-all cursor-pointer ${
                                         selects.name === 'shared' 
                                           ? 'border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold ring-2 ring-emerald-500/20' 
-                                          : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-500'
+                                          : 'border-theme-border bg-theme-bg-card hover:bg-slate-50 text-slate-500'
                                       }`}
                                     >
                                       <div className="flex items-center gap-1.5">
@@ -2775,7 +2775,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                       className={`px-2 py-1.5 rounded-lg text-left w-11/12 border transition-all cursor-pointer ${
                                         selects.unit === 'current' 
                                           ? 'border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-bold ring-2 ring-indigo-500/20' 
-                                          : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-500'
+                                          : 'border-theme-border bg-theme-bg-card hover:bg-slate-50 text-slate-500'
                                       }`}
                                     >
                                       <div className="flex items-center gap-1.5">
@@ -2792,7 +2792,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                       className={`px-2 py-1.5 rounded-lg text-left w-11/12 border transition-all cursor-pointer ${
                                         selects.unit === 'shared' 
                                           ? 'border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold ring-2 ring-emerald-500/20' 
-                                          : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-500'
+                                          : 'border-theme-border bg-theme-bg-card hover:bg-slate-50 text-slate-500'
                                       }`}
                                     >
                                       <div className="flex items-center gap-1.5">
@@ -2825,7 +2825,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                       className={`px-2 py-1.5 rounded-lg text-left w-11/12 border transition-all cursor-pointer ${
                                         selects.value === 'current' 
                                           ? 'border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-bold ring-2 ring-indigo-500/20' 
-                                          : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-500'
+                                          : 'border-theme-border bg-theme-bg-card hover:bg-slate-50 text-slate-500'
                                       }`}
                                     >
                                       <div className="flex items-center gap-1.5">
@@ -2842,7 +2842,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                       className={`px-2 py-1.5 rounded-lg text-left w-11/12 border transition-all cursor-pointer ${
                                         selects.value === 'shared' 
                                           ? 'border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold ring-2 ring-emerald-500/20' 
-                                          : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-500'
+                                          : 'border-theme-border bg-theme-bg-card hover:bg-slate-50 text-slate-500'
                                       }`}
                                     >
                                       <div className="flex items-center gap-1.5">
@@ -2875,7 +2875,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                       className={`px-2 py-1.5 rounded-lg text-left w-11/12 border transition-all cursor-pointer ${
                                         selects.date === 'current' 
                                           ? 'border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-bold ring-2 ring-indigo-500/20' 
-                                          : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-500'
+                                          : 'border-theme-border bg-theme-bg-card hover:bg-slate-50 text-slate-500'
                                       }`}
                                     >
                                       <div className="flex items-center gap-1.5">
@@ -2892,7 +2892,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                       className={`px-2 py-1.5 rounded-lg text-left w-11/12 border transition-all cursor-pointer ${
                                         selects.date === 'shared' 
                                           ? 'border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold ring-2 ring-emerald-500/20' 
-                                          : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-500'
+                                          : 'border-theme-border bg-theme-bg-card hover:bg-slate-50 text-slate-500'
                                       }`}
                                     >
                                       <div className="flex items-center gap-1.5">
@@ -2925,7 +2925,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                       className={`px-2 py-1.5 rounded-lg text-left w-11/12 border transition-all cursor-pointer ${
                                         selects.comments === 'current' 
                                           ? 'border-indigo-200 dark:border-indigo-900 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-bold ring-2 ring-indigo-500/20' 
-                                          : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-500'
+                                          : 'border-theme-border bg-theme-bg-card hover:bg-slate-50 text-slate-500'
                                       }`}
                                     >
                                       <div className="flex items-start gap-1.5">
@@ -2942,7 +2942,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                       className={`px-2 py-1.5 rounded-lg text-left w-11/12 border transition-all cursor-pointer ${
                                         selects.comments === 'shared' 
                                           ? 'border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 font-bold ring-2 ring-emerald-500/20' 
-                                          : 'border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 text-slate-500'
+                                          : 'border-theme-border bg-theme-bg-card hover:bg-slate-50 text-slate-500'
                                       }`}
                                     >
                                       <div className="flex items-start gap-1.5">
@@ -2980,11 +2980,11 @@ I can analyze these, compare them with our database keys, and find standard mapp
             )}
           </div>
         ) : isNameConsolidationMode ? (
-          <div className="flex-1 flex flex-col overflow-y-auto bg-slate-50 dark:bg-slate-950">
+          <div className="flex-1 flex flex-col overflow-y-auto bg-theme-bg">
             {/* Top side: Chat thread */}
-            <div className={`flex flex-col shrink-0 ${consolidationGroups ? 'h-[400px] border-b border-slate-200 dark:border-slate-800' : 'h-full'}`}>
+            <div className={`flex flex-col shrink-0 ${consolidationGroups ? 'h-[400px] border-b border-theme-border' : 'h-full'}`}>
               {/* Settings Panel */}
-              <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 p-3 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between shrink-0">
+              <div className="bg-theme-bg-card border-b border-theme-border p-3 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between shrink-0">
                 <div className="w-full sm:w-56">
                   <LLMSelector
                     selectedModelId={nameConsolidationModel}
@@ -3004,7 +3004,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                     <button
                       type="button"
                       onClick={() => setConsolidationMessages([])}
-                      className="text-xs text-rose-500 font-bold hover:underline cursor-pointer flex items-center gap-1 border-l border-slate-200 dark:border-slate-700 pl-3 ml-2"
+                      className="text-xs text-rose-500 font-bold hover:underline cursor-pointer flex items-center gap-1 border-l border-theme-border pl-3 ml-2"
                     >
                       Clear Chat
                     </button>
@@ -3020,11 +3020,11 @@ I can analyze these, compare them with our database keys, and find standard mapp
                       <BrainCircuit className="w-8 h-8" />
                     </div>
                     <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2 font-sans tracking-tight">Name Consolidation Agent</h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                    <p className="text-sm text-theme-text-secondary">
                       Select biomarkers you want to consolidate. I will analyze their names, standard medical groupings, units, and ranges to find duplicates and automatically group them.
                     </p>
-                    <div className="mt-4 p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 text-xs text-slate-600 dark:text-slate-400 text-left">
-                      <div className="font-bold text-slate-700 dark:text-slate-300 mb-2">Selected Biomarkers ({selectedKeys.length}):</div>
+                    <div className="mt-4 p-3 bg-theme-bg-card rounded-xl border border-theme-border text-xs text-theme-text-secondary text-left">
+                      <div className="font-bold text-theme-neutral mb-2">Selected Biomarkers ({selectedKeys.length}):</div>
                       <div className="flex flex-wrap gap-1 max-h-24 overflow-y-auto">
                         {selectedKeys.length === 0 ? (
                           <span className="italic text-slate-400">No biomarkers selected. Select them from the list.</span>
@@ -3032,7 +3032,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                           selectedKeys.map(k => {
                             const def = profile.customBiomarkers?.[k] || biomarkerDefinitions.find((b: any) => b.key === k);
                             return (
-                              <span key={k} className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 px-2 py-0.5 rounded-md">
+                              <span key={k} className="inline-flex items-center gap-1 bg-slate-100 dark:bg-slate-800 border border-theme-border text-theme-neutral px-2 py-0.5 rounded-md">
                                 {def?.name || k}
                               </span>
                             );
@@ -3055,7 +3055,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                             ? 'bg-indigo-600 text-white shadow-md' 
                             : msg.isError
                               ? 'bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-900/50 text-rose-700 dark:text-rose-400'
-                              : 'bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 shadow-sm'
+                              : 'bg-theme-bg-card border border-theme-border text-slate-800 dark:text-slate-200 shadow-sm'
                         }`}>
                           <div className="whitespace-pre-wrap text-[13px] leading-relaxed font-sans">{msg.content}</div>
                           {msg.timestamp && (
@@ -3071,7 +3071,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                         <div className="w-8 h-8 rounded-full bg-indigo-100 dark:bg-indigo-900/50 flex items-center justify-center shrink-0">
                           <BrainCircuit className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-pulse" />
                         </div>
-                        <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col gap-2 max-w-[85%]">
+                        <div className="bg-theme-bg-card border border-theme-border rounded-2xl p-4 shadow-sm flex flex-col gap-2 max-w-[85%]">
                           <div className="flex items-center gap-2">
                             <div className="flex space-x-1">
                               <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]"></div>
@@ -3083,7 +3083,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                             </span>
                           </div>
                           {consolidationLiveThought && (
-                            <div className="text-[11px] text-slate-500 font-mono whitespace-pre-wrap border-t border-slate-100 dark:border-slate-800 pt-2 mt-1">
+                            <div className="text-[11px] text-slate-500 font-mono whitespace-pre-wrap border-t border-theme-border pt-2 mt-1">
                               {consolidationLiveThought}
                             </div>
                           )}
@@ -3095,12 +3095,12 @@ I can analyze these, compare them with our database keys, and find standard mapp
               </div>
 
               {/* Chat Input */}
-              <div className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800">
+              <div className="p-3 bg-theme-bg-card border-t border-theme-border">
                 <div className="flex flex-col gap-2">
                   <div className="relative w-full">
                     <input
                       type="text"
-                      className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl pl-4 pr-12 py-3 text-[13px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500"
+                      className="w-full bg-theme-bg border border-theme-border rounded-xl pl-4 pr-12 py-3 text-[13px] text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500"
                       placeholder="Ask the agent to group specific items or hit Start..."
                       value={consolidationInput}
                       onChange={e => setConsolidationInput(e.target.value)}
@@ -3131,8 +3131,8 @@ I can analyze these, compare them with our database keys, and find standard mapp
 
             {/* Bottom side: Consolidation Data */}
             {consolidationGroups && (
-              <div className="w-full flex flex-col bg-slate-50 dark:bg-slate-950/20 relative shadow-inner shrink-0 min-h-[500px]">
-                <div className="p-4 bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 shrink-0 flex items-center justify-between">
+              <div className="w-full flex flex-col bg-theme-bg/20 relative shadow-inner shrink-0 min-h-[500px]">
+                <div className="p-4 bg-theme-bg-card border-b border-theme-border shrink-0 flex items-center justify-between">
                   <div>
                     <h3 className="font-bold text-slate-800 dark:text-slate-100 text-sm flex items-center gap-2">
                       <CheckSquare className="w-4 h-4 text-emerald-500" />
@@ -3177,7 +3177,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                     });
 
                     return (
-                      <div key={groupIdx} className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm overflow-hidden p-5 space-y-5">
+                      <div key={groupIdx} className="bg-theme-bg-card border border-theme-border rounded-xl shadow-sm overflow-hidden p-5 space-y-5">
                         
                         {/* Status badge */}
                         <div className="flex items-center justify-between">
@@ -3191,7 +3191,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
 
                           {/* If the key does not exist, show "Add as new biomarker" toggle */}
                           {!keyExists && (
-                            <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-slate-700 dark:text-slate-300">
+                            <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-theme-neutral">
                               <input
                                 type="checkbox"
                                 checked={(edits as any).addNewBiomarker !== false}
@@ -3213,8 +3213,8 @@ I can analyze these, compare them with our database keys, and find standard mapp
 
                         {/* RATIONALE COMMENT */}
                         {group.rationale && (
-                          <div className="p-3 bg-slate-50 dark:bg-slate-950/40 rounded-lg border border-slate-100 dark:border-slate-800/40 text-xs text-slate-600 dark:text-slate-400">
-                            <span className="font-bold text-slate-700 dark:text-slate-300">Rationale: </span>
+                          <div className="p-3 bg-theme-bg/40 rounded-lg border border-theme-border/40 text-xs text-theme-text-secondary">
+                            <span className="font-bold text-theme-neutral">Rationale: </span>
                             {group.rationale}
                           </div>
                         )}
@@ -3248,7 +3248,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                 </div>
                                 <table className="w-full text-left border-collapse text-xs">
                                   <thead>
-                                    <tr className="bg-slate-50/50 dark:bg-slate-950/20 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-100 dark:border-slate-800/30">
+                                    <tr className="bg-slate-50/50 dark:bg-slate-950/20 text-[10px] font-bold text-slate-500 uppercase border-b border-theme-border/30">
                                       <th className="py-2 px-4 w-1/3">Name</th>
                                       <th className="py-2 px-4 w-12 text-center">Unit</th>
                                       <th className="py-2 px-4 w-1/4">Normal Range</th>
@@ -3257,7 +3257,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                     </tr>
                                   </thead>
                                   <tbody>
-                                    <tr className={`border-b border-slate-100 dark:border-slate-800/20 ${isEditingThis ? 'bg-slate-50/50 dark:bg-slate-950/20' : ''}`}>
+                                    <tr className={`border-b border-theme-border/20 ${isEditingThis ? 'bg-slate-50/50 dark:bg-slate-950/20' : ''}`}>
                                       <td className="py-3 px-4">
                                         {isEditingThis ? (
                                           <div className="space-y-3">
@@ -3265,7 +3265,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                               <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">Biomarker Name</label>
                                               <input
                                                 type="text"
-                                                className="w-full text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
+                                                className="w-full text-xs font-semibold bg-theme-bg-card border border-theme-border rounded px-2 py-1 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
                                                 value={nameVal}
                                                 onChange={(e) => {
                                                   setGroupEdits({
@@ -3282,7 +3282,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                               <label className="text-[9px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block mb-0.5">Unique Key</label>
                                               <input
                                                 type="text"
-                                                className="w-full text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
+                                                className="w-full text-xs font-mono bg-theme-bg-card border border-theme-border rounded px-2 py-1 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
                                                 value={keyVal}
                                                 onChange={(e) => {
                                                   setGroupEdits({
@@ -3324,15 +3324,15 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                                 <Edit2 className="w-3.5 h-3.5" />
                                               </button>
                                             </div>
-                                            <div className="font-mono text-xs text-slate-500 dark:text-slate-400 mt-1">
+                                            <div className="font-mono text-xs text-theme-text-secondary mt-1">
                                               {keyVal}
                                             </div>
                                             
                                             {/* Existing aliases list */}
                                             <div className="text-[11px] text-slate-400 dark:text-slate-500 mt-2">
-                                              <span className="font-bold text-slate-500 dark:text-slate-400">Existing Aliases: </span>
+                                              <span className="font-bold text-theme-text-secondary">Existing Aliases: </span>
                                               {existingDef && existingDef.aliases && existingDef.aliases.length > 0 ? (
-                                                <span className="italic font-mono bg-slate-100 dark:bg-slate-800/50 px-1 py-0.5 rounded text-[10px] text-slate-600 dark:text-slate-400">
+                                                <span className="italic font-mono bg-slate-100 dark:bg-slate-800/50 px-1 py-0.5 rounded text-[10px] text-theme-text-secondary">
                                                   {existingDef.aliases.join(', ')}
                                                 </span>
                                               ) : (
@@ -3344,11 +3344,11 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                       </td>
                                       
                                       {/* Unit Cell */}
-                                      <td className="py-2.5 px-4 font-mono text-center text-slate-600 dark:text-slate-400">
+                                      <td className="py-2.5 px-4 font-mono text-center text-theme-text-secondary">
                                         {isEditingThis ? (
                                           <input
                                             type="text"
-                                            className="w-full text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-center text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
+                                            className="w-full text-xs font-mono bg-theme-bg-card border border-theme-border rounded px-2 py-1 text-center text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
                                             value={unitVal}
                                             onChange={(e) => {
                                               setGroupEdits({
@@ -3366,11 +3366,11 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                       </td>
 
                                       {/* Range Cell */}
-                                      <td className="py-2.5 px-4 font-mono text-slate-600 dark:text-slate-400 whitespace-pre-wrap">
+                                      <td className="py-2.5 px-4 font-mono text-theme-text-secondary whitespace-pre-wrap">
                                         {isEditingThis ? (
                                           <input
                                             type="text"
-                                            className="w-full text-xs font-mono bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
+                                            className="w-full text-xs font-mono bg-theme-bg-card border border-theme-border rounded px-2 py-1 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500"
                                             value={rangeVal}
                                             onChange={(e) => {
                                               setGroupEdits({
@@ -3388,10 +3388,10 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                       </td>
 
                                       {/* Description Cell */}
-                                      <td className="py-2.5 px-4 text-slate-600 dark:text-slate-400">
+                                      <td className="py-2.5 px-4 text-theme-text-secondary">
                                         {isEditingThis ? (
                                           <textarea
-                                            className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded px-2 py-1 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500 min-h-[60px]"
+                                            className="w-full text-xs bg-theme-bg-card border border-theme-border rounded px-2 py-1 text-slate-800 dark:text-slate-100 focus:outline-none focus:border-indigo-500 min-h-[60px]"
                                             value={descVal}
                                             onChange={(e) => {
                                               setGroupEdits({
@@ -3411,7 +3411,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                       {/* Logs Cell */}
                                       <td 
                                         onClick={() => setViewingLogsKey({ key: keyVal, name: nameVal || keyVal })}
-                                        className="py-2.5 px-4 text-center font-bold text-slate-700 dark:text-slate-300 cursor-pointer hover:bg-emerald-500/10 dark:hover:bg-emerald-500/20 underline decoration-dotted transition-all"
+                                        className="py-2.5 px-4 text-center font-bold text-theme-neutral cursor-pointer hover:bg-emerald-500/10 dark:hover:bg-emerald-500/20 underline decoration-dotted transition-all"
                                         title="Click to view history logs"
                                       >
                                         {biomarkerHistory.filter((h: any) => h.biomarkers && h.biomarkers[keyVal] !== undefined).length}
@@ -3422,14 +3422,14 @@ I can analyze these, compare them with our database keys, and find standard mapp
                               </div>
 
                               {/* ALIASES TABLE */}
-                              <div className="border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-white dark:bg-slate-900">
-                                <div className="px-4 py-2 bg-slate-50 dark:bg-slate-950 text-[11px] font-bold text-slate-700 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center">
+                              <div className="border border-theme-border rounded-xl overflow-hidden bg-theme-bg-card">
+                                <div className="px-4 py-2 bg-theme-bg text-[11px] font-bold text-theme-neutral border-b border-theme-border flex justify-between items-center">
                                   <span>CANDIDATE ALIASES TO CONSOLIDATE</span>
                                   <span className="text-[10px] text-slate-500 font-normal">Check different info to append it</span>
                                 </div>
                                 <table className="w-full text-left border-collapse text-xs">
                                   <thead>
-                                    <tr className="bg-slate-50/50 dark:bg-slate-950/20 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-200 dark:border-slate-800">
+                                    <tr className="bg-slate-50/50 dark:bg-slate-950/20 text-[10px] font-bold text-slate-500 uppercase border-b border-theme-border">
                                       <th className="py-2 px-4 w-1/4">name</th>
                                       <th className="py-2 px-4 w-1/5">Unit info</th>
                                       <th className="py-2 px-4 w-1/5">Range info</th>
@@ -3455,7 +3455,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                       const isIncluded = !isExcluded;
 
                                       return (
-                                        <tr key={bIdx} className={`border-b border-slate-100 dark:border-slate-800/30 font-medium transition-opacity ${isExcluded ? 'opacity-50' : ''}`}>
+                                        <tr key={bIdx} className={`border-b border-theme-border/30 font-medium transition-opacity ${isExcluded ? 'opacity-50' : ''}`}>
                                           <td className="py-3 px-4">
                                             <div className="font-semibold text-slate-800 dark:text-slate-200">{b.name}</div>
                                             <div className="font-mono text-[10px] text-slate-400 mt-0.5">{b.key}</div>
@@ -3469,7 +3469,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                                 <span className="text-[11px] font-mono">{b.unit || 'Empty'}</span>
                                               </div>
                                             ) : (
-                                              <label className="flex items-center gap-2 cursor-pointer bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                                              <label className="flex items-center gap-2 cursor-pointer bg-theme-bg p-1.5 rounded-lg border border-theme-border">
                                                 <input
                                                   type="checkbox"
                                                   checked={!!aliasMerge.unit}
@@ -3489,7 +3489,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                                     });
                                                   }}
                                                 />
-                                                <span className="text-[11px] font-mono font-medium text-slate-700 dark:text-slate-300" title="Add unit to master">
+                                                <span className="text-[11px] font-mono font-medium text-theme-neutral" title="Add unit to master">
                                                   {b.unit}
                                                 </span>
                                               </label>
@@ -3504,7 +3504,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                                 <span className="text-[11px] font-mono truncate max-w-[120px]" title={b.range}>{b.range || 'Empty'}</span>
                                               </div>
                                             ) : (
-                                              <label className="flex items-center gap-2 cursor-pointer bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                                              <label className="flex items-center gap-2 cursor-pointer bg-theme-bg p-1.5 rounded-lg border border-theme-border">
                                                 <input
                                                   type="checkbox"
                                                   checked={!!aliasMerge.range}
@@ -3524,7 +3524,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                                     });
                                                   }}
                                                 />
-                                                <span className="text-[10px] text-slate-700 dark:text-slate-300 truncate max-w-[120px]" title="Add range to master">
+                                                <span className="text-[10px] text-theme-neutral truncate max-w-[120px]" title="Add range to master">
                                                   {b.range}
                                                 </span>
                                               </label>
@@ -3539,7 +3539,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                                 <span className="text-[11px] truncate max-w-[150px]" title={b.description}>{b.description || 'Empty'}</span>
                                               </div>
                                             ) : (
-                                              <label className="flex items-center gap-2 cursor-pointer bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-200 dark:border-slate-800">
+                                              <label className="flex items-center gap-2 cursor-pointer bg-theme-bg p-1.5 rounded-lg border border-theme-border">
                                                 <input
                                                   type="checkbox"
                                                   checked={!!aliasMerge.description}
@@ -3559,7 +3559,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                                     });
                                                   }}
                                                 />
-                                                <span className="text-[10px] text-slate-700 dark:text-slate-300 truncate max-w-[150px]" title="Add description to master">
+                                                <span className="text-[10px] text-theme-neutral truncate max-w-[150px]" title="Add description to master">
                                                   {b.description}
                                                 </span>
                                               </label>
@@ -3569,7 +3569,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                           {/* Logs col */}
                                           <td 
                                             onClick={() => setViewingLogsKey({ key: b.key, name: b.name })}
-                                            className="py-3 px-4 text-center font-medium text-slate-600 dark:text-slate-400 cursor-pointer hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20 underline decoration-dotted transition-all"
+                                            className="py-3 px-4 text-center font-medium text-theme-text-secondary cursor-pointer hover:bg-indigo-500/10 dark:hover:bg-indigo-500/20 underline decoration-dotted transition-all"
                                             title="Click to view history logs"
                                           >
                                             {biomarkerHistory.filter((h: any) => h.biomarkers && h.biomarkers[b.key] !== undefined).length}
@@ -3623,9 +3623,9 @@ I can analyze these, compare them with our database keys, and find standard mapp
             )}
           </div>
         ) : isChatMode ? (
-          <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950">
+          <div className="flex-1 flex flex-col overflow-hidden bg-theme-bg">
             {/* Selected Biomarkers Panel */}
-            <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 p-3 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
+            <div className="bg-theme-bg-card border-b border-theme-border p-3 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto">
               <span className="text-xs font-bold text-slate-500 self-center mr-1">Selected:</span>
               {selectedKeys.map(k => {
                 const def = profile.customBiomarkers?.[k];
@@ -3648,7 +3648,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                   <div className={`max-w-[85%] rounded-2xl p-4 shadow-sm ${
                     msg.role === 'user' 
                       ? 'bg-indigo-600 text-white rounded-br-none' 
-                      : 'bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-bl-none'
+                      : 'bg-theme-bg-card border border-theme-border text-slate-800 dark:text-slate-200 rounded-bl-none'
                   }`}>
                     <div className="text-xs font-semibold opacity-70 mb-1">
                       {msg.role === 'user' ? 'You' : 'Route Agent'}
@@ -3715,7 +3715,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
               ))}
               {isChatLoading && (
                 <div className="flex justify-start">
-                  <div className="bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex items-center gap-2 text-slate-500">
+                  <div className="bg-theme-bg-card border border-theme-border rounded-2xl p-4 shadow-sm flex items-center gap-2 text-slate-500">
                     <Loader className="w-4 h-4 animate-spin text-indigo-500" />
                     <span className="text-xs font-medium">Route Agent is analyzing ontology mappings...</span>
                   </div>
@@ -3725,7 +3725,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
             </div>
 
             {/* Input Form */}
-            <div className="bg-white dark:bg-slate-900 p-4 border-t border-slate-100 dark:border-slate-800 flex gap-2">
+            <div className="bg-theme-bg-card p-4 border-t border-theme-border flex gap-2">
               <button
                 onClick={() => handleSendChat("Please analyze the chosen biomarkers, map them to existing master keys if synonyms exist, or propose new standard snake_case keys if missing, and output the recommended mappings in your suggestedMapping JSON block.")}
                 disabled={isChatLoading || selectedKeys.length === 0}
@@ -3739,7 +3739,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                 onChange={e => setChatInput(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSendChat()}
                 placeholder="Ask route agent or instruct how you want them mapped..."
-                className="flex-1 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-4 py-2 text-sm outline-none focus:border-indigo-500 dark:focus:border-indigo-500"
+                className="flex-1 bg-theme-bg border border-theme-border rounded-xl px-4 py-2 text-sm outline-none focus:border-indigo-500 dark:focus:border-indigo-500"
               />
               <button
                 onClick={() => handleSendChat()}
@@ -3752,9 +3752,9 @@ I can analyze these, compare them with our database keys, and find standard mapp
           </div>
         ) : isAgentMode ? (
           /* CLINICAL UNIT STANDARDIZATION AGENT MODE LAYOUT */
-          <div className="flex-1 flex flex-col overflow-hidden bg-slate-50 dark:bg-slate-950">
+          <div className="flex-1 flex flex-col overflow-hidden bg-theme-bg">
             {/* Selected Biomarkers Panel */}
-            <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 p-3 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto shrink-0">
+            <div className="bg-theme-bg-card border-b border-theme-border p-3 flex flex-wrap gap-1.5 max-h-24 overflow-y-auto shrink-0">
               <span className="text-xs font-bold text-slate-500 self-center mr-1">Selected Biomarkers:</span>
               {selectedKeys.map(k => {
                 const def = profile.customBiomarkers?.[k] || biomarkerDefinitions.find((b: any) => b.key === k);
@@ -3772,7 +3772,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
 
             <div className="flex-1 overflow-y-auto p-5 space-y-6">
               {/* Agent Engine & Instructions Controls */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
+              <div className="bg-theme-bg-card border border-theme-border rounded-2xl p-4 shadow-sm flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4">
                 <div className="w-full sm:w-64">
                   <LLMSelector
                     selectedModelId={isMedicalCategorisationMode ? medicalCategoriseModel : standardizeModel}
@@ -3790,7 +3790,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
               </div>
 
               {/* Metric Selection controls */}
-              <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+              <div className="bg-theme-bg-card border border-theme-border rounded-2xl p-5 shadow-sm space-y-4">
                 {!isMedicalCategorisationMode && (
                   <>
                     <div>
@@ -3798,7 +3798,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                         <CheckSquare className="w-4 h-4 text-violet-500" />
                         Step 1: Choose Target Metric System
                       </h3>
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      <p className="text-xs text-theme-text-secondary mt-1">
                         Select whether the standardization agent should target the International System of Units (SI/Metric) or US Customary units.
                       </p>
                     </div>
@@ -3810,14 +3810,14 @@ I can analyze these, compare them with our database keys, and find standard mapp
                         className={`p-4 rounded-xl border text-left transition-all ${
                           targetMetric === 'si'
                             ? 'border-violet-500 bg-violet-50/50 dark:bg-violet-950/20 ring-2 ring-violet-500/20'
-                            : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                            : 'border-theme-border hover:bg-slate-50 dark:hover:bg-slate-800/50'
                         }`}
                       >
                         <div className="font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center justify-between">
                           <span>SI System (Metric)</span>
                           {targetMetric === 'si' && <CheckCircle className="w-4 h-4 text-violet-500" />}
                         </div>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                        <p className="text-[11px] text-theme-text-secondary mt-1">
                           Uses standard metric units (e.g., mmol/L for glucose, g/L for protein, pmol/L for hormones). Standard in global clinical research.
                         </p>
                       </button>
@@ -3828,14 +3828,14 @@ I can analyze these, compare them with our database keys, and find standard mapp
                         className={`p-4 rounded-xl border text-left transition-all ${
                           targetMetric === 'us'
                             ? 'border-violet-500 bg-violet-50/50 dark:bg-violet-950/20 ring-2 ring-violet-500/20'
-                            : 'border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                            : 'border-theme-border hover:bg-slate-50 dark:hover:bg-slate-800/50'
                         }`}
                       >
                         <div className="font-bold text-sm text-slate-800 dark:text-slate-100 flex items-center justify-between">
                           <span>US Customary System</span>
                           {targetMetric === 'us' && <CheckCircle className="w-4 h-4 text-violet-500" />}
                         </div>
-                        <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                        <p className="text-[11px] text-theme-text-secondary mt-1">
                           Uses standard United States clinical units (e.g., mg/dL for glucose, g/dL for protein, pg/mL for hormones).
                         </p>
                       </button>
@@ -3867,13 +3867,13 @@ I can analyze these, compare them with our database keys, and find standard mapp
 
               {/* Loader block for agent operations */}
               {agentLoading && (
-                <div className="p-8 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl flex flex-col items-center justify-center text-center space-y-4 shadow-sm">
+                <div className="p-8 bg-theme-bg-card border border-theme-border rounded-2xl flex flex-col items-center justify-center text-center space-y-4 shadow-sm">
                   <Loader className="w-8 h-8 animate-spin text-violet-500" />
                   <div>
                     <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">
                       {isMedicalCategorisationMode ? 'Categorising Biomarkers...' : 'Standardizing Biomarker Definitions...'}
                     </h4>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-md">
+                    <p className="text-xs text-theme-text-secondary mt-1 max-w-md">
                       {isMedicalCategorisationMode
                         ? 'The clinical AI agent is analyzing the biomarkers to assign medical groupings and risk categories, outputting validated JSON configuration objects.'
                         : `The clinical AI agent is parsing the selected biomarkers, researching reference units for ${targetMetric.toUpperCase()}, and outputting clean, validated JSON configuration objects with suggested ranges.`}
@@ -3886,9 +3886,9 @@ I can analyze these, compare them with our database keys, and find standard mapp
               {standardizationYaml && (
                 <div className="space-y-6">
                   {/* Generated RAW YAML display block */}
-                  <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-3">
+                  <div className="bg-theme-bg-card border border-theme-border rounded-2xl p-5 shadow-sm space-y-3">
                     <div className="flex items-center justify-between">
-                      <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono flex items-center gap-1.5">
+                      <h4 className="text-xs font-bold text-theme-neutral font-mono flex items-center gap-1.5">
                         <FileCode className="w-4 h-4 text-violet-500" />
                         AGENT_METADATA_SPECIFICATION.JSON
                       </h4>
@@ -3910,13 +3910,13 @@ I can analyze these, compare them with our database keys, and find standard mapp
 
                   {/* Aesthetic Comparison Table and Approval summary */}
                   {standardizationSummary && (
-                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 shadow-sm space-y-4">
+                    <div className="bg-theme-bg-card border border-theme-border rounded-2xl p-5 shadow-sm space-y-4">
                       <div>
                         <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                           <CheckCircle className="w-4 h-4 text-emerald-500" />
                           {isMedicalCategorisationMode ? "Step 2: Review Proposed Categorisations" : "Step 2: Review Proposed Standardizations"}
                         </h4>
-                        <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        <p className="text-xs text-theme-text-secondary mt-1">
                           {isMedicalCategorisationMode 
                             ? "Review the physiological groupings and risk categories computed by the clinical categorisation agent. If approved, these will be applied to your active biomarker dictionary." 
                             : "Review the units and reference ranges computed by the clinical standardization agent. If approved, these will be applied to your active biomarker dictionary."}
@@ -3927,7 +3927,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                         <div className="p-8 text-center bg-emerald-50/50 dark:bg-emerald-950/20 border border-dashed border-emerald-200 dark:border-emerald-800/60 rounded-xl space-y-3">
                           <CheckCircle className="w-8 h-8 text-emerald-500 mx-auto" />
                           <p className="text-sm font-bold text-slate-800 dark:text-slate-100">All Selected Biomarkers are Already Standardized!</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400 max-w-md mx-auto">
+                          <p className="text-xs text-theme-text-secondary max-w-md mx-auto">
                             The clinical unit standardization agent confirmed that all selected biomarkers are already using the recommended standardized units. No adjustments are needed.
                           </p>
                           <div className="pt-2 flex justify-center">
@@ -3937,7 +3937,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                 setStandardizationYaml(null);
                                 setStandardizationSummary(null);
                               }}
-                              className="px-4 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                              className="px-4 py-2 bg-white dark:bg-slate-800 border border-theme-border text-theme-neutral rounded-lg text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
                             >
                               Reset & Go Back
                             </button>
@@ -3945,10 +3945,10 @@ I can analyze these, compare them with our database keys, and find standard mapp
                         </div>
                       ) : (
                         <>
-                          <div className="border border-slate-100 dark:border-slate-800 rounded-xl overflow-hidden">
+                          <div className="border border-theme-border rounded-xl overflow-hidden">
                             <table className="w-full text-left border-collapse text-xs">
                               <thead>
-                                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-800 text-slate-700 dark:text-slate-200 font-semibold">
+                                <tr className="bg-slate-50 dark:bg-slate-800/50 border-b border-theme-border text-slate-700 dark:text-slate-200 font-semibold">
                                   <th className="p-3">Biomarker</th>
                                   {isMedicalCategorisationMode ? (
                                     <>
@@ -3961,7 +3961,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                   )}
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50 text-slate-600 dark:text-slate-300">
+                              <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50 text-theme-text-secondary">
                                 {standardizationSummary.map((item: any, idx: number) => {
                                   const originalDef = profile.customBiomarkers?.[item.key] || biomarkerDefinitions.find((b: any) => b.key === item.key);
                                   
@@ -4037,7 +4037,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                                 setStandardizationYaml(null);
                                 setStandardizationSummary(null);
                               }}
-                              className="flex-1 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+                              className="flex-1 py-3 bg-white dark:bg-slate-800 border border-theme-border text-theme-neutral rounded-xl text-xs font-bold hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
                             >
                               Reset Configuration
                             </button>
@@ -4060,26 +4060,26 @@ I can analyze these, compare them with our database keys, and find standard mapp
           </div>
         ) : isBatchPasteMode ? (
           /* BATCH CONSOLIDATION MODE LAYOUT */
-          <div className="flex-1 p-5 overflow-y-auto space-y-5 bg-slate-50 dark:bg-slate-950">
-            <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 space-y-3">
+          <div className="flex-1 p-5 overflow-y-auto space-y-5 bg-theme-bg">
+            <div className="bg-theme-bg-card border border-theme-border rounded-xl p-4 space-y-3">
               <div className="flex items-center justify-between mb-2">
                 <h3 className="text-sm font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2">
                   <FileCode className="w-4 h-4 text-indigo-500" />
                   Batch Consolidate (JSON)
                 </h3>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
+              <p className="text-xs text-theme-text-secondary">
                 Paste a JSON object to merge biomarkers or update their definitions.
               </p>
               
-              <details className="text-xs border border-slate-200 dark:border-slate-700 rounded-lg bg-slate-50 dark:bg-slate-950 overflow-hidden">
-                <summary className="font-bold text-slate-700 dark:text-slate-300 p-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors select-none">
+              <details className="text-xs border border-theme-border rounded-lg bg-theme-bg overflow-hidden">
+                <summary className="font-bold text-theme-neutral p-3 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors select-none">
                   Key Reference & Format Guide
                 </summary>
-                <div className="p-3 border-t border-slate-200 dark:border-slate-700 space-y-3 text-slate-600 dark:text-slate-400">
+                <div className="p-3 border-t border-theme-border space-y-3 text-theme-text-secondary">
                   <p><strong>Option 1: Merge Historical Logs</strong><br/>
                   Map a source term to a target snake_case key to combine their logs.</p>
-                  <pre className="bg-slate-100 dark:bg-slate-900 p-2 rounded border border-slate-200 dark:border-slate-800 font-mono text-[10px]">
+                  <pre className="bg-slate-100 dark:bg-slate-900 p-2 rounded border border-theme-border font-mono text-[10px]">
 {`{
   "HbA1c": "hba1c",
   "0": "hba1c"
@@ -4088,7 +4088,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                   
                   <p><strong>Option 2: Batch Update (Array)</strong><br/>
                   Pass a list of objects with the <code>key</code> property to update multiple biomarkers at once.</p>
-                  <pre className="bg-slate-100 dark:bg-slate-900 p-2 rounded border border-slate-200 dark:border-slate-800 font-mono text-[10px]">{JSON.stringify([
+                  <pre className="bg-slate-100 dark:bg-slate-900 p-2 rounded border border-theme-border font-mono text-[10px]">{JSON.stringify([
   {
     "key": "hba1c",
     "name": "HbA1c",
@@ -4100,7 +4100,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                   
                   <p className="mt-3"><strong>Option 3: Dictionary Map</strong><br/>
                   Update multiple properties using the biomarker key as the property name.</p>
-                  <pre className="bg-slate-100 dark:bg-slate-900 p-2 rounded border border-slate-200 dark:border-slate-800 font-mono text-[10px]">{JSON.stringify({
+                  <pre className="bg-slate-100 dark:bg-slate-900 p-2 rounded border border-theme-border font-mono text-[10px]">{JSON.stringify({
   "hba1c": {
     "name": "HbA1c",
     "unit": "mmol/mol",
@@ -4134,7 +4134,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                 onChange={e => handlePasteChange(e.target.value)}
                 rows={10}
                 placeholder={`{\n  "HbA1c": "hba1c",\n  "hba1c": {\n    "normalRange": "20 - 41"\n  }\n}`}
-                className="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl p-3 font-mono text-xs outline-none focus:ring-2 focus:ring-indigo-500/20"
+                className="w-full bg-theme-bg border border-theme-border rounded-xl p-3 font-mono text-xs outline-none focus:ring-2 focus:ring-indigo-500/20"
               />
 
               {pasteError && (
@@ -4180,7 +4180,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
             <div className="flex justify-end gap-3">
               <button
                 onClick={() => setIsBatchPasteMode(false)}
-                className="px-4 py-2 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                className="px-4 py-2 border border-theme-border text-theme-text-secondary rounded-xl text-xs font-bold hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
               >
                 Cancel
               </button>
@@ -4199,19 +4199,19 @@ I can analyze these, compare them with our database keys, and find standard mapp
           <div className="flex-1 flex flex-col overflow-hidden">
             
             {/* Top Batch and Selection Controls */}
-            <div className="bg-slate-50 dark:bg-slate-900/50 p-3 border-b border-slate-100 dark:border-slate-800 flex flex-wrap gap-2 justify-between items-center">
+            <div className="bg-slate-50 dark:bg-slate-900/50 p-3 border-b border-theme-border flex flex-wrap gap-2 justify-between items-center">
               <div className="flex items-center gap-2 flex-wrap">
                 <input 
                   type="text" 
                   placeholder="Search biomarkers..." 
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs outline-none focus:border-indigo-500 w-48 text-slate-700 dark:text-slate-200"
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-theme-border rounded-lg text-xs outline-none focus:border-indigo-500 w-48 text-slate-700 dark:text-slate-200"
                 />
                 <select
                   value={filterOption}
                   onChange={(e) => setFilterOption(e.target.value as any)}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-theme-border rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                 >
                   <option value="all">All Approved ({allApprovedKeysUnfiltered.length})</option>
                   <option value="overrides">Custom Overrides ({allApprovedKeysUnfiltered.filter(hasActualOverride).length})</option>
@@ -4220,7 +4220,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                 <select
                   value={filterTag || ""}
                   onChange={(e) => setFilterTag(e.target.value || null)}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-theme-border rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 outline-none focus:border-indigo-500 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
                 >
                   <option value="">All Tags</option>
                   <optgroup label="Medical Practice">
@@ -4241,7 +4241,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                 </select>
                 <button
                   onClick={() => setIsBatchPasteMode(true)}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1"
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-theme-border rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1"
                 >
                   <FileCode className="w-3.5 h-3.5 text-indigo-500" />
                   Batch Consolidate
@@ -4272,7 +4272,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                     navigator.clipboard.writeText(textContent);
                     alert('Copied ' + filteredKeysToCopy.length + ' biomarkers with full history log to clipboard!');
                   }}
-                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1"
+                  className="px-3 py-1.5 bg-white dark:bg-slate-800 border border-theme-border rounded-lg text-xs font-bold text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors flex items-center gap-1"
                 >
                   <Copy className="w-3.5 h-3.5 text-slate-500" />
                   Copy All
@@ -4306,7 +4306,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                       <ChevronDown className="w-3.5 h-3.5 ml-1 opacity-70" />
                     </button>
                      {showCleaningDropdown && (
-                      <div className="absolute top-full mt-1 left-0 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-200 dark:border-slate-700 py-1.5 min-w-[220px] z-[100] animate-in fade-in slide-in-from-top-2">
+                      <div className="absolute top-full mt-1 left-0 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-theme-border py-1.5 min-w-[220px] z-[100] animate-in fade-in slide-in-from-top-2">
                         <button
                           onClick={() => {
                             setShowCleaningDropdown(false);
@@ -4550,7 +4550,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                       </div>
                     )}
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-4">
+                  <p className="text-xs text-theme-text-secondary mb-4">
                     These biomarkers were extracted but do not match the standardized dictionary. Check them to route together, or standard-route individually.
                   </p>
                   <div className="space-y-2">
@@ -4670,7 +4670,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                       {allApprovedKeys.every(k => selectedKeys.includes(k)) ? "Deselect All" : "Select All"}
                     </button>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+                  <p className="text-xs text-theme-text-secondary mb-3">
                     {filterOption === 'overrides' && "These approved biomarkers have custom reference ranges or demographic-specific overrides defined."}
                     {filterOption === 'missing_units' && "These approved biomarkers are missing units of measurement. Select or update them to maintain clean data records."}
                     {filterOption === 'all' && "These approved biomarkers are mapped to your profile. You can select them to consolidate multiple biomarkers using Route Agent, or edit their normal ranges and properties."}
@@ -4834,8 +4834,8 @@ I can analyze these, compare them with our database keys, and find standard mapp
         
         return (
           <div className="fixed inset-0 bg-slate-950/65 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
-            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[80vh] animate-in fade-in zoom-in-95 duration-200">
-              <div className="p-4 sm:p-5 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between bg-slate-50 dark:bg-slate-950">
+            <div className="bg-theme-bg-card rounded-2xl border border-theme-border shadow-2xl max-w-md w-full overflow-hidden flex flex-col max-h-[80vh] animate-in fade-in zoom-in-95 duration-200">
+              <div className="p-4 sm:p-5 border-b border-theme-border flex items-center justify-between bg-theme-bg">
                 <div>
                   <h3 className="font-bold text-slate-800 dark:text-slate-200 text-sm">{name}</h3>
                   <p className="text-[10px] font-mono text-slate-400 dark:text-slate-500 mt-0.5">Key: {key}</p>
@@ -4853,7 +4853,7 @@ I can analyze these, compare them with our database keys, and find standard mapp
                     No logs recorded for this biomarker.
                   </div>
                 ) : (
-                  <div className="border border-slate-100 dark:border-slate-800/80 rounded-xl overflow-hidden shadow-sm">
+                  <div className="border border-theme-border/80 rounded-xl overflow-hidden shadow-sm">
                     <table className="w-full text-left border-collapse text-xs">
                       <thead>
                         <tr className="bg-slate-50/55 dark:bg-slate-950/40 text-[10px] font-bold text-slate-500 uppercase border-b border-slate-150 dark:border-slate-800">
@@ -4863,8 +4863,8 @@ I can analyze these, compare them with our database keys, and find standard mapp
                       </thead>
                       <tbody>
                         {itemLogs.map((log: any, idx: number) => (
-                          <tr key={idx} className="border-b border-slate-100 dark:border-slate-800/30 hover:bg-slate-50/50 dark:hover:bg-slate-950/20 font-medium">
-                            <td className="py-2.5 px-4 font-mono text-slate-600 dark:text-slate-400">
+                          <tr key={idx} className="border-b border-theme-border/30 hover:bg-slate-50/50 dark:hover:bg-slate-950/20 font-medium">
+                            <td className="py-2.5 px-4 font-mono text-theme-text-secondary">
                               {log.date}
                             </td>
                             <td className="py-2.5 px-4 text-right font-bold text-slate-800 dark:text-slate-200 font-mono">
@@ -4877,10 +4877,10 @@ I can analyze these, compare them with our database keys, and find standard mapp
                   </div>
                 )}
               </div>
-              <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex justify-end bg-slate-50/50 dark:bg-slate-950/20">
+              <div className="p-4 border-t border-theme-border flex justify-end bg-slate-50/50 dark:bg-slate-950/20">
                 <button
                   onClick={() => setViewingLogsKey(null)}
-                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-colors"
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-theme-neutral rounded-lg text-xs font-semibold transition-colors"
                 >
                   Close Logs
                 </button>

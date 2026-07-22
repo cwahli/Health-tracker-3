@@ -399,7 +399,7 @@ export default function TrendsTab({
       
       {activeSubTab === 'summary' && (
         <div className="space-y-6" onClick={() => setSelectedDot(null)}>
-          <div className="flex justify-between items-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-3 rounded-xl relative">
+          <div className="flex justify-between items-center bg-theme-bg-card border border-theme-border/80 p-3 rounded-xl relative">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide font-mono">Aggregated Time Period</span>
             <div className="flex items-center gap-2">
               <span className="text-xs font-bold text-slate-950 dark:text-slate-200">Last</span>
@@ -429,7 +429,7 @@ export default function TrendsTab({
                 }
               }}
               id="copy-summary-btn"
-              className="absolute -top-3 -right-2 p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-sm hover:scale-105 transition-all"
+              className="absolute -top-3 -right-2 p-2 bg-white dark:bg-slate-800 border border-theme-border rounded-full shadow-sm hover:scale-105 transition-all"
               title="Copy all data"
             >
               <Copy className="w-3.5 h-3.5 text-slate-500 hover:text-indigo-600 transition-colors" />
@@ -454,7 +454,7 @@ export default function TrendsTab({
                   <div className={`rounded-full ${dot.color} transition-all duration-300 ${selectedDot?.key === dot.key || hoveredDot?.key === dot.key ? 'ring-2 ring-offset-2 ring-indigo-500 dark:ring-offset-slate-950 scale-110' : ''}`} style={{ width: '25px', height: '25px' }} />
                   
                   {/* Tooltip */}
-                  <div className={`absolute bottom-full mb-2 ${i % 10 < 2 ? 'left-0' : i % 10 > 7 ? 'right-0' : 'left-1/2 -translate-x-1/2'} w-48 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 transition-all duration-200 pointer-events-none ${selectedDot?.key === dot.key || hoveredDot?.key === dot.key ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
+                  <div className={`absolute bottom-full mb-2 ${i % 10 < 2 ? 'left-0' : i % 10 > 7 ? 'right-0' : 'left-1/2 -translate-x-1/2'} w-48 p-3 bg-white dark:bg-slate-800 border border-theme-border rounded-xl shadow-xl z-50 transition-all duration-200 pointer-events-none ${selectedDot?.key === dot.key || hoveredDot?.key === dot.key ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
                     <div className="flex items-center gap-2 mb-2">
                       <div className={`w-2.5 h-2.5 rounded-full ${dot.color}`} />
                       <h4 className="text-xs font-bold text-slate-950 dark:text-white capitalize truncate">{dot.name}</h4>
@@ -496,7 +496,7 @@ export default function TrendsTab({
                   <div className={`rounded-full ${dot.color} transition-all duration-300 ${selectedDot?.key === dot.key || hoveredDot?.key === dot.key ? 'ring-2 ring-offset-2 ring-indigo-500 dark:ring-offset-slate-950 scale-110' : ''}`} style={{ width: '25px', height: '25px' }} />
                   
                   {/* Tooltip */}
-                  <div className={`absolute bottom-full mb-2 ${i % 10 < 2 ? 'left-0' : i % 10 > 7 ? 'right-0' : 'left-1/2 -translate-x-1/2'} w-48 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-50 transition-all duration-200 pointer-events-none ${selectedDot?.key === dot.key || hoveredDot?.key === dot.key ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
+                  <div className={`absolute bottom-full mb-2 ${i % 10 < 2 ? 'left-0' : i % 10 > 7 ? 'right-0' : 'left-1/2 -translate-x-1/2'} w-48 p-3 bg-white dark:bg-slate-800 border border-theme-border rounded-xl shadow-xl z-50 transition-all duration-200 pointer-events-none ${selectedDot?.key === dot.key || hoveredDot?.key === dot.key ? 'opacity-100 visible' : 'opacity-0 invisible'}`}>
                     <div className="flex items-center gap-2 mb-2">
                       <div className={`w-2.5 h-2.5 rounded-full ${dot.color}`} />
                       <h4 className="text-xs font-bold text-slate-950 dark:text-white capitalize truncate">{dot.name}</h4>
@@ -533,7 +533,7 @@ export default function TrendsTab({
             id="trend-metric-selector"
             value={selectedMetric}
             onChange={(e) => handleMetricChange(e.target.value)}
-            className="w-full text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-xl px-2.5 py-2.5 text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
+            className="w-full text-xs font-bold bg-theme-bg-card border border-theme-border/80 rounded-xl px-2.5 py-2.5 text-theme-neutral focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
           >
             <option value="steps">Daily Steps</option>
             {nutrientDefinitions.map(nut => (
@@ -549,7 +549,7 @@ export default function TrendsTab({
 
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-1.5 font-mono">Time Roll</label>
-          <div className="grid grid-cols-3 gap-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 p-1 rounded-xl">
+          <div className="grid grid-cols-3 gap-1 bg-theme-bg-card border border-theme-border/80 p-1 rounded-xl">
             {(['daily', 'weekly', 'monthly'] as const).map(p => (
               <button
                 key={p}
@@ -746,10 +746,10 @@ export default function TrendsTab({
                       Food Consumed on {formatTimelineDate(dateStr)}
                     </span>
                     <div className="flex items-center gap-2">
-                      <span className={`text-xs font-bold ${totalValue > targetVal ? 'text-rose-500' : 'text-slate-900 dark:text-white'}`}>
+                      <span className={`text-xs font-bold ${totalValue > targetVal ? 'text-rose-500' : 'text-theme-text'}`}>
                         {totalValue.toFixed(1)} / {targetVal} {metricMeta.unit}
                       </span>
-                      <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0 relative text-slate-900 dark:text-white">
+                      <div className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0 relative text-theme-text">
                         <div className="absolute inset-0" style={{ background: datePieGradient }} />
                       </div>
                     </div>
@@ -765,7 +765,7 @@ export default function TrendsTab({
                       const excessPercent = (excessAmount / targetVal) * 100;
 
                       let pieGradient = '';
-                      let textColorClass = 'text-slate-900 dark:text-white';
+                      let textColorClass = 'text-theme-text';
                       
                       if (endsAt <= targetVal) {
                         pieGradient = `conic-gradient(currentColor ${normalPercent}%, transparent ${normalPercent}%)`;
@@ -796,7 +796,7 @@ export default function TrendsTab({
                             <span className={`text-xs font-bold ${textColorClass}`}>
                               {itemVal.toFixed(1)} {metricMeta.unit}
                             </span>
-                            <div className="w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0 relative text-slate-900 dark:text-white">
+                            <div className="w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden flex-shrink-0 relative text-theme-text">
                               <div className="absolute inset-0" style={{ background: pieGradient }} />
                             </div>
                           </div>

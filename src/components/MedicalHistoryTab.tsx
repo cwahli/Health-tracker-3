@@ -424,7 +424,7 @@ export default function MedicalHistoryTab({
     if (maxScore === 3) return { label: worstMarkerStatusLabel, bg: 'bg-amber-500', text: 'text-white' };
     if (maxScore === 2) return { label: 'Normal', bg: 'bg-emerald-600', text: 'text-white' };
     if (maxScore === 1) return { label: 'Unknown', bg: 'bg-slate-400', text: 'text-white' };
-    return { label: 'No Data', bg: 'bg-slate-200 dark:bg-slate-800/50', text: 'text-slate-600 dark:text-slate-400' };
+    return { label: 'No Data', bg: 'bg-slate-200 dark:bg-slate-800/50', text: 'text-theme-text-secondary' };
   };
 
   // Sort subcategories
@@ -493,7 +493,7 @@ export default function MedicalHistoryTab({
   };
 
   return (
-    <div className="space-y-4 pb-40 animation-fade-in max-w-md mx-auto px-3 mt-4 font-sans text-slate-900 dark:text-slate-100">
+    <div className="space-y-4 pb-40 animation-fade-in max-w-md mx-auto px-3 mt-4 font-sans text-theme-text">
       
       {/* Search Input */}
       <div className="relative">
@@ -507,7 +507,7 @@ export default function MedicalHistoryTab({
           placeholder="Search conditions or markers..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
+          className="w-full pl-10 pr-3 py-2 bg-white dark:bg-slate-800 border border-theme-border rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all shadow-sm"
         />
       </div>
 
@@ -521,7 +521,7 @@ export default function MedicalHistoryTab({
               setViewType(e.target.value as any);
               setSelectedSubCategory('all');
             }}
-            className="w-full px-2.5 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all cursor-pointer shadow-sm"
+            className="w-full px-2.5 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-theme-border rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all cursor-pointer shadow-sm"
           >
             {BIOMARKER_GROUPING_OPTIONS.map(opt => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>
@@ -534,7 +534,7 @@ export default function MedicalHistoryTab({
           <select
             value={sortBy}
             onChange={(e) => setSortBy(e.target.value as any)}
-            className="w-full px-2.5 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all cursor-pointer shadow-sm"
+            className="w-full px-2.5 py-1.5 text-xs font-semibold bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-theme-border rounded-xl focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 focus:outline-none transition-all cursor-pointer shadow-sm"
           >
             <option value="risk">Risk Level</option>
             <option value="name">Name</option>
@@ -550,11 +550,11 @@ export default function MedicalHistoryTab({
           const markers = getSortedBiomarkersForSubCategory(cat);
           
           return (
-            <div key={cat} className="border border-slate-200 dark:border-slate-800 rounded-2xl overflow-hidden bg-white dark:bg-slate-900 shadow-xs">
+            <div key={cat} className="border border-theme-border rounded-2xl overflow-hidden bg-theme-bg-card shadow-xs">
               {/* Accordion Header */}
               <div 
                 onClick={() => toggleSubCategory(cat)}
-                className="flex items-center justify-between p-3.5 bg-slate-50/50 dark:bg-slate-900/60 hover:bg-slate-100/60 dark:hover:bg-slate-850/40 cursor-pointer select-none transition-colors border-b border-slate-100 dark:border-slate-800/30"
+                className="flex items-center justify-between p-3.5 bg-slate-50/50 dark:bg-slate-900/60 hover:bg-slate-100/60 dark:hover:bg-slate-850/40 cursor-pointer select-none transition-colors border-b border-theme-border/30"
               >
                 <span className="text-xs font-bold text-slate-700 dark:text-slate-200 capitalize">
   {cat} ({markers.length})
@@ -572,7 +572,7 @@ export default function MedicalHistoryTab({
 
               {/* Accordion Content */}
               {isOpen && (
-                <div className="divide-y divide-slate-100 dark:divide-slate-800/40 bg-white dark:bg-slate-900">
+                <div className="divide-y divide-slate-100 dark:divide-slate-800/40 bg-theme-bg-card">
                   {markers.length > 0 ? (
                     markers.map((def) => {
                       let val = getLatestValue(def.key);
@@ -698,8 +698,8 @@ export default function MedicalHistoryTab({
         })}
       </div>
 
-      <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800/80 flex flex-col sm:flex-row items-center justify-between gap-4 px-4">
-        <div className="flex flex-wrap items-center gap-6 text-xs text-slate-500 dark:text-slate-400 font-medium">
+      <div className="mt-8 pt-6 border-t border-theme-border/80 flex flex-col sm:flex-row items-center justify-between gap-4 px-4">
+        <div className="flex flex-wrap items-center gap-6 text-xs text-theme-text-secondary font-medium">
           <div className="flex items-center gap-2">
             <ClipboardList className="w-4 h-4 text-indigo-500" />
             <span>Total Unique Biomarkers: <strong className="text-slate-800 dark:text-slate-200 font-bold">{totalUniqueBiomarkers}</strong></span>

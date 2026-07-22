@@ -245,8 +245,8 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4 transition-colors duration-200">
-      <div id="auth-card" className="w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 rounded-3xl p-8 shadow-xl relative overflow-hidden transition-all">
+    <div className="min-h-screen bg-theme-bg flex flex-col items-center justify-center p-4 transition-colors duration-200">
+      <div id="auth-card" className="w-full max-w-md bg-theme-bg-card border border-theme-border/80 rounded-3xl p-8 shadow-xl relative overflow-hidden transition-all">
         {/* Decorative corner accent */}
         <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl -mr-10 -mt-10" />
         
@@ -258,7 +258,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
           <h1 id="auth-title" className="text-2xl font-bold text-slate-950 dark:text-slate-100 font-display tracking-tight">
             {t.signInTitle}
           </h1>
-          <p className="text-sm text-slate-500 dark:text-slate-400 mt-2 max-w-xs font-medium">
+          <p className="text-sm text-theme-text-secondary mt-2 max-w-xs font-medium">
             {t.signInDesc}
           </p>
         </div>
@@ -285,7 +285,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
             </div>
             <div className="space-y-2">
               <h3 className="font-semibold text-slate-900 dark:text-slate-200">Check your inbox</h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 max-w-xs leading-relaxed">
+              <p className="text-xs text-theme-text-secondary max-w-xs leading-relaxed">
                 We've sent a verification link to your email. Please verify to continue.
               </p>
             </div>
@@ -314,7 +314,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                   setErrorMsg('No user currently registered.');
                 }
               }}
-              className="w-full mt-2 py-2.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold active:scale-[0.98] transition-all flex items-center justify-center gap-1"
+              className="w-full mt-2 py-2.5 border border-theme-border hover:bg-slate-50 dark:hover:bg-slate-800 text-theme-neutral rounded-xl text-xs font-semibold active:scale-[0.98] transition-all flex items-center justify-center gap-1"
             >
               🔓 Bypass Verification (Sandbox Mode)
             </button>
@@ -374,7 +374,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                       onClick={() => setSelectedDemoType(profileOpt.id as any)}
                       className={`w-full text-left p-2.5 rounded-xl border transition-all duration-200 cursor-pointer ${
                         isSel
-                          ? `bg-white dark:bg-slate-900 shadow-sm border-indigo-500 dark:border-indigo-400 ring-2 ring-indigo-500/20`
+                          ? `bg-theme-bg-card shadow-sm border-indigo-500 dark:border-indigo-400 ring-2 ring-indigo-500/20`
                           : 'bg-white/50 dark:bg-slate-950/50 hover:bg-white dark:hover:bg-slate-900 border-slate-200/60 dark:border-slate-800/60'
                       }`}
                     >
@@ -388,7 +388,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                           <p className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-tight">
                             {profileOpt.title}
                           </p>
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal mt-0.5">
+                          <p className="text-[10px] text-theme-text-secondary leading-normal mt-0.5">
                             {profileOpt.desc}
                           </p>
                         </div>
@@ -409,8 +409,8 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
             </div>
 
             <div className="relative flex items-center justify-center my-4">
-              <div className="border-t border-slate-200 dark:border-slate-800 w-full"></div>
-              <span className="absolute bg-white dark:bg-slate-900 px-3 text-[10px] uppercase font-bold tracking-widest text-slate-400">
+              <div className="border-t border-theme-border w-full"></div>
+              <span className="absolute bg-theme-bg-card px-3 text-[10px] uppercase font-bold tracking-widest text-slate-400">
                 or use email
               </span>
             </div>
@@ -418,7 +418,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
             <form onSubmit={handleManualAuth} className="space-y-4">
             <div className="space-y-3">
               <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">{t.emailLabel}</label>
+                <label className="block text-xs font-semibold text-theme-text-secondary mb-1">{t.emailLabel}</label>
                 <input
                   id="auth-email-input"
                   type="email"
@@ -426,12 +426,12 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                   placeholder={t.enterEmail}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-xl px-3.5 py-3 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  className="w-full bg-slate-50 dark:bg-slate-800/60 border border-theme-border/50 rounded-xl px-3.5 py-3 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                 />
               </div>
               
               <div>
-                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">Password</label>
+                <label className="block text-xs font-semibold text-theme-text-secondary mb-1">Password</label>
                 <input
                   id="auth-password-input"
                   type="password"
@@ -439,13 +439,13 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-xl px-3.5 py-3 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                  className="w-full bg-slate-50 dark:bg-slate-800/60 border border-theme-border/50 rounded-xl px-3.5 py-3 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                 />
               </div>
 
               {isSignUp && (
                 <div className="animation-slide-down">
-                  <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 mb-1">{t.nicknameLabel}</label>
+                  <label className="block text-xs font-semibold text-theme-text-secondary mb-1">{t.nicknameLabel}</label>
                   <input
                     id="auth-nickname-input"
                     type="text"
@@ -453,7 +453,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                     placeholder={t.enterNickname}
                     value={nickname}
                     onChange={(e) => setNickname(e.target.value)}
-                    className="w-full bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/50 rounded-xl px-3.5 py-3 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                    className="w-full bg-slate-50 dark:bg-slate-800/60 border border-theme-border/50 rounded-xl px-3.5 py-3 text-sm text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
                   />
                 </div>
               )}
@@ -485,7 +485,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                 id="auth-mode-switch-btn"
                 type="button"
                 onClick={() => setIsSignUp(!isSignUp)}
-                className="text-xs text-slate-500 dark:text-slate-400 hover:text-indigo-600 transition-colors"
+                className="text-xs text-theme-text-secondary hover:text-indigo-600 transition-colors"
               >
                 {isSignUp ? 'Already have an account? Sign In' : "Don't have an account? Sign Up"}
               </button>
@@ -493,8 +493,8 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
 
             {/* Divider lines */}
             <div className="relative my-4 flex items-center justify-center">
-              <div className="border-t border-slate-200 dark:border-slate-800/60 w-full" />
-              <span className="absolute bg-white dark:bg-slate-900 px-3 text-[10px] font-mono tracking-widest text-slate-400 uppercase">OR</span>
+              <div className="border-t border-theme-border/60 w-full" />
+              <span className="absolute bg-theme-bg-card px-3 text-[10px] font-mono tracking-widest text-slate-400 uppercase">OR</span>
             </div>
 
             {/* Social Oauth Triggers */}
@@ -503,7 +503,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                 id="google-login-btn"
                 type="button"
                 onClick={() => handleThirdPartyLogin('Google')}
-                className="py-2.5 px-3 border border-slate-200 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+                className="py-2.5 px-3 border border-theme-border/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-xl text-xs font-semibold text-theme-text-secondary flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
               >
                 <span className="w-2.5 h-2.5 bg-red-500 rounded-full" /> Google
               </button>
@@ -511,7 +511,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                 id="x-login-btn"
                 type="button"
                 onClick={() => handleThirdPartyLogin('X')}
-                className="py-2.5 px-3 border border-slate-200 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+                className="py-2.5 px-3 border border-theme-border/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-xl text-xs font-semibold text-theme-text-secondary flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
               >
                 <span className="w-2.5 h-2.5 bg-slate-800 dark:bg-slate-300 rounded-full" /> X
               </button>
@@ -519,7 +519,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                 id="facebook-login-btn"
                 type="button"
                 onClick={() => handleThirdPartyLogin('Facebook')}
-                className="py-2.5 px-3 border border-slate-200 dark:border-slate-700/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-xl text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
+                className="py-2.5 px-3 border border-theme-border/60 hover:bg-slate-50 dark:hover:bg-slate-800/40 rounded-xl text-xs font-semibold text-theme-text-secondary flex items-center justify-center gap-1.5 transition-all active:scale-[0.98]"
               >
                 <span className="w-2.5 h-2.5 bg-indigo-600 rounded-full" /> Facebook
               </button>

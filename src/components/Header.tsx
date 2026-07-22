@@ -346,7 +346,7 @@ export default function Header({
     setProfile({ ...profile, customFonts: updatedList });
   };
 
-  const PRESET_COMPARE_KEYS = ['themePalette', 'fontFamily', 'fontMono', 'fontSize', 'marginScale', 'paddingScale', 'cornerRadius', 'shadowScale', 'themeOverrides', 'customColors'];
+  const PRESET_COMPARE_KEYS = ['themePalette', 'fontFamily', 'fontMono', 'fontSize', 'marginScale', 'paddingScale', 'cornerRadius', 'shadowScale', 'themeOverrides', 'customColors', 'fontSizeTitle', 'fontSizeSubtitle', 'fontSizeDescription', 'fontSizeBodySmall', 'fontSizeSubtitleSmall', 'fontSizeKeyMetric', 'fontSizeXS', 'fontSizeBody', 'customFonts'];
 
   const normalizePresetValue = (v: any) => {
     if (v === undefined || v === null) return null;
@@ -1932,10 +1932,11 @@ export default function Header({
                             const reader = new FileReader();
                             reader.onload = (ev) => {
                               try {
-                                const newPresets = JSON.parse(ev.target?.result as string);
-                                if (Array.isArray(newPresets)) {
-                                  setProfile({ ...profile, themePresets: [...(profile.themePresets || []), ...newPresets] });
-                                }
+                                const parsed = JSON.parse(ev.target?.result as string);
+                                 const newPresets = parsed.preset ? [parsed.preset] : (Array.isArray(parsed) ? parsed : [parsed]);
+                                 if (newPresets.length > 0) {
+                                   setProfile({ ...profile, themePresets: [...(profile.themePresets || []), ...newPresets] });
+                                 }
                               } catch (e) {
                                 console.error('Failed to parse presets');
                               }
@@ -1948,9 +1949,9 @@ export default function Header({
                     <div className="grid grid-cols-1 gap-2">
                       {[
                         { name: "System Default", isSystem: true, profileUpdate: { marginScale: undefined, paddingScale: undefined, cornerRadius: undefined, shadowScale: undefined, themePalette: undefined, fontSize: undefined, fontFamily: undefined, fontMono: undefined, fontSizeTitle: undefined, fontSizeSubtitle: undefined, fontSizeDescription: undefined, fontSizeBodySmall: undefined, fontSizeSubtitleSmall: undefined, fontSizeKeyMetric: undefined, fontSizeXS: undefined, fontSizeBody: undefined, themeOverrides: [] } },
-                        { name: "Midnight Blue (Dark)", isSystem: true, profileUpdate: { fontFamily: 'Space Grotesk', themePalette: { background: '#000000', bgCard: '#0f172a', button: '#2563eb', text: '#f8fafc', textSecondary: '#cbd5e1', border: '#1e293b' } } },
-                        { name: "Emerald Forest (Dark)", isSystem: true, profileUpdate: { fontFamily: 'Outfit', themePalette: { background: '#000000', bgCard: '#06231a', button: '#047857', text: '#ecfdf5', textSecondary: '#a7f3d0', border: '#0f3527' } } },
-                        { name: "Minimalist White (Light)", isSystem: true, profileUpdate: { fontFamily: 'Playfair Display', themePalette: { background: '#ffffff', bgCard: '#fafafa', button: '#18181b', text: '#09090b', textSecondary: '#52525b', border: '#e4e4e7' } } }
+                        { name: "Midnight Blue (Dark)", isSystem: true, profileUpdate: { fontFamily: 'Space Grotesk', themePalette: { background: '#000000', bgCard: '#0f172a', button: '#2563eb', text: '#f8fafc', textSecondary: '#cbd5e1', border: '#1e293b', textAccent: '#a5b4fc', textMuted: '#94a3b8', textSuccess: '#4ade80', textError: '#f87171', warning: '#fb7185', caution: '#fbbf24', success: '#34d399', info: '#60a5fa', neutralSetting: '#cbd5e1' } } },
+                        { name: "Emerald Forest (Dark)", isSystem: true, profileUpdate: { fontFamily: 'Outfit', themePalette: { background: '#000000', bgCard: '#06231a', button: '#047857', text: '#ecfdf5', textSecondary: '#a7f3d0', border: '#0f3527', textAccent: '#a5b4fc', textMuted: '#a7f3d0', textSuccess: '#4ade80', textError: '#f87171', warning: '#fb7185', caution: '#fbbf24', success: '#34d399', info: '#60a5fa', neutralSetting: '#d1fae5' } } },
+                        { name: "Minimalist White (Light)", isSystem: true, profileUpdate: { fontFamily: 'Playfair Display', themePalette: { background: '#ffffff', bgCard: '#fafafa', button: '#18181b', text: '#09090b', textSecondary: '#52525b', border: '#e4e4e7', textMuted: '#71717a', textSuccess: '#15803d' } } }
                       ].map((preset, idx) => {
                         const active = isPresetActive(preset.profileUpdate);
                         return (
@@ -1973,7 +1974,28 @@ export default function Header({
                           <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex-1 truncate mr-2">{preset.name}</span>
                           <div className="flex gap-2 shrink-0">
                             <button title="Export" onClick={() => {
-                              const blob = new Blob([JSON.stringify([preset], null, 2)], { type: 'application/json' });
+                              const exportPayload = {
+  _meta: {
+    format: 'health-tracker-3-theme-preset',
+    version: 1,
+    fields: {
+      themePalette: 'Hex colours. background/bgCard/border/text/textSecondary/neutralSetting are the accessible core; textAccent/textMuted/textSuccess/textError/warning/caution/success/info are status & accent text colours; nutrientCalories/nutrientProtein/nutrientCarbs/nutrientFat/nutrientSatFat/nutrientSodium are macro chart colours.',
+      fontFamily: 'Body/heading font name',
+      fontMono: 'Monospace font name (numbers, code)',
+      fontSize: 'Base root font size (tiny/small/normal/large/xl/xxl)',
+      'fontSizeTitle / fontSizeSubtitle / fontSizeBody / fontSizeBodySmall / fontSizeSubtitleSmall / fontSizeKeyMetric / fontSizeXS': 'Per-element font size overrides',
+      marginScale: 'Layout margin multiplier (compact/normal/relaxed)',
+      paddingScale: 'Component inner padding multiplier (compact/normal/relaxed)',
+      cornerRadius: 'Border radius scale (none/small/normal/large/pill)',
+      shadowScale: 'Drop shadow intensity (none/light/normal/heavy)',
+      customColors: 'User-added colour variables beyond the base set',
+      customFonts: 'Renamed labels for font-size controls',
+      themeOverrides: 'Raw CSS selector/property overrides (advanced)'
+    }
+  },
+  preset
+};
+const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
                               const url = URL.createObjectURL(blob);
                               const a = document.createElement('a');
                               a.href = url;
@@ -1995,7 +2017,16 @@ export default function Header({
                                 cornerRadius: profile.cornerRadius,
                                 shadowScale: profile.shadowScale,
                                 themeOverrides: profile.themeOverrides,
-                                customColors: profile.customColors
+                                customColors: profile.customColors,
+                                fontSizeTitle: profile.fontSizeTitle,
+                                fontSizeSubtitle: profile.fontSizeSubtitle,
+                                fontSizeDescription: profile.fontSizeDescription,
+                                fontSizeBodySmall: profile.fontSizeBodySmall,
+                                fontSizeSubtitleSmall: profile.fontSizeSubtitleSmall,
+                                fontSizeKeyMetric: profile.fontSizeKeyMetric,
+                                fontSizeXS: profile.fontSizeXS,
+                                fontSizeBody: profile.fontSizeBody,
+                                customFonts: profile.customFonts
                               };
                               setProfile({ ...profile, themePresets: newPresets });
                             }} className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-semibold border border-emerald-200 dark:border-emerald-800 transition-all">Update</button>
@@ -2011,7 +2042,16 @@ export default function Header({
                                 cornerRadius: preset.cornerRadius,
                                 shadowScale: preset.shadowScale,
                                 themeOverrides: preset.themeOverrides,
-                                customColors: preset.customColors
+                                customColors: preset.customColors,
+                                fontSizeTitle: preset.fontSizeTitle,
+                                fontSizeSubtitle: preset.fontSizeSubtitle,
+                                fontSizeDescription: preset.fontSizeDescription,
+                                fontSizeBodySmall: preset.fontSizeBodySmall,
+                                fontSizeSubtitleSmall: preset.fontSizeSubtitleSmall,
+                                fontSizeKeyMetric: preset.fontSizeKeyMetric,
+                                fontSizeXS: preset.fontSizeXS,
+                                fontSizeBody: preset.fontSizeBody,
+                                customFonts: preset.customFonts
                               });
                             }} className={active ? "hidden" : "px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-lg text-xs font-semibold border border-indigo-200 dark:border-indigo-800 transition-all"}>Apply</button>
                             {active && (
@@ -2050,7 +2090,16 @@ export default function Header({
                         cornerRadius: profile.cornerRadius,
                         shadowScale: profile.shadowScale,
                         themeOverrides: profile.themeOverrides,
-                        customColors: profile.customColors
+                        customColors: profile.customColors,
+                        fontSizeTitle: profile.fontSizeTitle,
+                        fontSizeSubtitle: profile.fontSizeSubtitle,
+                        fontSizeDescription: profile.fontSizeDescription,
+                        fontSizeBodySmall: profile.fontSizeBodySmall,
+                        fontSizeSubtitleSmall: profile.fontSizeSubtitleSmall,
+                        fontSizeKeyMetric: profile.fontSizeKeyMetric,
+                        fontSizeXS: profile.fontSizeXS,
+                        fontSizeBody: profile.fontSizeBody,
+                        customFonts: profile.customFonts
                       };
                       setProfile({ ...profile, themePresets: [...(profile.themePresets || []), newPreset] });
                     }} className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all text-center cursor-pointer">

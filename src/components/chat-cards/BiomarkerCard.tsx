@@ -41,11 +41,11 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
     <>
       {/* Render Agent Result Blocks */}
                   {msg.agentType && hasValidAgentResult && !(loggedMessageIds || []).includes(msg.id) && (
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-4 animation-fade-in w-full max-w-full min-w-0 overflow-hidden">
-                      <div className="flex items-center justify-between gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800/50">
+                    <div className="bg-white dark:bg-slate-800 border border-theme-border rounded-2xl p-4 shadow-md space-y-4 animation-fade-in w-full max-w-full min-w-0 overflow-hidden">
+                      <div className="flex items-center justify-between gap-1.5 pb-2 border-b border-theme-border/50">
                         <div className="flex items-center gap-1.5">
                           <Sparkles className="w-4 h-4 text-indigo-600" />
-                          <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wider uppercase font-display">
+                          <h4 className="font-bold text-theme-text text-xs tracking-wider uppercase font-display">
                             {msg.agentType && AGENT_REGISTRY[msg.agentType as AgentType]?.displayName}
                           </h4>
                         </div>
@@ -141,9 +141,9 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
 
                   {/* Render extracted Pending Medical info */}
                   {msg.agentType === 'medical' && !(loggedMessageIds || []).includes(msg.id) && (((msg.data?.pendingBiomarkerEntries && Array.isArray(msg.data?.pendingBiomarkerEntries) && msg.data?.pendingBiomarkerEntries.length > 0) || (msg.data?.pendingBiomarkers && typeof msg.data?.pendingBiomarkers === 'object' && Object.keys(msg.data?.pendingBiomarkers).length > 0)) || (msg.pendingProfile && typeof msg.pendingProfile === 'object' && Object.keys(msg.pendingProfile).length > 0) || (msg.mode === 'modify' && msg.modificationCommand && Array.isArray(msg.modificationCommand) && msg.modificationCommand.length > 0)) && (
-                    <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden">
-                      <div className="border-b border-slate-100 dark:border-slate-800/50 pb-2">
-                        <h4 className="font-bold text-slate-900 dark:text-slate-100 text-xs tracking-wider uppercase font-display">
+                    <div className="bg-white dark:bg-slate-800 border border-theme-border rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden">
+                      <div className="border-b border-theme-border/50 pb-2">
+                        <h4 className="font-bold text-theme-text text-xs tracking-wider uppercase font-display">
                           {msg.mode === 'modify' ? 'Proposed Modifications' : 'Extracted Information'}
                         </h4>
                       </div>
@@ -153,7 +153,7 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                           <div className="space-y-1">
                             {msg.modificationCommand.map((cmd, idx) => (
                               <div key={idx} className="flex items-center justify-between py-1 border-b border-slate-50 dark:border-slate-800/20 text-xs px-2">
-                                <span className="text-slate-600 dark:text-slate-400 font-medium">
+                                <span className="text-theme-text-secondary font-medium">
                                   {cmd.action === 'remove_biomarker' ? 'Remove' : 'Update'} {cmd.keyName} {cmd.date ? `(${cmd.date})` : ''}
                                 </span>
                                 <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
@@ -171,7 +171,7 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                                   .filter(([key, val]) => typeof val !== 'object' && key !== 'customBiomarkers')
                                   .map(([key, val]) => (
                                   <div key={key} className="flex items-center justify-between py-1 border-b border-slate-50 dark:border-slate-800/20 text-xs">
-                                    <span className="text-slate-600 dark:text-slate-400 font-medium capitalize">
+                                    <span className="text-theme-text-secondary font-medium capitalize">
                                       {key}
                                     </span>
                                     <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
@@ -256,8 +256,8 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                               (msg.data?.pendingBiomarkers && typeof msg.data?.pendingBiomarkers === 'object' && Object.keys(msg.data?.pendingBiomarkers).length > 0 ? [{ date: msg.pendingDate || null, biomarkers: msg.data?.pendingBiomarkers }] : []).map((entry, idx) => (
                                 <div key={idx} className="space-y-1">
                                   <div className="flex items-center justify-between py-1 bg-slate-50 dark:bg-slate-800/50 px-2 rounded-md mb-2">
-                                    <span className="text-slate-500 dark:text-slate-400 font-bold text-[10px] uppercase">Record Date</span>
-                                    <span className="font-mono font-bold text-slate-700 dark:text-slate-300 text-xs">{entry.date || 'Unknown Date'}</span>
+                                    <span className="text-theme-text-secondary font-bold text-[10px] uppercase">Record Date</span>
+                                    <span className="font-mono font-bold text-theme-neutral text-xs">{entry.date || 'Unknown Date'}</span>
                                   </div>
                                   {entry.biomarkers && typeof entry.biomarkers === 'object' && Object.entries(entry.biomarkers).map(([key, val]) => {
                                     const def = biomarkerDefinitions.find(d => d.key === key);
@@ -266,7 +266,7 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                                     const unit = def?.unit || customDef?.unit || '';
                                     return (
                                       <div key={key} className="flex items-center justify-between py-1 border-b border-slate-50 dark:border-slate-800/20 text-xs px-2">
-                                        <span className="text-slate-600 dark:text-slate-400 font-medium">
+                                        <span className="text-theme-text-secondary font-medium">
                                           {name}
                                         </span>
                                         <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
@@ -313,7 +313,7 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                                 handleSend("Cancel extraction.");
                               }
                             }}
-                            className="w-full py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 rounded-xl text-xs font-bold transition-all cursor-pointer"
+                            className="w-full py-2 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800/50 dark:hover:bg-slate-800 text-theme-text-secondary rounded-xl text-xs font-bold transition-all cursor-pointer"
                           >
                             Cancel
                           </button>

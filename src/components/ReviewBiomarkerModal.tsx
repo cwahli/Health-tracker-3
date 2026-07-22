@@ -377,10 +377,10 @@ export default function ReviewBiomarkerModal({
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-slate-950/80 backdrop-blur-md p-0 font-sans">
-      <div className="flex-1 bg-white dark:bg-slate-900 rounded-none shadow-2xl flex flex-col overflow-hidden w-full h-full relative border-none">
+      <div className="flex-1 bg-theme-bg-card rounded-none shadow-2xl flex flex-col overflow-hidden w-full h-full relative border-none">
         
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800/60 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md">
+        <div className="flex items-center justify-between p-4 border-b border-theme-border/60 bg-white/50 dark:bg-slate-900/50 backdrop-blur-md">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 rounded-xl">
               <Sparkles className="w-5 h-5" />
@@ -430,13 +430,13 @@ export default function ReviewBiomarkerModal({
         )}
 
         {/* Expandable Data Used by Agent Block */}
-        <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800/60 bg-white dark:bg-slate-900">
+        <div className="px-4 py-2 border-b border-theme-border/60 bg-theme-bg-card">
           <button
             type="button"
             onClick={() => setShowDataUsed(!showDataUsed)}
             className="w-full flex items-center justify-between text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 font-bold cursor-pointer transition-colors py-1.5"
           >
-            <span className="flex items-center gap-1.5 text-xs font-semibold font-sans text-slate-600 dark:text-slate-300">
+            <span className="flex items-center gap-1.5 text-xs font-semibold font-sans text-theme-text-secondary">
               Data used by agent
             </span>
             <div className="flex items-center text-slate-400 dark:text-slate-500">
@@ -445,7 +445,7 @@ export default function ReviewBiomarkerModal({
           </button>
           
           {showDataUsed && (
-            <div className="mt-2 pt-3 pb-2 border-t border-slate-100 dark:border-slate-800/40 flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-medium text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-800/30 p-3 rounded-xl">
+            <div className="mt-2 pt-3 pb-2 border-t border-theme-border/40 flex flex-wrap gap-x-6 gap-y-2 text-[11px] font-medium text-theme-text-secondary bg-slate-50 dark:bg-slate-800/30 p-3 rounded-xl">
               <div><strong className="text-slate-800 dark:text-slate-200">Biomarker:</strong> {def.name} ({def.key})</div>
               <div><strong className="text-slate-800 dark:text-slate-200">Current:</strong> {currentValue} {def.unit}</div>
               <div><strong className="text-slate-800 dark:text-slate-200">Range:</strong> {def.normalRange}</div>
@@ -483,7 +483,7 @@ export default function ReviewBiomarkerModal({
         {/* Chat Area */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4">
           {initialMessages && initialMessages.length > 1 && !hasLoadedPrevious && (
-            <div className="flex justify-center pb-2 border-b border-slate-100 dark:border-slate-800/40">
+            <div className="flex justify-center pb-2 border-b border-theme-border/40">
               <button 
                 type="button"
                 onClick={() => {
@@ -521,30 +521,30 @@ export default function ReviewBiomarkerModal({
                   
                   <div className="space-y-2.5 text-xs">
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-white/60 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/40">
+                      <div className="bg-white/60 dark:bg-slate-900/40 p-2.5 rounded-xl border border-theme-border/40">
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 block uppercase font-bold tracking-wide">Biomarker</span>
                         <span className="font-semibold text-slate-800 dark:text-slate-200 text-sm">{msg.data?.proposal.name}</span>
                       </div>
-                      <div className="bg-white/60 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/40">
+                      <div className="bg-white/60 dark:bg-slate-900/40 p-2.5 rounded-xl border border-theme-border/40">
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 block uppercase font-bold tracking-wide">Proposed Value</span>
                         <span className="font-bold text-indigo-600 dark:text-indigo-400 text-sm">{msg.data?.proposal.value} {msg.data?.proposal.metric}</span>
                       </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-white/60 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/40">
+                      <div className="bg-white/60 dark:bg-slate-900/40 p-2.5 rounded-xl border border-theme-border/40">
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 block uppercase font-bold tracking-wide">Metric / Unit</span>
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">{msg.data?.proposal.metric}</span>
+                        <span className="font-semibold text-theme-neutral">{msg.data?.proposal.metric}</span>
                       </div>
-                      <div className="bg-white/60 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/40">
+                      <div className="bg-white/60 dark:bg-slate-900/40 p-2.5 rounded-xl border border-theme-border/40">
                         <span className="text-[10px] text-slate-400 dark:text-slate-500 block uppercase font-bold tracking-wide">Healthy Range</span>
-                        <span className="font-semibold text-slate-700 dark:text-slate-300">{msg.data?.proposal.range}</span>
+                        <span className="font-semibold text-theme-neutral">{msg.data?.proposal.range}</span>
                       </div>
                     </div>
 
-                    <div className="bg-white/60 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-800/40">
+                    <div className="bg-white/60 dark:bg-slate-900/40 p-2.5 rounded-xl border border-theme-border/40">
                       <span className="text-[10px] text-slate-400 dark:text-slate-500 block uppercase font-bold tracking-wide">Description</span>
-                      <p className="text-slate-600 dark:text-slate-300 leading-relaxed mt-0.5">{msg.data?.proposal.description}</p>
+                      <p className="text-theme-text-secondary leading-relaxed mt-0.5">{msg.data?.proposal.description}</p>
                     </div>
 
                     <div className="bg-indigo-50/40 dark:bg-indigo-950/20 p-3 rounded-xl border border-indigo-100/40 dark:border-indigo-950/30">
@@ -558,7 +558,7 @@ export default function ReviewBiomarkerModal({
                           <Terminal className="w-4 h-4 text-amber-500" />
                           <span className="text-xs font-bold text-amber-800 dark:text-amber-400">Duplicate Recognized</span>
                         </div>
-                        <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-relaxed font-semibold">
+                        <p className="text-[11px] text-theme-text-secondary leading-relaxed font-semibold">
                           {msg.data?.proposal.duplicateExplanation || `This biomarker is identified as a duplicate of other records in the system. Suggest consolidating.`}
                         </p>
                         <button
@@ -584,7 +584,7 @@ export default function ReviewBiomarkerModal({
                     )}
                   </div>
 
-                  <div className="mt-3 bg-slate-50 dark:bg-slate-800 rounded-xl p-3 border border-slate-200 dark:border-slate-700">
+                  <div className="mt-3 bg-slate-50 dark:bg-slate-800 rounded-xl p-3 border border-theme-border">
                     <p className="text-[10px] font-bold text-slate-500 uppercase mb-2">Merge Fields to Keep:</p>
                     <div className="flex flex-wrap gap-3">
                       {['description', 'range', 'value', 'unit'].map(field => (
@@ -599,7 +599,7 @@ export default function ReviewBiomarkerModal({
                   <div className="mt-4 flex flex-wrap gap-2 justify-end pt-3 border-t border-indigo-100/30 dark:border-slate-700/30">
                     <button
                       onClick={onClose}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-theme-text-secondary text-xs font-bold rounded-lg transition-colors cursor-pointer"
                     >
                       Cancel
                     </button>
@@ -610,7 +610,7 @@ export default function ReviewBiomarkerModal({
                           textarea.focus();
                         }
                       }}
-                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                      className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-theme-text-secondary text-xs font-bold rounded-lg transition-colors cursor-pointer"
                     >
                       Keep Discussing
                     </button>
@@ -644,7 +644,7 @@ export default function ReviewBiomarkerModal({
                         const textarea = document.querySelector('textarea');
                         if (textarea) textarea.focus();
                       }}
-                      className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-lg transition-colors cursor-pointer"
+                      className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-750 text-theme-neutral text-xs font-bold rounded-lg transition-colors cursor-pointer"
                     >
                       Keep Discussing
                     </button>
@@ -678,13 +678,13 @@ export default function ReviewBiomarkerModal({
         </div>
 
         {/* Input Box */}
-        <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800">
-          <div className="relative flex items-center bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl p-1 shadow-inner focus-within:ring-2 focus-within:ring-indigo-500/20 transition-shadow">
+        <div className="p-4 bg-theme-bg-card border-t border-theme-border">
+          <div className="relative flex items-center bg-slate-50 dark:bg-slate-800 border border-theme-border rounded-2xl p-1 shadow-inner focus-within:ring-2 focus-within:ring-indigo-500/20 transition-shadow">
             <textarea
               value={inputText}
               onChange={(e) => setInputText(e.target.value)}
               placeholder="Ask about this biomarker or propose a correction..."
-              className="flex-1 bg-transparent px-4 py-2 text-sm text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:outline-none resize-none h-10 max-h-32 min-h-10"
+              className="flex-1 bg-transparent px-4 py-2 text-sm text-theme-text placeholder-slate-400 focus:outline-none resize-none h-10 max-h-32 min-h-10"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();

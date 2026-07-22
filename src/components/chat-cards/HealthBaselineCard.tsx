@@ -193,7 +193,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
           {globalSummary && (
             <div className="py-2">
               <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2">Global Summary</h3>
-              <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">{globalSummary}</p>
+              <p className="text-sm text-theme-text-secondary leading-relaxed">{globalSummary}</p>
             </div>
           )}
 
@@ -225,7 +225,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                         }`} />
                       </div>
                       <div>
-                        <h4 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                        <h4 className="text-base font-semibold text-theme-text">
                           {category.categoryName}
                         </h4>
                         <div className="text-xs font-medium text-slate-500 capitalize">
@@ -254,7 +254,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                   <div className="py-2 space-y-5">
                     <div className="space-y-2">
                       <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Analysis</div>
-                      <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                      <p className="text-sm text-theme-neutral leading-relaxed">
                         {category.description || category.analysis}
                       </p>
                     </div>
@@ -262,7 +262,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                     {category.unaddressedRisk && (
                       <div className="space-y-2">
                         <div className="text-xs font-bold text-red-500 uppercase tracking-wider">Unaddressed Risk</div>
-                        <p className="text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                        <p className="text-sm text-theme-neutral leading-relaxed">
                           {category.unaddressedRisk}
                         </p>
                       </div>
@@ -278,7 +278,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                           {mappedBiomarkerTargets.map((bt: any, i: number) => (
                             <div key={i} className="flex justify-between items-center py-2">
                               <div className="space-y-1">
-                                <div className="text-sm font-semibold text-slate-900 dark:text-slate-100">{bt.name || bt.biomarkerKey}</div>
+                                <div className="text-sm font-semibold text-theme-text">{bt.name || bt.biomarkerKey}</div>
                                 {bt.reasoning && <div className="text-xs text-slate-500 leading-relaxed">{bt.reasoning}</div>}
                               </div>
                               <div className="text-sm font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap ml-4">
@@ -336,7 +336,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                 type="button"
                 onClick={() => scrollToCard(Math.max(0, currentCardIndex - 1))}
                 disabled={currentCardIndex === 0}
-                className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 disabled:opacity-30 disabled:pointer-events-none hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center shadow-sm"
+                className="p-1.5 rounded-xl border border-theme-border bg-theme-bg-card text-theme-text-secondary disabled:opacity-30 disabled:pointer-events-none hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center shadow-sm"
                 aria-label="Previous category"
               >
                 <ChevronLeft className="w-4 h-4" />
@@ -367,7 +367,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                 type="button"
                 onClick={() => scrollToCard(Math.min(riskCategories.length - 1, currentCardIndex + 1))}
                 disabled={currentCardIndex === riskCategories.length - 1}
-                className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 disabled:opacity-30 disabled:pointer-events-none hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center shadow-sm"
+                className="p-1.5 rounded-xl border border-theme-border bg-theme-bg-card text-theme-text-secondary disabled:opacity-30 disabled:pointer-events-none hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors flex items-center justify-center shadow-sm"
                 aria-label="Next category"
               >
                 <ChevronRight className="w-4 h-4" />
@@ -379,7 +379,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
           {(topNutrientTargetsList.length > 0 || topWeeklyNutrientTargetsList.length > 0 || additionalNutrientTargetsList.length > 0 || dailyActivities.length > 0) && (
             <div className="py-4 space-y-6">
               <div className="space-y-2">
-                <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">Global Action Plan</h3>
+                <h3 className="text-base font-semibold text-theme-text">Global Action Plan</h3>
                 
                 {(() => {
                   const rankingCopy = report.nutrientRankingRationale || 
@@ -397,7 +397,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                   if (!displayCopy) return null;
 
                   return (
-                    <div className="text-xs text-slate-700 dark:text-slate-300 leading-relaxed whitespace-pre-line bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-xl border border-slate-100 dark:border-slate-800">
+                    <div className="text-xs text-theme-neutral leading-relaxed whitespace-pre-line bg-slate-50 dark:bg-slate-800/50 p-3.5 rounded-xl border border-theme-border">
                       {displayCopy}
                     </div>
                   );
@@ -411,7 +411,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                     {topNutrientTargetsList.map((nt: any, i: number) => (
                       <div key={i} className="py-2">
                         <div className="flex justify-between items-start mb-1.5">
-                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 capitalize flex items-center gap-1.5">
+                          <span className="text-sm font-semibold text-theme-text capitalize flex items-center gap-1.5">
                             <span className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: getNutrientColor(nt.nutrientKey) }} />
                             {nt.nutrientKey}
                           </span>
@@ -431,7 +431,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                     {topWeeklyNutrientTargetsList.map((nt: any, i: number) => (
                       <div key={i} className="py-2">
                         <div className="flex justify-between items-start mb-1.5">
-                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 capitalize flex items-center gap-1.5">
+                          <span className="text-sm font-semibold text-theme-text capitalize flex items-center gap-1.5">
                             <span className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: getNutrientColor(nt.nutrientKey) }} />
                             {nt.nutrientKey}
                           </span>
@@ -451,11 +451,11 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                     {additionalNutrientTargetsList.map((nt: any, i: number) => (
                       <div key={i} className="py-2">
                         <div className="flex justify-between items-start mb-1.5">
-                          <span className="text-sm font-semibold text-slate-900 dark:text-slate-100 capitalize flex items-center gap-1.5">
+                          <span className="text-sm font-semibold text-theme-text capitalize flex items-center gap-1.5">
                             <span className="w-2.5 h-2.5 rounded-full inline-block flex-shrink-0" style={{ backgroundColor: getNutrientColor(nt.nutrientKey) }} />
                             {nt.nutrientKey}
                           </span>
-                          <span className="text-sm font-bold text-slate-600 dark:text-slate-400 ml-2 text-right">{nt.targetValue}</span>
+                          <span className="text-sm font-bold text-theme-text-secondary ml-2 text-right">{nt.targetValue}</span>
                         </div>
                         {(nt.rationale || nt.reasoning) && <div className="text-xs text-slate-500 leading-relaxed">{nt.rationale || nt.reasoning}</div>}
                       </div>
@@ -505,7 +505,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
               
               <button
                 onClick={() => handleApply([])}
-                className="w-full sm:w-auto flex-1 flex items-center justify-center space-x-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50 text-slate-700 dark:text-slate-300 px-5 py-3 rounded-2xl text-sm font-bold shadow-sm transition-all active:scale-[0.98]"
+                className="w-full sm:w-auto flex-1 flex items-center justify-center space-x-2 bg-white dark:bg-slate-800 border border-theme-border hover:bg-slate-50 dark:hover:bg-slate-700/50 text-theme-neutral px-5 py-3 rounded-2xl text-sm font-bold shadow-sm transition-all active:scale-[0.98]"
               >
                 <CheckCircle className="w-4 h-4" />
                 <span>Accept All</span>
@@ -523,9 +523,9 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
           )}
 
           {isHandled && onAgentFinish && (
-            <div className="flex items-center justify-center space-x-2 p-3 bg-slate-50 dark:bg-slate-800/30 border border-slate-100 dark:border-slate-800/50 rounded-2xl">
+            <div className="flex items-center justify-center space-x-2 p-3 bg-slate-50 dark:bg-slate-800/30 border border-theme-border/50 rounded-2xl">
               <CheckCircle className="w-4 h-4 text-emerald-500" />
-              <span className="text-sm font-semibold text-slate-600 dark:text-slate-400">Analysis Handled</span>
+              <span className="text-sm font-semibold text-theme-text-secondary">Analysis Handled</span>
             </div>
           )}
         </div>

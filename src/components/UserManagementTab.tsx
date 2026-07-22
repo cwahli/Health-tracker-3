@@ -209,7 +209,7 @@ export default function UserManagementTab() {
                     min="0"
                     value={editFlashLiteCost}
                     onChange={e => setEditFlashLiteCost(Number(e.target.value))}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-mono outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-theme-border rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-mono outline-none focus:border-indigo-500"
                   />
                 </div>
                 <div>
@@ -221,7 +221,7 @@ export default function UserManagementTab() {
                     min="0"
                     value={editStandardCost}
                     onChange={e => setEditStandardCost(Number(e.target.value))}
-                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-mono outline-none focus:border-indigo-500"
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-theme-border rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-mono outline-none focus:border-indigo-500"
                   />
                 </div>
               </div>
@@ -241,7 +241,7 @@ export default function UserManagementTab() {
                       min="0"
                       value={editQuotaDemo}
                       onChange={e => setEditQuotaDemo(Number(e.target.value))}
-                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs text-slate-800 dark:text-slate-100 font-mono outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-theme-border rounded-lg p-1.5 text-xs text-slate-800 dark:text-slate-100 font-mono outline-none focus:border-indigo-500"
                     />
                   </div>
                   <div>
@@ -253,7 +253,7 @@ export default function UserManagementTab() {
                       min="0"
                       value={editQuotaStandard}
                       onChange={e => setEditQuotaStandard(Number(e.target.value))}
-                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs text-slate-800 dark:text-slate-100 font-mono outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-theme-border rounded-lg p-1.5 text-xs text-slate-800 dark:text-slate-100 font-mono outline-none focus:border-indigo-500"
                     />
                   </div>
                   <div>
@@ -265,7 +265,7 @@ export default function UserManagementTab() {
                       min="0"
                       value={editQuotaAdmin}
                       onChange={e => setEditQuotaAdmin(Number(e.target.value))}
-                      className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg p-1.5 text-xs text-slate-800 dark:text-slate-100 font-mono outline-none focus:border-indigo-500"
+                      className="w-full bg-slate-50 dark:bg-slate-900 border border-theme-border rounded-lg p-1.5 text-xs text-slate-800 dark:text-slate-100 font-mono outline-none focus:border-indigo-500"
                     />
                   </div>
                 </div>
@@ -295,10 +295,10 @@ export default function UserManagementTab() {
                 <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   Active Call Rates
                 </span>
-                <p className="font-semibold text-slate-700 dark:text-slate-300">
+                <p className="font-semibold text-theme-neutral">
                   ⚡ 3.1 & 3.5 Flash Lite: <span className="text-indigo-600 font-bold font-mono">{adminSettings.flashLiteCost} credit</span>
                 </p>
-                <p className="font-semibold text-slate-700 dark:text-slate-300">
+                <p className="font-semibold text-theme-neutral">
                   🎯 Other Agents: <span className="text-indigo-600 font-bold font-mono">{adminSettings.standardCost} credits</span>
                 </p>
               </div>
@@ -310,10 +310,10 @@ export default function UserManagementTab() {
                 <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   Daily Quota Limits
                 </span>
-                <p className="font-semibold text-slate-700 dark:text-slate-300">
+                <p className="font-semibold text-theme-neutral">
                   Standard Accounts: <span className="text-emerald-500 font-bold font-mono">{adminSettings.quotaStandard} / day</span>
                 </p>
-                <p className="font-semibold text-slate-700 dark:text-slate-300">
+                <p className="font-semibold text-theme-neutral">
                   Demo Accounts: <span className="text-amber-500 font-bold font-mono">{adminSettings.quotaDemo} / day</span>
                 </p>
               </div>
@@ -347,7 +347,7 @@ export default function UserManagementTab() {
             <select
               value={selectedUserEmail}
               onChange={e => setSelectedUserEmail(e.target.value)}
-              className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 cursor-pointer"
+              className="w-full bg-white dark:bg-slate-950 border border-theme-border rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 cursor-pointer"
               required
             >
               <option value="">-- Choose Account --</option>
@@ -368,7 +368,7 @@ export default function UserManagementTab() {
               min="1"
               value={grantAmount}
               onChange={e => setGrantAmount(Number(e.target.value))}
-              className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-mono outline-none focus:border-indigo-500"
+              className="w-full bg-white dark:bg-slate-950 border border-theme-border rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 font-mono outline-none focus:border-indigo-500"
               required
             />
           </div>
@@ -380,7 +380,7 @@ export default function UserManagementTab() {
             <select
               value={grantDurationHours}
               onChange={e => setGrantDurationHours(Number(e.target.value))}
-              className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 cursor-pointer"
+              className="w-full bg-white dark:bg-slate-950 border border-theme-border rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 cursor-pointer"
             >
               <option value={1}>1 Hour</option>
               <option value={12}>12 Hours</option>
@@ -419,12 +419,12 @@ export default function UserManagementTab() {
               placeholder="Search by nickname or email..."
               value={searchQuery}
               onChange={e => setSearchQuery(e.target.value)}
-              className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500"
+              className="bg-white dark:bg-slate-950 border border-theme-border rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500"
             />
             <select
               value={typeFilter}
               onChange={e => setTypeFilter(e.target.value as any)}
-              className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 cursor-pointer"
+              className="bg-white dark:bg-slate-950 border border-theme-border rounded-lg px-2.5 py-1.5 text-xs text-slate-800 dark:text-slate-100 outline-none focus:border-indigo-500 cursor-pointer"
             >
               <option value="all">All Roles</option>
               <option value="Admin">Admin</option>
@@ -474,7 +474,7 @@ export default function UserManagementTab() {
                           <select
                             value={user.userType}
                             onChange={e => handleChangeUserType(user.email, e.target.value as any)}
-                            className="bg-slate-50 dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded px-1.5 py-0.5 text-[11px] font-semibold outline-none text-slate-700 dark:text-slate-300 cursor-pointer"
+                            className="bg-slate-50 dark:bg-slate-900 border border-slate-250 dark:border-slate-800 rounded px-1.5 py-0.5 text-[11px] font-semibold outline-none text-theme-neutral cursor-pointer"
                           >
                             <option value="Standard">Standard</option>
                             <option value="Demo">Demo</option>
@@ -482,7 +482,7 @@ export default function UserManagementTab() {
                           </select>
                         </td>
                         <td className="p-4">
-                          <div className="flex items-center gap-1.5 text-slate-600 dark:text-slate-400">
+                          <div className="flex items-center gap-1.5 text-theme-text-secondary">
                             <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
                             <span>
                               {user.lastLogin 
@@ -525,7 +525,7 @@ export default function UserManagementTab() {
                         <td className="p-4 text-right">
                           <button
                             onClick={() => handleResetDailyUsage(user.email)}
-                            className="text-[11px] font-bold text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 dark:bg-slate-900 dark:hover:bg-indigo-950/40 border border-slate-200 dark:border-slate-800 rounded px-2.5 py-1 cursor-pointer transition-colors"
+                            className="text-[11px] font-bold text-slate-500 hover:text-indigo-600 bg-slate-100 hover:bg-indigo-50 dark:bg-slate-900 dark:hover:bg-indigo-950/40 border border-theme-border rounded px-2.5 py-1 cursor-pointer transition-colors"
                             title="Refill daily quota immediately"
                           >
                             Refill Quota

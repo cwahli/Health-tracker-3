@@ -13,6 +13,33 @@
   --text-xl: var(--fs-subtitle, 20px);
   --text-2xl: var(--fs-title, 24px);
   --text-3xl: var(--fs-title, 30px);
+
+  --color-theme-bg: var(--app-bg);
+  --color-theme-bg-card: var(--app-bg-card);
+  --color-theme-border: var(--app-border);
+  --color-theme-text: var(--app-text);
+  --color-theme-text-secondary: var(--app-text-secondary);
+  --color-theme-neutral: var(--app-neutral);
+}
+
+:root {
+  --app-bg: #f8fafc;
+  --app-bg-card: #ffffff;
+  --app-border: #e2e8f0;
+  --app-text: #1e293b;
+  --app-text-secondary: #64748b;
+  --app-neutral: #334155;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --app-bg: #020617;
+    --app-bg-card: #0f172a;
+    --app-border: #1e293b;
+    --app-text: #f1f5f9;
+    --app-text-secondary: #94a3b8;
+    --app-neutral: #cbd5e1;
+  }
 }
 
 .form-input-styled {

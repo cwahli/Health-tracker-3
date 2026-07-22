@@ -1764,7 +1764,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
   const tableHeader = (label: string, field: string) => (
     <th 
       onClick={() => toggleSort(field)}
-      className="px-3 py-2.5 font-bold text-slate-600 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer select-none font-mono text-[10px] tracking-wider uppercase"
+      className="px-3 py-2.5 font-bold text-theme-text-secondary hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer select-none font-mono text-[10px] tracking-wider uppercase"
     >
       <div className="flex items-center gap-1">
         {label}
@@ -1775,7 +1775,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
 
   const renderTableContent = () => (
     <table className="w-full text-[11px] text-left border-collapse">
-      <thead className="bg-slate-50 dark:bg-slate-900 sticky top-0 z-10 border-b border-slate-100 dark:border-slate-800">
+      <thead className="bg-slate-50 dark:bg-slate-900 sticky top-0 z-10 border-b border-theme-border">
         <tr>
           {tableHeader('Biomarker', 'biomarker')}
           {(agentType === 'agent1' || agentType === 'medical_extract') && tableHeader('Log Date', 'date')}
@@ -1863,17 +1863,17 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
                         <span className={`text-[10px] line-through leading-tight ${isToDelete ? 'text-rose-100/80 decoration-white' : 'text-slate-400 dark:text-slate-500 decoration-slate-400'}`}>
                           {row.oldName}
                         </span>
-                        <span className={`font-semibold leading-normal ${isToDelete ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>
+                        <span className={`font-semibold leading-normal ${isToDelete ? 'text-white' : 'text-theme-text'}`}>
                           {row.biomarker}
                         </span>
                       </>
                     ) : (
-                      <span className={`font-semibold ${row.isMissing ? 'text-amber-800 dark:text-amber-400 font-bold' : isToDelete ? 'text-white' : 'text-slate-900 dark:text-slate-100'}`}>
+                      <span className={`font-semibold ${row.isMissing ? 'text-amber-800 dark:text-amber-400 font-bold' : isToDelete ? 'text-white' : 'text-theme-text'}`}>
                         {row.biomarker}
                       </span>
                     )}
                     {row.key && (
-                      <span className={`text-[9px] font-mono opacity-70 ${isToDelete ? 'text-rose-100' : 'text-slate-500 dark:text-slate-400'}`}>
+                      <span className={`text-[9px] font-mono opacity-70 ${isToDelete ? 'text-rose-100' : 'text-theme-text-secondary'}`}>
                         key: {row.key}
                       </span>
                     )}
@@ -1888,7 +1888,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
               
               {(agentType === 'agent1' || agentType === 'medical_extract') && (
                 <>
-                  <td className={`px-3 py-2 font-mono ${isToDelete ? 'text-white' : 'text-slate-600 dark:text-slate-300'}`}>
+                  <td className={`px-3 py-2 font-mono ${isToDelete ? 'text-white' : 'text-theme-text-secondary'}`}>
                     {typeof row.date === 'object' ? JSON.stringify(row.date) : String(row.date || '')}
                   </td>
                   <td className="px-3 py-2 font-mono">
@@ -1905,10 +1905,10 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
                     {row.isUnitChanged && row.oldUnit ? (
                       <div className="flex flex-col gap-0.5">
                         <span className={`text-[9px] line-through leading-none ${isToDelete ? 'text-rose-100/80' : 'text-slate-400'}`}>{row.oldUnit}</span>
-                        <span className={`font-bold leading-none ${isToDelete ? 'text-white' : 'text-slate-700 dark:text-slate-300'}`}>{typeof row.unit === 'object' ? JSON.stringify(row.unit) : String(row.unit)}</span>
+                        <span className={`font-bold leading-none ${isToDelete ? 'text-white' : 'text-theme-neutral'}`}>{typeof row.unit === 'object' ? JSON.stringify(row.unit) : String(row.unit)}</span>
                       </div>
                     ) : (
-                      <span className={`font-bold ${isToDelete ? 'text-white' : 'text-slate-700 dark:text-slate-300'}`}>{typeof row.unit === 'object' ? JSON.stringify(row.unit) : String(row.unit)}</span>
+                      <span className={`font-bold ${isToDelete ? 'text-white' : 'text-theme-neutral'}`}>{typeof row.unit === 'object' ? JSON.stringify(row.unit) : String(row.unit)}</span>
                     )}
                   </td>
                 </>
@@ -1919,15 +1919,15 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
                   <td className="px-3 py-2 font-mono text-slate-800 dark:text-slate-200 font-bold">
                     {typeof row.value === 'object' ? JSON.stringify(row.value) : String(row.value || '')} <span className="text-slate-500 font-normal text-[9.5px]">{typeof row.unit === 'object' ? JSON.stringify(row.unit) : String(row.unit)}</span>
                   </td>
-                  <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
+                  <td className="px-3 py-2 text-theme-neutral">
                     <div className="flex flex-col gap-1.5 py-1">
                       <span className="px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-300 font-mono font-bold border border-indigo-100/30 dark:border-indigo-900/40 w-fit">{row.normalRange}</span>
                       {row.rangeBrackets && row.rangeBrackets.length > 0 && (
                         <div className="flex flex-wrap gap-1 max-w-[200px]">
                           {row.rangeBrackets.map((br: any, brIdx: number) => (
-                            <div key={brIdx} className="text-[8.5px] px-1 py-0.5 rounded bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/60 leading-tight">
+                            <div key={brIdx} className="text-[8.5px] px-1 py-0.5 rounded bg-slate-50 dark:bg-slate-900/40 border border-theme-border/60 leading-tight">
                               <span className="block text-[7.5px] text-slate-400 font-medium font-sans truncate" title={br.name}>{br.name}</span>
-                              <span className="font-mono font-bold text-slate-600 dark:text-slate-400">
+                              <span className="font-mono font-bold text-theme-text-secondary">
                                 {br.range || (br.lowerBound !== undefined ? `${br.lowerBound}-${br.upperBound}` : '')}
                               </span>
                             </div>
@@ -1948,7 +1948,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
                     </div>
                   ) : (
                     <div className="flex flex-col gap-1.5 py-1">
-                      <span className="font-semibold text-slate-900 dark:text-slate-100">{row.group}</span>
+                      <span className="font-semibold text-theme-text">{row.group}</span>
                     </div>
                   )}
                 </td>
@@ -1962,13 +1962,13 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
                       <span className="text-[8.5px] text-slate-400 line-through">{row.oldCategories || 'None'}</span>
                     </div>
                   ) : (
-                    <span className="text-slate-600 dark:text-slate-300">{row.categories || 'None'}</span>
+                    <span className="text-theme-text-secondary">{row.categories || 'None'}</span>
                   )}
                 </td>
               )}
 
               {agentType === 'agent3' && (
-                <td className="px-3 py-2 font-mono font-bold text-slate-600 dark:text-slate-300">
+                <td className="px-3 py-2 font-mono font-bold text-theme-text-secondary">
                   {row.totalReadings}
                 </td>
               )}
@@ -1981,7 +1981,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
                       <span className="text-[8.5px] text-slate-400 line-through">{row.oldGroup}</span>
                     </div>
                   ) : (
-                    <span className="text-slate-600 dark:text-slate-300">{row.condition}</span>
+                    <span className="text-theme-text-secondary">{row.condition}</span>
                   )}
                 </td>
               )}
@@ -2019,10 +2019,10 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
 
               {agentType === 'data_review' ? (
                 <>
-                  <td className="px-3 py-2 text-[11px] max-w-[200px] text-slate-900 dark:text-slate-100 break-words leading-relaxed">
+                  <td className="px-3 py-2 text-[11px] max-w-[200px] text-theme-text break-words leading-relaxed">
                     {typeof row.description === 'object' ? JSON.stringify(row.description) : String(row.description || '')}
                   </td>
-                  <td className="px-3 py-2 text-[11px] max-w-[240px] text-slate-900 dark:text-slate-100 break-words">
+                  <td className="px-3 py-2 text-[11px] max-w-[240px] text-theme-text break-words">
                     <div className="flex flex-col gap-1">
                       {row.specificRiskContext && (
                         <span className="leading-relaxed font-medium">
@@ -2094,14 +2094,14 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
   );
 
   const renderFilterTags = () => (
-    <div className="flex flex-wrap items-center gap-2 pb-1 bg-slate-50/50 dark:bg-slate-900/40 p-2 rounded-xl border border-slate-100 dark:border-slate-800">
+    <div className="flex flex-wrap items-center gap-2 pb-1 bg-slate-50/50 dark:bg-slate-900/40 p-2 rounded-xl border border-theme-border">
       <button
         type="button"
         onClick={() => setStatusSortCategory(null)}
         className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border transition-all cursor-pointer ${
           statusSortCategory === null
             ? 'bg-indigo-100 dark:bg-indigo-950/40 text-indigo-700 dark:text-indigo-400 border-indigo-200'
-            : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200/30 hover:bg-slate-200'
+            : 'bg-slate-100 dark:bg-slate-800 text-theme-neutral border-slate-200/30 hover:bg-slate-200'
         }`}
       >
         Total: {tableData.length}
@@ -2190,7 +2190,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
         className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-bold border transition-all cursor-pointer ${
           statusSortCategory === 'synced'
             ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-200 border-slate-300'
-            : 'bg-slate-50 dark:bg-slate-900 text-slate-500 dark:text-slate-400 border-slate-200/10 hover:bg-slate-100'
+            : 'bg-slate-50 dark:bg-slate-900 text-theme-text-secondary border-slate-200/10 hover:bg-slate-100'
         }`}
       >
         Match: {counts.synced}
@@ -2268,7 +2268,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
                         {a.originalValue} {a.unit}
                       </span>
                     </div>
-                    {a.reason && <p className="text-slate-600 dark:text-slate-400">{a.reason}</p>}
+                    {a.reason && <p className="text-theme-text-secondary">{a.reason}</p>}
                     {a.suggestedAction && <p className="text-rose-600 dark:text-rose-400 font-medium mt-1">Suggested: {a.suggestedAction}</p>}
                   </div>
                 ))}
@@ -2305,17 +2305,17 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           <div className="flex items-center gap-4">
             {(isMultiphaseActive || totalEstimated > 0) ? (
               <span>
-                Extracted Markers: <strong className="text-slate-700 dark:text-slate-300">
+                Extracted Markers: <strong className="text-theme-neutral">
                   {verification.generatedCount}/{totalEstimated}
                 </strong>
               </span>
             ) : (
               <>
                 <span>
-                  Initial Raw Markers: <strong className="text-slate-700 dark:text-slate-300">{verification.initialCount}</strong>
+                  Initial Raw Markers: <strong className="text-theme-neutral">{verification.initialCount}</strong>
                 </span>
                 <span>
-                  Generated Table Rows: <strong className="text-slate-700 dark:text-slate-300">{verification.generatedCount}</strong>
+                  Generated Table Rows: <strong className="text-theme-neutral">{verification.generatedCount}</strong>
                 </span>
               </>
             )}
@@ -2423,15 +2423,15 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
       {/* Full Screen View Modal */}
       {isFullscreen && (
         <div className="fixed inset-0 z-9999 bg-slate-900/60 backdrop-blur-md flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden shadow-2xl border border-slate-200 dark:border-slate-800 animate-scale-up">
+          <div className="bg-theme-bg-card rounded-3xl w-full max-w-5xl h-[85vh] flex flex-col overflow-hidden shadow-2xl border border-theme-border animate-scale-up">
             {/* Modal Header */}
-            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900/80 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between shrink-0">
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900/80 border-b border-theme-border flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600">
                   <Sparkles className="w-4 h-4" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-slate-900 dark:text-slate-100 text-sm font-display">
+                  <h3 className="font-bold text-theme-text text-sm font-display">
                     Fullscreen Explorer — 
                     {(agentType === 'agent1' || agentType === 'medical_extract') && ' Biomarker Extraction'}
                     {agentType === 'agent2' && ' Category Mapping'}
@@ -2459,14 +2459,14 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
               <div className="mb-4">
                 {renderFilterTags()}
               </div>
-              <div className="flex-1 border border-slate-200 dark:border-slate-800 rounded-2xl bg-white dark:bg-slate-950 overflow-auto shadow-md">
+              <div className="flex-1 border border-theme-border rounded-2xl bg-white dark:bg-slate-950 overflow-auto shadow-md">
                 {renderTableContent()}
               </div>
               {renderCoverageDiagnostics()}
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900/80 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shrink-0">
+            <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900/80 border-t border-theme-border flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 shrink-0">
               <div className="space-y-1">
                 {(isMultiphaseActive || totalEstimated > 0) && (
                   <div className="pb-1">

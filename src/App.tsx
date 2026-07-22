@@ -154,30 +154,13 @@ const getDynamicStyles = (profile: any) => {
     `;
   }
   if (p.background) {
-    colorCss += `
-      --color-slate-50: ${p.background} !important;
-      --color-slate-950: ${p.background} !important;
-    `;
-  }
-  if (p.bgApp) {
-    colorCss += `
-      --color-slate-50: ${p.bgApp} !important;
-      --color-slate-950: ${p.bgApp} !important;
-    `;
+    colorCss += `--app-bg: ${p.background} !important;`;
   }
   if (p.bgCard) {
-    colorCss += `
-      --color-white: ${p.bgCard} !important;
-      --color-slate-900: ${p.bgCard} !important;
-    `;
+    colorCss += `--app-bg-card: ${p.bgCard} !important;`;
   }
   if (p.border) {
-    colorCss += `
-      --color-slate-100: ${p.border}88 !important;
-      --color-slate-200: ${p.border} !important;
-      --color-slate-300: ${p.border} !important;
-      --color-slate-800: ${p.border} !important;
-    `;
+    colorCss += `--app-border: ${p.border} !important;`;
   }
   if (p.warning) {
     colorCss += `
@@ -203,18 +186,10 @@ const getDynamicStyles = (profile: any) => {
     `;
   }
   if (p.text) {
-    colorCss += `
-      --color-slate-900: ${p.text} !important;
-      --color-slate-950: ${p.text} !important;
-      --color-slate-800: ${p.text} !important;
-    `;
+    colorCss += `--app-text: ${p.text} !important;`;
   }
   if (p.textSecondary) {
-    colorCss += `
-      --color-slate-500: ${p.textSecondary} !important;
-      --color-slate-600: ${p.textSecondary} !important;
-      --color-slate-400: ${p.textSecondary}aa !important;
-    `;
+    colorCss += `--app-text-secondary: ${p.textSecondary} !important;`;
   }
   if (p.textAccent) {
     colorCss += `
@@ -227,10 +202,7 @@ const getDynamicStyles = (profile: any) => {
     `;
   }
   if (p.neutralSetting) {
-    colorCss += `
-      --color-slate-700: ${p.neutralSetting} !important;
-      --color-slate-300: ${p.neutralSetting}dd !important;
-    `;
+    colorCss += `--app-neutral: ${p.neutralSetting} !important;`;
   }
   if (p.info) {
     colorCss += `
@@ -4300,7 +4272,7 @@ export default function App() {
   // Render Screens based on active tab
   if (isAuthChecking) {
     return (
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex flex-col items-center justify-center p-4">
+      <div className="min-h-screen bg-theme-bg flex flex-col items-center justify-center p-4">
         <div className="flex flex-col items-center gap-3">
           <Loader className="w-8 h-8 text-indigo-600 animate-spin" />
           <p className="text-xs font-semibold text-slate-500 animate-pulse">Checking your health portal...</p>
@@ -4316,7 +4288,7 @@ export default function App() {
   // - Medical, Insights tabs show 'Medical icon' for adding medical records chat logs.
   const isMedicalTabFAB = ['medical', 'insights'].includes(activeTab);
   return (
-    <div className="h-[100dvh] overflow-hidden bg-slate-50 dark:bg-slate-950 flex flex-col transition-colors duration-200">
+    <div className="h-[100dvh] overflow-hidden bg-theme-bg flex flex-col transition-colors duration-200">
       <style dangerouslySetInnerHTML={{ __html: getDynamicStyles(profile) }} />
       
       {/* Header Profile Section */}
@@ -4371,17 +4343,17 @@ export default function App() {
         onChangeAutoSyncDisabled={handleToggleAutoSyncDisabled}
       />
       {profile?.userType === 'Demo' && (
-        <div className="bg-gradient-to-r from-slate-100 to-indigo-50/50 dark:from-slate-900/90 dark:to-indigo-950/20 border-b border-slate-200 dark:border-slate-800 py-2 px-4 flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left z-20 shadow-sm shrink-0">
+        <div className="bg-gradient-to-r from-slate-100 to-indigo-50/50 dark:from-slate-900/90 dark:to-indigo-950/20 border-b border-theme-border py-2 px-4 flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left z-20 shadow-sm shrink-0">
           <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start">
             <span className="inline-block px-2 py-0.5 text-[9px] font-bold text-indigo-600 bg-indigo-100/60 dark:text-indigo-400 dark:bg-indigo-950/40 rounded-full uppercase tracking-wider">
               Demo Sandbox
             </span>
-            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+            <p className="text-xs font-bold text-theme-neutral">
               Active Profile: <span className="text-indigo-600 dark:text-indigo-400">{profile.nickname}</span> {profile.age ? `(${profile.age}-yo)` : '(Empty)'}
             </p>
           </div>
           <div className="flex flex-wrap items-center justify-center gap-1.5">
-            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Switch Demo Profile:</span>
+            <span className="text-[10px] text-theme-text-secondary font-semibold">Switch Demo Profile:</span>
             {[
               { id: 'empty', label: '1. Initial Start (Empty)', desc: 'Completely empty sandbox account' },
               { id: 'average', label: '2. Average Person (Standard)', desc: 'Alex (28-yo, lipids/vitamin D deficiency)' },
@@ -4397,7 +4369,7 @@ export default function App() {
                   className={`px-3 py-1 text-[10px] font-semibold rounded-lg transition-all shadow-sm shrink-0 cursor-pointer ${
                     isActive 
                       ? 'bg-indigo-600 text-white font-bold scale-[1.02]' 
-                      : 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                      : 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-theme-border text-slate-700 dark:text-slate-200'
                   }`}
                 >
                   {d.label}
@@ -5650,9 +5622,9 @@ export default function App() {
       {/* Snapshot/Undo Panel */}
       {showSnapshotPanel && (
         <div className="fixed inset-0 z-[200] flex items-end justify-center bg-black/50" onClick={() => setShowSnapshotPanel(false)}>
-          <div className="bg-white dark:bg-slate-900 rounded-t-2xl w-full max-w-lg p-5 pb-8 shadow-2xl animate-slide-up" onClick={e => e.stopPropagation()}>
+          <div className="bg-theme-bg-card rounded-t-2xl w-full max-w-lg p-5 pb-8 shadow-2xl animate-slide-up" onClick={e => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <h2 className="text-base font-bold text-theme-text flex items-center gap-2">
                 <span>🕐</span> Restore a Snapshot
               </h2>
               <button onClick={() => setShowSnapshotPanel(false)} className="text-slate-400 hover:text-slate-600 text-xl leading-none">&times;</button>
@@ -5666,7 +5638,7 @@ export default function App() {
             ) : (
               <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
                 {snapshots.map((snap: any) => (
-                  <div key={snap.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 border border-slate-100 dark:border-slate-800 rounded-xl px-4 py-3">
+                  <div key={snap.id} className="flex items-center justify-between bg-slate-50 dark:bg-slate-800/50 border border-theme-border rounded-xl px-4 py-3">
                     <div>
                       <p className="text-xs font-semibold text-slate-800 dark:text-slate-200">{snap.label}</p>
                       <p className="text-[10px] text-slate-400">{new Date(snap.timestamp).toLocaleString()}</p>
