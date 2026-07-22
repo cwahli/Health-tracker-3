@@ -20,6 +20,7 @@ export interface AgentCreditsState {
 
 // Default cost configurations (fallback only)
 export const DEFAULT_AGENT_COSTS = {
+  'gemini-3.5-flash-lite': 1,
   'gemini-3.1-flash-lite': 1,
   'gemini-2.5-flash-lite': 1,
   'default': 20
@@ -111,7 +112,7 @@ export function deductAgentCredits(profile: UserProfile, modelId: string, custom
     ? settings.quotaAdmin 
     : (userType === 'Demo' ? settings.quotaDemo : settings.quotaStandard);
 
-  const isFlashLite = modelId === 'gemini-3.1-flash-lite' || modelId === 'gemini-2.5-flash-lite';
+  const isFlashLite = modelId === 'gemini-3.5-flash-lite' || modelId === 'gemini-3.1-flash-lite' || modelId === 'gemini-2.5-flash-lite' || modelId.toLowerCase().includes('flash-lite');
   const cost = isFlashLite ? settings.flashLiteCost : settings.standardCost;
 
   const updated = { ...profile };

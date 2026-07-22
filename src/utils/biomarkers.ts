@@ -872,6 +872,67 @@ export function getPhysiologicalBucket(category: string, key?: string): 'metabol
   return 'other';
 }
 
+export function getMergedBiomarkerDef(key: string, builtIn?: any, custom?: any, itemLogs?: any[]) {
+  const k = key.toLowerCase();
+  const centralDef = builtIn || biomarkerDefinitions.find(d => d.key === k || (Array.isArray(d.aliases) && d.aliases.some(a => a.toLowerCase() === k)));
+  
+  // Extract unit and range from logs if custom & builtIn don't have it
+  let logUnit = '';
+  let logRange = '';
+  if (Array.isArray(itemLogs)) {
+    for (const log of itemLogs) {
+      if (log && typeof log === 'object') {
+        const u = log.unit || (log.units && (log.units[key] || log.units[k]));
+        if (u && typeof u === 'string' && u.trim()) {
+          logUnit = u.trim();
+        }
+        const r = log.normalRange || (log.normalRanges && (log.normalRanges[key] || log.normalRanges[k]));
+        if (r && typeof r === 'string' && r.trim()) {
+          logRange = r.trim();
+        }
+        if (logUnit && logRange) break;
+      }
+    }
+  }
+
+  const name = (custom?.name && custom.name.trim() !== '') 
+    ? custom.name.trim() 
+    : (centralDef?.name || k.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '));
+
+  const unit = (custom?.unit && custom.unit.trim() !== '')
+    ? custom.unit.trim()
+    : (logUnit || ((centralDef?.unit && centralDef.unit.trim() !== '') ? centralDef.unit : ''));
+
+  const normalRange = (custom?.normalRange && custom.normalRange.trim() !== '' && custom.normalRange !== 'Unknown')
+    ? custom.normalRange.trim()
+    : (logRange || ((centralDef?.normalRange && centralDef.normalRange.trim() !== '' && centralDef.normalRange !== 'Unknown') ? centralDef.normalRange : ''));
+
+  const standardMedicalGrouping = (custom?.standardMedicalGrouping && custom.standardMedicalGrouping.trim() !== '' && custom.standardMedicalGrouping !== 'By Medical Practice')
+    ? custom.standardMedicalGrouping
+    : (centralDef?.standardMedicalGrouping || 'Other');
+
+  const riskCategories = (Array.isArray(custom?.riskCategories) && custom.riskCategories.length > 0 && !custom.riskCategories.includes('Uncategorized'))
+    ? custom.riskCategories
+    : (Array.isArray(centralDef?.riskCategories) && centralDef.riskCategories.length > 0 ? centralDef.riskCategories : ['Uncategorized']);
+
+  const potentialMedicalConditions = (Array.isArray(custom?.potentialMedicalConditions) && custom.potentialMedicalConditions.length > 0)
+    ? custom.potentialMedicalConditions
+    : (Array.isArray(centralDef?.potentialMedicalConditions) ? centralDef.potentialMedicalConditions : []);
+
+  return {
+    ...centralDef,
+    ...custom,
+    key: k,
+    name,
+    unit,
+    normalRange,
+    standardMedicalGrouping,
+    riskCategories,
+    potentialMedicalConditions,
+    needsApproval: custom?.needsApproval
+  };
+}
+
 export function getBiomarkerMetadata(key: string, customDef?: any) {
   const k = key.toLowerCase();
   const centralDef = biomarkerDefinitions.find(d => d.key === k);

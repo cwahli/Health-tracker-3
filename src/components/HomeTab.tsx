@@ -1,7 +1,8 @@
 import React from 'react';
 import { UserProfile, FoodLog, HealthAction, DailyBenefit, RecommendationReport, BiomarkerLog, ChatMessage, FoodIdea } from '../types';
 import { translations } from '../utils/translations';
-import { CheckCircle2, Circle, AlertCircle, Heart, ChevronDown, ChevronUp, Calendar, MapPin, Search, Sparkles, Trash2, RefreshCw, Clock, Settings, X, TrendingUp, Activity, Copy } from 'lucide-react';
+import { CheckCircle2, Circle, AlertCircle, Heart, ChevronDown, ChevronUp, Calendar, MapPin, Search, Sparkles, Trash2, RefreshCw, Clock, Settings, X, TrendingUp, Activity, Copy, FlaskConical, Plus } from 'lucide-react';
+import { parseActionDetails, getDynamicTimeTag, sortActionsByDueDate } from '../utils/actionUtils';
 import { getBiomarkerStatus, getBiomarkerColor, getBiomarkerStatusLabel, biomarkerDefinitions, isAsianEthnicity, getBiomarkerMetadata } from '../utils/biomarkers';
 import { getAgentCalibration } from '../utils/agentCalibration';
 import { getCurrentDateInTimezone } from '../utils/dateUtils';
@@ -108,6 +109,20 @@ export default function HomeTab({
   const activeFoodLogs = React.useMemo(() => (foodLogs || []).filter(f => f.sync_state !== 'delete'), [foodLogs]);
   const activeHistory = React.useMemo(() => (biomarkerHistory || []).filter(h => h.sync_state !== 'delete'), [biomarkerHistory]);
   const [showAllTargets, setShowAllTargets] = React.useState(false);
+  const [expandedActionIds, setExpandedActionIds] = React.useState<Set<string>>(new Set());
+  const [showAllActions, setShowAllActions] = React.useState<boolean>(false);
+
+  const toggleExpandAction = (id: string) => {
+    setExpandedActionIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const sortedActions = React.useMemo(() => sortActionsByDueDate(actions || []), [actions]);
+  const visibleActions = showAllActions ? sortedActions : sortedActions.slice(0, 7);
   const [expandedKey, setExpandedKey] = React.useState<string | null>(null);
   const [reviewingBiomarkerKey, setReviewingBiomarkerKey] = React.useState<string | null>(null);
   const [reviewHistories, setReviewHistories] = React.useState<{[key: string]: ChatMessage[]}>({});
@@ -1607,8 +1622,13 @@ export default function HomeTab({
       {/* Clinical Action Steps checklist */}
       <div id="actions-checklist-section" className="space-y-4">
         <div>
-          <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm">
-            Clinical Action Recommendations
+          <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center justify-between">
+            <span>Clinical Action Recommendations</span>
+            {actions.length > 0 && (
+              <span className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
+                {actions.filter(a => a.completed).length}/{actions.length} Completed
+              </span>
+            )}
           </h3>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 font-medium">
             Discuss these priorities with your general practitioner (GP).
@@ -1616,37 +1636,153 @@ export default function HomeTab({
         </div>
 
         <div className="space-y-3">
-          {actions.map((act) => (
-            <div 
-              key={act.id} 
-              id={`action-item-${act.id}`}
-              onClick={() => toggleAction(act.id)}
-              className={`flex items-start gap-3 p-3 rounded-2xl cursor-pointer border hover:bg-slate-50 dark:hover:bg-slate-800/20 transition-all ${
-                act.completed 
-                  ? 'bg-slate-50/50 dark:bg-slate-800/10 border-slate-100 dark:border-slate-800/40' 
-                  : act.priority === 'high' 
-                    ? 'border-rose-500/10 bg-rose-50/10' 
-                    : 'border-slate-100 dark:border-slate-800/50'
-              }`}
-            >
-              <button className="flex-shrink-0 mt-0.5 text-slate-400 dark:text-slate-500 cursor-pointer">
-                {act.completed ? (
-                  <CheckCircle2 className="w-5 h-5 text-indigo-600 fill-indigo-600/10" />
-                ) : (
-                  <Circle className="w-5 h-5 hover:text-indigo-600" />
-                )}
-              </button>
-              <div className="space-y-1">
-                <span className={`text-xs font-semibold leading-tight block ${act.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-800 dark:text-slate-200'}`}>
-                  {act.task}
-                </span>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed font-medium">
-                  {act.explanation}
-                </p>
-              </div>
+          {actions.length === 0 ? (
+            <div className="p-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-xs text-slate-400">
+              No active clinical recommendations. Run the Health Planning Agent to generate custom diagnostic tasks.
             </div>
-          ))}
+          ) : (
+            visibleActions.map((act) => {
+              const parsed = parseActionDetails(act);
+              const dynamicTag = getDynamicTimeTag(parsed.minMonths, parsed.maxMonths, parsed.addedTimestamp);
+              const isExpanded = expandedActionIds.has(act.id);
+
+              return (
+                <div 
+                  key={act.id} 
+                  id={`action-item-${act.id}`}
+                  className={`p-3.5 rounded-2xl border transition-all ${
+                    act.completed 
+                      ? 'bg-slate-50/50 dark:bg-slate-800/10 border-slate-100 dark:border-slate-800/40 opacity-75' 
+                      : dynamicTag.status === 'overdue'
+                        ? 'bg-rose-50/20 border-rose-200/60 dark:bg-rose-950/20 dark:border-rose-900/40'
+                        : dynamicTag.status === 'due_soon'
+                          ? 'bg-amber-50/20 border-amber-200/60 dark:bg-amber-950/20 dark:border-amber-900/40'
+                          : 'bg-white dark:bg-slate-900/60 border-slate-200/70 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-700'
+                  }`}
+                >
+                  {/* Collapsed Header View */}
+                  <div className="flex items-start gap-3">
+                    <button 
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); toggleAction(act.id); }}
+                      className="flex-shrink-0 mt-0.5 text-slate-400 dark:text-slate-500 hover:scale-110 transition-transform cursor-pointer"
+                      title={act.completed ? "Mark as incomplete" : "Mark as completed"}
+                    >
+                      {act.completed ? (
+                        <CheckCircle2 className="w-5 h-5 text-indigo-600 fill-indigo-600/10" />
+                      ) : (
+                        <Circle className="w-5 h-5 hover:text-indigo-600" />
+                      )}
+                    </button>
+
+                    <div 
+                      onClick={() => toggleExpandAction(act.id)}
+                      className="flex-1 min-w-0 cursor-pointer space-y-2"
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <span className={`text-xs font-bold leading-snug block ${act.completed ? 'line-through text-slate-400 dark:text-slate-500' : 'text-slate-900 dark:text-slate-100'}`}>
+                          {parsed.title}
+                        </span>
+                        <button 
+                          type="button"
+                          className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-0.5 rounded transition-colors flex-shrink-0"
+                          aria-label={isExpanded ? "Collapse details" : "Expand details"}
+                        >
+                          {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        </button>
+                      </div>
+
+                      {/* Tag list: Test tag first, then Time tag */}
+                      <div className="flex flex-wrap items-center gap-1.5 pt-0.5">
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 border border-teal-200/80 dark:border-teal-800/60">
+                          <FlaskConical className="w-3 h-3 text-teal-600 dark:text-teal-400" />
+                          <span>{parsed.testName}</span>
+                        </span>
+
+                        <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                          dynamicTag.status === 'overdue'
+                            ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 border-rose-300 dark:border-rose-800'
+                            : dynamicTag.status === 'due_soon'
+                              ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200 border-amber-300 dark:border-amber-800'
+                              : 'bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200/80 dark:border-indigo-800/60'
+                        }`}>
+                          <Clock className="w-3 h-3" />
+                          <span>{dynamicTag.label}</span>
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded Detail View */}
+                  {isExpanded && (
+                    <div className="mt-3 pt-3 border-t border-slate-100 dark:border-slate-800/80 space-y-2.5 text-xs animate-fadeIn">
+                      <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed font-medium">
+                        {act.explanation}
+                      </p>
+
+                      {parsed.currentValueStr && (
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Baseline Reading:</span>
+                          <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[11px] font-mono font-bold text-slate-800 dark:text-slate-200">
+                            {parsed.currentValueStr}
+                          </span>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap items-center gap-2 pt-1">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                          act.priority === 'high' 
+                            ? 'bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300' 
+                            : act.priority === 'medium'
+                              ? 'bg-amber-100 dark:bg-amber-950/80 text-amber-800 dark:text-amber-200'
+                              : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400'
+                        }`}>
+                          {(act.priority || 'medium').toUpperCase()} PRIORITY
+                        </span>
+
+                        <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-[10px] font-bold uppercase tracking-wider text-slate-600 dark:text-slate-400">
+                          {act.type === 'doctor' ? 'Medical Consultation' : act.type === 'test' ? 'Diagnostic Test' : 'Lifestyle Modification'}
+                        </span>
+
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          Added {new Date(parsed.addedTimestamp).toLocaleDateString()}
+                        </span>
+
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onOpenAgentChat) {
+                              onOpenAgentChat('agent1', { prefillMessage: `Add test results for ${parsed.testName || parsed.title}` });
+                            } else if (onNavigateToTab) {
+                              onNavigateToTab('medical');
+                            }
+                          }}
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold bg-indigo-600 hover:bg-indigo-700 active:scale-95 text-white transition-all shadow-xs cursor-pointer ml-auto"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add your results</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          )}
         </div>
+
+        {/* View More / Show Less Button */}
+        {sortedActions.length > 7 && (
+          <button
+            type="button"
+            onClick={() => setShowAllActions(!showAllActions)}
+            className="w-full py-2.5 px-4 rounded-xl border border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300 font-semibold text-xs hover:bg-slate-50 dark:hover:bg-slate-800/40 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <span>{showAllActions ? 'Show Less' : `View More (${sortedActions.length - 7} remaining)`}</span>
+            {showAllActions ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+        )}
       </div>
 
       {/* Daily Benefit tasks checkoff */}

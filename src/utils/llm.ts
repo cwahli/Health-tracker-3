@@ -12,16 +12,23 @@ const UNSORTED_LLMS: LLMModel[] = [
     id: 'antigravity', 
     name: 'Antigravity', 
     provider: 'Gemini', 
-    isDefault: true,
     description: 'A general-purpose autonomous agent running in a remote, Google-hosted Linux environment',
     rpd: '0 RPD'
   },
   { 
-    id: 'gemini-3-flash', 
-    name: 'Gemini 3 Flash', 
+    id: 'gemini-3.6-flash', 
+    name: 'Gemini 3.6 Flash', 
     provider: 'Gemini', 
-    description: 'Our most intelligent model built for speed, combining frontier intelligence with superior search and grounding.',
+    description: 'Our latest model that balances speed with intelligence to deliver strong performance in agentic and multimodal tasks',
     rpd: '20 RPD'
+  },
+  { 
+    id: 'gemini-3.5-flash-lite', 
+    name: 'Gemini 3.5 Flash Lite', 
+    provider: 'Gemini', 
+    isDefault: true,
+    description: 'Our fastest, most cost-effective 3.5 model for high-throughput execution',
+    rpd: '500 RPD'
   },
   { 
     id: 'gemini-3.5-flash', 
@@ -36,6 +43,13 @@ const UNSORTED_LLMS: LLMModel[] = [
     provider: 'Gemini', 
     description: 'Our most cost-efficient model, optimized for high-volume agentic tasks, translation, and simple data processing.',
     rpd: '500 RPD'
+  },
+  { 
+    id: 'gemini-3-flash', 
+    name: 'Gemini 3 Flash', 
+    provider: 'Gemini', 
+    description: 'Our most intelligent model built for speed, combining frontier intelligence with superior search and grounding.',
+    rpd: '20 RPD'
   },
   { 
     id: 'gemini-2.5-flash', 

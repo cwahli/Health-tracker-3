@@ -1895,6 +1895,7 @@ ${logsText}`);
           const deletedIds = profile?.deletedBiomarkerLogIds || {};
           bodyData.biomarkerHistory = (biomarkerHistory || []).filter(h => h.sync_state !== 'delete' && !deletedIds[h.id]);
           bodyData.biomarkers = biomarkers || {};
+          bodyData.actions = actions || [];
           bodyData.agentDiagnosticSummary = profile?.agentDiagnosticSummary || '';
 
           if ((currentStep === 'data_review' || currentStep === 'agent1') && dataReviewBatchIdx !== null && dataReviewBatchIdx !== undefined) {
@@ -2345,7 +2346,8 @@ ${logsText}`);
                     ...m.data,
                     pendingFoodLog: {
                       ...m.data?.pendingFoodLog,
-                      ...resData.data
+                      ...resData.data,
+                      dietitianUpdateSentence: resData.text || resData.message || m.data?.pendingFoodLog?.dietitianUpdateSentence
                     }
                   }
                 };

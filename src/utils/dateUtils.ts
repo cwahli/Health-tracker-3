@@ -1,5 +1,17 @@
 import { getMappedBiomarkerKey } from './biomarkers';
 
+export function dedupeDelimitedText(existingText: string | undefined, newText: string | undefined, separator: string = '; '): string {
+  const parts: string[] = [];
+  if (existingText) {
+    parts.push(...existingText.split(/[;|\n]/).map(s => s.trim()).filter(Boolean));
+  }
+  if (newText) {
+    parts.push(...newText.split(/[;|\n]/).map(s => s.trim()).filter(Boolean));
+  }
+  const unique = Array.from(new Set(parts));
+  return unique.join(separator);
+}
+
 export const getCurrentDateInTimezone = (timezone?: string): string => {
   const tz = timezone || Intl.DateTimeFormat().resolvedOptions().timeZone;
   try {
@@ -109,10 +121,10 @@ export function normalizeBiomarkerHistory<T extends MinimalBiomarkerLog>(history
       existing.biomarkers = newBiomarkers;
 
       if (log.note) {
-        existing.note = existing.note ? `${existing.note}; ${log.note}` : log.note;
+        existing.note = dedupeDelimitedText(existing.note, log.note, '; ');
       }
       if (log.summary) {
-        existing.summary = existing.summary ? `${existing.summary}; ${log.summary}` : log.summary;
+        existing.summary = dedupeDelimitedText(existing.summary, log.summary, '; ');
       }
     } else {
       const mappedBiomarkers: Record<string, any> = {};
@@ -122,7 +134,9 @@ export function normalizeBiomarkerHistory<T extends MinimalBiomarkerLog>(history
       const copy = {
         ...log,
         date: normalizedDate,
-        biomarkers: mappedBiomarkers
+        biomarkers: mappedBiomarkers,
+        note: log.note ? dedupeDelimitedText('', log.note, '; ') : log.note,
+        summary: log.summary ? dedupeDelimitedText('', log.summary, '; ') : log.summary
       };
       
       seenDates.set(normalizedDate, copy);

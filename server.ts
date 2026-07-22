@@ -497,11 +497,24 @@ Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing snac
 - RESOLVING VISUAL WARNINGS:
   If the user provides a text correction for a previously unclear visual item (e.g. they say "the unclear fish is ikan bandoneng"), you MUST update that specific item in the \`scoutItems\` array schema field. You must update its keyword, completely clear its anomaly flags, and upgrade its confidence to High. You must return the ENTIRE array including the unaffected items.
 
-JSON SCHEMA STRICT REQUIREMENT:
-Respond ONLY with a structured JSON format matching this schema exactly.
+=== SYSTEM CONSTRAINTS ===
 
+First, think step-by-step in plain text.
+
+Second, output exactly one JSON object.
+
+The JSON must contain ONLY the fields requested below. Do NOT include a scratchpad field inside the JSON.
+
+=== OUTPUT INSTRUCTIONS ===
+
+First, write out your step-by-step reasoning in plain text. Explain your clinical thoughts and support your reasoning before generating the JSON.
+
+Then, output your final mapped results in a raw, valid JSON block.
+
+Ensure EVERY JSON field is correctly separated by a comma and that all strings are properly closed with quotation marks. Do not add markdown formatting blocks (such as \`\`\`json) around your JSON response.
+
+JSON SCHEMA STRICT REQUIREMENT:
 {
-  "scratchpad": "string (Use this as a brief, lightweight scratchpad to support your thinking. This is purely to jot down your immediate clinical thoughts to support your reasoning. Do NOT write instructions, do NOT perform extra work, and do NOT restate your guidelines here. Keep it short, direct, and focused on your analysis.)",
   "mode": "new_log | discussion | modify | evaluation | origin",
   "message": "A highly personalized conversational response detailing the clinical rationale. If the user asked a specific question (e.g., \"is this healthy?\"), you MUST directly answer it here.",
   "modificationCommand": [
@@ -906,10 +919,10 @@ async function callUnifiedLLMInternal({
           return body.choices?.[0]?.message?.content || "{}";
         } else {
           const errMsg = await res.text();
-          console.warn(`OpenAI API call returned non-200 status (${res.status}): ${errMsg}. Falling back to Gemini...`);
+          throw new Error(`OpenAI API call returned non-200 status (${res.status}): ${errMsg}. Please try another model.`);
         }
-      } catch (err) {
-        console.warn(`Error connecting to OpenAI:`, err, `. Falling back to Gemini...`);
+      } catch (err: any) {
+        throw new Error(`Error connecting to OpenAI: ${err.message || err}. Please try another model.`);
       }
     }
   }
@@ -943,27 +956,22 @@ async function callUnifiedLLMInternal({
           return body.choices?.[0]?.message?.content || "{}";
         } else {
           const errMsg = await res.text();
-          console.warn(`DeepSeek API call returned non-200 status (${res.status}): ${errMsg}. Falling back to Gemini...`);
+          throw new Error(`DeepSeek API call returned non-200 status (${res.status}): ${errMsg}. Please try another model.`);
         }
-      } catch (err) {
-        console.warn(`Error connecting to DeepSeek:`, err, `. Falling back to Gemini...`);
+      } catch (err: any) {
+        throw new Error(`Error connecting to DeepSeek: ${err.message || err}. Please try another model.`);
       }
     }
   }
 
-  // 4. Gemini SDK Default/Simulation Fallback
-  console.log(`[UnifiedLLM] Routing/Falling back to Gemini model mapping from requested model: ${normalizedModelId}`);
+  // 4. Gemini SDK
   const ai = getGeminiClient();
 
-  // Map choices to appropriate Google SDK model IDs
-  let targetGeminiModel = "gemini-3.5-flash";
-  if (normalizedModelId.includes("deep-research") || normalizedModelId.includes("pro") || normalizedModelId.includes("preview")) {
-    targetGeminiModel = "gemini-3.1-pro-preview";
-  } else if (normalizedModelId.includes("lite")) {
-    targetGeminiModel = "gemini-3.1-flash-lite";
-  } else {
-    targetGeminiModel = "gemini-3.5-flash";
+  if (!normalizedModelId.includes("gemini")) {
+    throw new Error(`API key is not configured for ${normalizedModelId}. Please configure it in Settings or try another model.`);
   }
+  
+  let targetGeminiModel = normalizedModelId;
 
   const initialParts: any[] = [];
   if (imagePayloads && imagePayloads.length > 0) {
@@ -984,11 +992,7 @@ async function callUnifiedLLMInternal({
     });
   }
 
-  // Prepend simulated header to instruction if simulating a third-party engine on Gemini
   let resolvedInstruction = systemInstruction;
-  if (!normalizedModelId.includes("gemini")) {
-    resolvedInstruction = `[System Simulation: Adopt the persona of model '${normalizedModelId}' for this request. Respond as accurately and characteristically as possible while strictly observing the requested JSON format constraints.]\n\n${systemInstruction}`;
-  }
 
   initialParts.push({ text: promptText });
 
@@ -1103,6 +1107,7 @@ async function callUnifiedLLMInternal({
         }
       }
     }
+
 
     let finalJson = response.text || "";
     // Inject native thoughts as "scratchpad" back into final JSON so existing code downstream works seamlessly
@@ -1518,17 +1523,30 @@ app.get("/api/gemini/instruction-preview", async (req, res) => {
 // Health Preparation Agent
 app.post("/api/gemini/front-desk", async (req, res) => {
   try {
-    const { message, profile, biomarkers, foodLogs, biomarkerHistory } = req.body;
+    const { message, profile, biomarkers, foodLogs, biomarkerHistory, engine } = req.body;
     
+    const targetModel = engine || "gemini-3.5-flash-lite";    
+    const cleanedHistory = (biomarkerHistory || []).slice().reverse().map((item: any) => {
+      if (!item) return item;
+      const clean = { ...item };
+      if (typeof clean.note === 'string') {
+        clean.note = Array.from(new Set(clean.note.split(/[;|\n]/).map((s: string) => s.trim()).filter(Boolean))).join('; ');
+      }
+      if (typeof clean.summary === 'string') {
+        clean.summary = Array.from(new Set(clean.summary.split(/[;|\n]/).map((s: string) => s.trim()).filter(Boolean))).join('; ');
+      }
+      return clean;
+    });
+
     const prompt = `
 You are the Health Preparation Agent. Your job is to answer the user's questions regarding their health data, and guide them on what they should do next.
 You have access to their profile, biomarkers, and food logs.
 
 <USER_DATA>
-Profile: ${JSON.stringify(profile)}
-Biomarkers: ${JSON.stringify(biomarkers)}
-Food Logs (Last 5): ${JSON.stringify(foodLogs ? foodLogs.slice(0, 5) : [])}
-Recent Biomarker History (most recent first, up to 40 entries): ${JSON.stringify((biomarkerHistory || []).slice().reverse())}
+Profile: ${JSON.stringify(profile, null, 2)}
+Biomarkers: ${JSON.stringify(biomarkers, null, 2)}
+Food Logs (Last 5): ${JSON.stringify(foodLogs ? foodLogs.slice(0, 5) : [], null, 2)}
+Recent Biomarker History (most recent first, up to 40 entries): ${JSON.stringify(cleanedHistory, null, 2)}
 </USER_DATA>
 
 If the user asks "What should I do?", analyze their data and see what is missing (e.g. missing age, weight, or missing biomarkers, or no food logs logged).
@@ -1560,12 +1578,12 @@ Answer the user's message directly and concisely.
 User Message: ${message}
 `;
 
-    addDebugLog(`[FrontDesk] Dispatching prompt to model: "gemini-3.5-flash-lite".`);
+    addDebugLog(`[FrontDesk] Dispatching prompt to model: "${targetModel}".`);
     addDebugLog(`[FrontDesk-Prompt] User Prompt:\n${prompt}`);
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash-lite",
+      model: targetModel,
       contents: prompt,
       config: {
         temperature: 0.2,
@@ -2034,11 +2052,11 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       if (hasImage) {
         sendStreamEvent({ type: 'status', stage: 'scout', status: 'started', message: 'Reading your photos...' });
         const scoutPromptText = message ? `Analyze this image and list the food items you see, taking into consideration the user's message: "${message}"` : "Analyze this image and list the food items you see.";
-        sendLog('scout_instruction', 'scout', `Vision Scout Instruction dispatched (model: gemini-3.1-flash-lite). Prompt: "${scoutPromptText}"`);
+        sendLog('scout_instruction', 'scout', `Vision Scout Instruction dispatched (model: ${engine || "gemini-3.5-flash-lite"}). Prompt: "${scoutPromptText}"`);
         addDebugLog(`[Vision Scout] Running Stage 3 lightweight vision scout...`);
         try {
           const scoutOutput = await callUnifiedLLM({
-            modelId: "gemini-3.1-flash-lite",
+            modelId: engine || "gemini-3.5-flash-lite",
             systemInstruction: scoutSystemInstruction,
             promptText: scoutPromptText,
             imagePayloads,
@@ -2145,6 +2163,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
           });
         } catch (scoutErr: any) {
           addDebugLog(`[Vision Scout Error] Failed: ${scoutErr.message}`);
+          throw new Error(`Vision Scout Analysis Failed: ${scoutErr.message}`);
         }
       } else if (message) {
         addDebugLog(`[Text Search Extraction] No image supplied. Extracting search terms from message: "${message}"`);
@@ -2766,7 +2785,8 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         };
       }
       const textOutput = await callUnifiedLLM(callArgs);
-      let cleanJson = textOutput.replace(/```(?:json)?/gi, "").trim();
+      let cleanJson = extractBalancedJson(textOutput);
+      const extractedScratchpad = textOutput.replace(cleanJson, "").replace(/```(?:json)?/gi, "").trim();
 
       // Sanitize pathological weightGrams values like "350.000000...000" → "350"
       // These are generated by the LLM and inflate JSON size causing truncation errors
@@ -2782,6 +2802,9 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       try {
         rawParsed = JSON.parse(extractBalancedJson(cleanJson));
         rawParsed = validateOrFallback(RouteAgentSchema, rawParsed, cleanJson, "RouteAgent", { itemsBreakdown: [] });
+        if (!rawParsed.scratchpad && extractedScratchpad) {
+          rawParsed.scratchpad = extractedScratchpad;
+        }
       } catch (parseErr: any) {
         addDebugLog(`[JSON Parse Error] JSON parse failed: ${parseErr.message}. Attempting robust truncation repair...`);
         try {
@@ -2829,6 +2852,9 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           repaired += ']'.repeat(Math.max(0, openBrackets)) + '}'.repeat(Math.max(0, openBraces));
           
           rawParsed = JSON.parse(repaired);
+          if (!rawParsed.scratchpad && extractedScratchpad) {
+            rawParsed.scratchpad = extractedScratchpad;
+          }
           addDebugLog(`[JSON Parse Error] Robust truncation repair succeeded.`);
         } catch (repairErr: any) {
           addDebugLog(`[JSON Parse Error] Robust truncation repair also failed: ${repairErr.message}.`);
@@ -2839,7 +2865,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
     }
 
     const llmCallArgs = {
-      modelId: engine || "gemini-3.1-flash-lite", // Updating to flash-lite as recommended
+      modelId: engine || "gemini-3.5-flash-lite", // Updating to flash-lite as recommended
       systemInstruction: finalSystemInstruction,
       promptText,
       imagePayloads,
@@ -2849,7 +2875,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
     };
 
     sendStreamEvent({ type: 'status', stage: 'dietitian', status: 'started', message: 'Consulting clinical AI model...' });
-    sendLog('dietitian_instruction', 'dietitian', `Dietitian System Instruction & Patient Biomarkers payload dispatched (model: ${engine || 'gemini-3.1-flash-lite'}).`);
+    sendLog('dietitian_instruction', 'dietitian', `Dietitian System Instruction & Patient Biomarkers payload dispatched (model: ${engine || 'gemini-3.5-flash-lite'}).`);
 
     let textOutput: string;
     let rawParsed: any;
@@ -2857,7 +2883,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       ({ textOutput, rawParsed } = await callAndParseFoodAnalysis(llmCallArgs));
     } catch (firstErr: any) {
       addDebugLog(`[JSON Parse Error] First attempt failed: ${firstErr.message}. Retrying once...`);
-      await new Promise(resolve => setTimeout(resolve, 500));
+      await new Promise(resolve => setTimeout(resolve, 2000));
       ({ textOutput, rawParsed } = await callAndParseFoodAnalysis(llmCallArgs));
     }
 
@@ -2995,6 +3021,32 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
 
       // Map and construct itemsBreakdown and aggregate all nutrients
       if (rawFoodData.itemsBreakdown && Array.isArray(rawFoodData.itemsBreakdown) && rawFoodData.itemsBreakdown.length > 0) {
+        // Enrich items with originalLocalName from visionScoutItems if available
+        if (visionScoutItems && Array.isArray(visionScoutItems)) {
+          rawFoodData.itemsBreakdown = rawFoodData.itemsBreakdown.map((item: any) => {
+            const canonicalLower = (item.canonicalDbName || item.name || "").toLowerCase();
+            const match = visionScoutItems.find((s: any) => {
+              const keywordLower = (s.keyword || "").toLowerCase();
+              const originalLower = (s.originalName || "").toLowerCase();
+              return (
+                canonicalLower === keywordLower ||
+                canonicalLower === originalLower ||
+                canonicalLower.includes(keywordLower) ||
+                canonicalLower.includes(originalLower) ||
+                keywordLower.includes(canonicalLower) ||
+                originalLower.includes(canonicalLower)
+              );
+            });
+            if (match) {
+              return {
+                ...item,
+                originalLocalName: match.originalName || item.originalLocalName || null
+              };
+            }
+            return item;
+          });
+        }
+
         const { nutrients, itemsBreakdown } = aggregateItemsNutrients(
           rawFoodData.itemsBreakdown,
           totalWeightGrams,
@@ -3299,7 +3351,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
   } catch (error: any) {
     console.error("[Food Analyze Error]:", error);
     return res.status(200).json({
-      error: `The food log agent is not available (Error: ${error.message || 'Connection timed out'}).`,
+      error: `Failed to process your request (Error: ${error.message || 'Connection timed out'}). Please try again with a different model from the top-left dropdown.`,
       agentNotAvailable: true
     });
   }
@@ -3437,13 +3489,48 @@ let {
       },
       required: ["message", "reviewedBiomarkers"]
     };
+    const healthPlanningSchema = {
+      type: Type.OBJECT,
+      properties: {
+        summary: { type: Type.STRING, description: "Executive clinical summary synthesizing diagnostic accuracy, external confounding variables, and short vs long-term health planning recommendations." },
+        retestBiomarkers: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              key: { type: Type.STRING, description: "Biomarker key or slugified name" },
+              name: { type: Type.STRING, description: "Clean display name (e.g. Fasting Glucose)" },
+              currentValue: { type: Type.STRING, description: "Current value or 'Not tested'" },
+              unit: { type: Type.STRING, description: "Measurement unit" },
+              retestTimeframe: { type: Type.STRING, description: "Recommended retest timeframe (e.g. In 2-4 weeks)" },
+              isProvisional: { type: Type.BOOLEAN, description: "Whether reading should be considered provisional due to external factors" },
+              priority: { type: Type.STRING, enum: ["high", "medium", "low"], description: "Priority level based on physiological severity or urgency" },
+              reason: { type: Type.STRING, description: "Detailed clinical rationale explaining potential confounding variables or reason for retest, combined with a clear explanation of why this priority level was assigned." }
+            },
+            required: ["name", "retestTimeframe", "isProvisional", "priority", "reason"]
+          }
+        },
+        testingGaps: {
+          type: Type.ARRAY,
+          items: {
+            type: Type.OBJECT,
+            properties: {
+              testName: { type: Type.STRING, description: "Name of recommended test (existing or new unentered biomarker)" },
+              category: { type: Type.STRING, enum: ["short_term", "long_term"], description: "short_term (< 2 years) or long_term (>= 2 years)" },
+              timeframe: { type: Type.STRING, description: "Recommended timeframe (e.g. Within 3 months)" },
+              priority: { type: Type.STRING, enum: ["high", "medium", "low"], description: "Priority level based on physiological risk or necessity" },
+              reason: { type: Type.STRING, description: "Detailed clinical rationale explaining why this test uncovers hidden profile risks, combined with a clear explanation of why this priority level was assigned." },
+              targetCondition: { type: Type.STRING, description: "Target condition or physiological system" }
+            },
+            required: ["testName", "category", "timeframe", "priority", "reason", "targetCondition"]
+          }
+        }
+      },
+      required: ["summary", "retestBiomarkers", "testingGaps"]
+    };
+
     if (agentType === "agent4") {
-      recentMeals = [];
-      biomarkerHistory = [];
-      
-
-
-    if (history && history.length > 0) {
+      if (history && history.length > 0) {
         history = history.filter((h: any) => {
           if (!h.content) return false;
           const lower = h.content.toLowerCase();
@@ -3481,8 +3568,12 @@ let {
       if (agentType === "agent4") {
         systemInstruction = `You are a Medical Diagnostics Assessment agent.
 Your objective is to analyze the user's biomarker history, recent test data, profile, and current symptoms to project timeline risks and identify testing gaps or overall health trends.
-You MUST output ONLY a valid JSON object containing:
-- "text": A conversational, highly detailed clinical response.
+You MUST output ONLY a valid JSON object matching the exact schema:
+- "text": A brief, professional, conversational greeting and summary response directly addressing the user (e.g., "I have completed a comprehensive diagnostic and health planning audit based on your recent biomarker history. Here are the key findings, recommended retests, and testing gaps identified for your profile:").
+- "summary": Executive clinical summary synthesizing diagnostic findings, risk trends, and health planning recommendations (1-2 clear paragraphs max for the diagnostic audit banner).
+- "retestBiomarkers": Array of objects specifying biomarkers recommended for retesting (each item MUST include "name", "retestTimeframe", "recommendedTestName" [the specific clinical test/panel to order/take, e.g. "Lipid Profile Panel", "Fasting HbA1c Test", "Full Blood Count"], "isProvisional", "reason", and optional "key", "currentValue", "unit").
+- "testingGaps": Array of objects identifying missing tests or health gaps (each item has "testName", "category" ['short_term' | 'long_term'], "timeframe", "reason", "targetCondition").
+- "scratchpad": Detailed clinical reasoning step-by-step.
 - "mode": "discussion"
 - "status": "active"`;
         mockData = { text: "I have reviewed your medical records.", mode: "discussion", status: "active" };
@@ -3661,131 +3752,177 @@ Rules for handling user inputs:
 Make sure your entire output is valid JSON, containing "text", "entriesCount", and "buckets".`;
         mockData = {};
       } else if (agentType === "agent4") {
-        systemInstruction = `You are an advanced Clinical Classification, Prognostic, and Risk Triage Engine.
-You will receive an intermediate YAML payload containing a user profile and a cleaned list of biomarkers. You may also receive conversational follow-ups or corrections from the user.
-Your objective is to dynamically group EVERY biomarker into logical clinical conditions, calculate prognostic timelines, and output a strict, zero-data-loss JSON payload.
+        const last15MealTitles = (recentMeals || [])
+          .slice(-15)
+          .map((m: any) => m.name || m.title || m.foodName || m.description || '')
+          .filter(Boolean);
 
-=== CRITICAL DIRECTIVES ===
-CONVERSATION & CORRECTIONS:
-If the user provides a correction (e.g., "My weight is 61kg" or "You missed the marker 'mean_corpuscular_volume'"), you MUST prioritize this new instruction, override previous assumptions, and completely regenerate the JSON payload to fix the error.
+        const atRiskBiomarkers: any[] = [];
+        const normalBiomarkers: any[] = [];
 
-INVENTORY PARITY RULE (Zero Data Loss):
-You must count the total number of unique biomarkers in the incoming YAML.
-Your final JSON output MUST contain exactly that same number of unique biomarkers. You are strictly forbidden from omitting, summarizing, or dropping any biomarker key.
-Record the incoming count in audit.metricsReceived and your final output count in audit.metricsProcessed.
+        const customs = userProfile?.customBiomarkers || {};
+        const combinedKeys = Array.from(new Set([
+          ...Object.keys(customs),
+          ...Object.keys(biomarkers || {})
+        ]));
 
-SEMANTIC TAXONOMY ANCHORS (Dynamic Grouping):
-Do not rely on a hardcoded dictionary. Group biomarkers dynamically into conditions:
-- Cardiovascular/Lipid: Contains 'cholesterol', 'ldl', 'hdl', 'triglycerides', 'qrisk', 'lipid'.
-- Renal/Metabolic/Electrolyte: Contains 'egfr', 'creatinine', 'sodium', 'potassium', 'calcium', 'phosphate', 'hba1c', 'bmi', 'weight'.
-- Hepatic/Liver: Contains 'alt', 'ast', 'bilirubin', 'phosphatase', 'albumin', 'globulin', 'protein'.
-- Hematology/Immune: Contains 'cell', 'count', 'haemoglobin', 'haematocrit', 'volume', 'platelet', 'neutrophil', 'lymphocyte', 'monocyte', 'eosinophil', 'basophil'.
-- Screening/Other: Any marker that does not fit the above (e.g., 'psa', 'audit').
+        combinedKeys.forEach(k => {
+          const cDef = customs[k] || {};
+          const val = biomarkers[k] !== undefined ? biomarkers[k] : cDef.userValue;
+          const name = cDef.name || k;
+          const unit = cDef.unit || '';
+          const normRange = cDef.profileAdjustedNormalRange || cDef.normalRange || '';
+          const status = cDef.status || 'Healthy';
+          const insight = cDef.specificRiskContext || cDef.description || '';
 
-FAIR ASSESSMENT & DEMOGRAPHIC RISK:
-Do not invent pathology. If the user's systems are healthy, state clearly they are highly optimized.
-Apply demographic thresholds explicitly. Example: For South/East Asian ethnicities, a BMI >= 23.0 kg/m² must be flagged as ELEVATED/MONITOR.
-If a condition block contains even one marker flagged as ELEVATED or MONITOR, the entire block's 'aggregateRisk' inherits that severity tier.
+          if (status === 'At Risk' || status === 'high' || status === 'critical' || (cDef.riskCategories && cDef.riskCategories.length > 0)) {
+            atRiskBiomarkers.push({
+              key: k,
+              name,
+              value: val,
+              unit,
+              normalRange: normRange,
+              status,
+              medicalInsights: insight
+            });
+          } else {
+            normalBiomarkers.push({
+              key: k,
+              name,
+              value: val,
+              unit,
+              normalRange: normRange,
+              status
+            });
+          }
+        });
 
-PROGNOSTIC TIMELINES & GAP ANALYSIS:
-If healthy: Project maintenance of vitality and low metabolic risk over 2, 5, and 10 years.
-If at risk: Project the logical biological progression over 2, 5, and 10 years if no lifestyle changes are made (e.g., progression toward metabolic syndrome).
-Recommend exactly advanced confirmation tests (e.g., Fasting Insulin, ApoB, Cystatin-C) to verify gaps in the data, or state "No additional testing required" if perfect.
-
-=== STRICT JSON OUTPUT SCHEMA ===
-{
-  "audit": {
-    "metricsReceived": number,
-    "metricsProcessed": number
-  },
-  "summary": {
-    "primaryDiagnosis": "Conversational summary of systemic health and demographic context.",
-    "timelineProjections": {
-      "year2": "String",
-      "year5": "String",
-      "year10": "String"
-    }
-  },
-  "prioritizedConditions": [
-    {
-      "conditionName": "String (e.g., Cardiovascular Health)",
-      "aggregateRisk": "ELEVATED | MONITOR | OPTIMAL",
-      "clinicalRationale": "1-sentence explanation of why this risk tier was assigned.",
-      "biomarkers": [
-        {
-          "key": "String (original key)",
-          "name": "String (clean name)",
-          "currentValue": number,
-          "unit": "String",
-          "status": "HIGH | LOW | NORMAL"
+        let acceptedBaselineProposal: any = "No prior baseline proposal stored.";
+        if (userProfile?.agentAnalyses && Array.isArray(userProfile.agentAnalyses)) {
+          const baseAnalysis = userProfile.agentAnalyses.find((a: any) => a.agentType === 'health_baseline' || a.agentType === 'agent2');
+          if (baseAnalysis) {
+            acceptedBaselineProposal = baseAnalysis.result;
+          }
         }
-      ]
+        if (acceptedBaselineProposal === "No prior baseline proposal stored." && userProfile?.agentBaselineSummary) {
+          acceptedBaselineProposal = userProfile.agentBaselineSummary;
+        }
+
+        const existingActions = req.body.actions || req.body.existingClinicalActions || userProfile?.actions || [];
+
+        systemInstruction = `You are the Health Planning Agent (Precision Diagnostic Audit & Health Planning Engine).
+Your core clinical role is to holistically evaluate the patient's overall health risks and potential future (or existing but unknown) health conditions and uncover them. Your job is NOT merely to make sure that the biomarkers are up to date. You must formulate an integrative, comprehensive picture of the patient's physiological trajectory.
+
+=== INTEGRATIVE DIAGNOSTIC ETHICS & CRITERIA ===
+- ETHNICITY-BASED CALIBRATION: You must calibrate your risk assessment and diagnostic evaluation based on the patient's specific ethnicity. For example, East Asian or South Asian populations may experience elevated glycemic or cardiovascular complications at lower BMI or waist circumference thresholds compared to standard reference ranges. Make sure that when the patient's ethnicity differs from standard reference baselines, you adjust your diagnostic evaluation and risk categories accordingly.
+- AVOID FALSE POSITIVES & OVER-TESTING: Be clinically precise and conservative. Do not recommend diagnostic tests unless there is a clear physiological indication or demographic risk. Avoid driving patients toward anxiety-inducing self-treatment or unnecessary interventions. Recommend tests ONLY when clinically warranted.
+
+INPUT DATA PROVIDED TO YOU:
+1. User Profile Data:
+${JSON.stringify({
+  age: userProfile?.age,
+  gender: userProfile?.gender,
+  ethnicity: userProfile?.ethnicity,
+  medicalConditions: userProfile?.medicalConditions,
+  healthGoals: userProfile?.healthGoals
+}, null, 2)}
+
+2. Accepted Agent Finding Proposal from Health Baseline & Trajectory Agent:
+${JSON.stringify(acceptedBaselineProposal, null, 2)}
+
+3. Latest Biomarker Values AT RISK (with range and medical insights):
+${JSON.stringify(atRiskBiomarkers, null, 2)}
+
+4. Latest Biomarker Values NOT AT RISK:
+${JSON.stringify(normalBiomarkers, null, 2)}
+
+5. Last 15 Meals Logged (Titles):
+${JSON.stringify(last15MealTitles, null, 2)}
+
+6. Existing Clinical Action Recommendations List:
+${JSON.stringify(existingActions, null, 2)}
+
+=== CLINICAL DIRECTIVES ===
+1. EVALUATE EXISTING CLINICAL ACTION RECOMMENDATIONS (DECIDE KEEP, UPDATE, OR REMOVE):
+   - Review the patient's existing list of Clinical Action Recommendations (item 6 above).
+   - In your conversational output/executive clinical "summary", you MUST explicitly explain whether to KEEP, UPDATE, or REMOVE/DELETE each recommendation from the existing list. For instance, if there is a recommendation like "Schedule primary physician physical consultation", detail whether the patient should keep it, update its timing/context, or remove it.
+   - Note: Your recommended list of \`retestBiomarkers\` and \`testingGaps\` will completely OVERWRITE the existing clinical action recommendation list when accepted.
+
+2. ASSIGN PRIORITY ('high' | 'medium' | 'low') AND COMBINED REASON FIELD:
+   - For EVERY recommended action (both retestBiomarkers and testingGaps), set a \`priority\` field strictly as 'high', 'medium', or 'low'.
+   - You MUST combine the physiological/clinical rationale AND the explanation for the assigned priority level into a SINGLE field called \`reason\`. Do NOT use a separate \`priorityReason\` field.
+   - Example \`reason\` field format: "[Clinical Rationale]... [Priority Explanation]..."
+
+3. AUDIT EXISTING TEST ACCURACY & EXTERNAL FACTORS:
+   - Carefully review all biomarker readings (both at risk and normal).
+   - Evaluate whether any values could be influenced by external or acute factors (e.g. transient dehydration, recent strenuous workout, fasting status, acute infection, or dietary spikes).
+   - Identify metrics that may have changed or require repeat testing to confirm baseline accuracy.
+   - For each retest recommendation, specify the recommended retest timeframe (e.g., "In 2-4 weeks", "Immediate retest", "In 1 month") and indicate if the current reading is considered "provisional".
+
+4. IDENTIFY TESTING GAPS FOR UNCOVERED HEALTH RISKS:
+   - Analyze potential gaps in testing that could uncover hidden health risks for this demographic and biomarker profile.
+   - Group recommended testing gaps into:
+     - "short_term": Below 2 years (< 2 years)
+     - "long_term": Over 2 years (>= 2 years)
+
+5. JSON OUTPUT SCHEMA:
+You MUST return ONLY a JSON object matching this schema:
+{
+  "summary": "Executive clinical summary synthesizing diagnostic accuracy, external confounding variables, short vs long-term health planning recommendations, and an explicit evaluation of whether to KEEP, UPDATE, or REMOVE/DELETE each item in the existing Clinical Action Recommendations list (e.g., 'Schedule primary physician physical consultation').",
+  "retestBiomarkers": [
+    {
+      "key": "biomarker_key",
+      "name": "Clean display name (e.g. Fasting Glucose)",
+      "currentValue": "5.8",
+      "unit": "mmol/L",
+      "retestTimeframe": "In 2-4 weeks",
+      "isProvisional": true,
+      "priority": "high",
+      "reason": "High priority due to elevated fasting glucose approaching prediabetic threshold. Slight elevation may reflect acute stress or dehydration prior to blood draw; repeat test recommended to confirm true baseline."
     }
   ],
-  "recommendedTests": [
+  "testingGaps": [
     {
-      "testName": "String",
-      "reason": "String"
+      "testName": "Fasting Insulin",
+      "category": "short_term",
+      "timeframe": "Within 1-3 months",
+      "priority": "high",
+      "reason": "High priority to detect early insulin resistance before HbA1c shifts significantly. Evaluating subclinical insulin resistance is especially critical for South Asian demographic context despite normal fasting glucose.",
+      "targetCondition": "Metabolic Risk"
     }
   ]
-}
-
-Ensure the 'prioritizedConditions' array is sorted descending by risk (ELEVATED first, OPTIMAL last). Return ONLY raw JSON. No markdown wrappers.`;
+}`;
 
         mockData = {
-          audit: {
-            metricsReceived: 3,
-            metricsProcessed: 3
-          },
-          summary: {
-            primaryDiagnosis: "Slightly elevated glycemic markers; cardiovascular and renal health are highly optimized.",
-            timelineProjections: {
-              year2: "Maintaining current metabolic profiles; slight progression in glycemic metrics if diet remains unadjusted.",
-              year5: "Mild risk of insulin resistance progression; cardiovascular health remains solid.",
-              year10: "Metabolic risk increases by 5% if glycemic spikes are not managed."
-            }
-          },
-          prioritizedConditions: [
+          summary: "Reviewed diagnostic profile and biomarker history. Identified retest priorities and diagnostic testing gaps.",
+          retestBiomarkers: [
             {
-              conditionName: "Renal/Metabolic/Electrolyte",
-              aggregateRisk: "ELEVATED",
-              clinicalRationale: "Fasting glucose is slightly elevated relative to optimal ranges.",
-              biomarkers: [
-                {
-                  key: "glucose",
-                  name: "Fasting Glucose",
-                  currentValue: 5.8,
-                  unit: "mmol/L",
-                  status: "HIGH"
-                },
-                {
-                  key: "hba1c",
-                  name: "HbA1c",
-                  currentValue: 37,
-                  unit: "mmol/mol",
-                  status: "NORMAL"
-                }
-              ]
-            },
-            {
-              conditionName: "Cardiovascular/Lipid",
-              aggregateRisk: "OPTIMAL",
-              clinicalRationale: "Cardiovascular markers are currently in optimal reference ranges.",
-              biomarkers: [
-                {
-                  key: "ldl",
-                  name: "LDL Cholesterol",
-                  currentValue: 2.1,
-                  unit: "mmol/L",
-                  status: "NORMAL"
-                }
-              ]
+              key: "glucose",
+              name: "Fasting Glucose",
+              currentValue: "5.8",
+              unit: "mmol/L",
+              retestTimeframe: "In 2-4 weeks",
+              isProvisional: true,
+              priority: "high",
+              reason: "High priority due to elevated fasting glucose approaching prediabetic range. Slight elevation may reflect acute stress or dehydration prior to blood draw; repeat test recommended to confirm true baseline."
             }
           ],
-          recommendedTests: [
+          testingGaps: [
             {
               testName: "Fasting Insulin",
-              reason: "To rule out insulin resistance in light of borderline-high glucose."
+              category: "short_term",
+              timeframe: "Within 1-3 months",
+              priority: "high",
+              reason: "High priority to detect early insulin resistance before HbA1c shifts significantly. Evaluating subclinical insulin resistance for South Asian demographic context despite normal fasting glucose.",
+              targetCondition: "Metabolic Risk"
+            },
+            {
+              testName: "ApoB",
+              category: "long_term",
+              timeframe: "In 2-3 years",
+              priority: "low",
+              reason: "Low priority for long-term atherogenic risk monitoring. ApoB provides superior particle count quantification for long-term atherogenic risk assessment.",
+              targetCondition: "Cardiovascular Health"
             }
           ]
         };
@@ -4036,11 +4173,14 @@ Your output MUST be a valid JSON object matching the schema provided.`;
           });
         }
         
-        const cleanedPayload = {
+        const cleanedPayload: any = {
           userProfile: cleanProfile,
           biomarkerDefinitions: slimBiomarkers,
           biomarkerHistory: biomarkerHistory || []
         };
+        if (agentType === "agent4") {
+          delete cleanedPayload.biomarkerDefinitions;
+        }
 
         let jsonStr = "";
         if (req.body.extractedYaml) {
@@ -4074,9 +4214,9 @@ Your output MUST be a valid JSON object matching the schema provided.`;
           const baseData = customVariableData ? `\n\n${customVariableData}\n` : `\n\nUSER PROFILE:\n${JSON.stringify(cleanProfile, null, 2)}\n`;
           dataContext = `${baseData}\n\nBIOMARKERS BATCH FOR CLEANING:\n${JSON.stringify(batchData, null, 2)}\n`;
         } else {
-          const yamlData = jsToYaml(cleanedPayload);
+          const jsonPayload = JSON.stringify(cleanedPayload, null, 2);
           const baseData = customVariableData ? `\n\n${customVariableData}\n` : "";
-          dataContext = `${baseData}\n\nUSER MEDICAL DATA (in YAML format):\n${yamlData}\n`;
+          dataContext = `${baseData}\n\nUSER MEDICAL DATA (in JSON format):\n${jsonPayload}\n`;
         }
 
         if (customSystemInstruction) {
@@ -4109,7 +4249,9 @@ Your output MUST be a valid JSON object matching the schema provided.`;
               ? agent1Step1Schema 
               : (agentType === "data_review") 
                 ? dataReviewSchema 
-                : undefined
+                : (agentType === "agent4")
+                  ? healthPlanningSchema
+                  : undefined
           });
           
           addDebugLog(`[Medical Analyze Agent] Response Received:\n${textOutput}`, explicitSessionId);
@@ -4287,17 +4429,40 @@ Your output MUST be a valid JSON object matching the schema provided.`;
       
       if (!agentType || agentType === "agent4") {
         try {
-          const parsed = JSON.parse(textOutput.replace(/```(?:json)?/gi, "").trim());
+          const cleanJson = textOutput.replace(/```(?:json)?/gi, "").trim();
+          const parsed = JSON.parse(cleanJson);
+          
+          let textVal = parsed.text;
+          if (!textVal || typeof textVal !== 'string' || !textVal.trim() || textVal.trim().startsWith('{')) {
+            textVal = "I have completed a diagnostic assessment and health planning audit based on your profile and biomarker history. Please review the findings, recommended retests, and testing gaps below:";
+          }
+
           return res.json({
-            text: parsed.text || textOutput,
+            ...parsed,
+            text: textVal,
+            summary: parsed.summary || parsed.primaryDiagnosis || parsed.text || "Diagnostic accuracy and health planning evaluation complete.",
+            retestBiomarkers: Array.isArray(parsed.retestBiomarkers) ? parsed.retestBiomarkers : [],
+            testingGaps: Array.isArray(parsed.testingGaps) ? parsed.testingGaps : (Array.isArray(parsed.recommendedTests) ? parsed.recommendedTests : []),
+            scratchpad: parsed.scratchpad || "",
             mode: parsed.mode || 'discussion',
             status: parsed.status || 'active',
             agentPrompt: fullPromptSent,
             agentType: agentType || 'agent4',
-            apiCalls: [{ type: 'gemini', label: `Medical History Agent (${engine || 'gemini-3.1-flash-lite'})` }]
+            apiCalls: [{ type: 'gemini', label: `Health Planning Agent (${engine || 'gemini-3.1-flash-lite'})` }]
           });
         } catch (e) {
-          return res.json({ text: textOutput, mode: 'discussion', status: 'active', agentPrompt: fullPromptSent, agentType: agentType || 'agent4', apiCalls: [{ type: 'gemini', label: `Medical History Agent (${engine || 'gemini-3.1-flash-lite'})` }] });
+          return res.json({
+            text: "I have completed a diagnostic assessment and health planning audit. Please review the findings below:",
+            summary: textOutput,
+            retestBiomarkers: [],
+            testingGaps: [],
+            scratchpad: textOutput,
+            mode: 'discussion',
+            status: 'active',
+            agentPrompt: fullPromptSent,
+            agentType: agentType || 'agent4',
+            apiCalls: [{ type: 'gemini', label: `Health Planning Agent (${engine || 'gemini-3.1-flash-lite'})` }]
+          });
         }
       }
 

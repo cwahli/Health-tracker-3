@@ -19,6 +19,280 @@ interface FullScreenLogViewerProps {
   showFilters?: boolean;
 }
 
+interface AgentDef {
+  id: string;
+  name: string;
+  test: (lower: string) => boolean;
+}
+
+const ALL_AGENT_DEFS: AgentDef[] = [
+  {
+    id: 'front_desk',
+    name: 'Health Preparation Agent',
+    test: (l) => l.includes('agenttype: front_desk') || l.includes('agenttype:front_desk') || l.includes('[frontdesk') || l.includes('front-desk') || l.includes('health preparation agent')
+  },
+  {
+    id: 'agent1',
+    name: 'Clinical Calibration Agent',
+    test: (l) => l.includes('agenttype: agent1') || l.includes('agenttype:agent1') || l.includes('standardize units agent') || l.includes('clinical calibration agent') || l.includes('[agent1]')
+  },
+  {
+    id: 'data_review',
+    name: 'Data Accuracy Agent',
+    test: (l) => l.includes('agenttype: data_review') || l.includes('agenttype:data_review') || l.includes('data accuracy agent') || l.includes('clinical data accuracy agent') || l.includes('[data_review]')
+  },
+  {
+    id: 'health_baseline',
+    name: 'Health Baseline Agent',
+    test: (l) => l.includes('agenttype: health_baseline') || l.includes('agenttype:health_baseline') || l.includes('health baseline') || l.includes('[health_baseline]')
+  },
+  {
+    id: 'agent7',
+    name: 'Health Report Agent',
+    test: (l) => l.includes('agenttype: agent7') || l.includes('agenttype:agent7') || l.includes('health report agent') || l.includes('medical insights') || l.includes('[agent7]')
+  },
+  {
+    id: 'scout',
+    name: 'Visual Food Scout',
+    test: (l) => l.includes('vision scout') || l.includes('image payload')
+  },
+  {
+    id: 'medical_extract',
+    name: 'Clinical Data Parser',
+    test: (l) => l.includes('agenttype: medical_extract') || l.includes('agenttype:medical_extract') || l.includes('clinical data parser') || l.includes('[medical_extract]')
+  },
+  {
+    id: 'agent2',
+    name: 'Clinical Assessment Agent',
+    test: (l) => l.includes('agenttype: agent2') || l.includes('agenttype:agent2') || l.includes('clinical assessment agent') || l.includes('medical categorisation agent') || l.includes('[agent2]')
+  },
+  {
+    id: 'agent3',
+    name: 'Clinical Harmonization Agent',
+    test: (l) => l.includes('agenttype: agent3') || l.includes('agenttype:agent3') || l.includes('clinical harmonization agent') || l.includes('name consolidation agent') || l.includes('[agent3]')
+  },
+  {
+    id: 'agent4',
+    name: 'Health Planning Agent',
+    test: (l) => l.includes('agenttype: agent4') || l.includes('agenttype:agent4') || l.includes('health planning agent') || l.includes('diagnostic agent (agent4)') || l.includes('biomarker synthesis agent') || l.includes('[agent4]')
+  },
+  {
+    id: 'agent5',
+    name: 'Holistic Review Agent',
+    test: (l) => l.includes('agenttype: agent5') || l.includes('agenttype:agent5') || l.includes('holistic review agent') || l.includes('[agent5]')
+  },
+  {
+    id: 'food_idea',
+    name: 'Culinary Ideation Agent',
+    test: (l) => l.includes('agenttype: food_idea') || l.includes('agenttype:food_idea') || l.includes('culinary ideation agent') || l.includes('[food_idea]')
+  },
+  {
+    id: 'daily_recommendation',
+    name: 'Daily Actions Agent',
+    test: (l) => l.includes('agenttype: daily_recommendation') || l.includes('agenttype:daily_recommendation') || l.includes('daily actions agent') || l.includes('[daily_recommendation]')
+  },
+  {
+    id: 'medical',
+    name: 'Medical Diagnostics Agent',
+    test: (l) => l.includes('agenttype: medical') || l.includes('agenttype:medical') || l.includes('medical diagnostics agent') || l.includes('[medical]')
+  },
+  {
+    id: 'food',
+    name: 'Clinical Dietitian AI',
+    test: (l) => l.includes('agenttype: food') || l.includes('agenttype:food') || l.includes('clinical dietitian ai') || l.includes('food & nutrition agent') || l.includes('[food_analysis]') || l.includes('food analyze agent') || l.includes('dietitian')
+  }
+];
+
+function tryFormatJsonString(str: string): string | null {
+  if (!str) return null;
+  let trimmed = str.trim();
+
+  // Strip trailing truncation marker if present
+  let truncationNote = '';
+  const truncIdx = trimmed.indexOf('\n... [truncated');
+  if (truncIdx !== -1) {
+    truncationNote = trimmed.slice(truncIdx).trim();
+    trimmed = trimmed.slice(0, truncIdx).trim();
+  }
+
+  // Check if it looks like JSON (starts with { or [)
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) {
+    return null;
+  }
+
+  // Ignore bracketed timestamps or tag headers like [11:27:53] or [Medical Analyze Agent] or [UnifiedLLM]
+  if (/^\[\d{1,2}:\d{2}/.test(trimmed) || /^\[[A-Za-z0-9_\s-]+\](?!\s*[:{\[\"\d])/.test(trimmed)) {
+    return null;
+  }
+
+  // Try direct JSON.parse
+  try {
+    const parsed = JSON.parse(trimmed);
+    if (typeof parsed === 'object' && parsed !== null) {
+      if (Array.isArray(parsed) && parsed.every(item => typeof item === 'string' && item.length < 30 && !item.includes('{'))) {
+        return null;
+      }
+      const pretty = JSON.stringify(parsed, null, 2);
+      return truncationNote ? `${pretty}\n\n${truncationNote}` : pretty;
+    }
+  } catch (e) {
+    // Attempt repair for truncated JSON
+  }
+
+  // Only attempt repair if it starts with { and contains key-value colon patterns
+  if (!trimmed.startsWith('{') || !trimmed.includes(':')) {
+    return null;
+  }
+
+  try {
+    let repaired = trimmed;
+    let inString = false;
+    let escape = false;
+    const stack: string[] = [];
+
+    for (let i = 0; i < trimmed.length; i++) {
+      const char = trimmed[i];
+      if (escape) {
+        escape = false;
+        continue;
+      }
+      if (char === '\\') {
+        escape = true;
+        continue;
+      }
+      if (char === '"') {
+        inString = !inString;
+        continue;
+      }
+      if (!inString) {
+        if (char === '{' || char === '[') {
+          stack.push(char);
+        } else if (char === '}') {
+          if (stack.length > 0 && stack[stack.length - 1] === '{') stack.pop();
+        } else if (char === ']') {
+          if (stack.length > 0 && stack[stack.length - 1] === '[') stack.pop();
+        }
+      }
+    }
+
+    if (inString) {
+      repaired += '"';
+    }
+
+    repaired = repaired.trim().replace(/,\s*$/, '');
+
+    while (stack.length > 0) {
+      const top = stack.pop();
+      if (top === '{') repaired += '}';
+      else if (top === '[') repaired += ']';
+    }
+
+    const parsed = JSON.parse(repaired);
+    if (typeof parsed === 'object' && parsed !== null) {
+      const pretty = JSON.stringify(parsed, null, 2);
+      return truncationNote ? `${pretty}\n\n${truncationNote}` : pretty;
+    }
+  } catch (e) {
+    return null;
+  }
+
+  return null;
+}
+
+function FormattedLogChunk({ chunk, searchTerm, highlightText }: { chunk: string; searchTerm: string; highlightText: (text: string, highlight: string) => React.ReactNode }) {
+  const lines = chunk.split('\n');
+  const elements: React.ReactNode[] = [];
+
+  let inCodeBlock = false;
+  let codeBuffer: string[] = [];
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const trimmed = line.trim();
+
+    if (trimmed.startsWith('```')) {
+      if (inCodeBlock) {
+        elements.push(
+          <div key={`code-${i}`} className="my-1.5 p-2 bg-slate-950/40 rounded overflow-x-auto text-[11px] font-mono text-emerald-300/90 leading-relaxed">
+            {highlightText(codeBuffer.join('\n'), searchTerm)}
+          </div>
+        );
+        codeBuffer = [];
+        inCodeBlock = false;
+      } else {
+        inCodeBlock = true;
+      }
+      continue;
+    }
+
+    if (inCodeBlock) {
+      codeBuffer.push(line);
+      continue;
+    }
+
+    // Section XML tags
+    if (/^<[A-Z0-9_]+>$/i.test(trimmed) || /^<\/[A-Z0-9_]+>$/i.test(trimmed)) {
+      const isClose = trimmed.startsWith('</');
+      const tagName = trimmed.replace(/[<>/]/g, '');
+      elements.push(
+        <div key={`tag-${i}`} className={`my-1 flex items-center gap-2 font-mono font-bold text-[10px] tracking-wider uppercase ${isClose ? 'text-slate-500' : 'text-indigo-400'}`}>
+          <span>{isClose ? `--- END ${tagName} ---` : `--- SECTION: ${tagName} ---`}</span>
+        </div>
+      );
+      continue;
+    }
+
+    // Check for "Label: {" or "Label: ["
+    const labelJsonMatch = line.match(/^([A-Za-z0-9\s_():\[\]-]+):\s*([{\[].*)$/);
+    if (labelJsonMatch) {
+      const label = labelJsonMatch[1];
+      const jsonStr = labelJsonMatch[2];
+      const prettyJson = tryFormatJsonString(jsonStr);
+      if (prettyJson) {
+        elements.push(
+          <div key={`json-lbl-${i}`} className="my-1 pl-2">
+            <span className="text-slate-400 font-bold text-[11px] font-mono">{highlightText(label, searchTerm)}:</span>
+            <div className="font-mono text-[11px] text-indigo-200/90 leading-relaxed whitespace-pre font-normal pt-1 max-h-[450px] overflow-y-auto">
+              {highlightText(prettyJson, searchTerm)}
+            </div>
+          </div>
+        );
+        continue;
+      }
+    }
+
+    // Standalone or inline JSON (starts with { or [)
+    if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+      const prettyJson = tryFormatJsonString(trimmed);
+      if (prettyJson) {
+        elements.push(
+          <div key={`json-standalone-${i}`} className="my-1 pl-2 font-mono text-[11px] text-indigo-200/90 leading-relaxed whitespace-pre font-normal max-h-[450px] overflow-y-auto">
+            {highlightText(prettyJson, searchTerm)}
+          </div>
+        );
+        continue;
+      }
+    }
+
+    // Normal line
+    elements.push(
+      <div key={`line-${i}`} className="min-h-[1.25rem] font-mono text-[11px] text-slate-300 leading-relaxed">
+        {highlightText(line, searchTerm)}
+      </div>
+    );
+  }
+
+  if (inCodeBlock && codeBuffer.length > 0) {
+    elements.push(
+      <div key="code-flush" className="my-1.5 p-2 bg-slate-950/40 rounded overflow-x-auto text-[11px] font-mono text-emerald-300/90 leading-relaxed">
+        {highlightText(codeBuffer.join('\n'), searchTerm)}
+      </div>
+    );
+  }
+
+  return <div className="space-y-0.5">{elements}</div>;
+}
+
 export default function FullScreenLogViewer({
   isOpen,
   onClose,
@@ -42,7 +316,7 @@ export default function FullScreenLogViewer({
   const [selectedSessionId, setSelectedSessionId] = useState(activeConversationId || '');
   const [sessionLogs, setSessionLogs] = useState<string[]>(logsArray || []);
   const [isLoading, setIsLoading] = useState(false);
-  const [selectedAgent, setSelectedAgent] = useState<'all' | 'scout' | 'dietitian' | 'standardize' | 'categorise' | 'consolidation' | 'accuracy'>('all');
+  const [selectedAgent, setSelectedAgent] = useState<string>('all');
   
   const [requestLogs, setRequestLogs] = useState<AgentRequestLog[]>([]);
   const isDiagnostic = title.includes('Diagnostic');
@@ -110,95 +384,42 @@ export default function FullScreenLogViewer({
 
   const agentLogs = useMemo(() => {
     const currentChunks = chunks;
-    let currentPhase: 'scout' | 'dietitian' | 'standardize' | 'categorise' | 'consolidation' | 'accuracy' | null = null;
-    const scout: string[] = [];
-    const dietitian: string[] = [];
-    const standardize: string[] = [];
-    const categorise: string[] = [];
-    const consolidation: string[] = [];
-    const accuracy: string[] = [];
+    const logsMap: Record<string, string[]> = {};
+    ALL_AGENT_DEFS.forEach(def => { logsMap[def.id] = []; });
+    logsMap['other'] = [];
+
+    let currentAgentId: string | null = null;
 
     currentChunks.forEach(chunk => {
       const lower = chunk.toLowerCase();
       
-      // If it is a generic LLM log, it should just inherit the current phase
-      // and NOT trigger any agent-detecting tags (which can false-positive
-      // if the dietitian prompt/response mentions 'vision scout' or 'image payload').
+      // If generic LLM log, inherit current agent phase if available
       if (lower.includes('[unifiedllm')) {
-        if (currentPhase === 'scout') {
-          scout.push(chunk);
-        } else if (currentPhase === 'dietitian') {
-          dietitian.push(chunk);
-        } else if (currentPhase === 'standardize') {
-          standardize.push(chunk);
-        } else if (currentPhase === 'categorise') {
-          categorise.push(chunk);
-        } else if (currentPhase === 'consolidation') {
-          consolidation.push(chunk);
-        } else if (currentPhase === 'accuracy') {
-          accuracy.push(chunk);
+        if (currentAgentId && logsMap[currentAgentId]) {
+          logsMap[currentAgentId].push(chunk);
+        } else {
+          logsMap['other'].push(chunk);
         }
         return;
       }
-      
-      const isStandardizeTag = lower.includes('standardize units agent');
-      const isCategoriseTag = lower.includes('medical categorisation agent');
-      const isConsolidationTag = lower.includes('name consolidation agent');
-      const isAccuracyTag = lower.includes('data accuracy agent');
-      const isScoutTag = lower.includes('vision scout') || lower.includes('image payload');
-      const isDietitianTag = lower.includes('routeagent') ||
-                              lower.includes('modify math') ||
-                              lower.includes('mode routing') ||
-                              lower.includes('client state') ||
-                              lower.includes('database matches') ||
-                              lower.includes('database search') ||
-                              lower.includes('text search') ||
-                              lower.includes('nutrient') ||
-                              lower.includes('json parse') ||
-                              lower.includes('fallback') ||
-                              lower.includes('comparison resolve');
-                              
-      if (isStandardizeTag) {
-        currentPhase = 'standardize';
-        standardize.push(chunk);
-        return;
-      }
-      if (isCategoriseTag) {
-        currentPhase = 'categorise';
-        categorise.push(chunk);
-        return;
-      }
-      if (isConsolidationTag) {
-        currentPhase = 'consolidation';
-        consolidation.push(chunk);
-        return;
-      }
-      if (isAccuracyTag) {
-        currentPhase = 'accuracy';
-        accuracy.push(chunk);
-        return;
-      }
-      if (isScoutTag) {
-        currentPhase = 'scout';
-        scout.push(chunk);
-        return;
-      }
-      if (isDietitianTag) {
-        currentPhase = 'dietitian';
-        dietitian.push(chunk);
-        return;
+
+      const matchedDef = ALL_AGENT_DEFS.find(def => def.test(lower));
+      if (matchedDef) {
+        currentAgentId = matchedDef.id;
+        logsMap[matchedDef.id].push(chunk);
+      } else if (currentAgentId && logsMap[currentAgentId]) {
+        logsMap[currentAgentId].push(chunk);
+      } else {
+        logsMap['other'].push(chunk);
       }
     });
 
-    return {
-      scout,
-      dietitian,
-      standardize,
-      categorise,
-      consolidation,
-      accuracy,
-    };
+    return logsMap;
   }, [chunks]);
+
+  const availableAgents = useMemo(() => {
+    return ALL_AGENT_DEFS.filter(def => agentLogs[def.id] && agentLogs[def.id].length > 0);
+  }, [agentLogs]);
 
   const filteredByAgent = useMemo(() => {
     if (selectedAgent === 'all') return chunks;
@@ -425,27 +646,17 @@ export default function FullScreenLogViewer({
             <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Agent:</span>
             <select
               value={selectedAgent}
-              onChange={(e) => setSelectedAgent(e.target.value as any)}
+              onChange={(e) => setSelectedAgent(e.target.value)}
               className="bg-slate-900 border border-slate-800/80 rounded-xl px-3 py-1.5 outline-none text-slate-200 font-mono focus:border-indigo-500/50 cursor-pointer shadow-sm text-xs"
             >
               <option value="all">All Agents / Process Steps</option>
-              {agentLogs.scout.length > 0 && (
-                <option value="scout">Visual Food Scout (Image Classifier)</option>
-              )}
-              {agentLogs.dietitian.length > 0 && (
-                <option value="dietitian">Clinical Dietitian AI</option>
-              )}
-              {agentLogs.standardize.length > 0 && (
-                <option value="standardize">Clinical Unit Standardization Agent</option>
-              )}
-              {agentLogs.categorise.length > 0 && (
-                <option value="categorise">Clinical Categorisation Agent</option>
-              )}
-              {agentLogs.consolidation.length > 0 && (
-                <option value="consolidation">Clinical Name Consolidation Agent</option>
-              )}
-              {agentLogs.accuracy.length > 0 && (
-                <option value="accuracy">Clinical Data Accuracy Agent</option>
+              {availableAgents.map((agent) => (
+                <option key={agent.id} value={agent.id}>
+                  {agent.name}
+                </option>
+              ))}
+              {agentLogs['other'] && agentLogs['other'].length > 0 && availableAgents.length === 0 && (
+                <option value="other">System Logs</option>
               )}
             </select>
           </div>
@@ -517,7 +728,7 @@ export default function FullScreenLogViewer({
                       : 'border border-transparent'
                   }`}
                 >
-                  {highlightText(chunk, searchTerm)}
+                  <FormattedLogChunk chunk={chunk} searchTerm={searchTerm} highlightText={highlightText} />
                 </div>
               );
             })}

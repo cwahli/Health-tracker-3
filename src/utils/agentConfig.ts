@@ -100,10 +100,10 @@ export const AGENT_REGISTRY: Record<AgentType, AgentConfig> = {
   agent4: {
     id: 'agent4',
     category: 'medical',
-    displayName: 'Biomarker Synthesis Agent',
-    description: 'Generates detailed, personalized explanations and metadata for biomarkers.',
-    capabilities: ['biomarker_synthesis', 'biomarker_table_view'],
-    welcomeMessage: 'Hello! I am the Prognostic Diagnostics Assessment agent. I analyze your biomarker history to project timeline risks and identify testing gaps.',
+    displayName: 'Health Planning Agent',
+    description: 'Audits testing accuracy, identifies retest timelines, and uncovers short & long-term testing gaps.',
+    capabilities: ['health_planning', 'biomarker_table_view'],
+    welcomeMessage: 'Hello! I am the Health Planning Agent. I audit your biomarker test data for external confounding factors (e.g. dehydration, exertion), identify retest timelines, and uncover diagnostic testing gaps.',
     rolloutStatus: 'unified',
   },
   agent5: {

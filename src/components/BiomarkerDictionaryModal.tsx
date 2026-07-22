@@ -2,7 +2,7 @@ import { trackApiCall, setActiveQueryId, generateQueryId } from '../utils/apiTra
 import { toYYYYMMDD } from "../utils/dateUtils";
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { UserProfile, BiomarkerLog } from '../types';
-import { biomarkerDefinitions, BIOMARKER_GROUPING_OPTIONS, getBiomarkerMetadata } from '../utils/biomarkers';
+import { biomarkerDefinitions, BIOMARKER_GROUPING_OPTIONS, getBiomarkerMetadata, getMergedBiomarkerDef } from '../utils/biomarkers';
 import { X, CheckCircle, Check, AlertCircle, Edit2, Loader, Save, ArrowRight, CheckSquare, Square, MessageSquare, Send, ChevronLeft, ChevronDown, FileCode, Merge, Copy, Upload, Trash, Paperclip, Calendar, Info, Terminal, BrainCircuit } from 'lucide-react';
 import BiomarkerRangeBuilder, { parseNormalRangeStr } from './BiomarkerRangeBuilder';
 import CombineBiomarkersModal from './CombineBiomarkersModal';
@@ -31,6 +31,8 @@ interface BiomarkerDictionaryModalProps {
   onDeleteAnalysis?: (id: string) => Promise<void>;
   onDeleteBiomarker?: (key: string) => void;
   onDeleteMultipleBiomarkers?: (keys: string[]) => void;
+  selectedModelId?: string;
+  onChangeModelId?: (id: string) => void;
 }
 
 const getSessionId = (): string => {
@@ -153,13 +155,13 @@ const DictionaryItem = ({
   isProcessing?: boolean;
   key?: string | number;
 }) => {
-  const def = { ...builtInDef, ...customDef };
+  const def = getMergedBiomarkerDef(itemKey, builtInDef, customDef, itemLogs);
   const initialName = def.name || itemKey;
   const initialUnit = def.unit || '';
   const initialNormalRange = def.normalRange || '';
   const initialGrouping = def.standardMedicalGrouping || '';
-  const initialRisk = def.riskCategories ? def.riskCategories.join(', ') : '';
-  const initialConditions = def.potentialMedicalConditions ? def.potentialMedicalConditions.join(', ') : '';
+  const initialRisk = Array.isArray(def.riskCategories) ? def.riskCategories.join(', ') : (def.riskCategories || '');
+  const initialConditions = Array.isArray(def.potentialMedicalConditions) ? def.potentialMedicalConditions.join(', ') : (def.potentialMedicalConditions || '');
   const displayCustomRanges = customDef?.customRanges || ensureCustomRanges(itemKey, initialNormalRange, []);
   const [isEditing, setIsEditing] = useState(false);
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
@@ -510,32 +512,56 @@ const DictionaryItem = ({
               </div>
             ) : (
               <div>
-                <div className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
-                  {initialName}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-bold text-slate-800 dark:text-slate-200 flex items-center gap-2">
+                    {initialName}
+                    <button onClick={() => {
+                      setEditState({
+                        key: itemKey,
+                        name: initialName,
+                        unit: initialUnit,
+                        normalRange: initialNormalRange,
+                        rangeConfig: customDef?.rangeConfig || builtInDef?.rangeConfig,
+                        customRanges: ensureCustomRanges(itemKey, initialNormalRange, customDef?.customRanges || builtInDef?.customRanges || []),
+                        standardMedicalGrouping: initialGrouping,
+                        riskCategories: initialRisk,
+                        potentialMedicalConditions: initialConditions
+                      });
+                      setIsEditing(true);
+                    }} className="text-slate-400 hover:text-indigo-500 cursor-pointer p-1" title="Edit biomarker definition">
+                      <Edit2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
                   {approvalReason && (
-                    <div className="bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-400 text-[10px] p-2 rounded flex items-start gap-1 mt-1 font-normal">
-                      <AlertCircle className="w-3 h-3 shrink-0 mt-0.5" />
+                    <button
+                      onClick={() => {
+                        onSave({
+                          name: initialName,
+                          unit: initialUnit || 'units',
+                          normalRange: initialNormalRange || 'Normal',
+                          standardMedicalGrouping: (initialGrouping && initialGrouping !== 'By Medical Practice') ? initialGrouping : 'Other',
+                          riskCategories: (def.riskCategories && def.riskCategories.length > 0 && !def.riskCategories.includes('Uncategorized')) ? def.riskCategories : ['General'],
+                          potentialMedicalConditions: (def.potentialMedicalConditions && def.potentialMedicalConditions.length > 0) ? def.potentialMedicalConditions : ['General Health']
+                        });
+                      }}
+                      className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-xs flex items-center gap-1 cursor-pointer shrink-0"
+                    >
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Approve
+                    </button>
+                  )}
+                </div>
+
+                {approvalReason && (
+                  <div className="mt-2 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-200/80 dark:border-amber-800/60 text-xs px-3 py-2 rounded-lg flex items-start gap-2 font-medium">
+                    <AlertCircle className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                    <div>
+                      <span className="font-bold mr-1">Requires Approval:</span>
                       <span>{approvalReason}</span>
                     </div>
-                  )}
-
-                  <button onClick={() => {
-                    setEditState({
-                      key: itemKey,
-                      name: initialName,
-                      unit: initialUnit,
-                      normalRange: initialNormalRange,
-                      rangeConfig: customDef?.rangeConfig || builtInDef?.rangeConfig,
-                      customRanges: ensureCustomRanges(itemKey, initialNormalRange, customDef?.customRanges || builtInDef?.customRanges || []),
-                      standardMedicalGrouping: initialGrouping,
-                      riskCategories: initialRisk,
-                      potentialMedicalConditions: initialConditions
-                    });
-                    setIsEditing(true);
-                  }} className="text-slate-400 hover:text-indigo-500 cursor-pointer p-1">
-                    <Edit2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
+                  </div>
+                )}
                 <div className="flex flex-wrap items-center gap-2 mt-1">
                   <span className="text-[10px] font-mono text-slate-500 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">
                     Key: {itemKey}
@@ -717,7 +743,9 @@ export default function BiomarkerDictionaryModal({
   onAgentAnalysisSaved,
   onDeleteAnalysis,
   onDeleteBiomarker,
-  onDeleteMultipleBiomarkers
+  onDeleteMultipleBiomarkers,
+  selectedModelId,
+  onChangeModelId
 }: BiomarkerDictionaryModalProps) {
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
   useEffect(() => {
@@ -812,9 +840,32 @@ export default function BiomarkerDictionaryModal({
   const fileInputRef2 = useRef<HTMLInputElement>(null);
 
   // Model Selection states
-  const [standardizeModel, setStandardizeModel] = useState<string>('gemini-3.1-flash-lite');
-  const [medicalCategoriseModel, setMedicalCategoriseModel] = useState<string>('gemini-3.1-flash-lite');
-  const [dataAccuracyModel, setDataAccuracyModel] = useState<string>('gemini-3.1-flash-lite');
+  const activeModel = selectedModelId || 'gemini-3.5-flash-lite';
+  const [standardizeModel, setStandardizeModelRaw] = useState<string>(activeModel);
+  const [medicalCategoriseModel, setMedicalCategoriseModelRaw] = useState<string>(activeModel);
+  const [dataAccuracyModel, setDataAccuracyModelRaw] = useState<string>(activeModel);
+  const [nameConsolidationModel, setNameConsolidationModelRaw] = useState<string>(activeModel);
+
+  useEffect(() => {
+    if (selectedModelId) {
+      setStandardizeModelRaw(selectedModelId);
+      setMedicalCategoriseModelRaw(selectedModelId);
+      setDataAccuracyModelRaw(selectedModelId);
+      setNameConsolidationModelRaw(selectedModelId);
+    }
+  }, [selectedModelId]);
+
+  const handleUpdateModel = (newModelId: string, setter: (val: string) => void) => {
+    setter(newModelId);
+    if (onChangeModelId) {
+      onChangeModelId(newModelId);
+    }
+  };
+
+  const setStandardizeModel = (id: string) => handleUpdateModel(id, setStandardizeModelRaw);
+  const setMedicalCategoriseModel = (id: string) => handleUpdateModel(id, setMedicalCategoriseModelRaw);
+  const setDataAccuracyModel = (id: string) => handleUpdateModel(id, setDataAccuracyModelRaw);
+  const setNameConsolidationModel = (id: string) => handleUpdateModel(id, setNameConsolidationModelRaw);
 
   // Instruction View states
   const [showStandardizeInstructions, setShowStandardizeInstructions] = useState<boolean>(false);
@@ -831,7 +882,6 @@ export default function BiomarkerDictionaryModal({
 
   // Name Consolidation Agent States
   const [isNameConsolidationMode, setIsNameConsolidationMode] = useState<boolean>(false);
-  const [nameConsolidationModel, setNameConsolidationModel] = useState<string>('gemini-3.1-flash-lite');
   const [consolidationYaml, setConsolidationYaml] = useState<string | null>(null);
   const [consolidationGroups, setConsolidationGroups] = useState<any[] | null>(null);
   const [consolidationLoading, setConsolidationLoading] = useState<boolean>(false);
@@ -972,8 +1022,8 @@ export default function BiomarkerDictionaryModal({
   const allApprovedKeysUnfiltered = useMemo(() => {
     const keys = new Set<string>();
     
-    // Check all known keys (both built-in and custom)
-    const allKnown = new Set([...builtInKeys, ...customKeys]);
+    // Check all known keys (built-in, custom, and history)
+    const allKnown = new Set([...builtInKeys, ...customKeys, ...historyKeys]);
     
     allKnown.forEach(k => {
       // If it explicitly needs approval (e.g. extracted from Medical Chat), exclude it from approved list
@@ -981,27 +1031,32 @@ export default function BiomarkerDictionaryModal({
          return;
       }
       
-      const meta = getBiomarkerMetadata(k, profile.customBiomarkers?.[k]);
-      const def = profile.customBiomarkers?.[k] || biomarkerDefinitions.find((d: any) => d.key === k);
-      const unit = def?.unit || '';
+      const builtIn = biomarkerDefinitions.find((d: any) => d.key === k || (Array.isArray(d.aliases) && d.aliases.some((a: string) => a.toLowerCase() === k)));
+      const custom = profile.customBiomarkers?.[k];
+      const itemLogs = biomarkerHistory
+        .filter(h => h.biomarkers && (h.biomarkers[k] !== undefined || h.biomarkers[k.toLowerCase()] !== undefined))
+        .map(h => ({
+          date: h.date,
+          value: h.biomarkers[k] !== undefined ? h.biomarkers[k] : h.biomarkers[k.toLowerCase()],
+          unit: (h as any).units?.[k] || (h as any).units?.[k.toLowerCase()] || (h as any).unit,
+          normalRange: (h as any).normalRanges?.[k] || (h as any).normalRanges?.[k.toLowerCase()] || (h as any).normalRange
+        }));
+        
+      const combined = getMergedBiomarkerDef(k, builtIn, custom, itemLogs);
+      const unit = combined.unit || '';
       const hasUnit = !!unit && unit.trim() !== '';
       
-      // A biomarker has all medical tags if:
-      // 1. It has a standardMedicalGrouping that is not empty/falsy, and NOT 'By Medical Practice' (Even 'Other' counts)
-      // 2. It has riskCategories that is a non-empty array and does not just contain 'Uncategorized'
-      // 3. It has potentialMedicalConditions that is a non-empty array
-      // 4. It has a non-empty unit of measurement
-      const hasPractice = !!meta.standardMedicalGrouping && 
-        meta.standardMedicalGrouping.trim() !== '' && 
-        meta.standardMedicalGrouping !== 'By Medical Practice';
+      const hasPractice = !!combined.standardMedicalGrouping && 
+        combined.standardMedicalGrouping.trim() !== '' && 
+        combined.standardMedicalGrouping !== 'By Medical Practice';
         
-      const hasRisk = Array.isArray(meta.riskCategories) && 
-        meta.riskCategories.length > 0 && 
-        meta.riskCategories.some((r: string) => r.trim() !== '' && r !== 'Uncategorized');
+      const hasRisk = Array.isArray(combined.riskCategories) && 
+        combined.riskCategories.length > 0 && 
+        combined.riskCategories.some((r: string) => r.trim() !== '' && r !== 'Uncategorized');
         
-      const hasConditions = Array.isArray(meta.potentialMedicalConditions) && 
-        meta.potentialMedicalConditions.length > 0 && 
-        meta.potentialMedicalConditions.some((c: string) => c.trim() !== '');
+      const hasConditions = Array.isArray(combined.potentialMedicalConditions) && 
+        combined.potentialMedicalConditions.length > 0 && 
+        combined.potentialMedicalConditions.some((c: string) => c.trim() !== '');
         
       const hasAllMedicalTags = hasPractice && hasRisk && hasConditions && hasUnit;
         
@@ -1016,18 +1071,27 @@ export default function BiomarkerDictionaryModal({
       return result.filter(k => historyKeys.includes(k) || customKeys.includes(k));
     }
     return result;
-  }, [builtInKeys, customKeys, profile.customBiomarkers, historyKeys, searchQuery]);
+  }, [builtInKeys, customKeys, historyKeys, profile.customBiomarkers, searchQuery, biomarkerHistory]);
 
   const missingUnitsCount = useMemo(() => {
     let count = 0;
     const allKnown = new Set([...historyKeys, ...customKeys, ...allApprovedKeysUnfiltered]);
     allKnown.forEach(k => {
-      const def = profile.customBiomarkers?.[k] || biomarkerDefinitions.find((d: any) => d.key === k);
-      const unit = def?.unit || '';
-      if (!unit || unit.trim() === '') count++;
+      const builtIn = biomarkerDefinitions.find((d: any) => d.key === k || (Array.isArray(d.aliases) && d.aliases.some((a: string) => a.toLowerCase() === k)));
+      const custom = profile.customBiomarkers?.[k];
+      const itemLogs = biomarkerHistory
+        .filter(h => h.biomarkers && (h.biomarkers[k] !== undefined || h.biomarkers[k.toLowerCase()] !== undefined))
+        .map(h => ({
+          date: h.date,
+          value: h.biomarkers[k] !== undefined ? h.biomarkers[k] : h.biomarkers[k.toLowerCase()],
+          unit: (h as any).units?.[k] || (h as any).units?.[k.toLowerCase()] || (h as any).unit,
+          normalRange: (h as any).normalRanges?.[k] || (h as any).normalRanges?.[k.toLowerCase()] || (h as any).normalRange
+        }));
+      const combined = getMergedBiomarkerDef(k, builtIn, custom, itemLogs);
+      if (!combined.unit || combined.unit.trim() === '') count++;
     });
     return count;
-  }, [historyKeys, customKeys, allApprovedKeysUnfiltered, profile.customBiomarkers]);
+  }, [historyKeys, customKeys, allApprovedKeysUnfiltered, profile.customBiomarkers, biomarkerHistory]);
 
   const allApprovedKeys = useMemo(() => {
     return allApprovedKeysUnfiltered.filter(filterFn);
@@ -4491,24 +4555,47 @@ I can analyze these, compare them with our database keys, and find standard mapp
                   </p>
                   <div className="space-y-2">
                     {toApproveKeys.map(key => {
-                      const builtIn = biomarkerDefinitions.find((b: any) => b.key === key);
+                      const builtIn = biomarkerDefinitions.find((b: any) => b.key === key || (Array.isArray(b.aliases) && b.aliases.some((a: string) => a.toLowerCase() === key.toLowerCase())));
                       const custom = profile.customBiomarkers?.[key];
-                      const combined = { ...builtIn, ...custom };
                       const isSelected = selectedKeys.includes(key);
                       const itemLogs = biomarkerHistory
-                        .filter(h => h.biomarkers && h.biomarkers[key] !== undefined)
-                        .map(h => ({ date: h.date, value: h.biomarkers[key] }))
+                        .filter(h => h.biomarkers && (h.biomarkers[key] !== undefined || h.biomarkers[key.toLowerCase()] !== undefined))
+                        .map(h => ({
+                          date: h.date,
+                          value: h.biomarkers[key] !== undefined ? h.biomarkers[key] : h.biomarkers[key.toLowerCase()],
+                          unit: (h as any).units?.[key] || (h as any).units?.[key.toLowerCase()] || (h as any).unit,
+                          normalRange: (h as any).normalRanges?.[key] || (h as any).normalRanges?.[key.toLowerCase()] || (h as any).normalRange
+                        }))
                         .sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
+                      const combined = getMergedBiomarkerDef(key, builtIn, custom, itemLogs);
                       const logsCount = itemLogs.length;
-                      const missingParts = [
-                        !combined.name && 'standard dictionary definition',
-                        (!combined.unit || combined.unit.trim() === '') && 'unit',
-                        (!combined.normalRange || combined.normalRange.trim() === '') && 'normal range',
-                        (!combined.standardMedicalGrouping || combined.standardMedicalGrouping.trim() === '' || combined.standardMedicalGrouping === 'By Medical Practice') && 'medical practice',
-                        (!(Array.isArray(combined.riskCategories) && combined.riskCategories.length > 0) || combined.riskCategories.includes('Uncategorized')) && 'risk categories',
-                        (!(Array.isArray(combined.potentialMedicalConditions) && combined.potentialMedicalConditions.length > 0)) && 'medical condition'
-                      ].filter(Boolean);
-                      const computedReason = missingParts.length > 0 ? `missing ${missingParts.join(', ')}` : undefined;
+
+                      const missingParts: string[] = [];
+                      if (custom?.needsApproval || profile.customBiomarkers?.[key]?.needsApproval) {
+                        missingParts.push('Extracted entry pending clinical verification');
+                      }
+                      if (!combined.name || combined.name.trim() === '') {
+                        missingParts.push('Missing biomarker display name');
+                      }
+                      if (!combined.unit || combined.unit.trim() === '') {
+                        missingParts.push('Missing measurement unit');
+                      }
+                      if (!combined.normalRange || combined.normalRange.trim() === '' || combined.normalRange === 'Unknown') {
+                        missingParts.push('Missing reference range');
+                      }
+                      if (!combined.standardMedicalGrouping || combined.standardMedicalGrouping.trim() === '' || combined.standardMedicalGrouping === 'By Medical Practice') {
+                        missingParts.push('Missing medical practice grouping');
+                      }
+                      if (!Array.isArray(combined.riskCategories) || combined.riskCategories.length === 0 || combined.riskCategories.includes('Uncategorized')) {
+                        missingParts.push('Missing risk categories');
+                      }
+                      if (!Array.isArray(combined.potentialMedicalConditions) || combined.potentialMedicalConditions.length === 0) {
+                        missingParts.push('Missing associated medical conditions');
+                      }
+
+                      const computedReason = missingParts.length > 0 
+                        ? `Needs approval due to: ${missingParts.join('; ')}.`
+                        : 'Pending final user review before adding to active standardized dictionary.';
                       return (
                         <DictionaryItem
                           approvalReason={computedReason}
@@ -4590,12 +4677,17 @@ I can analyze these, compare them with our database keys, and find standard mapp
                   </p>
                   <div className="space-y-2">
                     {allApprovedKeys.map(key => {
-                      const builtIn = biomarkerDefinitions.find((d: any) => d.key === key);
+                      const builtIn = biomarkerDefinitions.find((d: any) => d.key === key || (Array.isArray(d.aliases) && d.aliases.some((a: string) => a.toLowerCase() === key.toLowerCase())));
                       const custom = profile.customBiomarkers?.[key];
                       const isSelected = selectedKeys.includes(key);
                       const itemLogs = biomarkerHistory
-                        .filter(h => h.biomarkers && h.biomarkers[key] !== undefined)
-                        .map(h => ({ date: h.date, value: h.biomarkers[key] }))
+                        .filter(h => h.biomarkers && (h.biomarkers[key] !== undefined || h.biomarkers[key.toLowerCase()] !== undefined))
+                        .map(h => ({
+                          date: h.date,
+                          value: h.biomarkers[key] !== undefined ? h.biomarkers[key] : h.biomarkers[key.toLowerCase()],
+                          unit: (h as any).units?.[key] || (h as any).units?.[key.toLowerCase()] || (h as any).unit,
+                          normalRange: (h as any).normalRanges?.[key] || (h as any).normalRanges?.[key.toLowerCase()] || (h as any).normalRange
+                        }))
                         .sort((a, b) => toYYYYMMDD(b.date).localeCompare(toYYYYMMDD(a.date)));
                       const logsCount = itemLogs.length;
                       return (

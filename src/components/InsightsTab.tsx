@@ -1203,10 +1203,10 @@ export default function InsightsTab({
     },
     {
       id: 'agent4',
-      title: 'Projections',
+      title: 'Health planning agent',
       agentType: 'agent4',
-      description: 'Analyzes biomarker history to project timeline risks (2, 5, 10 years) and identifies testing gaps.',
-      valueProposition: 'Forecasts cardiovascular, metabolic, and systemic health trajectories over a 10-year horizon.'
+      description: 'Audits diagnostic data accuracy, evaluates external test factors, and identifies short & long-term testing gaps.',
+      valueProposition: 'Ensures diagnostic picture accuracy, evaluates retest timing, and identifies short & long-term health risk testing gaps.'
     },
     {
       id: 'agent7',
@@ -2829,7 +2829,7 @@ export default function InsightsTab({
                               className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-md shadow-indigo-600/10 flex items-center justify-center gap-1.5 cursor-pointer"
                             >
                               <Sparkles className="w-3.5 h-3.5" />
-                              Start {step.title}
+                              {step.agentType === 'agent4' ? 'Review with your health planning agent' : `Start ${step.title}`}
                             </button>
                           </div>
                         )}
@@ -3446,6 +3446,8 @@ export default function InsightsTab({
           onBatchConsolidate={onBatchConsolidate}
           onAgentAnalysisSaved={onAgentAnalysisSaved}
           onDeleteAnalysis={onDeleteAnalysis}
+          selectedModelId={selectedModelId}
+          onChangeModelId={onChangeModelId}
         />
       )}
     </div>

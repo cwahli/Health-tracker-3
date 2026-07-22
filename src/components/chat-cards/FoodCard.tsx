@@ -1132,7 +1132,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                      )}
                                    </div>
                                    <span className="text-[10px] text-center font-medium leading-tight text-slate-500 break-words line-clamp-2 w-full font-sans">
-                                     {(item.originalName || item.keyword)}
+                                     {showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
                                    </span>
                                    {item.anomalyFlags && item.anomalyFlags.length > 0 && (
                                      <span className="text-[8px] text-center leading-tight text-amber-600 dark:text-amber-500 w-full font-sans line-clamp-2">
@@ -1879,7 +1879,7 @@ export const FoodCard: React.FC<AgentCardProps & {
             src={resolvedImgSrc} 
             boundingBox={bb}
             onClose={() => setScoutPreviewIdx(null)}
-            foodName={item.originalName || item.keyword}
+            foodName={showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
             hasNext={scoutPreviewIdx < activeScoutItems.length - 1}
             hasPrev={scoutPreviewIdx > 0}
             onNext={() => setScoutPreviewIdx(prev => prev !== null ? prev + 1 : null)}
@@ -1921,6 +1921,15 @@ export const FoodCard: React.FC<AgentCardProps & {
 
                   {msg.data?.pendingFoodLog && (
                     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden font-sans">
+                      {msg.data?.pendingFoodLog.dietitianUpdateSentence && (
+                        <div className="bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/50 rounded-xl p-3 text-left font-sans text-xs text-indigo-800 dark:text-indigo-300 mb-2 flex items-start gap-2">
+                          <span className="text-sm">💬</span>
+                          <div className="flex-1">
+                            <span className="font-bold text-indigo-900 dark:text-indigo-200 block mb-0.5">Dietitian Update:</span>
+                            <span className="leading-relaxed whitespace-pre-line">{msg.data.pendingFoodLog.dietitianUpdateSentence}</span>
+                          </div>
+                        </div>
+                      )}
                       {msg.data.correctionOf && (
                          <div className="flex justify-center pb-2">
                            <button 
@@ -1986,7 +1995,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                      <div key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-50 dark:bg-slate-900 border border-slate-200/60 dark:border-slate-800 text-slate-700 dark:text-slate-300">
                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                                        <span className="text-[10px] font-bold">
-                                         {(item.originalName || item.keyword)}
+                                         {showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
                                        </span>
                                      </div>
                                    );
@@ -2042,7 +2051,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                        )}
                                      </div>
                                      <span className="text-[10px] text-center font-medium leading-tight text-slate-500 break-words line-clamp-2 w-full font-sans">
-                                       {(item.originalName || item.keyword)}
+                                       {showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
                                      </span>
                                      {item.cookingMethod && (
                                        <div className="flex justify-center w-full mt-0.5 scale-90 origin-top">
@@ -2305,7 +2314,30 @@ export const FoodCard: React.FC<AgentCardProps & {
                                       </thead>
                                       <tbody>
                                         {msg.data?.pendingFoodLog.itemsBreakdown.map((item: any, itemIdx: number) => {
-                                          const displayName = item.canonicalDbName || item.name || "Unknown Item";
+                                          const displayName = (() => {
+                                            const isEnglish = showTranslations.scout;
+                                            if (isEnglish) {
+                                              return item.canonicalDbName || item.name || "Unknown Item";
+                                            }
+                                            // Local mode
+                                            if (item.originalLocalName) return item.originalLocalName;
+                                            // Fallback: search displayedScoutItems client-side
+                                            const itemNameLower = (item.canonicalDbName || item.name || "").toLowerCase();
+                                            const match = displayedScoutItems.find((s: any) => {
+                                              const keywordLower = (s.keyword || "").toLowerCase();
+                                              const originalLower = (s.originalName || "").toLowerCase();
+                                              return (
+                                                itemNameLower === keywordLower ||
+                                                itemNameLower === originalLower ||
+                                                itemNameLower.includes(keywordLower) ||
+                                                itemNameLower.includes(originalLower) ||
+                                                keywordLower.includes(itemNameLower) ||
+                                                originalLower.includes(itemNameLower)
+                                              );
+                                            });
+                                            if (match) return match.originalName || match.keyword;
+                                            return item.canonicalDbName || item.name || "Unknown Item";
+                                          })();
 
                                           return (
                                             <tr 

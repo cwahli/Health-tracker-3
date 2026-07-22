@@ -13,11 +13,34 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
   loggedMessageIds, onAgentFinish, handleSend, setActiveInstructionAgentType,
   setActiveInstructionPrompt, onLogMedical, isAnalyzing
 }) => {
-  // We assume msg.agentType starts with 'agent' or is 'data_review' or 'medical'
+  const hasValidAgentResult = React.useMemo(() => {
+    if (msg.isLive) return false;
+    if (!msg.data?.agentResult) return false;
+    const res = msg.data.agentResult;
+
+    if (msg.agentType === 'agent4') {
+      const rawSum = res.summary || res.primaryDiagnosis || res.text;
+      const hasSummary = !!(typeof rawSum === 'string' ? rawSum.trim() : (rawSum && typeof rawSum === 'object'));
+      const hasGaps = (Array.isArray(res.testingGaps) && res.testingGaps.length > 0) ||
+                      (Array.isArray(res.recommendedTests) && res.recommendedTests.length > 0);
+      const hasRetests = Array.isArray(res.retestBiomarkers) && res.retestBiomarkers.length > 0;
+      return hasSummary || hasGaps || hasRetests;
+    }
+
+    const keys = Object.keys(res).filter(k => 
+      k !== 'scoutScratchpad' && 
+      k !== 'dietitianScratchpad' && 
+      k !== 'agentPrompt' && 
+      k !== 'scoutInstruction' && 
+      k !== 'dietitianInstruction'
+    );
+    return keys.length > 0;
+  }, [msg.isLive, msg.data?.agentResult, msg.agentType]);
+
   return (
     <>
       {/* Render Agent Result Blocks */}
-                  {msg.agentType && msg.data?.agentResult && !(loggedMessageIds || []).includes(msg.id) && (
+                  {msg.agentType && hasValidAgentResult && !(loggedMessageIds || []).includes(msg.id) && (
                     <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 shadow-md space-y-4 animation-fade-in w-full max-w-full min-w-0 overflow-hidden">
                       <div className="flex items-center justify-between gap-1.5 pb-2 border-b border-slate-100 dark:border-slate-800/50">
                         <div className="flex items-center gap-1.5">
@@ -71,16 +94,17 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                           // so routing through them silently drops data. Step 1 now commits directly
                           // via onApplyChanges below. Revisit this once Step 2/3 persistence is built.
                           onContinueToNextStep={undefined}
-                          onApplyChanges={async (filteredKeys) => {
+                          onApplyChanges={async (arg) => {
                             if (onAgentFinish) {
                               const isContinuation = !!(msg.data?.agentResult?.hasMoreMarkers || msg.data?.agentResult?.hasMore || msg.data?.agentResult?.needsContinuation || msg.data?.agentResult?.status === 'needs_continuation');
-                              if (filteredKeys && Array.isArray(filteredKeys) && msg.data?.agentResult) {
-                                if (msg.data && msg.data.agentResult) msg.data.agentResult.unselectedRowKeys = filteredKeys;
+                              const acceptedActions = Array.isArray(arg) && arg.length > 0 && typeof arg[0] === 'object' && 'task' in arg[0] ? arg : undefined;
+                              if (!acceptedActions && arg && Array.isArray(arg) && msg.data?.agentResult) {
+                                if (msg.data && msg.data.agentResult) msg.data.agentResult.unselectedRowKeys = arg;
                               }
                               if (isContinuation) {
                                 await handleContinueExtractionChunk(msg);
                               } else {
-                                await onAgentFinish(msg.agentType!, msg.data?.agentResult);
+                                await onAgentFinish(msg.agentType!, msg.data?.agentResult, acceptedActions);
                                 setLoggedMessageIds?.(prev => [...prev, msg.id]);
                               }
                             }

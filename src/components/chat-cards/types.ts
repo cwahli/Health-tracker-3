@@ -11,7 +11,7 @@ export interface AgentCardProps {
   onLogFood?: (food: any) => void;
   onLogFoodIdeas?: (ideas: any[]) => void;
   onLogMedical?: any;
-  onAgentFinish?: (agentType: string, data: any) => Promise<void>;
+  onAgentFinish?: (agentType: string, data: any, acceptedActions?: any) => Promise<void>;
   profile?: any;
   biomarkerHistory?: any[];
   handleAgent1Step?: (step: string, msg: ChatMessage) => Promise<void>;

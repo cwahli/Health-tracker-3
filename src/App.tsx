@@ -1705,7 +1705,10 @@ export default function App() {
               explanation: 'Consult your doctor before initiating heavy nutrient restrictions or supplement additions.',
               priority: 'high',
               completed: false,
-              type: 'doctor'
+              type: 'doctor',
+              testName: 'Physical Exam Panel',
+              timeframe: '3-6 months',
+              createdAt: Date.now()
             },
             {
               id: 'init_act_2',
@@ -1713,7 +1716,10 @@ export default function App() {
               explanation: 'Obtain ApoB, LDL-C, fasting glucose, and HbA1c values for precise target generation.',
               priority: 'high',
               completed: false,
-              type: 'test'
+              type: 'test',
+              testName: 'Basic Fasting Panel',
+              timeframe: '3-6 months',
+              createdAt: Date.now()
             }
           ];
           initialBenefits = [
@@ -2788,7 +2794,7 @@ export default function App() {
     const saved = localStorage.getItem('selectedModelId');
     if (saved) return saved;
     // Default is the one with the highest RPD
-    return AVAILABLE_LLMS[0]?.id || 'gemini-3.1-flash-lite';
+    return AVAILABLE_LLMS.find(m => m.isDefault)?.id || AVAILABLE_LLMS[0]?.id || 'gemini-3.5-flash-lite';
   });
   const setSelectedModelId = (id: string) => {
     setSelectedModelIdState(id);
@@ -4499,6 +4505,7 @@ export default function App() {
         biomarkerHistory={biomarkerHistory}
         foodLogs={foodLogs}
         report={report}
+        actions={actions}
         isFirestoreQuotaExceeded={isFirestoreQuotaExceeded}
         onSaveProfile={async (updatedP) => {
           setProfile(updatedP);
@@ -4528,7 +4535,7 @@ export default function App() {
           setProfile(updatedProfile);
           await saveAndSync(updatedProfile, foodLogs, biomarkers, biomarkerHistory, actions, dailyBenefits, report, { type: 'analysis', targetId: newId });
         }}
-        onAgentFinish={async (agentType, agentResult) => {
+        onAgentFinish={async (agentType, agentResult, extraActions?: HealthAction[]) => {
           // ─── SNAPSHOT BEFORE ANY CHANGE (FIX-8) ──────────────────────────
           const snapLabel = `Before ${agentType} approval (${new Date().toLocaleTimeString()})`;
           await saveLocalSnapshot(snapLabel, profile?.email, {
@@ -4552,6 +4559,7 @@ export default function App() {
           let currentHistory = [...biomarkerHistory];
           let currentReport = report ? { ...report } : null;
           let currentDailyBenefits = [...dailyBenefits];
+          let currentActions = [...actions];
           
           if (agentType === 'agent1') {
             // A flat Step-1 extraction result always carries its own extractedYaml.
@@ -4989,9 +4997,18 @@ export default function App() {
              // Agent 3: Clinical Data Coordinator (Assembly)
              updatedProfile.agentTriageSummary = agentResult.text || "Data assembled into buckets.";
           } else if (agentType === 'agent4') {
-            updatedProfile.agentDiagnosticSummary = agentResult.primaryDiagnosis;
-            updatedProfile.agent2TimelineProjections = agentResult.timelineProjections;
-            updatedProfile.agent2GapTasks = agentResult.recommendedTests?.map((t: any) => `${t.testName}: ${t.reason}`);
+            const sumVal = agentResult.summary || agentResult.primaryDiagnosis || agentResult.text;
+            updatedProfile.agentDiagnosticSummary = typeof sumVal === 'string'
+              ? sumVal
+              : (sumVal?.primaryDiagnosis || sumVal?.summary || (sumVal ? JSON.stringify(sumVal) : 'Health planning audit complete.'));
+            updatedProfile.agent2TimelineProjections = agentResult.timelineProjections || (typeof agentResult.summary === 'object' ? agentResult.summary?.timelineProjections : undefined);
+            const gaps = Array.isArray(agentResult.testingGaps) ? agentResult.testingGaps : agentResult.recommendedTests;
+            updatedProfile.agent2GapTasks = Array.isArray(gaps) ? gaps.map((t: any) => `${t.testName || t.name || 'Test'}: ${t.reason || ''}`) : undefined;
+            const newAcceptedActions = extraActions || agentResult?.acceptedActions;
+            if (Array.isArray(newAcceptedActions)) {
+              currentActions = [...newAcceptedActions];
+              setActions(currentActions);
+            }
           } else if (agentType === 'agent5') {
             updatedProfile.agentContextualizerSummary = agentResult.message;
           } else if (agentType === 'agent7') {
@@ -5330,7 +5347,7 @@ export default function App() {
               }
             }
 
-            await saveAndSync(updatedProfile, foodLogs, biomarkers, currentHistory, actions, currentDailyBenefits, currentReport || report);
+            await saveAndSync(updatedProfile, foodLogs, biomarkers, currentHistory, currentActions, currentDailyBenefits, currentReport || report);
           } finally {
             setCalibratingBatchIdx(null);
             setCalibratingAgentType(null);

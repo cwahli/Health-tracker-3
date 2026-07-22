@@ -2,6 +2,7 @@ import { toYYYYMMDD } from "../utils/dateUtils";
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { parse } from 'yaml';
 import { biomarkerDefinitions } from '../utils/biomarkers';
+import { HealthPlanningResultView } from './HealthPlanningResultView';
 import { 
   Maximize2, 
   Minimize2, 
@@ -23,6 +24,7 @@ interface AgentResultTableProps {
   biomarkerHistory?: any[];
   initialRawText?: string;
   onApplyChanges?: (filteredRows?: any[]) => Promise<void>;
+  onAcceptRecommendations?: (acceptedActions: any[]) => Promise<void>;
   onCancel?: () => void;
   onContinueToNextStep?: (filteredKeys?: string[], filteredRows?: any[]) => Promise<void>;
   isApplying?: boolean;
@@ -178,6 +180,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
   biomarkerHistory = [],
   initialRawText = '',
   onApplyChanges,
+  onAcceptRecommendations,
   onCancel,
   onContinueToNextStep,
   isApplying = false,
@@ -186,6 +189,23 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
   onChangeSelectedMissingKeys,
   onSendMessage
 }) => {
+  if (agentType === 'agent4') {
+    return (
+      <HealthPlanningResultView
+        agentResult={agentResult}
+        profile={profile}
+        onAcceptRecommendations={async (acceptedActions) => {
+          if (onAcceptRecommendations) {
+            await onAcceptRecommendations(acceptedActions);
+          } else if (onApplyChanges) {
+            await onApplyChanges(acceptedActions);
+          }
+        }}
+        isApplying={isApplying}
+      />
+    );
+  }
+
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [diffExpanded, setDiffExpanded] = useState(false);
   const [sortField, setSortField] = useState<string>('default');
@@ -1371,7 +1391,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
       return allBiomarkers;
     }
 
-    if (agentType === 'agent4') {
+    if ((agentType as string) === 'agent4') {
       // Step 4: Prognostic Diagnostics Assessment
       const conditions = Array.isArray(agentResult.prioritizedConditions) ? agentResult.prioritizedConditions : [];
       return conditions.flatMap((cond: any) => {
@@ -1569,7 +1589,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
   // Check if there are any new or changed entries to actually approve
   const hasAnythingToApprove = useMemo(() => {
     if (tableData.length === 0) return false;
-    if (agentType === 'agent1' || agentType === 'medical_extract' || agentType === 'agent2' || agentType === 'agent3' || agentType === 'agent4') {
+    if (agentType === 'agent1' || agentType === 'medical_extract' || agentType === 'agent2' || agentType === 'agent3' || (agentType as string) === 'agent4') {
       return counts.isNew > 0 || counts.changed > 0 || counts.toDelete > 0;
     }
     return tableData.length > 0;
@@ -1783,7 +1803,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
           {(agentType === 'agent2' || agentType === 'agent3') && tableHeader('Medical Practice', 'group')}
           {agentType === 'agent2' && tableHeader('Risk Categories', 'categories')}
           {agentType === 'agent3' && tableHeader('Total Readings', 'totalReadings')}
-          {agentType === 'agent4' && tableHeader('Condition Association', 'condition')}
+          {(agentType as string) === 'agent4' && tableHeader('Condition Association', 'condition')}
           {tableHeader('Status', 'isNew')}
           {agentType === 'data_review' ? (
             <>
@@ -1970,7 +1990,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
                 </td>
               )}
 
-              {agentType === 'agent4' && (
+              {(agentType as string) === 'agent4' && (
                 <td className="px-3 py-2">
                   {row.isGroupChanged ? (
                     <div className="flex flex-col gap-0.5">
@@ -2204,7 +2224,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
             {(agentType === 'agent1' || agentType === 'medical_extract') && 'Biomarker Extraction Stream'}
             {agentType === 'agent2' && 'Unified Ontology Mapping'}
             {agentType === 'agent3' && 'Data Assembly Diagnostics'}
-            {agentType === 'agent4' && 'Prognostic Diagnostics Assessment'}
+            {(agentType as string) === 'agent4' && 'Prognostic Diagnostics Assessment'}
             {agentType === 'data_review' && 'Biomarker Clinical Calibration'}
           </span>
         </div>
@@ -2412,7 +2432,7 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
                     {(agentType === 'agent1' || agentType === 'medical_extract') && ' Biomarker Extraction'}
                     {agentType === 'agent2' && ' Category Mapping'}
                     {agentType === 'agent3' && ' Data Assembly'}
-                    {agentType === 'agent4' && ' Prognostic diagnostics'}
+                    {(agentType as string) === 'agent4' && ' Prognostic diagnostics'}
                     {agentType === 'data_review' && ' Biomarker Calibration'}
                   </h3>
                   <p className="text-[10px] text-slate-500">

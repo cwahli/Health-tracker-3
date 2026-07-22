@@ -4,7 +4,7 @@ import { UserProfile, BiomarkerLog, ChatMessage } from '../types';
 import { translations } from '../utils/translations';
 import { ShieldAlert, ClipboardList, Trash2, ChevronDown, ChevronUp, LineChart as LineChartIcon, BrainCircuit, AlertCircle } from 'lucide-react';
 import { standardizeUnit, reverseStandardizeUnit, formatNormalRange } from '../utils/unitConversion';
-import { biomarkerDefinitions, getBiomarkerStatus, getBiomarkerColor, getBiomarkerStatusLabel, getBiomarkerRiskTag, BiomarkerDefinition, isAsianEthnicity, getPhysiologicalBucket, getBiomarkerMetadata, BIOMARKER_GROUPING_OPTIONS, getCustomBiomarkerDef } from '../utils/biomarkers';
+import { biomarkerDefinitions, getBiomarkerStatus, getBiomarkerColor, getBiomarkerStatusLabel, getBiomarkerRiskTag, BiomarkerDefinition, isAsianEthnicity, getPhysiologicalBucket, getBiomarkerMetadata, BIOMARKER_GROUPING_OPTIONS, getCustomBiomarkerDef, getMergedBiomarkerDef } from '../utils/biomarkers';
 import ReviewBiomarkerModal from './ReviewBiomarkerModal';
 import { BiomarkerExpandedSection } from './BiomarkerExpandedSection';
 import CombineBiomarkersModal from './CombineBiomarkersModal';
@@ -230,14 +230,23 @@ export default function MedicalHistoryTab({
     allHistoryKeys.forEach(key => {
       if (key === 'weight' || key === 'height' || key === 'age') return;
       if (!combined.find(d => d.key === key)) {
+        const builtIn = biomarkerDefinitions.find((d: any) => d.key === key || (Array.isArray(d.aliases) && d.aliases.includes(key)));
+        const custom = getCustomBiomarkerDef(profile, key);
+        const itemLogs = activeHistory.map(h => ({
+          date: h.date,
+          value: h.biomarkers?.[key],
+          unit: (h as any).units?.[key] || (h as any).unit,
+          normalRange: (h as any).normalRanges?.[key] || (h as any).normalRange
+        })).filter(l => l.value !== undefined || l.unit || l.normalRange);
+        const merged = getMergedBiomarkerDef(key, builtIn, custom, itemLogs);
         combined.push({
           key,
-          name: getCustomBiomarkerDef(profile, key)?.name || key.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' '),
+          name: merged.name,
           category: 'other',
-          unit: getCustomBiomarkerDef(profile, key)?.unit || '',
-          normalRange: getCustomBiomarkerDef(profile, key)?.normalRange || 'Unknown',
+          unit: merged.unit,
+          normalRange: merged.normalRange || 'Unknown',
           descriptions: {
-            en: getCustomBiomarkerDef(profile, key)?.description || ''
+            en: merged.description || ''
           }
         } as any);
       }
@@ -811,6 +820,8 @@ export default function MedicalHistoryTab({
           onLogMedical={onLogMedical}
           onAgentAnalysisSaved={onAgentAnalysisSaved}
           onDeleteAnalysis={onDeleteAnalysis}
+          selectedModelId={selectedModelId}
+          onChangeModelId={onChangeModelId}
         />
       )}
     </div>

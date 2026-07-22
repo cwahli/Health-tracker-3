@@ -263,6 +263,9 @@ export interface HealthAction {
   priority: 'high' | 'medium' | 'low';
   completed: boolean;
   type: 'doctor' | 'test' | 'lifestyle';
+  testName?: string;
+  timeframe?: string;
+  createdAt?: number;
 }
 
 export interface DailyBenefit {

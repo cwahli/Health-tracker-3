@@ -79,20 +79,36 @@ CRITICAL RULES:
   Relative Quantities: If the user text provides a fraction, percentage, or piece count (e.g., "1/4 of", "half", "3 pieces"), you MUST first visually estimate the total weight of the specific whole item shown in the image. Then, apply the user's math to your visual estimate. NEVER apply user fractions to generic textbook averages; ground the math in the visual size of the actual food photographed.
 - SEMANTIC ALIGNMENT & KEYWORD ACCURACY:
   The English keyword you generate MUST biologically and semantically match the text you extracted in originalName and what is visually in the photo. Do not hallucinate categories or keys. If the originalName indicates a protein/meat (e.g., "Ikan" means fish), the keyword cannot be a vegetable. If unsure of a translation, default to a generic category (e.g., "fish", "meat").
+  * Be extremely precise and cautious with local Southeast Asian translations. For example, "Takap putih" (or "Kakap putih") is Barramundi/Asian Seabass, which is a protein/fish. It is NOT mustard green or any other vegetable.
+  * In images with multiple raw ingredients or mixed items, examine the physical items in detail. If multiple fish species or parts of different fishes are cut and grouped together in the same bowl or plate (e.g., cut steaks of Pomfret/"Bawal laut" and Barramundi/"Takap putih" in one bowl), identify them as separate, distinct items in the JSON list with their respective bounding boxes.
 - CRITICAL LOCALIZATION DIRECTIVE:
   For EVERY item in \`items\`, you MUST compute and provide \`boundingBox2D\` as a 4-element array of normalized integers \`[ymin, xmin, ymax, xmax]\` on a scale of 0 to 1000 (e.g. \`[150, 200, 800, 750]\`) tightly surrounding the food item or package in the image. NEVER omit \`boundingBox2D\` or default to \`[0, 0, 1000, 1000]\` unless the item genuinely spans the entire frame.
 - CRITICAL NON-EMPTY ITEMS MANDATE:
   You MUST ALWAYS populate the \`items\` array with real JSON item objects whenever food items are present in the image. NEVER return an empty \`items\` list or top-level summary keys instead of populating \`items\`.
+
+=== SYSTEM CONSTRAINTS ===
+
+First, think step-by-step in plain text.
+
+Second, output exactly one JSON object.
+
+The JSON must contain ONLY the fields requested below. Do NOT include a scratchpad field inside the JSON.
+
+=== OUTPUT INSTRUCTIONS ===
+
+First, write out your step-by-step reasoning in plain text. Explain how you are classifying the image, density appraisal, items found, and your weight reasoning for each.
+
+Then, output your final mapped results in a raw, valid JSON block.
+
+Ensure EVERY JSON field is correctly separated by a comma and that all strings are properly closed with quotation marks. Do not add markdown formatting blocks (such as \`\`\`json) around your JSON response.
+
 JSON SCHEMA STRICT REQUIREMENT:
-Respond ONLY with a structured JSON format matching this schema exactly. Never add markdown formatting wrappers.
 {
-  "scratchpad": "string (Use this as a brief, lightweight scratchpad to support your thinking. This is purely to jot down your immediate visual thoughts to support your reasoning. Do NOT write instructions, do NOT perform extra work, and do NOT restate your guidelines here. Keep it short, direct, and focused on your analysis.)",
   "recommendedMode": "new_log | evaluation | discussion",
   "contentType": "visual | menu_or_poster | text",
   "items": [
     {
       "keyword": "string (The core base item only. No toppings, flavors, or subcomponents. e.g., 'siomai dumpling', 'pomfret fish')",
-      "weightReasoning": "string (A single short sentence explaining how you estimated the weight visually. Do NOT place long chain-of-thought analysis here. Put all detailed thinking in the top-level scratchpad.)",
       "estimatedWeightGrams": "number",
       "components": [
         {
@@ -177,11 +193,14 @@ export function parseAndHealVisionScout(
   addDebugLog: (msg: string) => void
 ): VisionScoutResult {
   let parsedScout: any = null;
+  let extractedScratchpad = "";
   try {
     parsedScout = typeof scoutOutput === "string" ? JSON.parse(scoutOutput) : scoutOutput;
   } catch (e) {
     const cleanOutput = typeof scoutOutput === "string" ? scoutOutput : JSON.stringify(scoutOutput);
-    parsedScout = JSON.parse(extractBalancedJson(cleanOutput));
+    const jsonStr = extractBalancedJson(cleanOutput);
+    extractedScratchpad = cleanOutput.replace(jsonStr, "").trim();
+    parsedScout = JSON.parse(jsonStr);
   }
 
   parsedScout = validateOrFallback(
@@ -419,7 +438,7 @@ export function parseAndHealVisionScout(
   }
 
   return {
-    scratchpad: parsedScout?.scratchpad,
+    scratchpad: parsedScout?.scratchpad || extractedScratchpad,
     items: visionScoutItems,
     scoutConfidenceRating,
     scoutConfidenceComment,

@@ -129,6 +129,7 @@ export function aggregateItemsNutrients(
 
     return {
       name: canonicalName,
+      originalLocalName: item.originalLocalName || item.originalName || null,
       weightGrams: itemWeight,
       calories: itemNutrients.calories || 0,
       saturatedFat: itemNutrients.saturatedFat || 0,
