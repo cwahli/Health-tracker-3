@@ -1344,8 +1344,7 @@ export default function Header({
                         <div key={color.key} className="transition-all duration-200">
                           {/* Main Row */}
                           <div 
-                            onClick={() => setExpandedColorKey(isExpanded ? null : color.key)}
-                            className="flex items-center justify-between py-2 px-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded-xl cursor-pointer transition-all group"
+                            className="flex items-center justify-between py-2 px-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded-xl transition-all group"
                           >
                             <div className="flex items-center min-w-0 flex-1">
                               {/* Swatch */}
@@ -1364,9 +1363,20 @@ export default function Header({
                             </div>
 
                             <div className="flex items-center gap-2 ml-2 shrink-0">
-                              {isExpanded && (
-                                <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">Editing</span>
-                              )}
+                              <button
+                                type="button"
+                                onClick={() => setExpandedColorKey(isExpanded ? null : color.key)}
+                                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                                  isExpanded
+                                    ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'
+                                    : 'text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                                title={isExpanded ? 'Close editor' : 'Edit variable'}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                                </svg>
+                              </button>
                               {color.key.startsWith('custom_') && (
                                 <button
                                   type="button"
@@ -1465,8 +1475,7 @@ export default function Header({
                         <div key={color.key} className="transition-all duration-200">
                           {/* Main Row */}
                           <div 
-                            onClick={() => setExpandedColorKey(isExpanded ? null : color.key)}
-                            className="flex flex-col sm:flex-row sm:items-center justify-between py-2 px-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded-xl cursor-pointer transition-all group gap-2"
+                            className="flex flex-col sm:flex-row sm:items-center justify-between py-2 px-3 hover:bg-slate-50 dark:hover:bg-slate-800/35 rounded-xl transition-all group gap-2"
                           >
                             <div className="flex items-center min-w-0 flex-1">
                               {/* Swatch */}
@@ -1499,6 +1508,21 @@ export default function Header({
                                   </span>
                                 </div>
                               )}
+
+                              <button
+                                type="button"
+                                onClick={() => setExpandedColorKey(isExpanded ? null : color.key)}
+                                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
+                                  isExpanded
+                                    ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'
+                                    : 'text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                                }`}
+                                title={isExpanded ? 'Close editor' : 'Edit variable'}
+                              >
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                                </svg>
+                              </button>
 
                               {color.key.startsWith('custom_') && (
                                 <button
