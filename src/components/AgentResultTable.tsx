@@ -2215,6 +2215,10 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
     );
   }
 
+  if (agentType === 'agent1' && sortedData.length === 0) {
+    return null;
+  }
+
   return (
     <div className="space-y-3 w-full">
       {/* Table Container Header */}
