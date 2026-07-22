@@ -377,6 +377,7 @@ interface LogChatProps {
   actions?: any[];
   googleSteps?: number | null;
   agentType?: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent7' | 'data_review' | 'health_baseline' | null;
+  onOpenAgentFromFrontDesk?: (agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent7' | 'data_review' | 'health_baseline' | null) => void;
   biomarkerHistory?: any[];
   onAgentFinish?: (agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent7' | 'data_review' | 'health_baseline', agentResult:  any) => Promise<void>;
   onAgentAnalysisSaved?: (agentType: string, agentResult:  any) => Promise<void>;
@@ -420,6 +421,7 @@ export default function LogChat({
   actions = [],
   googleSteps = null,
   agentType = null,
+  onOpenAgentFromFrontDesk,
   biomarkerHistory = [],
   onAgentFinish,
   onAgentAnalysisSaved,
@@ -1705,6 +1707,7 @@ ${logsText}`);
       if (isAgent('front_desk')) {
         bodyData.profile = bodyData.userProfile;
         bodyData.biomarkers = biomarkers;
+        bodyData.biomarkerHistory = biomarkerHistory;
         bodyData.foodLogs = (foodLogs || []).map(f => ({ name: f.name, date: f.date, nutrients: f.nutrients }));
       }
       if (compareOnly) {
@@ -3548,13 +3551,50 @@ ${JSON.stringify(profile, null, 2)}`);
                   </button>
                 </>
               ) : isAgent('front_desk') ? (
-                <button
-                  type="button"
-                  onClick={() => handleSend('What should I do?')}
-                  className="whitespace-nowrap px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-full transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
-                >
-                  <span>🧭 What should I do?</span>
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => handleSend('What should I do?')}
+                    className="whitespace-nowrap px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-full transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+                  >
+                    <span>🧭 What should I do?</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenAgentFromFrontDesk?.(null)}
+                    className="whitespace-nowrap px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-full transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>➕ Add health data</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenAgentFromFrontDesk?.('data_review')}
+                    className="whitespace-nowrap px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-full transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>🩺 Review biomarkers</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenAgentFromFrontDesk?.('agent1')}
+                    className="whitespace-nowrap px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-full transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>📋 Clinical review</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenAgentFromFrontDesk?.('health_baseline')}
+                    className="whitespace-nowrap px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-full transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>🎯 Health planning</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onOpenAgentFromFrontDesk?.('agent7')}
+                    className="whitespace-nowrap px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 text-xs font-bold rounded-full transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <span>💡 Medical insights</span>
+                  </button>
+                </>
               ) : (
                 !isAgent('food_idea') && !isAgent('daily_recommendation') && !(isAgent('medical') && !agentType) && (
                   <button

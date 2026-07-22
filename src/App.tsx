@@ -4409,13 +4409,28 @@ export default function App() {
       <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} />
       {/* Slide-over interactive dialogs */}
       
-      <ErrorBoundary><LogChat type="front_desk"
-        profile={profile}
-        isOpen={isFrontDeskOpen}
-        selectedModelId={selectedModelId}
-        onChangeModelId={setSelectedModelId}
-        onClose={() => setIsFrontDeskOpen(false)}
-        biomarkers={biomarkers}
+      {(() => {
+        const handleOpenAgentFromFrontDesk = (agentType: 'agent1' | 'agent2' | 'agent3' | 'agent4' | 'agent5' | 'agent7' | 'data_review' | 'health_baseline' | null) => {
+          setIsFrontDeskOpen(false);
+          setActiveAgentType(agentType);
+          setPrefillMessage(null);
+          setActiveDataReviewBatchIdx(null);
+          setActiveDataReviewBatchKeys([]);
+          setActiveDataReviewRemainingText('');
+          setActiveDataReviewExtractedYaml([]);
+          setActiveDataReviewCurrentBatch(1);
+          setActiveDataReviewEstimatedTotalMarkers(null);
+          setIsMedicalChatOpen(true);
+        };
+        return (
+          <ErrorBoundary><LogChat type="front_desk"
+            profile={profile}
+            isOpen={isFrontDeskOpen}
+            onOpenAgentFromFrontDesk={handleOpenAgentFromFrontDesk}
+            selectedModelId={selectedModelId}
+            onChangeModelId={setSelectedModelId}
+            onClose={() => setIsFrontDeskOpen(false)}
+            biomarkers={biomarkers}
         biomarkerHistory={biomarkerHistory}
         foodLogs={foodLogs}
         onSaveProfile={async (updatedP) => {
@@ -4439,6 +4454,8 @@ export default function App() {
         }}
 
       /></ErrorBoundary>
+        );
+      })()}
       <ErrorBoundary><LogChat type="food"
         profile={profile}
         isOpen={isFoodChatOpen}

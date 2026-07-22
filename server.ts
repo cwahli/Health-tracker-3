@@ -1518,7 +1518,7 @@ app.get("/api/gemini/instruction-preview", async (req, res) => {
 // Health Preparation Agent
 app.post("/api/gemini/front-desk", async (req, res) => {
   try {
-    const { message, profile, biomarkers, foodLogs } = req.body;
+    const { message, profile, biomarkers, foodLogs, biomarkerHistory } = req.body;
     
     const prompt = `
 You are the Health Preparation Agent. Your job is to answer the user's questions regarding their health data, and guide them on what they should do next.
@@ -1528,6 +1528,7 @@ You have access to their profile, biomarkers, and food logs.
 Profile: ${JSON.stringify(profile)}
 Biomarkers: ${JSON.stringify(biomarkers)}
 Food Logs (Last 5): ${JSON.stringify(foodLogs ? foodLogs.slice(0, 5) : [])}
+Recent Biomarker History (most recent first, up to 40 entries): ${JSON.stringify((biomarkerHistory || []).slice().reverse())}
 </USER_DATA>
 
 If the user asks "What should I do?", analyze their data and see what is missing (e.g. missing age, weight, or missing biomarkers, or no food logs logged).
@@ -1561,10 +1562,12 @@ User Message: ${message}
 
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const response = await ai.models.generateContent({
-      model: "gemini-3.5-flash",
+      model: "gemini-3.5-flash-lite",
       contents: prompt,
       config: {
-        temperature: 0.2
+        temperature: 0.2,
+        maxOutputTokens: 1024,
+        httpOptions: { timeout: 60000 }
       }
     });
 
