@@ -346,6 +346,22 @@ export default function Header({
     setProfile({ ...profile, customFonts: updatedList });
   };
 
+  const PRESET_COMPARE_KEYS = ['themePalette', 'fontFamily', 'fontMono', 'fontSize', 'marginScale', 'paddingScale', 'cornerRadius', 'shadowScale', 'themeOverrides', 'customColors'];
+
+  const normalizePresetValue = (v: any) => {
+    if (v === undefined || v === null) return null;
+    if (Array.isArray(v) && v.length === 0) return null;
+    if (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0) return null;
+    return v;
+  };
+
+  const isPresetActive = (presetConfig: any) => {
+    if (!presetConfig) return false;
+    return PRESET_COMPARE_KEYS.every(k =>
+      JSON.stringify(normalizePresetValue((profile as any)[k])) === JSON.stringify(normalizePresetValue((presetConfig as any)[k]))
+    );
+  };
+
   const getThemeVariableChangesCount = () => {
     let count = profile.themeOverrides?.length || 0;
     
@@ -1935,16 +1951,25 @@ export default function Header({
                         { name: "Midnight Blue (Dark)", isSystem: true, profileUpdate: { fontFamily: 'Space Grotesk', themePalette: { background: '#000000', bgCard: '#0f172a', button: '#2563eb', text: '#f8fafc', textSecondary: '#cbd5e1', border: '#1e293b' } } },
                         { name: "Emerald Forest (Dark)", isSystem: true, profileUpdate: { fontFamily: 'Outfit', themePalette: { background: '#000000', bgCard: '#06231a', button: '#047857', text: '#ecfdf5', textSecondary: '#a7f3d0', border: '#0f3527' } } },
                         { name: "Minimalist White (Light)", isSystem: true, profileUpdate: { fontFamily: 'Playfair Display', themePalette: { background: '#ffffff', bgCard: '#fafafa', button: '#18181b', text: '#09090b', textSecondary: '#52525b', border: '#e4e4e7' } } }
-                      ].map((preset, idx) => (
-                        <div key={idx} className="flex justify-between items-center bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{preset.name}</span>
-                          <button onClick={() => {
-                            setProfile({ ...profile, ...preset.profileUpdate });
-                          }} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-all">Apply Default</button>
-                        </div>
-                      ))}
-                      {(profile.themePresets || []).map((preset, idx) => (
-                        <div key={'user'+idx} className="flex justify-between items-center bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                      ].map((preset, idx) => {
+                        const active = isPresetActive(preset.profileUpdate);
+                        return (
+                          <div key={idx} className={`flex justify-between items-center p-3 rounded-xl border shadow-sm transition-all ${active ? 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-400 dark:border-indigo-500 ring-2 ring-indigo-500/30' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700'}`}>
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{preset.name}</span>
+                            {active ? (
+                              <span className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold">✓ Selected</span>
+                            ) : (
+                              <button onClick={() => {
+                                setProfile({ ...profile, ...preset.profileUpdate });
+                              }} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-all">Apply Default</button>
+                            )}
+                          </div>
+                        );
+                      })}
+                      {(profile.themePresets || []).map((preset, idx) => {
+                        const active = isPresetActive(preset);
+                        return (
+                        <div key={'user'+idx} className={`flex justify-between items-center p-3 rounded-xl border shadow-sm transition-all ${active ? 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-400 dark:border-indigo-500 ring-2 ring-indigo-500/30' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700'}`}>
                           <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex-1 truncate mr-2">{preset.name}</span>
                           <div className="flex gap-2 shrink-0">
                             <button title="Export" onClick={() => {
@@ -1988,7 +2013,10 @@ export default function Header({
                                 themeOverrides: preset.themeOverrides,
                                 customColors: preset.customColors
                               });
-                            }} className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-lg text-xs font-semibold border border-indigo-200 dark:border-indigo-800 transition-all">Apply</button>
+                            }} className={active ? "hidden" : "px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-lg text-xs font-semibold border border-indigo-200 dark:border-indigo-800 transition-all"}>Apply</button>
+                            {active && (
+                              <span className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold">✓ Selected</span>
+                            )}
                             <button onClick={() => {
                               const newPresets = [...(profile.themePresets || [])];
                               newPresets.splice(idx, 1);
@@ -1996,7 +2024,8 @@ export default function Header({
                             }} className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 rounded-lg text-xs font-semibold border border-rose-200 dark:border-rose-800 transition-all">Del</button>
                           </div>
                         </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
 
