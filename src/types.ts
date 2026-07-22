@@ -3,18 +3,14 @@ export interface RangeConfig {
   type?: 'simple' | 'bracket' | string;
   conditions?: any[];
   brackets?: any[];
-  filters?: any[];
+  filters?: any;
   range?: any;
 }
-export interface CustomRangeDef {
-  id?: string;
-  key?: string;
-  name?: string;
-  type?: string;
-  conditions?: any[];
-  brackets?: any[];
-  filters?: any[];
-  range?: any;
+export interface CustomRangeFilter {
+  gender?: string;
+  minAge?: number | '';
+  maxAge?: number | '';
+  ethnicity?: string;
 }
 export interface SimpleRange {
   type?: 'simple' | string;
@@ -24,11 +20,15 @@ export interface BracketRange {
   type?: 'bracket' | string;
   brackets?: any[];
 }
-export interface CustomRangeFilter {
-  gender?: string;
-  minAge?: number;
-  maxAge?: number;
-  ethnicity?: string;
+export interface CustomRangeDef {
+  id?: string;
+  key?: string;
+  name?: string;
+  type?: string;
+  conditions?: any[];
+  brackets?: any[];
+  filters?: CustomRangeFilter;
+  range?: RangeConfig | any;
 }
 export interface AgentAnalysis {
   id?: string;

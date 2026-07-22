@@ -189,23 +189,6 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
   onChangeSelectedMissingKeys,
   onSendMessage
 }) => {
-  if (agentType === 'agent4') {
-    return (
-      <HealthPlanningResultView
-        agentResult={agentResult}
-        profile={profile}
-        onAcceptRecommendations={async (acceptedActions) => {
-          if (onAcceptRecommendations) {
-            await onAcceptRecommendations(acceptedActions);
-          } else if (onApplyChanges) {
-            await onApplyChanges(acceptedActions);
-          }
-        }}
-        isApplying={isApplying}
-      />
-    );
-  }
-
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [diffExpanded, setDiffExpanded] = useState(false);
   const [sortField, setSortField] = useState<string>('default');
@@ -2214,6 +2197,23 @@ export const AgentResultTable: React.FC<AgentResultTableProps> = ({
       </button>
     </div>
   );
+
+  if (agentType === 'agent4') {
+    return (
+      <HealthPlanningResultView
+        agentResult={agentResult}
+        profile={profile}
+        onAcceptRecommendations={async (acceptedActions) => {
+          if (onAcceptRecommendations) {
+            await onAcceptRecommendations(acceptedActions);
+          } else if (onApplyChanges) {
+            await onApplyChanges(acceptedActions);
+          }
+        }}
+        isApplying={isApplying}
+      />
+    );
+  }
 
   return (
     <div className="space-y-3 w-full">

@@ -217,10 +217,10 @@ const getDynamicStyles = (profile: any) => {
   `;
 
   // Spacing, Corner Radius, and Shadows Design Tokens
-  const marginScale = profile.marginScale || 'normal';
-  const paddingScale = profile.paddingScale || 'normal';
-  const cornerRadius = profile.cornerRadius || 'normal';
-  const shadowScale = profile.shadowScale || 'normal';
+  const marginScale = profile?.marginScale || 'normal';
+  const paddingScale = profile?.paddingScale || 'normal';
+  const cornerRadius = profile?.cornerRadius || 'normal';
+  const shadowScale = profile?.shadowScale || 'normal';
 
   const marginFactor = marginScale === 'compact' ? '0.75' : marginScale === 'relaxed' ? '1.25' : '1';
   const paddingFactor = paddingScale === 'compact' ? '0.75' : paddingScale === 'relaxed' ? '1.25' : '1';
