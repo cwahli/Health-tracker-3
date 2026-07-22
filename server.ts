@@ -1424,6 +1424,66 @@ app.post("/api/sync/load", async (req, res) => {
   }
 });
 
+// ============================================================
+// ADMIN: User Management Endpoints (Phase 1 - list users, read-only)
+// Restricted to whitelisted admin emails. Verifies the caller's
+// Firebase ID token before returning any data.
+// ============================================================
+const ADMIN_EMAILS = ["cwah.liu@gmail.com", "chiwah.liu@gmail.com"];
+
+async function requireAdmin(req: any, res: any): Promise<string | null> {
+  const idToken = req.headers.authorization?.split('Bearer ')[1];
+  if (!idToken) {
+    res.status(401).json({ error: 'Unauthorized: missing token' });
+    return null;
+  }
+  try {
+    const decoded = await adminAuth.verifyIdToken(idToken);
+    const email = decoded.email?.toLowerCase().trim() || '';
+    if (!ADMIN_EMAILS.includes(email)) {
+      res.status(403).json({ error: 'Forbidden: admin access only' });
+      return null;
+    }
+    return email;
+  } catch (e) {
+    res.status(401).json({ error: 'Unauthorized: invalid token' });
+    return null;
+  }
+}
+
+// List all registered Firebase Auth users. Read-only, paginates internally.
+// Does NOT read Firestore, so it carries no Firestore read-quota cost.
+app.get("/api/admin/users", async (req, res) => {
+  try {
+    const adminEmail = await requireAdmin(req, res);
+    if (!adminEmail) return;
+
+    const allUsers: any[] = [];
+    let pageToken: string | undefined = undefined;
+    do {
+      const result: any = await adminAuth.listUsers(1000, pageToken);
+      result.users.forEach((u: any) => {
+        allUsers.push({
+          uid: u.uid,
+          email: u.email || '',
+          emailVerified: !!u.emailVerified,
+          disabled: !!u.disabled,
+          createdAt: u.metadata?.creationTime || null,
+          lastSignInAt: u.metadata?.lastSignInTime || null,
+          providers: (u.providerData || []).map((p: any) => p.providerId)
+        });
+      });
+      pageToken = result.pageToken;
+    } while (pageToken);
+
+    console.log(`[Admin] ${adminEmail} listed ${allUsers.length} users`);
+    res.json({ success: true, users: allUsers });
+  } catch (error: any) {
+    console.error("[Admin] Failed to list users:", error);
+    res.status(500).json({ error: error.message || "Failed to list users" });
+  }
+});
+
 // GET Endpoint for System Instruction Preview
 app.get("/api/gemini/instruction-preview", async (req, res) => {
   try {

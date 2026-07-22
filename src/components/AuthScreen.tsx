@@ -277,13 +277,6 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
           </select>
         </div>
 
-        {errorMsg && (
-          <div className="mb-4 p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-xl flex items-center gap-2 text-rose-700 dark:text-rose-400 text-xs font-semibold">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <p>{errorMsg}</p>
-          </div>
-        )}
-
         {status === 'pending_verification' ? (
           /* Email Verification Pending State */
           <div id="auth-verification-pending" className="flex flex-col items-center text-center space-y-4 py-4 animation-fade-in">
@@ -303,6 +296,14 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
             >
               I have verified my email
             </button>
+
+            {errorMsg && (
+              <div className="w-full mt-2 p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-xl flex items-center gap-2 text-rose-700 dark:text-rose-400 text-xs font-semibold">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <p>{errorMsg}</p>
+              </div>
+            )}
+
             <button
               id="auth-bypass-verify-btn"
               type="button"
@@ -470,6 +471,13 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
                 isSignUp ? 'Sign Up' : 'Continue with Email'
               )}
             </button>
+
+            {errorMsg && (
+              <div className="p-3 bg-rose-50 dark:bg-rose-950/50 border border-rose-200 dark:border-rose-800 rounded-xl flex items-center gap-2 text-rose-700 dark:text-rose-400 text-xs font-semibold">
+                <AlertCircle className="w-4 h-4 shrink-0" />
+                <p>{errorMsg}</p>
+              </div>
+            )}
 
             {/* Switch Mode Button */}
             <div className="text-center">

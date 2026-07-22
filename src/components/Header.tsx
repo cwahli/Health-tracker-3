@@ -1424,6 +1424,23 @@ export default function Header({
                       );
                     };
 
+                    const getTextPreviewContext = (hex: string): 'dark' | 'light' => {
+                      try {
+                        let h = (hex || '').replace('#', '');
+                        if (h.length === 3) h = h.split('').map(c => c + c).join('');
+                        if (h.length !== 6) return 'light';
+                        const r = parseInt(h.substring(0, 2), 16) / 255;
+                        const g = parseInt(h.substring(2, 4), 16) / 255;
+                        const b = parseInt(h.substring(4, 6), 16) / 255;
+                        const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+                        // Light colors (high luminance) read best on a dark background.
+                        // Dark colors (low luminance) read best on a light background.
+                        return lum > 0.5 ? 'dark' : 'light';
+                      } catch (e) {
+                        return 'light';
+                      }
+                    };
+
                     const renderTextColorItem = (color: any) => {
                       const activeVal = (profile.themePalette as any)?.[color.key] || color.defaultHex;
                       const isExpanded = expandedColorKey === color.key;
@@ -1451,19 +1468,21 @@ export default function Header({
                               </div>
                             </div>
 
-                            {/* Direct text previews showing the color! */}
+                            {/* Single preview, shown against whichever background this color is actually readable on */}
                             <div className="flex items-center gap-1.5 ml-0 sm:ml-2 shrink-0">
-                              <div className="bg-white border border-slate-150 rounded-lg py-1 px-3 flex items-center justify-center shrink-0 shadow-sm" style={{ minWidth: '100px' }}>
-                                <span style={{ color: activeVal }} className="text-xs font-bold tracking-tight">
-                                  {color.label}
-                                </span>
-                              </div>
-
-                              <div className="bg-slate-900 rounded-lg py-1 px-3 flex items-center justify-center shrink-0 shadow-sm" style={{ minWidth: '100px' }}>
-                                <span style={{ color: activeVal }} className="text-xs font-bold tracking-tight">
-                                  {color.label}
-                                </span>
-                              </div>
+                              {getTextPreviewContext(activeVal) === 'light' ? (
+                                <div className="bg-white border border-slate-150 rounded-lg py-1 px-3 flex items-center justify-center shrink-0 shadow-sm" style={{ minWidth: '100px' }}>
+                                  <span style={{ color: activeVal }} className="text-xs font-bold tracking-tight truncate">
+                                    {color.label}
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="bg-slate-900 rounded-lg py-1 px-3 flex items-center justify-center shrink-0 shadow-sm" style={{ minWidth: '100px' }}>
+                                  <span style={{ color: activeVal }} className="text-xs font-bold tracking-tight truncate">
+                                    {color.label}
+                                  </span>
+                                </div>
+                              )}
 
                               {color.key.startsWith('custom_') && (
                                 <button
@@ -1552,7 +1571,7 @@ export default function Header({
                         </div>
 
                         {/* 2. Text Colours */}
-                        <div className="space-y-2">
+                        <div className="space-y-3">
                           <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
                             <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Text colour</span>
                             <button
@@ -1563,8 +1582,19 @@ export default function Header({
                               <span>➕ Add Color</span>
                             </button>
                           </div>
+
                           <div className="space-y-1">
-                            {textColors.map(color => renderTextColorItem(color))}
+                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider pl-3">Text over dark</span>
+                            <div className="space-y-1">
+                              {textColors.filter((color: any) => getTextPreviewContext((profile.themePalette as any)?.[color.key] || color.defaultHex) === 'dark').map(color => renderTextColorItem(color))}
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider pl-3">Text over light</span>
+                            <div className="space-y-1">
+                              {textColors.filter((color: any) => getTextPreviewContext((profile.themePalette as any)?.[color.key] || color.defaultHex) === 'light').map(color => renderTextColorItem(color))}
+                            </div>
                           </div>
                         </div>
 
