@@ -1560,6 +1560,9 @@ Answer the user's message directly and concisely.
 User Message: ${message}
 `;
 
+    addDebugLog(`[FrontDesk] Dispatching prompt to model: "gemini-3.5-flash-lite".`);
+    addDebugLog(`[FrontDesk-Prompt] User Prompt:\n${prompt}`);
+
     const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash-lite",
@@ -1572,6 +1575,7 @@ User Message: ${message}
     });
 
     const reply = response.text || "";
+    addDebugLog(`[FrontDesk-Response] ${reply}`);
     
     // Parse updatedProfile if any
     let updatedProfile = null;

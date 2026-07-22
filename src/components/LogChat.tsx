@@ -1707,7 +1707,7 @@ ${logsText}`);
       if (isAgent('front_desk')) {
         bodyData.profile = bodyData.userProfile;
         bodyData.biomarkers = biomarkers;
-        bodyData.biomarkerHistory = biomarkerHistory;
+        bodyData.biomarkerHistory = activeHistory.slice(-40);
         bodyData.foodLogs = (foodLogs || []).map(f => ({ name: f.name, date: f.date, nutrients: f.nutrients }));
       }
       if (compareOnly) {
