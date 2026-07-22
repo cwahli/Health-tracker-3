@@ -43,7 +43,7 @@ const ALL_AGENT_DEFS: AgentDef[] = [
   },
   {
     id: 'health_baseline',
-    name: 'Health Baseline Agent',
+    name: 'Health Coach',
     test: (l) => l.includes('agenttype: health_baseline') || l.includes('agenttype:health_baseline') || l.includes('health baseline') || l.includes('[health_baseline]')
   },
   {

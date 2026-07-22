@@ -1,7 +1,11 @@
 const fs = require('fs');
 let code = fs.readFileSync('src/App.tsx', 'utf-8');
 
-const dynamicStylesEnd = `
+const replacement = `
+  colorCss += \`
+    }
+  \`;
+
   if (profile.themeOverrides && Array.isArray(profile.themeOverrides)) {
     profile.themeOverrides.forEach(override => {
       colorCss += \`
@@ -11,12 +15,7 @@ const dynamicStylesEnd = `
       \`;
     });
   }
-
-  colorCss += \`
-    }
-  \`;
 `;
 
-code = code.replace(/  colorCss \+= \`\n    \}\n  \`;/s, dynamicStylesEnd);
-
+code = code.replace(/  if \(profile\.themeOverrides.*?\}\n  \`;/s, replacement);
 fs.writeFileSync('src/App.tsx', code);

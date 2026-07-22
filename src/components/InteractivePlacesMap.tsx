@@ -28,9 +28,9 @@ const createCustomIcon = (color: string) => {
   });
 };
 
-const defaultIcon = createCustomIcon('#6366f1'); // Indigo 500
-const activeIcon = createCustomIcon('#f59e0b'); // Amber 500
-const userIcon = createCustomIcon('#3b82f6'); // Blue 500
+const defaultIcon = createCustomIcon('var(--color-indigo-500)'); // Indigo 500
+const activeIcon = createCustomIcon('var(--color-amber-500)'); // Amber 500
+const userIcon = createCustomIcon('var(--color-indigo-500)'); // Blue 500
 
 interface InteractivePlacesMapProps {
   ideas: FoodIdea[];

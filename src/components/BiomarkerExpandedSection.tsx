@@ -338,11 +338,11 @@ export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> =
                 <YAxis domain={['auto', 'auto']} hide />
                 <Tooltip 
                   contentStyle={{ borderRadius: '8px', fontSize: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  labelStyle={{ fontWeight: 'bold', color: '#64748b' }}
+                  labelStyle={{ fontWeight: 'bold', color: 'var(--color-slate-500)' }}
                 />
-                {normalMax !== undefined && <ReferenceLine y={normalMax} stroke="#f87171" strokeDasharray="3 3" />}
-                {normalMin !== undefined && <ReferenceLine y={normalMin} stroke="#f87171" strokeDasharray="3 3" />}
-                <Line type="monotone" dataKey="value" stroke="#4f46e5" strokeWidth={2} dot={{ r: 4, fill: '#4f46e5' }} />
+                {normalMax !== undefined && <ReferenceLine y={normalMax} stroke="var(--color-rose-500)" strokeDasharray="3 3" />}
+                {normalMin !== undefined && <ReferenceLine y={normalMin} stroke="var(--color-rose-500)" strokeDasharray="3 3" />}
+                <Line type="monotone" dataKey="value" stroke="var(--color-indigo-600)" strokeWidth={2} dot={{ r: 4, fill: 'var(--color-indigo-600)' }} />
               </LineChart>
             </ResponsiveContainer>
           </div>

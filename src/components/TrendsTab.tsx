@@ -247,15 +247,15 @@ export default function TrendsTab({
       if (report?.dailyNutrientTargets && (report.dailyNutrientTargets as any)[selectedMetric]) {
         t = parseTarget((report.dailyNutrientTargets as any)[selectedMetric], 0);
       }
-      return { label: nutDef.labels[profile.language] || nutDef.labels.en, unit: nutDef.unit, color: '#6366f1', target: t || 100 };
+      return { label: nutDef.labels[profile.language] || nutDef.labels.en, unit: nutDef.unit, color: 'var(--color-indigo-500)', target: t || 100 };
     }
     
     return {
-      ldl: { label: 'LDL Cholesterol', unit: 'mg/dL', color: '#f59e0b', target: 100 },
-      hba1c: { label: 'HbA1c Blood Glucose', unit: '%', color: '#8b5cf6', target: 5.7 },
-      egfr: { label: 'eGFR Kidney Filtration', unit: 'mL/min', color: '#ec4899', target: 90 },
-      steps: { label: 'Daily Steps', unit: 'steps', color: '#10b981', target: report?.dailyNutrientTargets?.steps ? parseTarget(report.dailyNutrientTargets.steps, 3000) : 3000 },
-    }[selectedMetric] || { label: 'Metric', unit: '', color: '#6366f1', target: 0 };
+      ldl: { label: 'LDL Cholesterol', unit: 'mg/dL', color: 'var(--color-amber-500)', target: 100 },
+      hba1c: { label: 'HbA1c Blood Glucose', unit: '%', color: 'var(--color-indigo-500)', target: 5.7 },
+      egfr: { label: 'eGFR Kidney Filtration', unit: 'mL/min', color: 'var(--color-rose-500)', target: 90 },
+      steps: { label: 'Daily Steps', unit: 'steps', color: 'var(--color-emerald-500)', target: report?.dailyNutrientTargets?.steps ? parseTarget(report.dailyNutrientTargets.steps, 3000) : 3000 },
+    }[selectedMetric] || { label: 'Metric', unit: '', color: 'var(--color-indigo-500)', target: 0 };
   };
   const metricMeta = getMetricMeta();
 
@@ -602,7 +602,7 @@ export default function TrendsTab({
                     setSelectedDate(null);
                   }
                 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="var(--color-slate-200)" />
                   {chartData.length > 0 && (() => {
                     // Find the last index where a value has been entered (i.e. value > 0)
                     let lastActiveIndex = -1;
@@ -617,37 +617,37 @@ export default function TrendsTab({
                     return (
                       <ReferenceLine 
                         y={avg} 
-                        stroke="#94a3b8" 
+                        stroke="var(--color-slate-500)" 
                         strokeDasharray="3 3" 
-                        label={{ position: 'insideTopLeft', value: `Avg: ${avg.toFixed(1)}`, fill: '#94a3b8', fontSize: 10 }}
+                        label={{ position: 'insideTopLeft', value: `Avg: ${avg.toFixed(1)}`, fill: 'var(--color-slate-500)', fontSize: 10 }}
                       />
                     );
                   })()}
                   <XAxis 
                     dataKey="date" 
-                    stroke="#94a3b8" 
+                    stroke="var(--color-slate-500)" 
                     fontSize={9}
                     tickLine={false}
                     tickFormatter={formatTimelineDate}
                   />
                   <YAxis 
-                    stroke="#94a3b8" 
+                    stroke="var(--color-slate-500)" 
                     fontSize={9}
                     tickLine={false}
                     axisLine={false}
                     domain={[0, (dataMax: number) => Math.max(dataMax, metricMeta.target * 1.2)]}
                   />
                   <Tooltip 
-                    contentStyle={{ background: '#0f172a', border: 'none', borderRadius: '12px', color: '#fff', fontSize: '11px' }}
+                    contentStyle={{ background: 'var(--color-slate-900)', border: 'none', borderRadius: '12px', color: 'var(--color-slate-50)', fontSize: '11px' }}
                     labelStyle={{ fontWeight: 'bold' }}
                     labelFormatter={formatTimelineDate}
                   />
                   {/* Target reference boundary guideline line */}
                   <ReferenceLine 
                     y={metricMeta.target} 
-                    stroke="#6366f1" 
+                    stroke="var(--color-indigo-500)" 
                     strokeDasharray="4 4" 
-                    label={{ value: 'Target', fill: '#6366f1', fontSize: 9, position: 'top' }} 
+                    label={{ value: 'Target', fill: 'var(--color-indigo-500)', fontSize: 9, position: 'top' }} 
                   />
                   <Line 
                     type="monotone" 
@@ -684,8 +684,8 @@ export default function TrendsTab({
                             cx={cx} 
                             cy={cy} 
                             r={isSelected ? 6 : 4} 
-                            fill={isSelected ? '#ffffff' : metricMeta.color} 
-                            stroke={isSelected ? metricMeta.color : '#ffffff'} 
+                            fill={isSelected ? 'var(--color-slate-50)' : metricMeta.color} 
+                            stroke={isSelected ? metricMeta.color : 'var(--color-slate-50)'} 
                             strokeWidth={isSelected ? 2.5 : 1.5} 
                           />
                         </g>
@@ -727,7 +727,7 @@ export default function TrendsTab({
               } else {
                   const excess = dateTotalPercent - 100;
                   const cappedExcess = Math.min(excess, 100);
-                  datePieGradient = `conic-gradient(#ef4444 ${cappedExcess}%, currentColor ${cappedExcess}% 100%)`;
+                  datePieGradient = `conic-gradient(var(--color-rose-500) ${cappedExcess}%, currentColor ${cappedExcess}% 100%)`;
               }
               
               const chronoFoods = [...dayFoods].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime() || a.id.localeCompare(b.id));
@@ -770,10 +770,10 @@ export default function TrendsTab({
                       if (endsAt <= targetVal) {
                         pieGradient = `conic-gradient(currentColor ${normalPercent}%, transparent ${normalPercent}%)`;
                       } else if (startsAt >= targetVal) {
-                        pieGradient = `conic-gradient(#ef4444 ${excessPercent}%, transparent ${excessPercent}%)`;
+                        pieGradient = `conic-gradient(var(--color-rose-500) ${excessPercent}%, transparent ${excessPercent}%)`;
                         textColorClass = 'text-rose-500';
                       } else {
-                        pieGradient = `conic-gradient(currentColor ${normalPercent}%, #ef4444 ${normalPercent}% ${normalPercent + excessPercent}%, transparent ${normalPercent + excessPercent}%)`;
+                        pieGradient = `conic-gradient(currentColor ${normalPercent}%, var(--color-rose-500) ${normalPercent}% ${normalPercent + excessPercent}%, transparent ${normalPercent + excessPercent}%)`;
                         textColorClass = 'text-rose-500';
                       }
                       

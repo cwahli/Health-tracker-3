@@ -7,6 +7,7 @@ export interface ThemeColor {
   description: string;
   defaultHex: string;
   tailwindVar: string;
+  category?: 'general' | 'text' | 'status' | 'nutrients';
 }
 
 export interface ThemeFont {
@@ -48,70 +49,168 @@ export const auditColors: ThemeColor[] = [
     label: 'Buttons & Highlights',
     description: 'Accent highlight coloring for primary buttons, interactions, and indicators',
     defaultHex: '#4f46e5',
-    tailwindVar: '--color-indigo-600'
+    tailwindVar: '--color-indigo-600',
+    category: 'general'
   },
   {
     key: 'background',
     label: 'App Background',
     description: 'Background tone applied to main container scrollpads and backdrops',
     defaultHex: '#f8fafc',
-    tailwindVar: '--color-slate-50'
+    tailwindVar: '--color-slate-50',
+    category: 'general'
   },
   {
     key: 'bgCard',
     label: 'Card & Containers',
     description: 'Inner backing applied to detail cards, panels, list cells, and dropdown elements',
     defaultHex: '#ffffff',
-    tailwindVar: '--color-white'
+    tailwindVar: '--color-white',
+    category: 'general'
   },
   {
     key: 'border',
     label: 'Borders & Dividers',
     description: 'Divider lines, card hairlines, and structural outline strokes',
     defaultHex: '#e2e8f0',
-    tailwindVar: '--color-slate-200'
-  },
-  {
-    key: 'text',
-    label: 'Primary Text',
-    description: 'Main readable text used in headers, labels, and primary sentences',
-    defaultHex: '#1e293b',
-    tailwindVar: '--color-slate-900'
-  },
-  {
-    key: 'textSecondary',
-    label: 'Secondary Text',
-    description: 'Supporting notes, timestamps, descriptions, and descriptive prompts',
-    defaultHex: '#64748b',
-    tailwindVar: '--color-slate-500'
-  },
-  {
-    key: 'warning',
-    label: 'Severe Warnings (Rose)',
-    description: 'Accents for critical clinical ranges, warnings, errors, and deleted labels',
-    defaultHex: '#f43f5e',
-    tailwindVar: '--color-rose-600'
-  },
-  {
-    key: 'caution',
-    label: 'Caution / Moderate (Amber)',
-    description: 'Accents for mildly out-of-range clinical measurements, attention state indicators, and offline warnings',
-    defaultHex: '#d97706',
-    tailwindVar: '--color-amber-600'
-  },
-  {
-    key: 'success',
-    label: 'Success Highlights (Green)',
-    description: 'Accents for healthy biomarkers, approved recommendations, completed logs, and synched states',
-    defaultHex: '#059669',
-    tailwindVar: '--color-emerald-600'
+    tailwindVar: '--color-slate-200',
+    category: 'general'
   },
   {
     key: 'neutralSetting',
     label: 'Neutral Settings',
     description: 'Controls, non-primary badges, toggles, and metadata parameters',
     defaultHex: '#334155',
-    tailwindVar: '--color-slate-700'
+    tailwindVar: '--color-slate-700',
+    category: 'general'
+  },
+  {
+    key: 'text',
+    label: 'Primary Text',
+    description: 'Main readable text used in headers, labels, and primary sentences',
+    defaultHex: '#1e293b',
+    tailwindVar: '--color-slate-900',
+    category: 'text'
+  },
+  {
+    key: 'textSecondary',
+    label: 'Secondary Text',
+    description: 'Supporting notes, timestamps, descriptions, and descriptive prompts',
+    defaultHex: '#64748b',
+    tailwindVar: '--color-slate-500',
+    category: 'text'
+  },
+  {
+    key: 'textAccent',
+    label: 'Accent Highlight Text',
+    description: 'Text color used for highlights, links, or accented typographic elements',
+    defaultHex: '#4f46e5',
+    tailwindVar: '--color-indigo-600',
+    category: 'text'
+  },
+  {
+    key: 'textMuted',
+    label: 'Muted Hint Text',
+    description: 'Lighter text for placeholder labels, disabled headers, and secondary details',
+    defaultHex: '#94a3b8',
+    tailwindVar: '--color-slate-400',
+    category: 'text'
+  },
+  {
+    key: 'textSuccess',
+    label: 'Success Text',
+    description: 'Text color indicating positive health accomplishments, completed targets, or normal lab levels',
+    defaultHex: '#16a34a',
+    tailwindVar: '--color-green-600',
+    category: 'text'
+  },
+  {
+    key: 'textError',
+    label: 'Critical Alert Text',
+    description: 'Text color signaling critical risks, high-level biomarker warnings, or urgent actions',
+    defaultHex: '#dc2626',
+    tailwindVar: '--color-red-600',
+    category: 'text'
+  },
+  {
+    key: 'warning',
+    label: 'Severe Warnings (Rose)',
+    description: 'Accents for critical clinical ranges, warnings, errors, and deleted labels',
+    defaultHex: '#f43f5e',
+    tailwindVar: '--color-rose-600',
+    category: 'status'
+  },
+  {
+    key: 'caution',
+    label: 'Caution / Moderate (Amber)',
+    description: 'Accents for mildly out-of-range clinical measurements, attention state indicators, and offline warnings',
+    defaultHex: '#b45309',
+    tailwindVar: '--color-amber-600',
+    category: 'status'
+  },
+  {
+    key: 'success',
+    label: 'Success Highlights (Green)',
+    description: 'Accents for healthy biomarkers, approved recommendations, completed logs, and synched states',
+    defaultHex: '#047857',
+    tailwindVar: '--color-emerald-600',
+    category: 'status'
+  },
+  {
+    key: 'info',
+    label: 'Information (Blue)',
+    description: 'Accents for informational messages, secondary actions, and tooltips',
+    defaultHex: '#3b82f6',
+    tailwindVar: '--color-blue-500',
+    category: 'status'
+  },
+  {
+    key: 'nutrientCalories',
+    label: 'Nutrient: Calories',
+    description: 'Target color for Calories',
+    defaultHex: '#f97316',
+    tailwindVar: '--color-nutrient-calories',
+    category: 'nutrients'
+  },
+  {
+    key: 'nutrientProtein',
+    label: 'Nutrient: Protein',
+    description: 'Target color for Protein',
+    defaultHex: '#3b82f6',
+    tailwindVar: '--color-nutrient-protein',
+    category: 'nutrients'
+  },
+  {
+    key: 'nutrientCarbs',
+    label: 'Nutrient: Carbs',
+    description: 'Target color for Carbohydrates',
+    defaultHex: '#06b6d4',
+    tailwindVar: '--color-nutrient-carbohydrates',
+    category: 'nutrients'
+  },
+  {
+    key: 'nutrientFat',
+    label: 'Nutrient: Fat',
+    description: 'Target color for Total Fat',
+    defaultHex: '#a855f7',
+    tailwindVar: '--color-nutrient-totalFat',
+    category: 'nutrients'
+  },
+  {
+    key: 'nutrientSatFat',
+    label: 'Nutrient: Sat. Fat',
+    description: 'Target color for Saturated Fat',
+    defaultHex: '#eab308',
+    tailwindVar: '--color-nutrient-saturatedFat',
+    category: 'nutrients'
+  },
+  {
+    key: 'nutrientSodium',
+    label: 'Nutrient: Sodium',
+    description: 'Target color for Sodium',
+    defaultHex: '#22c55e',
+    tailwindVar: '--color-nutrient-sodium',
+    category: 'nutrients'
   }
 ];
 

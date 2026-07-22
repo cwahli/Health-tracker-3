@@ -453,10 +453,10 @@ export default function FoodHistoryTab({
 
       {/* Manual Entry Form Dialog (Modal) */}
       {isManualEntryOpen && (
-        <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 animation-fade-in">
-          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl max-h-[90vh] overflow-y-auto flex flex-col shadow-2xl border border-slate-200 dark:border-slate-800">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex flex-col p-0 animation-fade-in font-sans">
+          <div className="w-full h-full bg-white dark:bg-slate-900 flex flex-col shadow-2xl overflow-hidden">
             {/* Modal Header */}
-            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3 sticky top-0 bg-white dark:bg-slate-900 z-10">
+            <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col gap-3 sticky top-0 bg-white dark:bg-slate-900 z-10 shrink-0">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-lg bg-indigo-500/10 flex items-center justify-center text-indigo-600">
@@ -481,7 +481,7 @@ export default function FoodHistoryTab({
             </div>
 
             {/* Modal Body */}
-            <div className="p-5 space-y-4 text-left">
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 text-left">
               <div className="grid grid-cols-3 gap-3">
                 <div>
                   <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1">Food Name *</label>

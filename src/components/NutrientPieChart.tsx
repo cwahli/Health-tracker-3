@@ -54,7 +54,7 @@ export const NutrientPieChart: React.FC<NutrientPieChartProps> = ({
       // consumedColor from pctExcess to pctC
       // highlightColor from pctC to 100% (the meal filling the rest of the allowance)
       pieGradient = `conic-gradient(
-        #ef4444 0% ${pctExcess}%,
+        var(--color-rose-500) 0% ${pctExcess}%,
         ${consumedColor} ${pctExcess}% ${pctC}%,
         ${highlightColor} ${pctC}% 100%
       )`;
@@ -64,7 +64,7 @@ export const NutrientPieChart: React.FC<NutrientPieChartProps> = ({
       // We show the meal's excess in Red, and the rest as consumedColor.
       const pctExcess = Math.min(pctM, 100);
       pieGradient = `conic-gradient(
-        #ef4444 0% ${pctExcess}%,
+        var(--color-rose-500) 0% ${pctExcess}%,
         ${consumedColor} ${pctExcess}% 100%
       )`;
     }

@@ -113,6 +113,82 @@ const getSessionId = (): string => {
   return id;
 };
 
+
+const sizeMap: Record<string, string> = {
+  tiny: '12px',
+  small: '14px',
+  normal: '16px',
+  large: '18px',
+  xl: '20px',
+  xxl: '24px',
+  '3xl': '30px',
+  '4xl': '36px'
+};
+
+function CustomFontSelect({ 
+  value, 
+  options, 
+  onChange, 
+  isFamily = false 
+}: { 
+  value: string; 
+  options: {value: string, label: string}[]; 
+  onChange: (val: string) => void;
+  isFamily?: boolean;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
+  
+  return (
+    <>
+      <button 
+        ref={buttonRef}
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl px-2 py-1.5 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer text-center relative flex justify-between items-center"
+      >
+        <span className="flex-1 text-center" style={{ fontFamily: isFamily ? value : undefined, fontSize: !isFamily ? sizeMap[value] : undefined }}>
+           {isFamily ? value : (options.find(o => o.value === value)?.label.replace(' (', ' - ').replace(')', '') || value)}
+        </span>
+        <span className="text-[8px] opacity-50 ml-2">▼</span>
+      </button>
+      
+      {isOpen && buttonRef.current && createPortal(
+        <>
+          <div id="font-select-overlay" className="fixed inset-0 z-[150]" onClick={(e) => { e.stopPropagation(); setIsOpen(false); }} />
+          <div id="font-select-portal" 
+            className="fixed z-[160] bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl overflow-y-auto"
+            style={{
+              top: (buttonRef.current.getBoundingClientRect().bottom + 200 > window.innerHeight) ? undefined : buttonRef.current.getBoundingClientRect().bottom + 4,
+              bottom: (buttonRef.current.getBoundingClientRect().bottom + 200 > window.innerHeight) ? window.innerHeight - buttonRef.current.getBoundingClientRect().top + 4 : undefined,
+              left: buttonRef.current.getBoundingClientRect().left,
+              width: buttonRef.current.getBoundingClientRect().width,
+              maxHeight: '200px'
+            }}
+          >
+            {options.map(opt => (
+              <div 
+                key={opt.value}
+                onClick={() => {
+                  onChange(opt.value);
+                  setIsOpen(false);
+                }}
+                style={{
+                  fontFamily: isFamily ? opt.value : undefined,
+                  fontSize: !isFamily ? sizeMap[opt.value] : undefined,
+                }}
+                className={`px-3 py-2 cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-700 ${value === opt.value ? 'bg-indigo-50 dark:bg-indigo-900/20 text-indigo-600 dark:text-indigo-400 font-bold' : 'text-slate-700 dark:text-slate-300'}`}
+              >
+                {isFamily ? opt.label : opt.label.replace(' (', ' - ').replace(')', '')}
+              </div>
+            ))}
+          </div>
+        </>,
+        document.body
+      )}
+    </>
+  );
+}
 export default function Header({
   profile,
   setProfile,
@@ -144,7 +220,12 @@ export default function Header({
   const [showThemeScreen, setShowThemeScreen] = useState(false);
   const [themePreviewMode, setThemePreviewMode] = useState(false);
   const [themeCompactMode, setThemeCompactMode] = useState(false);
+  
   const [themeActiveSection, setThemeActiveSection] = useState<'colors' | 'fonts' | 'tokens' | 'components' | 'elements' | 'presets'>('colors');
+  const [expandedColorKey, setExpandedColorKey] = useState<string | null>(null);
+  const [inspectedElement, setInspectedElement] = useState<any>(null);
+  const [inspectorProperty, setInspectorProperty] = useState('color');
+  const [inspectorVariable, setInspectorVariable] = useState('');
   const [showDbInteractionsOverlay, setShowDbInteractionsOverlay] = useState(false);
   const [dbOverlayViewMode, setDbOverlayViewMode] = useState<'admin' | 'user'>(() => {
     if (profile?.email?.toLowerCase().trim() !== 'cwah.liu@gmail.com') return 'user';
@@ -174,6 +255,185 @@ export default function Header({
     if (onChangeAutoSyncDisabled) {
       onChangeAutoSyncDisabled(disabled);
     }
+  };
+
+  
+  useEffect(() => {
+    if (!themePreviewMode) {
+      setInspectedElement(null);
+      return;
+    }
+    const handler = (e: MouseEvent) => {
+      if ((e.target as Element).closest('#theme-customizer-screen') || (e.target as Element).closest('#font-select-portal') || (e.target as Element).closest('#font-select-overlay')) {
+        setInspectedElement(null);
+        return;
+      }
+      if ((e.target as Element).closest('#inspector-popup')) return;
+      e.preventDefault();
+      e.stopPropagation();
+      
+      const el = e.target as HTMLElement;
+      let selector = el.tagName.toLowerCase();
+      if (el.id) {
+        selector = '#' + el.id;
+      } else if (el.className && typeof el.className === 'string') {
+        const cls = el.className.split(' ').map(c => c.trim()).filter(c => c && !c.includes(':') && !c.includes('/') && !c.includes('[') && !c.includes('!')).join('.');
+        if (cls) selector += '.' + cls;
+      }
+      
+      setInspectedElement({
+        selector,
+        rect: el.getBoundingClientRect(),
+        text: el.innerText ? el.innerText.substring(0, 20) : 'Element'
+      });
+    };
+    document.addEventListener('click', handler, true);
+    return () => document.removeEventListener('click', handler, true);
+  }, [themePreviewMode]);
+
+  // Handle saving overrides
+  const saveOverride = () => {
+    if (!inspectedElement || !inspectorVariable) return;
+    const existingOverrides = profile.themeOverrides || [];
+    const filteredOverrides = existingOverrides.filter(
+      (o: any) => !(o.selector === inspectedElement.selector && o.property === inspectorProperty)
+    );
+    const newOverrides = [...filteredOverrides, {
+      selector: inspectedElement.selector,
+      property: inspectorProperty,
+      variable: inspectorVariable
+    }];
+    setProfile({ ...profile, themeOverrides: newOverrides });
+    setInspectedElement(null);
+  };
+
+  // Dynamic color/font registry helpers
+  const handleRenameColor = (key: string, newLabel: string) => {
+    const currentList = [...(profile.customColors || auditColors)];
+    const updatedList = currentList.map((c: any) => c.key === key ? { ...c, label: newLabel } : c);
+    setProfile({ ...profile, customColors: updatedList });
+  };
+
+  const handleDeleteColor = (key: string) => {
+    const currentList = [...(profile.customColors || auditColors)];
+    const updatedList = currentList.filter((c: any) => c.key !== key);
+    // Also remove from themePalette if present
+    const nextPalette = { ...(profile.themePalette || {}) };
+    delete (nextPalette as any)[key];
+    setProfile({ ...profile, customColors: updatedList, themePalette: nextPalette });
+  };
+
+  const handleAddColor = (category: 'general' | 'text' | 'status' | 'nutrients') => {
+    const currentList = [...(profile.customColors || auditColors)];
+    const newKey = `custom_${Date.now()}`;
+    const newColor = {
+      key: newKey,
+      label: 'New ' + (category === 'general' ? 'General' : category === 'text' ? 'Text' : category === 'status' ? 'Status' : 'Nutrients') + ' Color',
+      description: 'Custom added color variable',
+      defaultHex: '#3b82f6',
+      tailwindVar: '',
+      category: category
+    };
+    const updatedList = [...currentList, newColor];
+    const nextPalette = { ...(profile.themePalette || {}) };
+    (nextPalette as any)[newKey] = '#3b82f6'; // set default color value
+    setProfile({ ...profile, customColors: updatedList, themePalette: nextPalette });
+  };
+
+  const handleRenameFont = (key: string, newLabel: string) => {
+    const currentList = [...(profile.customFonts || auditFonts)];
+    const updatedList = currentList.map((f: any) => f.key === key ? { ...f, label: newLabel } : f);
+    setProfile({ ...profile, customFonts: updatedList });
+  };
+
+  const getThemeVariableChangesCount = () => {
+    let count = profile.themeOverrides?.length || 0;
+    
+    // Track customized values in themePalette compared to defaults
+    if (profile.themePalette) {
+      Object.entries(profile.themePalette).forEach(([key, val]) => {
+        const defaultColor = auditColors.find((c: any) => c.key === key);
+        if (defaultColor && val && defaultColor.defaultHex !== val) {
+          count++;
+        }
+      });
+    }
+
+    const currentColors = profile.customColors || auditColors;
+    currentColors.forEach((color: any) => {
+      const defaultColor = auditColors.find((c: any) => c.key === color.key);
+      if (defaultColor) {
+        if (defaultColor.label !== color.label) {
+          count++;
+        }
+      } else {
+        count++; // New color added
+      }
+    });
+
+    // Also count any deleted default colors
+    auditColors.forEach((dc: any) => {
+      const stillExists = currentColors.some((c: any) => c.key === dc.key);
+      if (!stillExists) {
+        count++;
+      }
+    });
+
+    const currentFonts = profile.customFonts || auditFonts;
+    currentFonts.forEach((font: any) => {
+      const defaultFont = auditFonts.find((f: any) => f.key === font.key);
+      if (defaultFont) {
+        if (defaultFont.label !== font.label) {
+          count++;
+        }
+      } else {
+        count++; // New font added
+      }
+    });
+
+    return count;
+  };
+
+  const colorsList = profile.customColors || auditColors;
+  const fontsList = profile.customFonts || auditFonts;
+
+  const getColorVariable = (key: string) => {
+    const map: Record<string, string> = {
+      button: '--color-indigo-500',
+      background: '--color-slate-50',
+      bgCard: '--color-white',
+      border: '--color-slate-200',
+      text: '--color-slate-900',
+      textSecondary: '--color-slate-500',
+      textAccent: '--color-text-accent',
+      textMuted: '--color-text-muted',
+      warning: '--color-rose-500',
+      caution: '--color-amber-500',
+      success: '--color-emerald-500',
+      info: '--color-blue-500',
+      neutralSetting: '--color-slate-700',
+      nutrientCalories: '--color-nutrient-calories',
+      nutrientProtein: '--color-nutrient-protein',
+      nutrientCarbs: '--color-nutrient-carbohydrates',
+      nutrientFat: '--color-nutrient-totalFat',
+      nutrientSatFat: '--color-nutrient-saturatedFat',
+      nutrientSodium: '--color-nutrient-sodium'
+    };
+    return map[key] || `--color-${key}`;
+  };
+
+  const getFontVariable = (key: string) => {
+    const map: Record<string, string> = {
+      fontSize: '--font-size',
+      fontSizeTitle: '--font-size-title',
+      fontSizeSubtitle: '--font-size-subtitle',
+      fontSizeSubtitleSmall: '--font-size-subtitle-small',
+      fontSizeBody: '--font-size-body',
+      fontSizeBodySmall: '--font-size-body-small',
+      fontSizeKeyMetric: '--font-size-key-metric',
+      fontSizeXS: '--font-size-xs'
+    };
+    return map[key] || `--font-size-${key.toLowerCase()}`;
   };
 
   useEffect(() => {
@@ -868,13 +1128,103 @@ export default function Header({
   ), document.body)}
 
       {/* Dedicated full-screen or elegant modal Theme Customizer Screen */}
-      {showThemeScreen && createPortal((
-        <div id="theme-customizer-screen" className={`fixed inset-0 z-[60] p-4 pointer-events-none ${themePreviewMode ? 'flex lg:items-center items-start lg:justify-start justify-center' : 'overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center'}`}>
-          <div className={`bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col animation-fade-in text-slate-800 dark:text-slate-100 pointer-events-auto ${themePreviewMode ? 'lg:ml-4 mt-4 lg:mt-0' : ''} ${themeCompactMode ? 'max-h-[250px]' : 'max-h-[90vh]'}`}>
+      
+      {/* Inspector Popup */}
+      {themePreviewMode && inspectedElement && createPortal((
+        <div id="inspector-popup" className="fixed z-[100] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-4 flex flex-col gap-3 w-64" style={{ top: Math.min(window.innerHeight - 250, inspectedElement.rect.bottom + 10), left: Math.min(window.innerWidth - 270, Math.max(10, inspectedElement.rect.left)) }}>
+          <div className="flex justify-between items-center">
+            <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate flex-1">{inspectedElement.selector}</h4>
+            <button onClick={() => setInspectedElement(null)} className="text-slate-400 hover:text-slate-600 ml-2">✕</button>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase">Property</label>
+            <select value={inspectorProperty} onChange={e => setInspectorProperty(e.target.value)} className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-slate-900 dark:text-slate-100">
+              <option value="color">Text Color (color)</option>
+              <option value="background-color">Background Color</option>
+              <option value="border-color">Border Color</option>
+              <option value="font-family">Font Family</option>
+              <option value="font-size">Font Size</option>
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="text-[10px] font-bold text-slate-500 uppercase">Variable</label>
+            <select value={inspectorVariable} onChange={e => setInspectorVariable(e.target.value)} className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-slate-900 dark:text-slate-100">
+              <option value="">Select variable...</option>
+              {inspectorProperty.includes('color') ? (
+                <>
+                  {colorsList.map((color: any) => (
+                    <option key={color.key} value={`var(${getColorVariable(color.key)})`}>
+                      {color.label}
+                    </option>
+                  ))}
+                </>
+              ) : inspectorProperty === 'font-size' ? (
+                <>
+                  {fontsList.map((font: any) => (
+                    <option key={font.key} value={`var(${getFontVariable(font.key)})`}>
+                      {font.label}
+                    </option>
+                  ))}
+                </>
+              ) : (
+                <>
+                  <option value="var(--font-sans)">Sans Font</option>
+                  <option value="var(--font-mono)">Mono Font</option>
+                  <option value="var(--font-display)">Display Font</option>
+                </>
+              )}
+            </select>
+          </div>
+          <button onClick={saveOverride} className="w-full py-1.5 mt-1 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold">Assign Variable</button>
+        </div>
+      ), document.body)}
+
+{showThemeScreen && createPortal((
+        <>
+        {themePreviewMode && (
+          <style>{`
+            #root {
+              transform: translateX(0); /* containing block */
+              transition: all 0.3s ease;
+            }
+            @media (min-width: 800px) {
+              #root {
+                width: 50vw !important;
+                margin-left: 50vw !important;
+              }
+            }
+            @media (max-width: 799px) {
+              #root {
+                margin-top: ${themeCompactMode ? '200px' : '50vh'} !important;
+              }
+            }
+          `}</style>
+        )}
+        <div id="theme-customizer-screen" className={`fixed inset-0 z-[60] pointer-events-none ${themePreviewMode ? '' : 'p-4 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center'}`}>
+          <div className={`bg-white dark:bg-slate-900 shadow-2xl flex flex-col animation-fade-in text-slate-800 dark:text-slate-100 pointer-events-auto transition-all duration-300 ${themePreviewMode ? "border-r border-slate-200 dark:border-slate-800" : "border border-slate-200 dark:border-slate-800"}
+            ${themePreviewMode 
+              ? (themeCompactMode 
+                 ? 'fixed top-0 left-0 w-full h-[200px] rounded-b-2xl shadow-xl z-[70] overflow-hidden' 
+                 : 'fixed top-0 left-0 w-full min-[800px]:w-1/2 h-[50vh] min-[800px]:h-[100vh] rounded-b-3xl min-[800px]:rounded-none shadow-2xl z-[70] overflow-hidden')
+              : 'relative w-full max-w-lg max-h-[90vh] rounded-3xl shadow-2xl m-auto overflow-hidden'}
+          `}>
+            {themeCompactMode && (
+              <button
+                onClick={() => setThemeCompactMode(false)}
+                className="absolute top-4 right-4 p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-full shadow-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 z-[80]"
+                title="Expand"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+              </button>
+            )}
+            
             {/* Header */}
-            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            {!themeCompactMode && (
+            <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
               <div className="flex items-center gap-3 w-full sm:w-auto">
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 hidden sm:block">Theme & Accent Settings</h2>
+                {!themePreviewMode && (
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 hidden sm:block">Theme & Accent Settings</h2>
+                )}
                 {themePreviewMode && (
                   <select
                     value={themeActiveSection}
@@ -911,13 +1261,15 @@ export default function Header({
                   }}
                   className={`px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer border ${themePreviewMode ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-300' : 'bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
                 >
-                  {themePreviewMode ? 'Exit Preview' : 'Preview'}
+                  {themePreviewMode ? 'Exit Edit Mode' : 'Edit Mode'}
                 </button>
                 <button
                   onClick={() => {
                     if (onSaveProfile) {
                       onSaveProfile(profile);
                     }
+                    setThemePreviewMode(false);
+                    setInspectedElement(null);
                     setShowThemeScreen(false);
                   }}
                   className="px-4 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer"
@@ -925,24 +1277,29 @@ export default function Header({
                   {t.save}
                 </button>
                 <button
-                  onClick={() => setShowThemeScreen(false)}
+                  onClick={() => {
+                    setThemePreviewMode(false);
+                    setInspectedElement(null);
+                    setShowThemeScreen(false);
+                  }}
                   className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
                 >
                   ✕
                 </button>
               </div>
             </div>
+            )}
 
             {/* Dynamic Section Dropdown Selector */}
-            {!themePreviewMode && (
+            {!themePreviewMode && !themeCompactMode && (
               <div className="px-6 py-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-shrink-0 text-left">
                 <select
                   value={themeActiveSection}
                   onChange={(e) => setThemeActiveSection(e.target.value as any)}
                   className="text-sm font-semibold bg-white border border-slate-250 dark:border-slate-700 rounded-full px-4 py-2 text-slate-900 focus:outline-none cursor-pointer shadow-sm w-full sm:w-auto"
                 >
-                  <option value="colors">🎨 Colours ({auditColors.length} Items)</option>
-                  <option value="fonts">🔤 Font ({auditFonts.length} Sizes)</option>
+                  <option value="colors">🎨 Colours ({colorsList.length} Items)</option>
+                  <option value="fonts">🔤 Font ({fontsList.length} Sizes)</option>
                   <option value="tokens">📐 Design Token ({auditDesignTokens.length} Factors)</option>
                   <option value="components">📦 Components (4 Audited)</option>
                   <option value="elements">🔗 Elements (9 Audited)</option>
@@ -952,115 +1309,378 @@ export default function Header({
             )}
 
             {/* Content scroll area */}
-            <div className="p-6 overflow-y-auto space-y-6 text-left flex-1">
+            <div className={`p-6 overflow-y-auto space-y-6 text-left flex-1 ${themeCompactMode ? 'pt-14' : ''}`}>
               
               {/* COLORS SECTION */}
               {themeActiveSection === 'colors' && (
                 <div className="space-y-4">
-                  {/* Theme Reset Button */}
-                  <div className="flex justify-end items-center px-4 py-2">
-                    <button
-                      type="button"
-                      onClick={() => setProfile({
-                        ...profile,
-                        marginScale: undefined,
-                        paddingScale: undefined,
-                        cornerRadius: undefined,
-                        shadowScale: undefined,
-                        themePalette: undefined,
-                        fontSize: undefined,
-                        fontFamily: undefined,
-                        fontMono: undefined,
-                        fontSizeTitle: undefined,
-                        fontSizeSubtitle: undefined,
-                        fontSizeDescription: undefined,
-                        fontSizeBodySmall: undefined,
-                        fontSizeSubtitleSmall: undefined,
-                        fontSizeKeyMetric: undefined,
-                        fontSizeXS: undefined,
-                        fontSizeBody: undefined
-                      })}
-                      className="px-4 py-2 bg-slate-150 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold cursor-pointer transition-all shadow-sm shrink-0"
-                    >
-                      Reset Theme
-                    </button>
-                  </div>
+                  {(() => {
+                    const generalColors = colorsList.filter((c: any) => c.category === 'general' || ['button', 'background', 'bgCard', 'border', 'neutralSetting'].includes(c.key));
+                    const textColors = colorsList.filter((c: any) => c.category === 'text' || ['text', 'textSecondary', 'textAccent', 'textMuted'].includes(c.key));
+                    const statusColors = colorsList.filter((c: any) => c.category === 'status' || ['warning', 'caution', 'success', 'info'].includes(c.key));
+                    const nutrientColors = colorsList.filter((c: any) => c.category === 'nutrients' || ['nutrientCalories', 'nutrientProtein', 'nutrientCarbs', 'nutrientFat', 'nutrientSatFat', 'nutrientSodium'].includes(c.key));
 
-                  {/* Editable Color Pickers */}
-                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                    {auditColors.map((color) => {
+                    const renderColorItem = (color: any) => {
                       const activeVal = (profile.themePalette as any)?.[color.key] || color.defaultHex;
+                      const isExpanded = expandedColorKey === color.key;
+                      
                       return (
-                        <div key={color.key} className="flex flex-col items-center justify-center p-3 rounded-2xl gap-2 text-center shadow-sm">
-                          <span className="text-[11px] font-bold text-slate-800 dark:text-slate-100 min-h-[32px] flex items-center justify-center leading-tight">{color.label}</span>
-                          <input
-                            type="color"
-                            value={activeVal.startsWith('#') && activeVal.length === 7 ? activeVal : color.defaultHex}
-                            onChange={(e) => {
-                              const nextPalette = { ...(profile.themePalette || {}) };
-                              (nextPalette as any)[color.key] = e.target.value;
-                              if (color.key === 'background') {
-                                nextPalette.bgApp = e.target.value;
-                              }
-                              setProfile({ ...profile, themePalette: nextPalette });
-                            }}
-                            className="w-10 h-10 rounded-lg cursor-pointer overflow-hidden bg-transparent border border-slate-250 dark:border-slate-750 shrink-0"
-                            style={{ padding: 0, border: 'none' }}
-                          />
+                        <div key={color.key} className="transition-all duration-200">
+                          {/* Main Row */}
+                          <div 
+                            onClick={() => setExpandedColorKey(isExpanded ? null : color.key)}
+                            className="flex items-center justify-between py-2 px-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded-xl cursor-pointer transition-all group"
+                          >
+                            <div className="flex items-center min-w-0 flex-1">
+                              {/* Swatch */}
+                              <div 
+                                className="w-5 h-5 rounded-full shadow-inner shrink-0" 
+                                style={{ backgroundColor: activeVal }}
+                              />
+                              <div className="ml-3 min-w-0">
+                                <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block truncate">
+                                  {color.label}
+                                </span>
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 block truncate">
+                                  {color.description || 'Color variable'}
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-2 ml-2 shrink-0">
+                              {isExpanded && (
+                                <span className="text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">Editing</span>
+                              )}
+                              {color.key.startsWith('custom_') && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteColor(color.key);
+                                  }}
+                                  className="text-slate-400 hover:text-rose-500 transition-all p-1 text-xs font-bold cursor-pointer"
+                                  title="Delete color variable"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Expanded Editor State */}
+                          {isExpanded && (
+                            <div className="mt-1 ml-8 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl space-y-3 shadow-inner text-left">
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Variable Name</label>
+                                <input
+                                  type="text"
+                                  value={color.label}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => handleRenameColor(color.key, e.target.value)}
+                                  className="text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none transition-all w-full"
+                                  placeholder="E.g. Primary Accent"
+                                />
+                              </div>
+
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Hex Colour</label>
+                                <div className="flex items-center gap-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg p-1.5 shadow-sm">
+                                  <input
+                                    type="color"
+                                    value={activeVal.startsWith('#') && (activeVal.length === 7 || activeVal.length === 4) ? activeVal : color.defaultHex}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => {
+                                      const nextPalette = { ...(profile.themePalette || {}) };
+                                      (nextPalette as any)[color.key] = e.target.value;
+                                      if (color.key === 'background') {
+                                        nextPalette.bgApp = e.target.value;
+                                      }
+                                      setProfile({ ...profile, themePalette: nextPalette });
+                                    }}
+                                    className="w-6 h-6 rounded cursor-pointer overflow-hidden border border-slate-200 dark:border-slate-800 shrink-0 bg-transparent"
+                                    style={{ padding: 0, border: 'none' }}
+                                  />
+                                  <input
+                                    type="text"
+                                    value={activeVal}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const nextPalette = { ...(profile.themePalette || {}) };
+                                      (nextPalette as any)[color.key] = val;
+                                      if (color.key === 'background') {
+                                        nextPalette.bgApp = val;
+                                      }
+                                      setProfile({ ...profile, themePalette: nextPalette });
+                                    }}
+                                    className="w-full text-xs font-mono bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none px-1"
+                                    placeholder="#FFFFFF"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
                         </div>
                       );
-                    })}
-                  </div>
+                    };
+
+                    const renderTextColorItem = (color: any) => {
+                      const activeVal = (profile.themePalette as any)?.[color.key] || color.defaultHex;
+                      const isExpanded = expandedColorKey === color.key;
+                      
+                      return (
+                        <div key={color.key} className="transition-all duration-200">
+                          {/* Main Row */}
+                          <div 
+                            onClick={() => setExpandedColorKey(isExpanded ? null : color.key)}
+                            className="flex flex-col sm:flex-row sm:items-center justify-between py-2 px-3 hover:bg-slate-50 dark:hover:bg-slate-800/30 rounded-xl cursor-pointer transition-all group gap-2"
+                          >
+                            <div className="flex items-center min-w-0 flex-1">
+                              {/* Swatch */}
+                              <div 
+                                className="w-5 h-5 rounded-full shadow-inner shrink-0" 
+                                style={{ backgroundColor: activeVal }}
+                              />
+                              <div className="ml-3 min-w-0">
+                                <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block truncate">
+                                  {color.label}
+                                </span>
+                                <span className="text-[10px] text-slate-400 dark:text-slate-500 block truncate">
+                                  {color.description || 'Text color variable'}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Direct text previews showing the color! */}
+                            <div className="flex items-center gap-1.5 ml-0 sm:ml-2 shrink-0">
+                              <div className="bg-white border border-slate-150 rounded-lg py-1 px-3 flex items-center justify-center shrink-0 shadow-sm" style={{ minWidth: '100px' }}>
+                                <span style={{ color: activeVal }} className="text-xs font-bold tracking-tight">
+                                  {color.label}
+                                </span>
+                              </div>
+
+                              <div className="bg-slate-900 rounded-lg py-1 px-3 flex items-center justify-center shrink-0 shadow-sm" style={{ minWidth: '100px' }}>
+                                <span style={{ color: activeVal }} className="text-xs font-bold tracking-tight">
+                                  {color.label}
+                                </span>
+                              </div>
+
+                              {color.key.startsWith('custom_') && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleDeleteColor(color.key);
+                                  }}
+                                  className="text-slate-400 hover:text-rose-500 transition-all p-1 text-xs font-bold cursor-pointer"
+                                  title="Delete color variable"
+                                >
+                                  ✕
+                                </button>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Expanded Editor State */}
+                          {isExpanded && (
+                            <div className="mt-1 ml-8 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl space-y-3 shadow-inner text-left">
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Variable Name</label>
+                                <input
+                                  type="text"
+                                  value={color.label}
+                                  onClick={(e) => e.stopPropagation()}
+                                  onChange={(e) => handleRenameColor(color.key, e.target.value)}
+                                  className="text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none transition-all w-full"
+                                  placeholder="E.g. Brand Heading"
+                                />
+                              </div>
+
+                              <div className="flex flex-col gap-1">
+                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Hex Colour</label>
+                                <div className="flex items-center gap-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg p-1.5 shadow-sm">
+                                  <input
+                                    type="color"
+                                    value={activeVal.startsWith('#') && (activeVal.length === 7 || activeVal.length === 4) ? activeVal : color.defaultHex}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => {
+                                      const nextPalette = { ...(profile.themePalette || {}) };
+                                      (nextPalette as any)[color.key] = e.target.value;
+                                      setProfile({ ...profile, themePalette: nextPalette });
+                                    }}
+                                    className="w-6 h-6 rounded cursor-pointer overflow-hidden border border-slate-200 dark:border-slate-850 shrink-0 bg-transparent"
+                                    style={{ padding: 0, border: 'none' }}
+                                  />
+                                  <input
+                                    type="text"
+                                    value={activeVal}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      const nextPalette = { ...(profile.themePalette || {}) };
+                                      (nextPalette as any)[color.key] = val;
+                                      setProfile({ ...profile, themePalette: nextPalette });
+                                    }}
+                                    className="w-full text-xs font-mono bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none px-1"
+                                    placeholder="#FFFFFF"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    };
+
+                    return (
+                      <div className="space-y-6">
+                        {/* 1. General Colours */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                            <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">General colours</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAddColor('general')}
+                              className="px-2 py-1 text-indigo-600 dark:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-lg text-xs font-bold cursor-pointer transition-all flex items-center gap-1"
+                            >
+                              <span>➕ Add Color</span>
+                            </button>
+                          </div>
+                          <div className="space-y-1">
+                            {generalColors.map(color => renderColorItem(color))}
+                          </div>
+                        </div>
+
+                        {/* 2. Text Colours */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                            <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Text colour</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAddColor('text')}
+                              className="px-2 py-1 text-indigo-600 dark:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-lg text-xs font-bold cursor-pointer transition-all flex items-center gap-1"
+                            >
+                              <span>➕ Add Color</span>
+                            </button>
+                          </div>
+                          <div className="space-y-1">
+                            {textColors.map(color => renderTextColorItem(color))}
+                          </div>
+                        </div>
+
+                        {/* 3. Status */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                            <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Status</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAddColor('status')}
+                              className="px-2 py-1 text-indigo-600 dark:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-lg text-xs font-bold cursor-pointer transition-all flex items-center gap-1"
+                            >
+                              <span>➕ Add Color</span>
+                            </button>
+                          </div>
+                          <div className="space-y-1">
+                            {statusColors.map(color => renderColorItem(color))}
+                          </div>
+                        </div>
+
+                        {/* 4. Nutrients & Targets */}
+                        <div className="space-y-2">
+                          <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                            <span className="text-[11px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Nutrients & Targets</span>
+                            <button
+                              type="button"
+                              onClick={() => handleAddColor('nutrients')}
+                              className="px-2 py-1 text-indigo-600 dark:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-850 rounded-lg text-xs font-bold cursor-pointer transition-all flex items-center gap-1"
+                            >
+                              <span>➕ Add Color</span>
+                            </button>
+                          </div>
+                          <div className="space-y-1">
+                            {nutrientColors.map(color => renderColorItem(color))}
+                          </div>
+                        </div>
+
+                        {/* Theme Action Buttons */}
+                        <div className="flex justify-end items-center px-4 py-2 mt-4 gap-3 border-t border-slate-100 dark:border-slate-800 pt-4">
+                          <button
+                            type="button"
+                            onClick={() => setProfile({
+                              ...profile,
+                              marginScale: undefined,
+                              paddingScale: undefined,
+                              cornerRadius: undefined,
+                              shadowScale: undefined,
+                              themePalette: undefined,
+                              customColors: undefined,
+                              customFonts: undefined,
+                              fontSize: undefined,
+                              fontFamily: undefined,
+                              fontMono: undefined,
+                              fontSizeTitle: undefined,
+                              fontSizeSubtitle: undefined,
+                              fontSizeDescription: undefined,
+                              fontSizeBodySmall: undefined,
+                              fontSizeSubtitleSmall: undefined,
+                              fontSizeKeyMetric: undefined,
+                              fontSizeXS: undefined,
+                              fontSizeBody: undefined
+                            })}
+                            className="px-4 py-2 bg-slate-150 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold cursor-pointer transition-all shadow-sm"
+                          >
+                            Reset Theme
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 
               {/* FONTS SECTION */}
               {themeActiveSection === 'fonts' && (
                 <div className="grid grid-cols-2 gap-3">
-                  {auditFonts.map((font) => {
+                  {fontsList.map((font: any) => {
                     const activeVal = (profile as any)[font.fontSizeKey] || 'normal';
                     return (
-                      <div key={font.key} className="p-3 rounded-2xl space-y-2 flex flex-col items-center justify-center">
-                        <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-100 text-center">{font.label}</span>
-                        <select
-                          value={activeVal}
-                          onChange={(e) => setProfile({ ...profile, [font.fontSizeKey]: e.target.value })}
-                          className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl px-2 py-1.5 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer text-center"
-                        >
-                          {font.options.map((opt) => (
-                            <option key={opt.value} value={opt.value}>{opt.label.split(' ')[0]}</option>
-                          ))}
-                        </select>
+                      <div key={font.key} className="relative group p-3 rounded-2xl flex flex-col items-center justify-center bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 shadow-sm gap-2 text-center">
+                        {/* Inline editable label */}
+                        <input
+                          type="text"
+                          value={font.label}
+                          onChange={(e) => handleRenameFont(font.key, e.target.value)}
+                          className="text-[11px] font-bold text-slate-800 dark:text-slate-100 w-full text-center bg-transparent border-b border-transparent hover:border-slate-300 dark:hover:border-slate-700 focus:border-indigo-500 focus:outline-none transition-all cursor-pointer truncate mb-1"
+                          title="Click to rename"
+                        />
+                        <CustomFontSelect value={activeVal} options={font.options} onChange={(val) => setProfile({ ...profile, [font.fontSizeKey]: val })} />
                       </div>
                     );
                   })}
 
-                  <div className="p-3 rounded-2xl space-y-2 flex flex-col items-center justify-center">
+                  <div className="p-3 rounded-2xl space-y-2 flex flex-col items-center justify-center bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 shadow-sm">
                     <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-100 text-center">Sans Font</span>
-                    <select
-                      value={profile.fontFamily || 'Inter'}
-                      onChange={(e) => setProfile({ ...profile, fontFamily: e.target.value })}
-                      className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl px-2 py-1.5 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer text-center"
-                    >
-                      <option value="Inter">Inter</option>
-                      <option value="Space Grotesk">Space Grotesk</option>
-                      <option value="Outfit">Outfit</option>
-                      <option value="Playfair Display">Playfair</option>
-                      <option value="Merriweather">Merriweather</option>
-                      <option value="system-ui">System UI</option>
-                    </select>
+                    <CustomFontSelect isFamily value={profile.fontFamily || 'Inter'} options={[
+                      {value: 'Inter', label: 'Inter'},
+                      {value: 'Space Grotesk', label: 'Space Grotesk'},
+                      {value: 'Outfit', label: 'Outfit'},
+                      {value: 'Playfair Display', label: 'Playfair Display'},
+                      {value: 'Merriweather', label: 'Merriweather'},
+                      {value: 'system-ui', label: 'System UI'},
+                      {value: 'Roboto', label: 'Roboto'},
+                      {value: 'Open Sans', label: 'Open Sans'},
+                      {value: 'Lato', label: 'Lato'},
+                      {value: 'Montserrat', label: 'Montserrat'},
+                      {value: 'Poppins', label: 'Poppins'}
+                    ]} onChange={(val) => setProfile({ ...profile, fontFamily: val })} />
                   </div>
 
-                  <div className="p-3 rounded-2xl space-y-2 flex flex-col items-center justify-center">
+                  <div className="p-3 rounded-2xl space-y-2 flex flex-col items-center justify-center bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 shadow-sm">
                     <span className="block text-[11px] font-bold text-slate-800 dark:text-slate-100 text-center">Mono Font</span>
-                    <select
-                      value={profile.fontMono || 'JetBrains Mono'}
-                      onChange={(e) => setProfile({ ...profile, fontMono: e.target.value })}
-                      className="w-full text-xs bg-white dark:bg-slate-900 border border-slate-250 dark:border-slate-700 rounded-xl px-2 py-1.5 text-slate-850 dark:text-slate-100 focus:outline-none cursor-pointer text-center"
-                    >
-                      <option value="JetBrains Mono">JetBrains Mono</option>
-                      <option value="Courier New">Courier New</option>
-                    </select>
+                    <CustomFontSelect isFamily value={profile.fontMono || 'JetBrains Mono'} options={[
+                      {value: 'JetBrains Mono', label: 'JetBrains Mono'},
+                      {value: 'Courier New', label: 'Courier New'}
+                    ]} onChange={(val) => setProfile({ ...profile, fontMono: val })} />
                   </div>
                 </div>
               )}
@@ -1166,15 +1786,49 @@ export default function Header({
                     </div>
                   </div>
 
-                  <div className="p-4 bg-slate-900 border-slate-800 rounded-3xl shadow-xl flex items-center justify-center h-24">
-                     <span className="text-white text-sm font-semibold tracking-wide">LogChat UI Placeholder</span>
+                  
+                  <div className="flex flex-col gap-3 p-4 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">LogChat Bubble</span>
+                    <div className="self-end bg-indigo-600 text-white px-4 py-2.5 rounded-2xl rounded-tr-sm text-sm shadow-sm max-w-[85%] font-medium">
+                      I had a grilled chicken salad and a glass of milk.
+                    </div>
+                    <div className="self-start bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 border border-slate-100 dark:border-slate-700 px-4 py-2.5 rounded-2xl rounded-tl-sm text-sm shadow-sm max-w-[85%] font-medium">
+                      I've logged 1 chicken salad and 1 glass of milk. (450 kcal)
+                    </div>
                   </div>
-                  <div className="p-4 rounded-3xl flex items-center justify-center h-24">
-                     <span className="text-slate-800 dark:text-slate-100 text-sm font-semibold">FoodCard Capsule</span>
+
+                  
+                  <div className="p-4 rounded-3xl border border-slate-200 dark:border-slate-800 flex flex-col gap-3 w-full">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">FoodCard Capsule</span>
+                    <div className="flex gap-3 p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl shadow-sm items-center w-full">
+                      <div className="w-12 h-12 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 rounded-xl flex items-center justify-center text-2xl shadow-inner shrink-0">
+                        🥗
+                      </div>
+                      <div className="flex flex-col flex-1">
+                        <span className="text-sm font-bold text-slate-800 dark:text-slate-100 leading-tight">Grilled Chicken Salad</span>
+                        <span className="text-xs text-slate-500 font-medium mt-0.5">350 kcal • 40g Protein</span>
+                      </div>
+                      <button className="text-slate-400 hover:text-rose-500 p-2 shrink-0">✕</button>
+                    </div>
                   </div>
-                  <div className="p-4 bg-slate-50 dark:bg-slate-800/20 border-t border-slate-200 dark:border-slate-800 flex items-center justify-center h-24">
-                     <span className="text-slate-800 dark:text-slate-200 text-sm font-semibold">Biomarker Expanded Section</span>
+
+                  
+                  <div className="p-4 bg-slate-50 dark:bg-slate-800/20 border border-slate-200 dark:border-slate-800 rounded-3xl flex flex-col gap-3 w-full">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Biomarker Expanded Section</span>
+                    <div className="p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800/50 rounded-xl w-full">
+                      <div className="flex items-center gap-1.5 mb-2 text-indigo-600 dark:text-indigo-400 font-bold text-xs uppercase tracking-wider">
+                        <span>Medical Insight</span>
+                      </div>
+                      <p className="text-slate-700 dark:text-slate-200 text-sm leading-relaxed font-medium">
+                        Your LDL cholesterol is within optimal range. Maintaining this level reduces cardiovascular risks.
+                      </p>
+                    </div>
+                    <div className="flex justify-between items-center bg-white dark:bg-slate-900 px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl shadow-sm w-full">
+                      <span className="text-xs font-bold text-slate-700 dark:text-slate-300">More Details</span>
+                      <span className="text-slate-400 text-xs">▼</span>
+                    </div>
                   </div>
+
                 </div>
               )}
 
@@ -1221,36 +1875,75 @@ export default function Header({
               {themeActiveSection === 'presets' && (
                 <div className="space-y-4">
                   <div className="p-4 rounded-2xl space-y-4">
-                    <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">Saved Presets</h4>
-                    <div className="grid grid-cols-1 gap-2">
-                      <div className="flex justify-between items-center bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
-                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">System Default</span>
-                        <button onClick={() => {
-                          setProfile({
-                            ...profile,
-                            marginScale: undefined,
-                            paddingScale: undefined,
-                            cornerRadius: undefined,
-                            shadowScale: undefined,
-                            themePalette: undefined,
-                            fontSize: undefined,
-                            fontFamily: undefined,
-                            fontMono: undefined,
-                            fontSizeTitle: undefined,
-                            fontSizeSubtitle: undefined,
-                            fontSizeDescription: undefined,
-                            fontSizeBodySmall: undefined,
-                            fontSizeSubtitleSmall: undefined,
-                            fontSizeKeyMetric: undefined,
-                            fontSizeXS: undefined,
-                            fontSizeBody: undefined
-                          });
-                        }} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-all">Apply Default</button>
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">Saved Presets</h4>
+                      <div className="flex gap-2">
+                        <label className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-all cursor-pointer">
+                          Import JSON
+                          <input type="file" accept=".json" className="hidden" onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const reader = new FileReader();
+                            reader.onload = (ev) => {
+                              try {
+                                const newPresets = JSON.parse(ev.target?.result as string);
+                                if (Array.isArray(newPresets)) {
+                                  setProfile({ ...profile, themePresets: [...(profile.themePresets || []), ...newPresets] });
+                                }
+                              } catch (e) {
+                                console.error('Failed to parse presets');
+                              }
+                            };
+                            reader.readAsText(file);
+                          }} />
+                        </label>
                       </div>
-                      {(profile.themePresets || []).map((preset: any, idx: number) => (
+                    </div>
+                    <div className="grid grid-cols-1 gap-2">
+                      {[
+                        { name: "System Default", isSystem: true, profileUpdate: { marginScale: undefined, paddingScale: undefined, cornerRadius: undefined, shadowScale: undefined, themePalette: undefined, fontSize: undefined, fontFamily: undefined, fontMono: undefined, fontSizeTitle: undefined, fontSizeSubtitle: undefined, fontSizeDescription: undefined, fontSizeBodySmall: undefined, fontSizeSubtitleSmall: undefined, fontSizeKeyMetric: undefined, fontSizeXS: undefined, fontSizeBody: undefined, themeOverrides: [] } },
+                        { name: "Midnight Blue (Dark)", isSystem: true, profileUpdate: { fontFamily: 'Space Grotesk', themePalette: { background: '#000000', bgCard: '#0f172a', button: '#2563eb', text: '#f8fafc', textSecondary: '#cbd5e1', border: '#1e293b' } } },
+                        { name: "Emerald Forest (Dark)", isSystem: true, profileUpdate: { fontFamily: 'Outfit', themePalette: { background: '#000000', bgCard: '#06231a', button: '#047857', text: '#ecfdf5', textSecondary: '#a7f3d0', border: '#0f3527' } } },
+                        { name: "Minimalist White (Light)", isSystem: true, profileUpdate: { fontFamily: 'Playfair Display', themePalette: { background: '#ffffff', bgCard: '#fafafa', button: '#18181b', text: '#09090b', textSecondary: '#52525b', border: '#e4e4e7' } } }
+                      ].map((preset, idx) => (
                         <div key={idx} className="flex justify-between items-center bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
                           <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{preset.name}</span>
-                          <div className="flex gap-2">
+                          <button onClick={() => {
+                            setProfile({ ...profile, ...preset.profileUpdate });
+                          }} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-all">Apply Default</button>
+                        </div>
+                      ))}
+                      {(profile.themePresets || []).map((preset, idx) => (
+                        <div key={'user'+idx} className="flex justify-between items-center bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm">
+                          <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex-1 truncate mr-2">{preset.name}</span>
+                          <div className="flex gap-2 shrink-0">
+                            <button title="Export" onClick={() => {
+                              const blob = new Blob([JSON.stringify([preset], null, 2)], { type: 'application/json' });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `${preset.name || 'theme'}_preset.json`;
+                              a.click();
+                            }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 rounded-lg transition-all">
+                              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                            </button>
+                            <button onClick={() => {
+                              const newPresets = [...(profile.themePresets || [])];
+                              newPresets[idx] = {
+                                ...preset,
+                                themePalette: profile.themePalette,
+                                fontSize: profile.fontSize,
+                                fontFamily: profile.fontFamily,
+                                fontMono: profile.fontMono,
+                                marginScale: profile.marginScale,
+                                paddingScale: profile.paddingScale,
+                                cornerRadius: profile.cornerRadius,
+                                shadowScale: profile.shadowScale,
+                                themeOverrides: profile.themeOverrides,
+                                customColors: profile.customColors
+                              };
+                              setProfile({ ...profile, themePresets: newPresets });
+                            }} className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-semibold border border-emerald-200 dark:border-emerald-800 transition-all">Update</button>
                             <button onClick={() => {
                               setProfile({
                                 ...profile,
@@ -1262,63 +1955,55 @@ export default function Header({
                                 paddingScale: preset.paddingScale,
                                 cornerRadius: preset.cornerRadius,
                                 shadowScale: preset.shadowScale,
-                                fontSizeTitle: preset.fontSizeTitle,
-                                fontSizeSubtitle: preset.fontSizeSubtitle,
-                                fontSizeDescription: preset.fontSizeDescription,
-                                fontSizeBodySmall: preset.fontSizeBodySmall,
-                                fontSizeSubtitleSmall: preset.fontSizeSubtitleSmall,
-                                fontSizeKeyMetric: preset.fontSizeKeyMetric,
-                                fontSizeXS: preset.fontSizeXS,
-                                fontSizeBody: preset.fontSizeBody
+                                themeOverrides: preset.themeOverrides,
+                                customColors: preset.customColors
                               });
                             }} className="px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:hover:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300 rounded-lg text-xs font-semibold border border-indigo-200 dark:border-indigo-800 transition-all">Apply</button>
                             <button onClick={() => {
                               const newPresets = [...(profile.themePresets || [])];
                               newPresets.splice(idx, 1);
                               setProfile({ ...profile, themePresets: newPresets });
-                            }} className="px-2 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 rounded-lg text-xs font-semibold border border-rose-200 dark:border-rose-800 transition-all">Delete</button>
+                            }} className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 rounded-lg text-xs font-semibold border border-rose-200 dark:border-rose-800 transition-all">Del</button>
                           </div>
                         </div>
                       ))}
                     </div>
-                    
-                    <div className="flex gap-2 pt-3 border-t border-slate-200 dark:border-slate-700 mt-4">
-                       <input id="preset-name" type="text" placeholder="New Preset Name" className="flex-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-2 text-xs focus:outline-none text-slate-800 dark:text-slate-100" />
-                       <button onClick={() => {
-                          const nameInput = document.getElementById('preset-name') as HTMLInputElement;
-                          if (!nameInput.value) return;
-                          const newPreset = {
-                            name: nameInput.value,
-                            themePalette: profile.themePalette,
-                            fontSize: profile.fontSize,
-                            fontFamily: profile.fontFamily,
-                            fontMono: profile.fontMono,
-                            marginScale: profile.marginScale,
-                            paddingScale: profile.paddingScale,
-                            cornerRadius: profile.cornerRadius,
-                            shadowScale: profile.shadowScale,
-                            fontSizeTitle: profile.fontSizeTitle,
-                            fontSizeSubtitle: profile.fontSizeSubtitle,
-                            fontSizeDescription: profile.fontSizeDescription,
-                            fontSizeBodySmall: profile.fontSizeBodySmall,
-                            fontSizeSubtitleSmall: profile.fontSizeSubtitleSmall,
-                            fontSizeKeyMetric: profile.fontSizeKeyMetric,
-                            fontSizeXS: profile.fontSizeXS,
-                            fontSizeBody: profile.fontSizeBody
-                          };
-                          setProfile({
-                            ...profile,
-                            themePresets: [...(profile.themePresets || []), newPreset]
-                          });
-                          nameInput.value = '';
-                       }} className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-semibold transition-all shrink-0 shadow-sm">Save Current</button>
+                  </div>
+
+                  <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-850 space-y-4">
+                    <div className="flex justify-between items-center">
+                      <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">Current Theme Status</h4>
+                      <span className="text-xs font-semibold text-slate-500 bg-slate-200 dark:bg-slate-800 px-2 py-1 rounded-md">
+                        {getThemeVariableChangesCount()} Variable Changes
+                      </span>
                     </div>
+                    <button onClick={() => {
+                      const name = prompt("Enter a name for this preset:");
+                      if (!name) return;
+                      const newPreset = {
+                        name,
+                        themePalette: profile.themePalette,
+                        fontSize: profile.fontSize,
+                        fontFamily: profile.fontFamily,
+                        fontMono: profile.fontMono,
+                        marginScale: profile.marginScale,
+                        paddingScale: profile.paddingScale,
+                        cornerRadius: profile.cornerRadius,
+                        shadowScale: profile.shadowScale,
+                        themeOverrides: profile.themeOverrides,
+                        customColors: profile.customColors
+                      };
+                      setProfile({ ...profile, themePresets: [...(profile.themePresets || []), newPreset] });
+                    }} className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all text-center cursor-pointer">
+                      Save Current Configuration as Preset
+                    </button>
                   </div>
                 </div>
               )}
             </div>
           </div>
         </div>
+        </>
       ), document.body)}
 
 

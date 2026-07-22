@@ -136,10 +136,10 @@ export const AGENT_REGISTRY: Record<AgentType, AgentConfig> = {
   health_baseline: {
     id: 'health_baseline',
     category: 'insights',
-    displayName: 'Health Baseline & Trajectory Agent',
-    description: 'Performs an in-depth health baseline analysis and models metabolic trajectory targets.',
+    displayName: 'Health Coach',
+    description: 'An evidence-based, pragmatic health coach to translate complex health science into sustainable habits.',
     capabilities: ['health_baseline_view'],
-    welcomeMessage: 'Hello! I am the Health Baseline & Trajectory Agent. I will analyze your historical biological markers, recent dietary patterns, and physiological parameters to map out your overall baseline health, identify risk trajectories, and outline a detailed timeline to optimal metabolic function.',
+    welcomeMessage: 'Hello! I am your Health Coach. I am here to help translate complex health and longevity science into sustainable, low-friction daily habits. Let us focus on food quality, portion awareness, and building realistic routines.',
     rolloutStatus: 'unified',
   }
 };

@@ -130,6 +130,7 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
       testName: t.testName || t.name || t.test || 'Diagnostic Test',
       category: t.category || (t.timeframe && /annual|2\s*year|5\s*year|long/i.test(t.timeframe) ? 'long_term' : 'short_term'),
       timeframe: t.timeframe || t.retestTimeframe || 'Within 3-6 months',
+      priority: t.priority || 'medium',
       reason: t.reason || t.description || '',
       targetCondition: t.targetCondition || t.target_condition || t.condition || ''
     }));
@@ -141,6 +142,7 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
           testName: t.testName || t.name || t.test || 'Diagnostic Test',
           category: t.category || (t.timeframe && /annual|2\s*year|5\s*year|long/i.test(t.timeframe) ? 'long_term' : 'short_term'),
           timeframe: t.timeframe || t.retestTimeframe || 'Within 3-6 months',
+          priority: t.priority || 'medium',
           reason: t.reason || t.description || '',
           targetCondition: t.targetCondition || t.target_condition || t.condition || ''
         }));

@@ -688,8 +688,51 @@ export const FoodCard: React.FC<AgentCardProps & {
   }, [msg.data, messages, confirmedScoutIndices]);
 
   const displayedScoutItems = React.useMemo(() => {
-    return activeScoutItems;
+    const itemsBreakdown = msg.data?.pendingFoodLog?.itemsBreakdown;
+    if (!itemsBreakdown || itemsBreakdown.length === 0) {
+      return activeScoutItems;
+    }
+    
+    // Map each item in itemsBreakdown to a scout item format
+    return itemsBreakdown.map((item: any, i: number) => {
+      // Find the best matching scout item in activeScoutItems to preserve bounding box and image index
+      const matchingScout = (activeScoutItems || []).find((s: any) => {
+        const sKey = (s.keyword || s.originalName || "").toLowerCase().trim();
+        const sName = (s.originalName || s.keyword || "").toLowerCase().trim();
+        const itemName = (item.canonicalDbName || item.name || "").toLowerCase().trim();
+        
+        return itemName.includes(sKey) || sKey.includes(itemName) ||
+               itemName.includes(sName) || sName.includes(itemName) ||
+               itemName.split(/\s+/)[0] === sKey.split(/\s+/)[0];
+      });
+      
+      return {
+        scoutIndex: matchingScout ? matchingScout.scoutIndex : i,
+        keyword: item.canonicalDbName || item.name,
+        originalName: item.canonicalDbName || item.name,
+        estimatedWeightGrams: item.weightGrams,
+        boundingBox2D: matchingScout ? matchingScout.boundingBox2D : null,
+        sourceImageIndex: matchingScout ? matchingScout.sourceImageIndex : null,
+        itemConfidence: matchingScout ? matchingScout.itemConfidence : "High (>90%)",
+        anomalyFlags: matchingScout ? matchingScout.anomalyFlags : [],
+        cookingMethod: item.cookingMethod || (matchingScout ? matchingScout.cookingMethod : null)
+      };
+    });
   }, [activeScoutItems, msg.data?.pendingFoodLog?.itemsBreakdown]);
+
+  const isAlreadyLogged = React.useMemo(() => {
+    if (!msg.data?.pendingFoodLog || !foodLogs) return false;
+    if ((loggedMessageIds || []).includes(msg.id)) return true;
+    
+    const pending = msg.data.pendingFoodLog;
+    return foodLogs.some((f: any) => {
+      const idMatch = f.id && pending.id && f.id === pending.id;
+      const nameMatch = f.name?.toLowerCase().trim() === pending.name?.toLowerCase().trim();
+      const compMatch = !pending.composition || !f.composition || f.composition?.toLowerCase().trim() === pending.composition?.toLowerCase().trim();
+      const calMatch = Math.abs((f.nutrients?.calories || 0) - (pending.nutrients?.calories || 0)) < 1;
+      return idMatch || (nameMatch && (compMatch || calMatch));
+    });
+  }, [msg.id, msg.data?.pendingFoodLog, loggedMessageIds, foodLogs]);
 
   // Selection hooks for Card-Wide Multi-Select
   const [_isSelectingMode, _setIsSelectingMode] = React.useState<boolean>(false);
@@ -1978,17 +2021,23 @@ export const FoodCard: React.FC<AgentCardProps & {
                                  </button>
                                 )}
                               </div>
-                              {msg.data?.pendingFoodLog?.scoutConfidenceRating && !msg.data.pendingFoodLog.scoutConfidenceRating.toLowerCase().includes('high') && (
-                                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                                  msg.data.pendingFoodLog.scoutConfidenceRating.toLowerCase().includes('low') 
-                                    ? 'bg-rose-50 text-rose-600 border border-rose-200/50 dark:bg-rose-950/20 dark:text-rose-400'
-                                    : 'bg-amber-50 text-amber-600 border border-amber-200/50 dark:bg-amber-950/20 dark:text-amber-400'
-                                }`}>
-                                  Confidence: {msg.data.pendingFoodLog.scoutConfidenceRating}
-                                </span>
-                              )}
-                            </div>
-                             <div className={displayAsMenu ? "flex flex-wrap gap-2 pt-1 font-sans" : "grid grid-cols-4 gap-2 pt-2 pb-3 w-full font-sans"}>
+                             {msg.data?.pendingFoodLog?.scoutConfidenceRating && !msg.data.pendingFoodLog.scoutConfidenceRating.toLowerCase().includes('high') && (
+                               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                                 msg.data.pendingFoodLog.scoutConfidenceRating.toLowerCase().includes('low') 
+                                   ? 'bg-rose-50 text-rose-600 border border-rose-200/50 dark:bg-rose-950/20 dark:text-rose-400'
+                                   : 'bg-amber-50 text-amber-600 border border-amber-200/50 dark:bg-amber-950/20 dark:text-amber-400'
+                               }`}>
+                                 Confidence: {msg.data.pendingFoodLog.scoutConfidenceRating}
+                               </span>
+                             )}
+                           </div>
+                             <div className={
+                               displayAsMenu 
+                                 ? "flex flex-wrap gap-2 pt-1 font-sans" 
+                                 : displayedScoutItems.length > 4
+                                   ? "flex overflow-x-auto gap-3 pt-2 pb-3 w-full font-sans scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800 scrollbar-track-transparent snap-x snap-mandatory"
+                                   : "grid grid-cols-4 gap-2 pt-2 pb-3 w-full font-sans"
+                             }>
                                {displayedScoutItems.map((item: any, i: number) => {
                                  if (displayAsMenu) {
                                    return (
@@ -2004,8 +2053,9 @@ export const FoodCard: React.FC<AgentCardProps & {
                                  const resolvedImgSrc = (messageImages.length > 0)
                                    ? messageImages[imgIdx >= 0 && imgIdx < messageImages.length ? imgIdx : 0]
                                    : getFoodImageUrl(item.keyword);
+                                 const isSlider = !displayAsMenu && displayedScoutItems.length > 4;
                                  return (
-                                   <div key={i} className="flex flex-col items-center gap-1 shrink-0 w-full relative group">
+                                   <div key={i} className={`flex flex-col items-center gap-1 shrink-0 relative group ${isSlider ? 'w-[90px] sm:w-[105px] snap-start' : 'w-full'}`}>
                                      <div className="relative w-full">
                                        <div 
                                          className={`w-full aspect-square rounded-xl overflow-hidden cursor-pointer hover:scale-105 active:scale-95 transition-all shadow-sm ${
@@ -2432,7 +2482,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                       )}
 
                       {/* Log Action Button */}
-                      {(loggedMessageIds || []).includes(msg.id) ? (
+                      {isAlreadyLogged ? (
                         <div className="w-full py-2 bg-emerald-50 dark:bg-emerald-950/20 text-emerald-600 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-900/50 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 animation-fade-in font-sans">
                           <Check className="w-4 h-4" />
                           Saved to History

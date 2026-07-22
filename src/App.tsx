@@ -16,7 +16,7 @@ import { translations } from './utils/translations';
 import { AVAILABLE_LLMS } from './utils/llm';
 import { PRIMARY_NUTRIENTS, isCoreNutrient, isAdditionalNutrient } from './utils/nutrients';
 import { getLocalFallbackReport } from './utils/fallbackReport';
-import { getDemoProfile, getDemoBiomarkerHistory, getDemoFoodLogs, getDemoReport } from './utils/demoData';
+import { getDemoProfile, getDemoBiomarkerHistory, getDemoFoodLogs, getDemoReport, DemoProfileType } from './utils/demoData';
 import { getAvailableCredits, deductAgentCredits } from './utils/creditManager';
 import { Plus, HeartHandshake, RefreshCw, Sparkles, Stethoscope, Utensils, Loader, CloudLightning, AlertTriangle } from 'lucide-react';
 import { auth, db } from './firebase';
@@ -104,6 +104,16 @@ const getDynamicStyles = (profile: any) => {
   const xsSize = profile.fontSizeXS ? sizeMap[profile.fontSizeXS as keyof typeof sizeMap] : '10px';
   const bodySize = profile.fontSizeBody ? sizeMap[profile.fontSizeBody as keyof typeof sizeMap] : '16px';
   fontSizeCss += `
+    :root {
+      --font-size-title: ${titleSize || '24px'} !important;
+      --font-size-subtitle: ${subtitleSize || '18px'} !important;
+      --font-size-subtitle-small: ${subtitleSmallSize} !important;
+      --font-size-body: ${bodySize} !important;
+      --font-size-body-small: ${smallSize || '12px'} !important;
+      --font-size-key-metric: ${keyMetricSize} !important;
+      --font-size-xs: ${xsSize} !important;
+    }
+
     .font-size-title { font-size: ${titleSize || '24px'} !important; }
     .font-size-subtitle { font-size: ${subtitleSize || '18px'} !important; }
     .font-size-subtitle-small { font-size: ${subtitleSmallSize} !important; }
@@ -206,15 +216,82 @@ const getDynamicStyles = (profile: any) => {
       --color-slate-400: ${p.textSecondary}aa !important;
     `;
   }
+  if (p.textAccent) {
+    colorCss += `
+      --color-text-accent: ${p.textAccent} !important;
+    `;
+  }
+  if (p.textMuted) {
+    colorCss += `
+      --color-text-muted: ${p.textMuted} !important;
+    `;
+  }
   if (p.neutralSetting) {
     colorCss += `
       --color-slate-700: ${p.neutralSetting} !important;
       --color-slate-300: ${p.neutralSetting}dd !important;
     `;
   }
+  if (p.info) {
+    colorCss += `
+      --color-blue-500: ${p.info} !important;
+    `;
+  }
+  if (p.nutrientCalories) {
+    colorCss += `
+      --color-nutrient-calories: ${p.nutrientCalories} !important;
+    `;
+  }
+  if (p.nutrientProtein) {
+    colorCss += `
+      --color-nutrient-protein: ${p.nutrientProtein} !important;
+    `;
+  }
+  if (p.nutrientCarbs) {
+    colorCss += `
+      --color-nutrient-carbohydrates: ${p.nutrientCarbs} !important;
+    `;
+  }
+  if (p.nutrientFat) {
+    colorCss += `
+      --color-nutrient-totalFat: ${p.nutrientFat} !important;
+    `;
+  }
+  if (p.nutrientSatFat) {
+    colorCss += `
+      --color-nutrient-saturatedFat: ${p.nutrientSatFat} !important;
+    `;
+  }
+  if (p.nutrientSodium) {
+    colorCss += `
+      --color-nutrient-sodium: ${p.nutrientSodium} !important;
+    `;
+  }
+
+  if (profile.customColors && Array.isArray(profile.customColors)) {
+    profile.customColors.forEach((color: any) => {
+      const activeVal = p[color.key] || color.defaultHex;
+      if (activeVal) {
+        colorCss += `      --color-${color.key}: ${activeVal} !important;\n`;
+      }
+    });
+  }
+
   colorCss += `
     }
   `;
+
+  if (profile.themeOverrides && Array.isArray(profile.themeOverrides)) {
+    profile.themeOverrides.forEach(override => {
+      colorCss += `
+        ${override.selector} {
+          ${override.property}: ${override.variable} !important;
+        }
+      `;
+    });
+  }
+
+
 
   // Spacing, Corner Radius, and Shadows Design Tokens
   const marginScale = profile?.marginScale || 'normal';
@@ -796,6 +873,13 @@ export default function App() {
 
   // Check of changes in profile and other info on the database (and pull latest changes)
   const checkForDbChanges = async (forceUserId?: string, forcePull?: boolean, forceReplaceLocal?: boolean) => {
+    const isDemoUser = auth.currentUser?.email?.toLowerCase().trim() === 'demo@healthcockpit.com';
+    if (isDemoUser) {
+      setSyncState('synced');
+      (window as any).isManualSyncExecuting = false;
+      return;
+    }
+
     (window as any).isManualSyncExecuting = true;
     sessionStorage.setItem('sessionSyncTriggered', 'true');
     const uid = forceUserId || auth.currentUser?.uid;
@@ -1979,11 +2063,18 @@ export default function App() {
 
           const isDemoUser = newEmail === 'demo@healthcockpit.com';
           if (isDemoUser && (!loadedProfile || loadedHistory.length === 0)) {
-            loadedProfile = getDemoProfile();
-            loadedFoods = getDemoFoodLogs();
-            loadedHistory = getDemoBiomarkerHistory();
-            loadedBiomarkers = { fasting_glucose: 91, hba1c: 5.3, total_cholesterol: 208, ldl: 132, hdl: 46, triglycerides: 155, egfr: 94, vitamin_d: 22, wbc: 6.2, hemoglobin: 14.6, bmi: 23.4 };
-            loadedReport = getDemoReport();
+            const demoType = (localStorage.getItem('demo_profile_type') || 'average') as DemoProfileType;
+            loadedProfile = getDemoProfile(demoType);
+            loadedFoods = getDemoFoodLogs(demoType);
+            loadedHistory = getDemoBiomarkerHistory(demoType);
+            if (demoType === 'empty') {
+              loadedBiomarkers = {};
+            } else if (demoType === 'complex') {
+              loadedBiomarkers = { fasting_glucose: 131, hba1c: 7.1, total_cholesterol: 228, ldl: 151, hdl: 38, triglycerides: 198, egfr: 64, vitamin_d: 19, wbc: 6.9, hemoglobin: 14.1, bmi: 30.2 };
+            } else {
+              loadedBiomarkers = { fasting_glucose: 91, hba1c: 5.3, total_cholesterol: 208, ldl: 132, hdl: 46, triglycerides: 155, egfr: 94, vitamin_d: 22, wbc: 6.2, hemoglobin: 14.6, bmi: 23.4 };
+            }
+            loadedReport = getDemoReport(demoType);
             loadedActions = loadedReport.actions || [];
             loadedBenefits = loadedReport.dailyBenefits || [];
           }
@@ -2042,7 +2133,7 @@ export default function App() {
           
           // A. One-Time Legacy Migration — only runs during an explicit manual sync session.
           // This prevents automatic Firestore reads on every page load.
-          if (loadedProfile && sessionStorage.getItem('sessionSyncTriggered') === 'true') {
+          if (loadedProfile && sessionStorage.getItem('sessionSyncTriggered') === 'true' && !isDemoUser) {
             if (!loadedProfile.metadata) loadedProfile.metadata = {};
             // If user already has food logs or profile locally, mark legacy migration as completed
             // so ancient legacy subcollections are NEVER scanned or re-injected on page reload.
@@ -2311,6 +2402,46 @@ export default function App() {
       console.warn("Failed to auto-restore images:", e);
     }
   }, [foodLogs.length]);
+  // Swapping out the current demo profile on the fly
+  const handleSwitchDemoProfile = async (type: DemoProfileType) => {
+    localStorage.setItem('demo_profile_type', type);
+    const newProfile = getDemoProfile(type);
+    const newFoods = getDemoFoodLogs(type);
+    const newHistory = getDemoBiomarkerHistory(type);
+    let newBiomarkers: { [key: string]: any } = {};
+    if (type === 'average') {
+      newBiomarkers = { fasting_glucose: 91, hba1c: 5.3, total_cholesterol: 208, ldl: 132, hdl: 46, triglycerides: 155, egfr: 94, vitamin_d: 22, wbc: 6.2, hemoglobin: 14.6, bmi: 23.4 };
+    } else if (type === 'complex') {
+      newBiomarkers = { fasting_glucose: 131, hba1c: 7.1, total_cholesterol: 228, ldl: 151, hdl: 38, triglycerides: 198, egfr: 64, vitamin_d: 19, wbc: 6.9, hemoglobin: 14.1, bmi: 30.2 };
+    }
+    const newReport = getDemoReport(type);
+    const newActions = newReport.actions || [];
+    const newBenefits = newReport.dailyBenefits || [];
+
+    setProfile(newProfile);
+    setFoodLogs(newFoods);
+    setBiomarkerHistory(newHistory);
+    setBiomarkers(newBiomarkers);
+    setReport(newReport);
+    setActions(newActions);
+    setDailyBenefits(newBenefits);
+
+    // Save locally
+    const bundle = {
+      profile: newProfile,
+      foodLogs: newFoods,
+      biomarkers: newBiomarkers,
+      biomarkerHistory: newHistory,
+      actions: newActions,
+      dailyBenefits: newBenefits,
+      report: newReport
+    };
+    safeSaveToLocalStorage(getStorageKey(newProfile.email), bundle);
+
+    // In sandbox demo mode, switching profiles is completely client-side.
+    // No Firestore writes are made to prevent conflicts on the shared demo account.
+  };
+
   // Save changes to local storage and sync to Server cloud database
   const saveAndSync = async (
     currProfile: UserProfile | null,
@@ -2414,7 +2545,8 @@ export default function App() {
       delete profileForCloud.agentAnalyses;
     }
 
-    if (!updatedProfile || !auth.currentUser) {
+    const isDemoUser = auth.currentUser?.email?.toLowerCase().trim() === 'demo@healthcockpit.com';
+    if (!updatedProfile || !auth.currentUser || isDemoUser) {
       setSyncState('local');
       return;
     }
@@ -4238,6 +4370,43 @@ export default function App() {
         autoSyncDisabled={autoSyncDisabled}
         onChangeAutoSyncDisabled={handleToggleAutoSyncDisabled}
       />
+      {profile?.userType === 'Demo' && (
+        <div className="bg-gradient-to-r from-slate-100 to-indigo-50/50 dark:from-slate-900/90 dark:to-indigo-950/20 border-b border-slate-200 dark:border-slate-800 py-2 px-4 flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left z-20 shadow-sm shrink-0">
+          <div className="flex flex-wrap items-center gap-2 justify-center md:justify-start">
+            <span className="inline-block px-2 py-0.5 text-[9px] font-bold text-indigo-600 bg-indigo-100/60 dark:text-indigo-400 dark:bg-indigo-950/40 rounded-full uppercase tracking-wider">
+              Demo Sandbox
+            </span>
+            <p className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              Active Profile: <span className="text-indigo-600 dark:text-indigo-400">{profile.nickname}</span> {profile.age ? `(${profile.age}-yo)` : '(Empty)'}
+            </p>
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-1.5">
+            <span className="text-[10px] text-slate-500 dark:text-slate-400 font-semibold">Switch Demo Profile:</span>
+            {[
+              { id: 'empty', label: '1. Initial Start (Empty)', desc: 'Completely empty sandbox account' },
+              { id: 'average', label: '2. Average Person (Standard)', desc: 'Alex (28-yo, lipids/vitamin D deficiency)' },
+              { id: 'complex', label: '3. 50-yo with Chronic Issues', desc: 'Arthur (52-yo, Type 2 diabetes & Hypertension)' }
+            ].map((d) => {
+              const currentDemoType = localStorage.getItem('demo_profile_type') || 'average';
+              const isActive = currentDemoType === d.id;
+              return (
+                <button
+                  key={d.id}
+                  onClick={() => handleSwitchDemoProfile(d.id as DemoProfileType)}
+                  title={d.desc}
+                  className={`px-3 py-1 text-[10px] font-semibold rounded-lg transition-all shadow-sm shrink-0 cursor-pointer ${
+                    isActive 
+                      ? 'bg-indigo-600 text-white font-bold scale-[1.02]' 
+                      : 'bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200'
+                  }`}
+                >
+                  {d.label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
       {syncState === 'conflict' && conflictData && (
         <div className="bg-indigo-600 text-white py-2 px-4 shadow-md transition-all duration-300 relative overflow-hidden flex flex-col md:flex-row items-center justify-between gap-3 text-center md:text-left z-20 border-b border-indigo-700/30">
           <div className="flex items-center gap-3">

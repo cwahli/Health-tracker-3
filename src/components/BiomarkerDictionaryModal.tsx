@@ -2244,8 +2244,8 @@ I can analyze these, compare them with our database keys, and find standard mapp
   };
 
   return (
-    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-4xl h-[85vh] flex flex-col overflow-hidden border border-slate-200 dark:border-slate-800">
+    <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-0">
+      <div className="bg-white dark:bg-slate-900 w-full h-full flex flex-col overflow-hidden">
         
         {/* MODAL HEADER */}
         <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
@@ -4814,6 +4814,12 @@ I can analyze these, compare them with our database keys, and find standard mapp
         isOpen={showDataAccuracyInstructions}
         onClose={() => setShowDataAccuracyInstructions(false)}
         agentType="data_accuracy"
+        profile={profile}
+      />
+      <FullScreenInstructionViewer
+        isOpen={showConsolidationInstructions}
+        onClose={() => setShowConsolidationInstructions(false)}
+        agentType="consolidate_names"
         profile={profile}
       />
 

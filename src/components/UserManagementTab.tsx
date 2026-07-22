@@ -202,7 +202,7 @@ export default function UserManagementTab() {
                 </span>
                 <div>
                   <label className="block text-[10px] text-slate-500 font-semibold mb-1">
-                    Gemini 3.1-Flash-Lite Call Cost
+                    Gemini 3.1 & 3.5 Flash Lite Call Cost
                   </label>
                   <input
                     type="number"
@@ -296,7 +296,7 @@ export default function UserManagementTab() {
                   Active Call Rates
                 </span>
                 <p className="font-semibold text-slate-700 dark:text-slate-300">
-                  ⚡ 3.1-Flash-Lite: <span className="text-indigo-600 font-bold font-mono">{adminSettings.flashLiteCost} credit</span>
+                  ⚡ 3.1 & 3.5 Flash Lite: <span className="text-indigo-600 font-bold font-mono">{adminSettings.flashLiteCost} credit</span>
                 </p>
                 <p className="font-semibold text-slate-700 dark:text-slate-300">
                   🎯 Other Agents: <span className="text-indigo-600 font-bold font-mono">{adminSettings.standardCost} credits</span>

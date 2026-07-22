@@ -83,8 +83,8 @@ export default function ConflictResolutionModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-fade-in overflow-y-auto">
-      <div className="bg-white dark:bg-slate-900 rounded-2xl w-full max-w-4xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh] my-8 overflow-hidden">
+    <div className="fixed inset-0 z-50 flex flex-col p-0 bg-slate-950/80 backdrop-blur-md animate-fade-in font-sans">
+      <div className="bg-white dark:bg-slate-900 w-full h-full shadow-2xl flex flex-col overflow-hidden">
         
         {/* Header */}
         <div className="px-6 py-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-200 dark:border-slate-800 flex items-center justify-between">
@@ -110,7 +110,7 @@ export default function ConflictResolutionModal({
         </div>
 
         {/* Content Container (Scrollable) */}
-        <div className="p-6 overflow-y-auto space-y-8 max-h-[calc(90vh-140px)]">
+        <div className="flex-1 overflow-y-auto p-6 space-y-8">
           
           {/* Biomarkers Section */}
           <div className="space-y-4">

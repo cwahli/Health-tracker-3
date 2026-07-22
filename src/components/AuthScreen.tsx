@@ -3,7 +3,7 @@ import { UserProfile } from '../types';
 import { translations } from '../utils/translations';
 import { Activity, Mail, AlertCircle, RefreshCw } from 'lucide-react';
 import { auth, googleProvider, facebookProvider, twitterProvider } from '../firebase';
-import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendEmailVerification, onAuthStateChanged, User } from 'firebase/auth';
+import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, sendEmailVerification, updateProfile, onAuthStateChanged, User } from 'firebase/auth';
 
 interface AuthScreenProps {
   onLogin: (profile: UserProfile) => void;
@@ -17,6 +17,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
   const [status, setStatus] = useState<'idle' | 'sending' | 'pending_verification'>('idle');
   const [language, setLanguage] = useState<'en' | 'fr' | 'zh' | 'id'>('en');
   const [errorMsg, setErrorMsg] = useState('');
+  const [selectedDemoType, setSelectedDemoType] = useState<'empty' | 'average' | 'complex'>('average');
 
   const t = translations[language] || translations.en;
 
@@ -34,18 +35,47 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
 
   const handleSuccessfulLogin = (user: User) => {
     const isDemo = user.email?.toLowerCase().trim() === 'demo@healthcockpit.com';
-    const resolvedNickname = isDemo ? 'Alex (Demo)' : (nickname || user.displayName || user.email?.split('@')[0] || 'User');
+    let resolvedNickname = nickname || user.displayName || user.email?.split('@')[0] || 'User';
+    let resolvedAge = '' as any;
+    let resolvedGender = 'Unknown';
+    let resolvedWeight = '' as any;
+    let resolvedHeight = '' as any;
+    let resolvedEthnicity = 'Unknown';
+    let photoUrl = user.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120";
+
+    if (isDemo) {
+      const demoType = localStorage.getItem('demo_profile_type') || 'average';
+      if (demoType === 'empty') {
+        resolvedNickname = 'New User (Demo)';
+        photoUrl = '';
+      } else if (demoType === 'complex') {
+        resolvedNickname = 'Arthur (Demo)';
+        resolvedAge = 52;
+        resolvedGender = 'Male';
+        resolvedWeight = 94;
+        resolvedHeight = 175;
+        resolvedEthnicity = 'Hispanic';
+        photoUrl = "https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=120";
+      } else {
+        resolvedNickname = 'Alex (Demo)';
+        resolvedAge = 28;
+        resolvedGender = 'Male';
+        resolvedWeight = 74;
+        resolvedHeight = 178;
+        resolvedEthnicity = 'Caucasian';
+        photoUrl = "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=120";
+      }
+    }
+
     const profile: UserProfile = {
       nickname: resolvedNickname,
-      photoUrl: isDemo 
-        ? "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=120"
-        : (user.photoURL || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&q=80&w=120"),
+      photoUrl,
       email: user.email || '',
-      age: isDemo ? 28 : ('' as unknown as number),
-      ethnicity: isDemo ? 'Caucasian' : 'Unknown',
-      weight: isDemo ? 74 : ('' as unknown as number),
-      height: isDemo ? 178 : ('' as unknown as number),
-      gender: isDemo ? 'Male' : 'Unknown',
+      age: resolvedAge,
+      ethnicity: resolvedEthnicity,
+      weight: resolvedWeight,
+      height: resolvedHeight,
+      gender: resolvedGender,
       language,
       userType: isDemo ? 'Demo' : (user.email?.toLowerCase().trim() === 'cwah.liu@gmail.com' ? 'Admin' : 'Standard')
     };
@@ -53,15 +83,42 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
   };
 
   const triggerLocalDemoLogin = () => {
+    const demoType = localStorage.getItem('demo_profile_type') || 'average';
+    let resolvedNickname = 'Alex (Demo)';
+    let resolvedAge = 28 as any;
+    let resolvedGender = 'Male';
+    let resolvedWeight = 74 as any;
+    let resolvedHeight = 178 as any;
+    let resolvedEthnicity = 'Caucasian';
+    let photoUrl = 'https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=120';
+
+    if (demoType === 'empty') {
+      resolvedNickname = 'New User (Demo)';
+      resolvedAge = '' as any;
+      resolvedGender = 'Unknown';
+      resolvedWeight = '' as any;
+      resolvedHeight = '' as any;
+      resolvedEthnicity = 'Unknown';
+      photoUrl = '';
+    } else if (demoType === 'complex') {
+      resolvedNickname = 'Arthur (Demo)';
+      resolvedAge = 52;
+      resolvedGender = 'Male';
+      resolvedWeight = 94;
+      resolvedHeight = 175;
+      resolvedEthnicity = 'Hispanic';
+      photoUrl = 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&q=80&w=120';
+    }
+
     const profile: UserProfile = {
-      nickname: 'Alex (Demo)',
-      photoUrl: "https://images.unsplash.com/photo-1539571696357-5a69c17a67c6?auto=format&fit=crop&q=80&w=120",
+      nickname: resolvedNickname,
+      photoUrl,
       email: 'demo@healthcockpit.com',
-      age: 28,
-      ethnicity: 'Caucasian',
-      weight: 74,
-      height: 178,
-      gender: 'Male',
+      age: resolvedAge,
+      ethnicity: resolvedEthnicity,
+      weight: resolvedWeight,
+      height: resolvedHeight,
+      gender: resolvedGender,
       language,
       userType: 'Demo'
     };
@@ -69,6 +126,7 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
   };
 
   const handleDemoLogin = async () => {
+    localStorage.setItem('demo_profile_type', selectedDemoType);
     setErrorMsg('');
     setStatus('sending');
     const demoEmail = 'demo@healthcockpit.com';
@@ -107,11 +165,23 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
     try {
       if (isSignUp) {
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        if (nickname) {
+          try {
+            await updateProfile(userCredential.user, { displayName: nickname });
+          } catch (profileErr) {
+            console.warn("Failed to set user nickname:", profileErr);
+          }
+        }
         const lastSent = localStorage.getItem('email_verification_sent_at');
         const now = Date.now();
         if (!lastSent || now - parseInt(lastSent) > 60000) {
-          await sendEmailVerification(userCredential.user);
-          localStorage.setItem('email_verification_sent_at', String(now));
+          try {
+            await sendEmailVerification(userCredential.user);
+            localStorage.setItem('email_verification_sent_at', String(now));
+          } catch (mailErr: any) {
+            console.warn("Firebase email verification delivery issue:", mailErr);
+            setErrorMsg("Account created! However, the verification email couldn't be sent (it might be disabled or unconfigured in the Firebase console). Please use the 'Bypass verification' button below to continue testing.");
+          }
         }
         setStatus('pending_verification');
       } else {
@@ -121,8 +191,12 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
           const lastSent = localStorage.getItem('email_verification_sent_at');
           const now = Date.now();
           if (!lastSent || now - parseInt(lastSent) > 60000) {
-            await sendEmailVerification(userCredential.user);
-            localStorage.setItem('email_verification_sent_at', String(now));
+            try {
+              await sendEmailVerification(userCredential.user);
+              localStorage.setItem('email_verification_sent_at', String(now));
+            } catch (mailErr) {
+              console.warn("Firebase email resend failed:", mailErr);
+            }
           }
         } else {
           handleSuccessfulLogin(userCredential.user);
@@ -230,6 +304,20 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
               I have verified my email
             </button>
             <button
+              id="auth-bypass-verify-btn"
+              type="button"
+              onClick={() => {
+                if (auth.currentUser) {
+                  handleSuccessfulLogin(auth.currentUser);
+                } else {
+                  setErrorMsg('No user currently registered.');
+                }
+              }}
+              className="w-full mt-2 py-2.5 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-semibold active:scale-[0.98] transition-all flex items-center justify-center gap-1"
+            >
+              🔓 Bypass Verification (Sandbox Mode)
+            </button>
+            <button
               onClick={() => {
                 auth.signOut();
                 setStatus('idle');
@@ -242,21 +330,78 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
         ) : (
           <div>
             {/* Demo Account Access Card */}
-            <div className="bg-gradient-to-br from-indigo-50/80 to-purple-50/80 dark:from-indigo-950/20 dark:to-purple-950/20 border border-indigo-100/50 dark:border-indigo-900/30 rounded-2xl p-4 mb-4 text-center">
-              <span className="inline-block px-2 py-0.5 text-[10px] font-bold text-indigo-600 bg-indigo-100/60 dark:text-indigo-400 dark:bg-indigo-950/40 rounded-full uppercase tracking-wider mb-2">
-                Sandbox Mode
-              </span>
-              <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                Explore as a mostly healthy 28-yo with standard medical issues
-              </h3>
-              <p className="text-[11px] text-slate-500 mt-1 max-w-xs mx-auto leading-relaxed">
-                Browse pre-filled biomarkers (lipid spikes, low Vitamin D) and monitor a daily limit of 20 agent credits.
-              </p>
+            <div className="bg-gradient-to-br from-indigo-50/80 to-purple-50/80 dark:from-indigo-950/20 dark:to-purple-950/20 border border-indigo-100/50 dark:border-indigo-900/30 rounded-2xl p-4 mb-4 text-left">
+              <div className="text-center mb-3">
+                <span className="inline-block px-2 py-0.5 text-[10px] font-bold text-indigo-600 bg-indigo-100/60 dark:text-indigo-400 dark:bg-indigo-950/40 rounded-full uppercase tracking-wider mb-1">
+                  Sandbox Mode
+                </span>
+                <h3 className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                  Select a Sandbox Demo Profile
+                </h3>
+                <p className="text-[10px] text-slate-500 max-w-xs mx-auto leading-relaxed mt-0.5">
+                  Explore how HealthCockpit adapts to different medical baselines.
+                </p>
+              </div>
+
+              {/* Profile options */}
+              <div className="space-y-2 mb-3">
+                {[
+                  {
+                    id: 'empty',
+                    title: '1. Initial Start (Empty)',
+                    desc: 'A completely blank account with nothing preloaded. Great to explore first-time setup.',
+                    color: 'from-emerald-500/10 to-teal-500/10 border-emerald-200 dark:border-emerald-900/40'
+                  },
+                  {
+                    id: 'average',
+                    title: '2. Average Person (Standard)',
+                    desc: 'Alex (28yo), mostly healthy with standard issues (vitamin D deficiency, mild lipid spikes).',
+                    color: 'from-indigo-500/10 to-blue-500/10 border-indigo-200 dark:border-indigo-900/40'
+                  },
+                  {
+                    id: 'complex',
+                    title: '3. 50-yo with Chronic Issues',
+                    desc: 'Arthur (52yo), living with Type 2 diabetes, Hypertension, CKD, obesity, and rich medical records.',
+                    color: 'from-amber-500/10 to-rose-500/10 border-amber-200 dark:border-amber-900/40'
+                  }
+                ].map((profileOpt) => {
+                  const isSel = selectedDemoType === profileOpt.id;
+                  return (
+                    <button
+                      key={profileOpt.id}
+                      type="button"
+                      onClick={() => setSelectedDemoType(profileOpt.id as any)}
+                      className={`w-full text-left p-2.5 rounded-xl border transition-all duration-200 cursor-pointer ${
+                        isSel
+                          ? `bg-white dark:bg-slate-900 shadow-sm border-indigo-500 dark:border-indigo-400 ring-2 ring-indigo-500/20`
+                          : 'bg-white/50 dark:bg-slate-950/50 hover:bg-white dark:hover:bg-slate-900 border-slate-200/60 dark:border-slate-800/60'
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className={`mt-0.5 w-3.5 h-3.5 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                          isSel ? 'border-indigo-600 dark:border-indigo-400' : 'border-slate-300 dark:border-slate-700'
+                        }`}>
+                          {isSel && <div className="w-1.5 h-1.5 rounded-full bg-indigo-600 dark:bg-indigo-400" />}
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-xs font-bold text-slate-800 dark:text-slate-200 leading-tight">
+                            {profileOpt.title}
+                          </p>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-normal mt-0.5">
+                            {profileOpt.desc}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
               <button
                 type="button"
                 id="demo-login-btn"
                 onClick={handleDemoLogin}
-                className="w-full mt-3 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-100 dark:shadow-none transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.01]"
+                className="w-full py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-md shadow-indigo-100 dark:shadow-none transition-all flex items-center justify-center gap-1.5 cursor-pointer hover:scale-[1.01]"
               >
                 <span>🚀 Launch Demo Account</span>
               </button>
@@ -269,7 +414,6 @@ export default function AuthScreen({ onLogin }: AuthScreenProps) {
               </span>
             </div>
 
-            /* Standard Sign In Form */
             <form onSubmit={handleManualAuth} className="space-y-4">
             <div className="space-y-3">
               <div>

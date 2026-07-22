@@ -1196,7 +1196,7 @@ export default function InsightsTab({
     },
     {
       id: 'health_baseline',
-      title: 'Health Baseline & Trajectory',
+      title: 'Health Coach',
       agentType: 'health_baseline',
       description: 'Translates diagnostic risk into strict, mathematically projected dietary and movement targets.',
       valueProposition: 'Generates precision physical and nutritional modifiers targeted to mitigate risk trajectories.'
@@ -3258,8 +3258,8 @@ export default function InsightsTab({
 
       {/* Custom Batch Builder Modal */}
       {showCustomBatchModal && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4 animation-fade-in font-sans">
-          <div className="w-full max-w-lg bg-white dark:bg-slate-950 rounded-2xl shadow-xl flex flex-col border border-slate-200 dark:border-slate-800 overflow-hidden max-h-[80vh]">
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex flex-col p-0 animation-fade-in font-sans">
+          <div className="w-full h-full bg-white dark:bg-slate-950 flex flex-col shadow-xl overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/60">
               <div className="flex items-center justify-between mb-3">
                 <div>

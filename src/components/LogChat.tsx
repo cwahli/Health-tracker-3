@@ -9,7 +9,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { parse, stringify } from 'yaml';
 import { ChatMessage, FoodLog, UserProfile, FoodIdea } from '../types';
 import { translations } from '../utils/translations';
-import { X, Send, Image, Camera, MessageSquare, Sparkles, Plus, Terminal, ChevronDown, ChevronUp, Loader, MapPin, Trash2, Check, Table, RotateCcw, AlertTriangle, ShieldAlert, Edit2 } from 'lucide-react';
+import { X, Send, Image, Camera, MessageSquare, Sparkles, Plus, Terminal, ChevronDown, ChevronUp, Loader, MapPin, Trash2, Check, Table, RotateCcw, AlertTriangle, ShieldAlert, Edit2, Maximize2, Minimize2 } from 'lucide-react';
 import { nutrientDefinitions } from '../utils/nutrition';
 import { biomarkerDefinitions, getBiomarkerStatus, isAsianEthnicity, getBiomarkerStatusLabel } from '../utils/biomarkers';
 import LLMSelector from './LLMSelector';
@@ -33,6 +33,7 @@ import { resolveFoodImage } from '../utils/imageResolver';
 
 import { AgentType, AGENT_REGISTRY, getAgentRolloutStatus } from '../utils/agentConfig';
 import { getAvailableCredits, deductAgentCredits } from '../utils/creditManager';
+import { getAdminSettings } from '../utils/userManagement';
 const isValidValue = (v: unknown): boolean =>
   v !== null && v !== undefined && v !== '' && v !== 'N/A' && v !== 'null';
 
@@ -453,6 +454,7 @@ export default function LogChat({
 
   const [showDataUsed, setShowDataUsed] = useState(false);
   const [showFullScreenConv, setShowFullScreenConv] = useState(false);
+  const [isFullscreen, setIsFullscreen] = useState(true);
   const [isSendingLogs, setIsSendingLogs] = useState(false);
   const [logsSendStatus, setLogsSendStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [activeModalTableRows, setActiveModalTableRows] = useState<any[] | null>(null);
@@ -1230,7 +1232,22 @@ ${logsText}`);
     };
   }, [isAnalyzing, type]);
 
-  const [loggedMessageIds, setLoggedMessageIds] = useState<string[]>([]);
+  const [loggedMessageIds, setLoggedMessageIds] = useState<string[]>(() => {
+    try {
+      const uid = auth.currentUser?.uid || 'guest';
+      const saved = localStorage.getItem(`logged_message_ids_${uid}`);
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+
+  useEffect(() => {
+    try {
+      const uid = auth.currentUser?.uid || 'guest';
+      localStorage.setItem(`logged_message_ids_${uid}`, JSON.stringify(loggedMessageIds));
+    } catch (e) {}
+  }, [loggedMessageIds, auth.currentUser?.uid]);
   const [showPastDiscussion, setShowPastDiscussion] = useState(false);
   const [sessionStartTime, setSessionStartTime] = useState<number>(Date.now());
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1540,8 +1557,9 @@ ${logsText}`);
     // Check credit limits before proceeding
     if (profile) {
       const creditInfo = getAvailableCredits(profile);
-      const isFlashLite = selectedModelId === 'gemini-3.1-flash-lite' || selectedModelId === 'gemini-2.5-flash-lite';
-      const cost = isFlashLite ? 1 : 20;
+      const settings = getAdminSettings();
+      const isFlashLite = selectedModelId === 'gemini-3.5-flash-lite' || selectedModelId === 'gemini-3.1-flash-lite' || selectedModelId === 'gemini-2.5-flash-lite' || selectedModelId.toLowerCase().includes('flash-lite');
+      const cost = isFlashLite ? settings.flashLiteCost : settings.standardCost;
       if (creditInfo.total < cost) {
         const errorMsg: ChatMessage = {
           id: `msg_err_${Date.now()}`,
@@ -1718,7 +1736,19 @@ ${logsText}`);
       if (isAgent('food')) {
         const lastFoodLog = [...messages].reverse().find(m => m.data?.pendingFoodLog)?.pendingFoodLog;
         if (lastFoodLog) {
-          bodyData.activeMeal = lastFoodLog;
+          try {
+            const prunedMeal = JSON.parse(JSON.stringify(lastFoodLog));
+            if (prunedMeal.itemsBreakdown) {
+              prunedMeal.itemsBreakdown = prunedMeal.itemsBreakdown.map((item: any) => {
+                const cleaned = { ...item };
+                delete cleaned.labelNutrientsPerServing;
+                return cleaned;
+              });
+            }
+            bodyData.activeMeal = prunedMeal;
+          } catch (e) {
+            bodyData.activeMeal = lastFoodLog;
+          }
         }
         
         // Pass the active scout items to the backend so the Dietitian can resolve warnings
@@ -1727,7 +1757,7 @@ ${logsText}`);
           bodyData.activeScoutItems = lastScoutMsg.data.scoutItems;
         }
         
-        bodyData.foodLogs = (activeFoodLogs || []).map(f => ({ name: f.name, date: f.date, nutrients: f.nutrients }));
+        bodyData.foodLogs = (activeFoodLogs || []).slice(-5).map(f => ({ name: f.name, date: f.date, nutrients: f.nutrients }));
         bodyData.biomarkersNeedingImprovement = outOfRangeBiomarkers.map(b => `${b.name} is ${getBiomarkerStatusLabel(b.key, b.status, profile?.customBiomarkers?.[b.key], b.value, profile).toUpperCase()} (${b.value} ${b.unit}, normal range: ${b.normalRange})`);
         bodyData.remainingAllowance = {
           calories: remainingAllowance.calories,
@@ -2817,8 +2847,15 @@ ${logsText}`);
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex flex-col justify-end sm:justify-center p-0 sm:p-4 animation-fade-in font-sans">
-      <div id="food-chat-container" className="w-full max-w-md mx-auto bg-white dark:bg-slate-900 rounded-t-3xl sm:rounded-3xl h-[90vh] sm:h-[80vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800/80 transition-colors duration-200">
+    <div className={`fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex flex-col justify-end sm:justify-center animation-fade-in font-sans ${isFullscreen ? 'p-0' : 'p-0 sm:p-4'}`}>
+      <div 
+        id="food-chat-container" 
+        className={`w-full mx-auto bg-white dark:bg-slate-900 flex flex-col shadow-2xl overflow-hidden transition-all duration-300 ${
+          isFullscreen 
+            ? 'max-w-full w-full h-full sm:h-full rounded-none border-none' 
+            : 'max-w-md h-[90vh] sm:h-[80vh] rounded-t-3xl sm:rounded-3xl border border-slate-200 dark:border-slate-800/80'
+        }`}
+      >
         
         {/* Modal Header */}
         <div className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800/80 px-4 py-3 flex items-center justify-between shrink-0">
@@ -2842,6 +2879,17 @@ ${logsText}`);
           </div>
           
           <div className="flex items-center gap-1">
+            <button
+              onClick={() => setIsFullscreen(!isFullscreen)}
+              className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
+              title={isFullscreen ? "Exit Fullscreen" : "Fullscreen View"}
+            >
+              {isFullscreen ? (
+                <Minimize2 className="w-5 h-5" />
+              ) : (
+                <Maximize2 className="w-5 h-5" />
+              )}
+            </button>
             <button
               onClick={() => setShowFullScreenDebugLogs(true)}
               className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-indigo-500 hover:text-indigo-600 dark:text-indigo-400 transition-colors"

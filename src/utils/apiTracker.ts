@@ -89,7 +89,7 @@ export const initializeFetchInterceptor = () => {
           } else if (url.includes('/daily-recommendation-chat')) {
             label = 'Daily Recommendation Agent';
           } else if (url.includes('/health-baseline-analyze')) {
-            label = 'Health Baseline Agent';
+            label = 'Health Coach';
           } else if (url.includes('/medical-analyze')) {
             label = 'Medical History Agent';
           } else if (url.includes('/food-image-search')) {

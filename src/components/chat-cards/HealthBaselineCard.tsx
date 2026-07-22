@@ -182,7 +182,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
           <div className="flex items-center space-x-2">
             <Activity className="w-5 h-5 text-indigo-500" />
             <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-              {agentConfig?.displayName || 'Health Baseline Analysis'}
+              {agentConfig?.displayName || 'Health Coach'}
             </h2>
           </div>
 

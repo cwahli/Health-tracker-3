@@ -48,15 +48,15 @@ export const nutrientDefinitions: NutrientMeta[] = [
 
 export const MASTER_NUTRIENT_COLORS: { [key: string]: string } = {
   // Core macros & energy
-  calories: 'rgb(249, 115, 22)',       // Orange
-  saturatedFat: 'rgb(234, 179, 8)',    // Amber/Yellow
+  calories: 'var(--color-nutrient-calories, rgb(249, 115, 22))',       // Orange
+  saturatedFat: 'var(--color-nutrient-saturatedFat, rgb(234, 179, 8))',    // Amber/Yellow
   transFat: 'rgb(185, 28, 28)',        // Dark Red
   unsaturatedFat: 'rgb(132, 204, 22)', // Lime
-  totalFat: 'rgb(168, 85, 247)',       // Purple
-  sodium: 'rgb(34, 197, 94)',          // Emerald/Green
+  totalFat: 'var(--color-nutrient-totalFat, rgb(168, 85, 247))',       // Purple
+  sodium: 'var(--color-nutrient-sodium, rgb(34, 197, 94))',          // Emerald/Green
   addedSugar: 'rgb(239, 68, 68)',      // Bright Red
-  protein: 'rgb(59, 130, 246)',        // Blue
-  carbohydrates: 'rgb(6, 182, 212)',   // Cyan
+  protein: 'var(--color-nutrient-protein, rgb(59, 130, 246))',        // Blue
+  carbohydrates: 'var(--color-nutrient-carbohydrates, rgb(6, 182, 212))',   // Cyan
   totalFibre: 'rgb(16, 185, 129)',     // Forest Green
   solubleFibre: 'rgb(236, 72, 153)',   // Vibrant Pink
   omega3: 'rgb(20, 184, 166)',         // Vibrant Teal

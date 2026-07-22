@@ -451,12 +451,19 @@ MODE B: DISCUSSION
 - CRITICAL: If you detect that the user's input/query is not relevant to food, nutrition, or biological tracking, you MUST use MODE B (DISCUSSION). In your conversational response ("message"), politely inform the user of your focus and actively incite, guide, or invite them to provide relevant descriptions, ingredients, weights, or pictures of meals or food items so that you can evaluate them, analyze their nutritional profile, and guide them in their wellness journey.
 - CRITICAL REJECTION RULE: If the user input is a greeting (e.g., "Hi", "Hello", "Start", "Let's start", "greetings"), general conversational inquiry, or focuses purely on clinical/lab biomarkers (e.g., ALT, AST, LDL, cholesterol, liver panel) without any food, meal, ingredient, or recipe context, you MUST immediately classify the request as MODE B (DISCUSSION). Do NOT assume a database match of a greeting/command word (e.g., the word "Start" matching "Start granola") is the user's food item unless they explicitly wrote "I ate..." or "My meal is...". State politely that you are the Food & Nutrition Agent and can only analyze meals, ingredients, recipes, or nutritional values, and advise them to use the Health & Medical Agent for clinical or lab test reviews.
 
-MODE C: MODIFICATION COMMAND (ACTIVE MEAL UPDATE)
-Triggered ONLY when the user asks to modify, add, or correct a weight for an item that currently exists inside the CURRENT_ACTIVE_MEAL_STATE.
-- ANTI-CRASH RULE: You MUST populate itemName with the EXACT literal string from the active meal state to ensure successful database matching.
-- ANTI-CRASH RULE 2: You MUST populate \`targetDbId\` with the exact ID from the active state to ensure the backend calculator finds it.
+MODE C: MODIFICATION COMMAND (ACTIVE MEAL UPDATE / REASSESSMENT)
+Triggered ONLY when the user asks to modify, add, correct, or change an item, weight, or cooking method that currently exists inside the CURRENT_ACTIVE_MEAL_STATE.
+- FULL REASSESSMENT LAW (CRITICAL): You MUST recalculate all nutrients of the food impacted, but also provide a completely new, updated clinical assessment in 'message' which can change all fields (e.g. updating safety recommendations).
+- SYNCHRONIZATION LAW (CRITICAL): The food items in 'foodData.itemsBreakdown' MUST match exactly what is in 'composition' and the updated meal. If any food item is changed from raw to boiled, or removed, or added, update 'itemsBreakdown' and 'composition' to match perfectly.
+- Set "mode": "modify". You MUST fully populate the 'foodData' block with the completely updated meal details (date, name, quantity, composition, itemsBreakdown) incorporating the user's modifications.
+- Populate the "modificationCommand" array with the precise actions performed to keep track of changes:
+  * action: 'update_weight' | 'remove_item' | 'add_item' | 'rename_item' | 'update_cooking_method'
+  * itemName: exact literal name from the active meal itemsBreakdown list
+  * targetDbId: exact dbId from itemsBreakdown
+  * newWeightGrams: new weight in grams
+  * newCookingMethod: new cooking method if changed
+  * newName: new item name if renamed
 - Do NOT use Mode C if the user is discussing a food from a theoretical comparison that is not in the active meal state.
-- Set "mode": "modify". Populate the "modificationCommand" array. Set foodData and comparison to null.
 
 MODE D: EVALUATION / COMPARISON
 Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing snacks), OR whenever the VISUAL FOOD SCOUT Content Type is "menu_or_poster".
@@ -2203,7 +2210,32 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
 
     // Strip parenthetical local-language notes for cleaner USDA/OFF matching
     // e.g. "raw beef slices (daging empal and blade)" → "raw beef slices"
-    const cleanQuery = (raw: string) => raw.replace(/\s*\(.*?\)\s*/g, '').replace(/\b(raw|fresh|cooked)\s+/i, '').trim();
+    const cleanQuery = (raw: string) => {
+      let clean = raw.replace(/\s*\(.*?\)\s*/g, '').trim().toLowerCase();
+      const indonesianToEnglish: Record<string, string> = {
+        "potongan ikan": "raw fish fillet",
+        "ikan potongan": "raw fish fillet",
+        "ikan": "raw fish",
+        "daging sapi": "raw beef",
+        "daging": "raw beef",
+        "ayam": "raw chicken",
+        "sayur": "vegetables",
+        "nasi": "cooked rice",
+        "telur": "egg",
+        "tempe": "tempeh",
+        "tahu": "tofu",
+        "kentang": "potato",
+        "wortel": "carrot"
+      };
+
+      for (const [indo, eng] of Object.entries(indonesianToEnglish)) {
+        const regex = new RegExp(`\\b${indo}\\b`, 'g');
+        if (regex.test(clean)) {
+          clean = clean.replace(regex, eng);
+        }
+      }
+      return clean;
+    };
 
     const hasImage = imagePayloads && imagePayloads.length > 0;
     const isMenuScale = visionScoutContentType === "menu_or_poster" || visionScoutContentType === "text";
@@ -2246,6 +2278,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
           databaseMatchesArray.push({
             id: fdcIdStr,
             source: "usda",
+            searchQuery: resItem.query,
             name: food.description || "",
             calories: caloriesStr,
             protein: parsedNutrients.protein,
@@ -2266,6 +2299,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
             databaseMatchesArray.push({
               id: idStr,
               source: "off",
+              searchQuery: resItem.query,
               name: product.product_name || "",
               calories: caloriesStr,
               protein: parsedNutrients.protein,
@@ -2295,15 +2329,114 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
         carbohydrates: 0, addedSugar: 0, sodium: 0, potassium: 0, totalFibre: 0, solubleFibre: 0
       };
       
+      const findBestMatch = (keyword: string) => {
+        if (!keyword) return undefined;
+        const kw = keyword.toLowerCase().trim();
+        const kwTokens = kw.split(/[\s,_\-\/]+/).map(t => t.trim()).filter(t => t.length > 1);
+        
+        const processedTerms = [
+          'breaded', 'fried', 'sauce', 'nugget', 'stick', 'patty', 'seasoned', 'battered', 
+          'sweet and sour', 'gravy', 'stew', 'curry', 'burger', 'sandwich', 'crispy', 'chips', 
+          'paste', 'canned in oil', 'soup', 'cracker', 'fritter', 'seasoning', 'mix', 'extract', 
+          'powder', 'flavor', 'coating', 'syrup', 'glazed', 'meatball', 'sausage', 'processed',
+          'bakso', 'sosis', 'nugget', 'kerupuk', 'siomay', 'dimsum', 'goreng', 'tepung', 'instant',
+          'cooked with', 'prepared', 'ready meal'
+        ];
+        
+        const queryHasProcessedTerm = processedTerms.some(term => {
+          const regex = new RegExp(`\\b${term}\\b`, 'i');
+          return regex.test(kw);
+        });
+
+        const queryHasBrand = kw.includes('brand') || kw.includes('mcdonald') || kw.includes('kfc') || kw.includes('nestle') || kw.includes('unilever');
+
+        let bestMatch: any = undefined;
+        let highestScore = -999999;
+
+        databaseMatchesArray.forEach((m: any) => {
+          const candidateName = m.name.toLowerCase().trim();
+          const candidateTokens = candidateName.split(/[\s,_\-\/]+/).map(t => t.trim()).filter(t => t.length > 1);
+          
+          let score = 0;
+
+          // 1. Exact match bonus
+          if (candidateName === kw) {
+            score += 500;
+          }
+
+          // 2. Exact match of search query
+          if (m.searchQuery && m.searchQuery.toLowerCase().trim() === kw) {
+            score += 300;
+          }
+
+          // 3. Source prioritization: prefer USDA (Foundation/SR Legacy) for raw ingredients
+          if (m.source === 'usda') {
+            score += 80;
+          } else if (m.source === 'off') {
+            // Penalize OFF (Open Food Facts) by default unless query has a brand
+            if (!queryHasBrand) {
+              score -= 40;
+            }
+          }
+
+          // 4. Token overlap scoring
+          let overlapCount = 0;
+          kwTokens.forEach(token => {
+            if (candidateTokens.includes(token)) {
+              overlapCount++;
+              // Specific core ingredients get extra points for matching
+              const isCoreFood = ['fish', 'beef', 'chicken', 'pork', 'egg', 'meat', 'rice', 'potato', 'salmon', 'tuna', 'cod', 'halibut', 'shrimp', 'crab', 'prawn', 'lobster', 'tempeh', 'tofu'].includes(token);
+              if (isCoreFood) {
+                score += 100;
+              } else {
+                score += 30;
+              }
+            } else if (candidateName.includes(token)) {
+              score += 15;
+            }
+          });
+
+          if (overlapCount > 0) {
+            score += overlapCount * 25;
+          }
+
+          // 5. Raw vs Processed constraint
+          const candidateHasProcessedTerm = processedTerms.some(term => {
+            const regex = new RegExp(`\\b${term}\\b`, 'i');
+            return regex.test(candidateName);
+          });
+
+          if (candidateHasProcessedTerm && !queryHasProcessedTerm) {
+            // Heavy penalty for processed candidate when query doesn't ask for it
+            score -= 300;
+          }
+
+          // 6. If query asks for "raw" or "fresh", and candidate has "raw" or "fresh", give a major bonus
+          const queryHasRaw = kw.includes('raw') || kw.includes('fresh');
+          const candidateHasRaw = candidateName.includes('raw') || candidateName.includes('fresh');
+          if (queryHasRaw && candidateHasRaw) {
+            score += 200;
+          } else if (queryHasRaw && !candidateHasRaw) {
+            // Penalize if user explicitly asked for raw but candidate isn't
+            score -= 100;
+          }
+
+          // Save the best match
+          if (score > highestScore && (score > 0 || overlapCount > 0 || candidateName.includes(kw) || kw.includes(candidateName))) {
+            highestScore = score;
+            bestMatch = m;
+          }
+        });
+
+        return bestMatch;
+      };
+
       let hasComponents = false;
       if (item.components && Array.isArray(item.components) && item.components.length > 0) {
         hasComponents = true;
         item.components.forEach((comp: any) => {
           const compWeight = itemWeight * ((comp.volumePercentage || 100) / 100);
-          const bestMatch = databaseMatchesArray.find((m: any) => 
-            m.name.toLowerCase().includes(comp.searchQuery.toLowerCase()) ||
-            comp.searchQuery.toLowerCase().includes(m.name.toLowerCase())
-          );
+          const bestMatch = findBestMatch(comp.searchQuery);
           if (bestMatch && dbMatchMap.has(bestMatch.id)) {
             const baseNutrients = dbMatchMap.get(bestMatch.id);
             const factor = compWeight / 100;
@@ -2315,10 +2448,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
           }
         });
       } else {
-        const bestMatch = databaseMatchesArray.find((m: any) => 
-          m.name.toLowerCase().includes(item.keyword.toLowerCase()) ||
-          item.keyword.toLowerCase().includes(m.name.toLowerCase())
-        );
+        const bestMatch = findBestMatch(item.keyword);
         if (bestMatch && dbMatchMap.has(bestMatch.id)) {
           const baseNutrients = dbMatchMap.get(bestMatch.id);
           const factor = itemWeight / 100;
@@ -2464,7 +2594,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
     const systemInstruction = buildFoodAnalyzeInstruction({
       biomarkersNeedingImprovement,
       remainingAllowance,
-      activeMeal: hasImage ? null : activeMeal,
+      activeMeal: activeMeal,
       compareItemCount: visionScoutItems ? visionScoutItems.length : 0
     });
 
@@ -2900,6 +3030,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
     sendStreamEvent({ type: 'status', stage: 'dietitian', status: 'completed', message: 'Dietitian evaluation completed.' });
 
     let mode = rawParsed.mode || "new_log";
+    const originalModeIsModify = (mode === "modify" || req.body.activeMeal !== undefined && (message.toLowerCase().includes("change") || message.toLowerCase().includes("modify") || message.toLowerCase().includes("update") || message.toLowerCase().includes("remove") || message.toLowerCase().includes("add") || message.toLowerCase().includes("correct")));
 
     const apiCalls = [
       ...(hasImage ? [{ type: 'gemini', label: 'Food nutrition agent - Visual Scout (gemini-3.1-flash-lite)' }] : []),
@@ -2947,7 +3078,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       });
     }
 
-    if (mode === "modify" && rawParsed.foodData && rawParsed.foodData.itemsBreakdown && rawParsed.foodData.itemsBreakdown.length > 0) {
+    if (originalModeIsModify && rawParsed.foodData && rawParsed.foodData.itemsBreakdown && rawParsed.foodData.itemsBreakdown.length > 0) {
       addDebugLog(`[Mode Rewrite] AI fully regenerated foodData in MODIFY mode. Routing through NEW_LOG pipeline to compute full nutrients.`);
       mode = "new_log";
     }
@@ -3070,9 +3201,14 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         }];
       }
 
-      if (mode === "modify") {
+      // Ensure composition is always derived from the final itemsBreakdown names
+      if (parsedData.itemsBreakdown && Array.isArray(parsedData.itemsBreakdown)) {
+        parsedData.composition = parsedData.itemsBreakdown.map((it: any) => it.name).join(", ");
+      }
+
+      if (originalModeIsModify) {
         parsedData.id = req.body.activeMeal?.id;
-        if (!parsedData.imageUrl) parsedData.imageUrl = req.body.activeMeal?.imageUrl;
+        if (!parsedData.imageUrl) parsedData.imageUrl = req.body.activeMeal?.imageUrl || req.body.activeMeal?.imageUrls?.[0];
         if (!parsedData.imageUrls) parsedData.imageUrls = req.body.activeMeal?.imageUrls;
         
         return res.json({
@@ -4930,7 +5066,7 @@ app.post("/api/gemini/insight-analyze", async (req, res) => {
       }
     }`;
 
-    const systemInstruction = "You are a world-class preventative cardiologist, endocrinologist, and clinical longevity researcher. Your response must be an exact single JSON matching the requested schema. Never add markdown wrappers.";
+    const systemInstruction = "You are an evidence-based, pragmatic health coach and behavioral nutritionist. Your goal is to translate complex health and longevity science into sustainable, low-friction daily habits for a general audience. Prioritize mental well-being, intuitive eating principles, and practical lifestyle adjustments over hyper-optimized biometric tracking. Avoid prescribing exact macronutrient or micronutrient numbers unless explicitly requested; instead, focus on food quality, portion awareness, and sustainable, realistic routines. Your response must be an exact single JSON matching the requested schema. Never add markdown wrappers.";
     const fullPromptSent = `System Instruction:\n${systemInstruction}\n\n${promptText}`;
 
     const textOutput = await callUnifiedLLM({
@@ -5086,24 +5222,24 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
             "analysis": "Insight based on biomarkers",
             "unaddressedRisk": "What happens long-term if ignored",
             "biomarkerTargets": [
-              {"name": "HbA1c", "targetValue": "< 5.7%"}
+              {"name": "string", "targetValue": "string"}
             ],
             "nutrientTargets": [
-              {"nutrientKey": "exact matching key", "targetValue": "< 1g/day", "rationale": "..."}
+              {"nutrientKey": "exact matching key", "targetValue": "string", "rationale": "string"}
             ],
             "dailyActivities": [
-              {"activity": "Zone 2 Cardio", "target": "30 mins"}
+              {"activity": "string", "target": "string"}
             ]
           }
         ],
         "topNutrientTargets": [
-          {"nutrientKey": "exact matching key", "targetValue": "1650", "rationale": "..."}
+          {"nutrientKey": "exact matching key", "targetValue": "string", "rationale": "string"}
         ],
         "topWeeklyNutrientTargets": [
-          {"nutrientKey": "exact matching key", "targetValue": "1000 IU", "rationale": "..."}
+          {"nutrientKey": "exact matching key", "targetValue": "string", "rationale": "string"}
         ],
         "generalNutrientTargets": {
-          "vitaminK": "..."
+          "string": "string"
         },
         "nutrientRankingRationale": "Ranked list of each suggested nutrient ordered from most to least important with rationale explaining why it is ranked this way."
       }
@@ -5113,7 +5249,7 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
     1. CORE NUTRIENTS RULE: 'topNutrientTargets' MUST strictly contain ONLY nutrients belonging to the Core nutrients list: (calories, solubleFibre, saturatedFat, protein, potassium, transFat, addedSugar, carbohydrates, totalFibre, sodium) that are recommended for the user.
     1b. ADDITIONAL NUTRIENTS RULE: 'topWeeklyNutrientTargets' MUST strictly contain ONLY nutrients belonging to the Additional nutrients list: (unsaturatedFat, omega3, magnesium, calcium, iron, zinc, selenium, iodine, phosphorus, vitaminD, vitaminB12, folate, vitaminC, vitaminE, vitaminK, vitaminA, vitaminB6, thiamine, riboflavin, niacin) that are recommended for the user.
     2. Provide target values for ALL remaining applicable nutrient keys (approx 20+) in 'generalNutrientTargets'.
-    3. CRITICAL: Your 'biomarkerTargets' array MUST explicitly include every single individual biomarker that was listed under 'Biomarkers at risk' for its respective risk category. Do not summarize or omit any at-risk biomarkers. Every risk category must also have at least 1 recommendation in terms of nutrient and activity target.
+    3. CRITICAL: Your 'biomarkerTargets' array MUST explicitly include every single individual biomarker that was listed under 'Biomarkers at risk' for its respective risk category. Do not summarize or omit any at-risk biomarkers. If there are no biomarkers at risk provided by the user, leave 'biomarkerTargets' as an empty array [] - do not invent biomarkers. Every risk category must also have at least 1 recommendation in terms of nutrient and activity target.
     4. Consolidate the activity and nutrient targets. If an activity or nutrient target is required for multiple risk categories, reuse the same recommendation rather than creating a slightly different one. If a nutrient provide the same benefit with another, prioritise to only show the most relevant one. For example, "total fiber" and "soluble fibre" are both useful to help with high cholesterol, so just recommend the most relevant one in the nutrient target
     4b. CRITICAL CONSISTENCY RULE: every single nutrientKey that appears in ANY risk category's own 'nutrientTargets' array MUST also appear at the report level — either in 'topNutrientTargets', 'topWeeklyNutrientTargets', or in 'generalNutrientTargets'. Never introduce a nutrient at the category level that is absent from all report-level lists.
     4c. Do not artificially limit each risk category's 'nutrientTargets' array to 1-2 items. Include every nutrient target that is clinically relevant to that specific category, even if that means 3, 4, or more entries.
@@ -5123,7 +5259,7 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
     7. Populate 'scratchpad' with your full reasoning process before you finalize the rest of the report. Do not write any text outside the single JSON object — all reasoning must live inside the 'scratchpad' field.
     8. RANKING & ORDERING REQUIREMENT: You MUST order 'topNutrientTargets' and 'topWeeklyNutrientTargets' strictly from most important (#1) to least important based on clinical impact and urgency. In 'nutrientRankingRationale', list every suggested nutrient in order (1., 2., 3., etc.) from most to least important and provide a clear, detailed clinical rationale explaining why it is ranked in that exact position.`;
 
-    const systemInstruction = "You are a world-class preventative cardiologist, endocrinologist, and clinical longevity researcher. Your response must be an exact single JSON matching the requested schema using strictly the allowed keys. Never add markdown wrappers.";
+    const systemInstruction = "You are an evidence-based, pragmatic health coach and behavioral nutritionist. Your goal is to translate complex health and longevity science into sustainable, low-friction daily habits for a general audience. Prioritize mental well-being, intuitive eating principles, and practical lifestyle adjustments over hyper-optimized biometric tracking. Avoid prescribing exact macronutrient or micronutrient numbers unless explicitly requested; instead, focus on food quality, portion awareness, and sustainable, realistic routines. Your response must be an exact single JSON matching the requested schema using strictly the allowed keys. Never add markdown wrappers.";
     const fullPromptSent = `System Instruction:\n${systemInstruction}\n\n${promptText}`;
 
     const textOutput = await callUnifiedLLM({
@@ -5154,7 +5290,7 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
       }
     }
 
-    parsedData.agentPrompt = `System Instruction:\nYou are a world-class preventative cardiologist, endocrinologist, and clinical longevity researcher. Your response must be an exact JSON matching the requested schema. Never add markdown wrappers.\n\n${promptText}`;
+    parsedData.agentPrompt = `System Instruction:\nYou are an evidence-based, pragmatic health coach and behavioral nutritionist. Your goal is to translate complex health and longevity science into sustainable, low-friction daily habits for a general audience. Prioritize mental well-being, intuitive eating principles, and practical lifestyle adjustments over hyper-optimized biometric tracking. Avoid prescribing exact macronutrient or micronutrient numbers unless explicitly requested; instead, focus on food quality, portion awareness, and sustainable, realistic routines. Your response must be an exact JSON matching the requested schema. Never add markdown wrappers.\n\n${promptText}`;
     
     if (isStream) {
       res.write(`data: ${JSON.stringify({ final: true, result: {
@@ -7139,19 +7275,19 @@ app.post('/admin/migrate', async (req, res) => {
   }
 });
 
-  if (process.env.NODE_ENV !== "production") {
+  const distPath = path.join(process.cwd(), "dist");
+  if (fs.existsSync(path.join(distPath, "index.html"))) {
+    app.use(express.static(distPath));
+    app.get("*", (req, res) => {
+      res.sendFile(path.join(distPath, "index.html"));
+    });
+  } else {
     const { createServer: createViteServer } = await import("vite");
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
     });
     app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), "dist");
-    app.use(express.static(distPath));
-    app.get("*", (req, res) => {
-      res.sendFile(path.join(distPath, "index.html"));
-    });
   }
 
 

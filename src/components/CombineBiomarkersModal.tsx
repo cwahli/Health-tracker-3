@@ -187,8 +187,8 @@ export default function CombineBiomarkersModal({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50 flex flex-col justify-end sm:justify-center p-0 sm:p-4 animation-fade-in font-sans">
-      <div className="w-full max-w-lg mx-auto bg-white dark:bg-slate-950 rounded-t-3xl sm:rounded-3xl max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800/80">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-md z-50 flex flex-col p-0 animation-fade-in font-sans">
+      <div className="w-full h-full bg-white dark:bg-slate-950 flex flex-col shadow-2xl overflow-hidden">
         
         {/* Header */}
         <div className="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800/80 px-5 py-4 flex items-center justify-between">
