@@ -3547,6 +3547,14 @@ ${JSON.stringify(profile, null, 2)}`);
                     <span>⚖️ Compare Food</span>
                   </button>
                 </>
+              ) : isAgent('front_desk') ? (
+                <button
+                  type="button"
+                  onClick={() => handleSend('What should I do?')}
+                  className="whitespace-nowrap px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold rounded-full transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm active:scale-95"
+                >
+                  <span>🧭 What should I do?</span>
+                </button>
               ) : (
                 !isAgent('food_idea') && !isAgent('daily_recommendation') && !(isAgent('medical') && !agentType) && (
                   <button
