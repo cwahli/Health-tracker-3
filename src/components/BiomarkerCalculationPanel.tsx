@@ -4,6 +4,7 @@ import { Calculator, Check, Shield, ChevronDown, ChevronUp } from 'lucide-react'
 import { isAsianEthnicity } from '../utils/biomarkers';
 
 interface BiomarkerCalculationPanelProps {
+  language?: string;
   biomarkerKey: string;
   profile: UserProfile;
   currentValue?: number | string;
@@ -51,6 +52,7 @@ const getBmiPercentage = (bmi: number, isAsian: boolean): number => {
 };
 
 import { getAgentCalibration } from '../utils/agentCalibration';
+import { translations } from '../utils/translations';
 
 export default function BiomarkerCalculationPanel({
   biomarkerKey,
@@ -61,7 +63,9 @@ export default function BiomarkerCalculationPanel({
   onDismissAlert,
   onEditBiomarkerDef,
   baseDescription,
+  language,
 }: BiomarkerCalculationPanelProps & { baseDescription?: string }) {
+  const t = translations[language || "en"] || translations.en;
   const isBmi = biomarkerKey === 'bmi';
 
   // Profile fields with defaults
@@ -184,7 +188,7 @@ export default function BiomarkerCalculationPanel({
           <div className="pt-2">
             {baseDescription && (
               <div className="mb-4">
-                <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Description</span>
+                <span className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{t.descriptionLabel}</span>
                 <p className="text-theme-neutral font-medium leading-relaxed text-[11px]">
                   {baseDescription}
                 </p>
@@ -225,7 +229,7 @@ export default function BiomarkerCalculationPanel({
               </div>
             ) : (
           <div className="text-[11px] text-theme-text-secondary leading-relaxed">
-            <p className="mb-1">Uses static reference ranges from clinical guidelines.</p>
+            <p className="mb-1">{t.staticReferenceDesc}</p>
             {isEditingRange ? (
               <div className="flex items-center gap-2 mt-2">
                 <input 
@@ -280,12 +284,12 @@ export default function BiomarkerCalculationPanel({
             <p>• Biomarker Key: <span className="text-theme-neutral">{biomarkerKey}</span></p>
             {agentCalibration ? (
               <>
-                <p>• Calibration Source: AI Clinical Calibration Agent</p>
-                <p>• Diagnostic Rule Strategy: Demographic range brackets mapping</p>
+                <p>{t.calibrationSourceAI}</p>
+                <p>{t.diagnosticRuleStrategy}</p>
               </>
             ) : (
               <>
-                <p>• Rule Strategy: Clinical standard range thresholds.</p>
+                <p>{t.ruleStrategyStandard}</p>
                 <p className="text-[10px] text-slate-400 font-sans leading-normal pt-1">
                   * Clinical researchers can customize these diagnostic thresholds using medical history notes to adapt to patient profiles.
                 </p>
@@ -378,7 +382,7 @@ export default function BiomarkerCalculationPanel({
 
           <div className="p-3.5 bg-white dark:bg-slate-950 border border-slate-150 dark:border-slate-800 rounded-xl space-y-3 text-xs font-mono leading-relaxed text-theme-text-secondary">
             <div className="space-y-1.5 border-b border-theme-border pb-2.5">
-              <span className="block text-[10px] font-extrabold uppercase text-slate-400 font-sans">Plain Logic Calculations:</span>
+              <span className="block text-[10px] font-extrabold uppercase text-slate-400 font-sans">{t.plainLogicCalculations}</span>
               <p>• Matched Profile Ethnicity: <span className="text-slate-800 dark:text-white font-semibold">{profile.ethnicity || 'Not set'}</span></p>
               <p>• Matched Profile Gender: <span className="text-slate-800 dark:text-white font-semibold">{profile.gender || 'Not set'}</span></p>
               <p>• Active Diagnostic Standard: <span className="text-slate-800 dark:text-white font-semibold">{isAsianUser ? 'Asian Bracket (Normal: 18.5 - 22.9, Overweight: 23.0 - 24.9)' : 'Global Bracket (Normal: 18.5 - 24.9, Overweight: 25.0 - 29.9)'}</span></p>
@@ -386,7 +390,7 @@ export default function BiomarkerCalculationPanel({
             </div>
 
             <div className="space-y-1">
-              <span className="block text-[10px] font-extrabold uppercase text-slate-400 font-sans">Mifflin-St Jeor Equation details:</span>
+              <span className="block text-[10px] font-extrabold uppercase text-slate-400 font-sans">{t.mifflinStJeorDetails}</span>
               <p>• BMR = (10 * {weight}kg) + (6.25 * {height}cm) - (5 * {age}yo) {isMale ? '+ 5' : '- 161'}</p>
               <p>• Base BMR = {bmrBase} kcal / day</p>
               <p>• Active TDEE = {Math.round(bmrBase * 1.375)} kcal / day (Multiplier 1.375)</p>
@@ -410,7 +414,7 @@ export default function BiomarkerCalculationPanel({
                 className="py-2.5 rounded-xl text-xs font-bold bg-indigo-600 hover:bg-indigo-700 text-white transition-all cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-indigo-600/10"
               >
                 <Check className="w-4 h-4" />
-                <span>Apply recommendations</span>
+                <span>{t.applyRecommendations}</span>
               </button>
             </div>
           ) : (
@@ -422,12 +426,12 @@ export default function BiomarkerCalculationPanel({
               {applied ? (
                 <>
                   <Check className="w-4 h-4" />
-                  <span>Applied Target Goals!</span>
+                  <span>{t.appliedTargetGoals}</span>
                 </>
               ) : (
                 <>
                   <Check className="w-4 h-4" />
-                  <span>Apply Recommended Targets</span>
+                  <span>{t.applyRecommendedTargets}</span>
                 </>
               )}
             </button>

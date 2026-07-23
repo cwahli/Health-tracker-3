@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { UserProfile } from '../types';
+import { translations } from '../utils/translations';
 
 interface GoogleHealthProps {
+  language?: string;
   profile?: UserProfile | null;
 }
 
-export default function GoogleHealthIntegration({ profile }: GoogleHealthProps) {
+export default function GoogleHealthIntegration({ profile, language = "en" }: GoogleHealthProps) {
+  const t = translations[language || "en"] || translations.en;
   const [googleSteps, setGoogleSteps] = useState<number | null>(null);
   const [healthApiStatus, setHealthApiStatus] = useState<string>('');
 
@@ -179,11 +182,11 @@ export default function GoogleHealthIntegration({ profile }: GoogleHealthProps) 
     <div className="bg-slate-50 dark:bg-slate-800/40 border border-theme-border rounded-2xl p-4 shadow-sm space-y-3">
       <div className="flex items-center justify-between">
         <div>
-          <h3 className="text-sm font-bold text-theme-text">Google Health</h3>
+          <h3 className="text-sm font-bold text-theme-text">{t.googleHealth}</h3>
           <p className="text-xs text-slate-500">
             {googleSteps !== null 
               ? `Connected and syncing daily steps` 
-              : 'Connect to track your daily steps'}
+              : t.connectToTrack}
           </p>
         </div>
         {googleSteps === null ? (
@@ -196,7 +199,7 @@ export default function GoogleHealthIntegration({ profile }: GoogleHealthProps) 
         ) : (
           <div className="flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-950/20 px-3 py-1.5 rounded-xl border border-emerald-500/20">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">Connected</span>
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400">{t.connectedStatus}</span>
           </div>
         )}
       </div>
@@ -204,13 +207,13 @@ export default function GoogleHealthIntegration({ profile }: GoogleHealthProps) 
       {googleSteps !== null && (
         <div className="space-y-3 mt-4">
           <div className="flex items-center justify-between bg-emerald-50/40 dark:bg-emerald-950/10 border border-emerald-500/10 p-3 rounded-xl">
-            <span className="text-xs font-semibold text-theme-text-secondary">Today's Steps:</span>
+            <span className="text-xs font-semibold text-theme-text-secondary">{t.todaysSteps}</span>
             <div className="flex items-center gap-2">
               <span className="text-base font-black text-emerald-600 dark:text-emerald-400 font-sans">{googleSteps}</span>
               <button
                 onClick={() => fetchSteps()}
                 className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-all cursor-pointer text-slate-400 hover:text-indigo-600"
-                title="Refresh Steps"
+                title={t.refreshStepsTitle}
               >
                 <RefreshCw className="w-3.5 h-3.5" />
               </button>

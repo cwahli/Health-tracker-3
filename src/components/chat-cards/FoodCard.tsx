@@ -15,6 +15,7 @@ import { resolveFoodImage } from '../../utils/imageResolver';
 import { TransformWrapper, TransformComponent } from 'react-zoom-pan-pinch';
 import { ZoomableImage } from '../ZoomableImage';
 import { FoodScoutItemPreview, OnlineFoodImage } from './FoodScoutItemPreview';
+import { translations } from '../../utils/translations';
 
 const FALLBACK_NUTRIENT_COLOR_PALETTE = [
   'rgb(236, 72, 153)',  // pink
@@ -80,7 +81,8 @@ const StepItem = ({
   );
 };
 
-export const AgentThoughtBox = ({ 
+export const AgentThoughtBox = ({
+  language = "en", 
   scoutScratchpad, 
   dietitianScratchpad, 
   isLive, 
@@ -105,8 +107,10 @@ export const AgentThoughtBox = ({
   dietitianInstruction?: string,
   dietitianAnswer?: string,
   activeStage?: string,
-  stageStatus?: string
+  stageStatus?: string;
+  language?: string;
 }) => {
+  const t = translations[language || "en"] || translations.en;
   const [isExpanded, setIsExpanded] = React.useState(!!isLive);
 
   React.useEffect(() => {
@@ -215,7 +219,7 @@ export const AgentThoughtBox = ({
         >
           <span className="flex items-center gap-2">
             <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
-            <span className="font-semibold text-slate-800 dark:text-slate-200">Agents thought...</span>
+            <span className="font-semibold text-slate-800 dark:text-slate-200">{t.agentsThought}</span>
           </span>
           {isExpanded ? <ChevronUp className="w-3 h-3 text-slate-400" /> : <ChevronDown className="w-3 h-3 text-slate-400" />}
         </button>
@@ -226,7 +230,7 @@ export const AgentThoughtBox = ({
                 <StepItem label="Reading your photos..." status={step1Status}>
                   {scoutInstruction && (
                     <div className="flex flex-col gap-1 mt-1 mb-2">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Vision Scout Instruction</span>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{t.visionScoutInstruction}</span>
                       <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
                         {scoutInstruction}
                       </p>
@@ -234,7 +238,7 @@ export const AgentThoughtBox = ({
                   )}
                   {scoutScratchpad && (
                     <div className="flex flex-col gap-1 mt-1">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Vision Scout Scratchpad</span>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{t.visionScoutScratchpad}</span>
                       <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
                         {scoutScratchpad}
                       </p>
@@ -242,7 +246,7 @@ export const AgentThoughtBox = ({
                   )}
                   {scoutAnswer && (
                     <div className="flex flex-col gap-1 mt-1">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Vision Scout Result</span>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{t.visionScoutResult}</span>
                       <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
                         {scoutAnswer}
                       </p>
@@ -253,7 +257,7 @@ export const AgentThoughtBox = ({
                 <StepItem label="Searching nutrition databases..." status={step2Status}>
                   {dbSearchLog && (
                     <div className="flex flex-col gap-1 mt-1">
-                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Database Log</span>
+                      <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{t.databaseLog}</span>
                       <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
                         {dbSearchLog}
                       </p>
@@ -264,7 +268,7 @@ export const AgentThoughtBox = ({
                 <StepItem label="Checking your biomarker profile..." status={step3Status}>
                   {dietitianInstruction && (
                     <div className="flex flex-col gap-1 mt-1">
-                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Instruction</span>
+                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">{t.dietitianInstruction}</span>
                       <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
                         {dietitianInstruction}
                       </p>
@@ -275,7 +279,7 @@ export const AgentThoughtBox = ({
                 <StepItem label="Consulting the clinical AI model..." status={step4Status}>
                   {dietitianScratchpad && (
                     <div className="flex flex-col gap-1 mt-1">
-                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Scratchpad</span>
+                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">{t.dietitianScratchpad}</span>
                       <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
                         {dietitianScratchpad}
                       </p>
@@ -283,7 +287,7 @@ export const AgentThoughtBox = ({
                   )}
                   {dietitianAnswer && (
                     <div className="flex flex-col gap-1 mt-1">
-                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Result</span>
+                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">{t.dietitianResult}</span>
                       <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
                         {dietitianAnswer}
                       </p>
@@ -297,7 +301,7 @@ export const AgentThoughtBox = ({
                 <StepItem label="Checking your biomarker profile..." status={step2Status}>
                   {dietitianInstruction && (
                     <div className="flex flex-col gap-1 mt-1">
-                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Instruction</span>
+                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">{t.dietitianInstruction}</span>
                       <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
                         {dietitianInstruction}
                       </p>
@@ -307,7 +311,7 @@ export const AgentThoughtBox = ({
                 <StepItem label="Consulting the clinical AI model..." status={step3Status}>
                   {dietitianScratchpad && (
                     <div className="flex flex-col gap-1 mt-1">
-                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Scratchpad</span>
+                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">{t.dietitianScratchpad}</span>
                       <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
                         {dietitianScratchpad}
                       </p>
@@ -315,7 +319,7 @@ export const AgentThoughtBox = ({
                   )}
                   {dietitianAnswer && (
                     <div className="flex flex-col gap-1 mt-1">
-                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">Dietitian Result</span>
+                      <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">{t.dietitianResult}</span>
                       <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
                         {dietitianAnswer}
                       </p>
@@ -332,6 +336,7 @@ export const AgentThoughtBox = ({
 };
 
 interface CroppedFoodImageProps {
+  language?: string;
   src: string;
   boundingBox: [number, number, number, number]; // [ymin, xmin, ymax, xmax] from 0 to 1000
   alt: string;
@@ -342,7 +347,7 @@ interface CroppedFoodImageProps {
 }
 
 export const CroppedFoodImage: React.FC<CroppedFoodImageProps> = ({ 
-  src, 
+  language, src, 
   boundingBox, 
   alt, 
   className, 
@@ -350,6 +355,7 @@ export const CroppedFoodImage: React.FC<CroppedFoodImageProps> = ({
   imageUrls,
   sourceImageIndex
 }) => {
+  const t = translations[language || "en"] || translations.en;
   const canvasRef = React.useRef<HTMLCanvasElement>(null);
   const [error, setError] = React.useState<boolean>(false);
 
@@ -535,6 +541,7 @@ interface GroupItemsContainerProps {
 }
 
 const GroupItemsContainer: React.FC<GroupItemsContainerProps> = ({ children, groupKey, isExpanded, onToggle }) => {
+  const t = translations.en;
   const contentRef = React.useRef<HTMLDivElement>(null);
   const [shouldShowButton, setShouldShowButton] = React.useState(false);
 
@@ -572,12 +579,12 @@ const GroupItemsContainer: React.FC<GroupItemsContainerProps> = ({ children, gro
           >
             {isExpanded ? (
               <>
-                <span>View Less</span>
+                <span>{t.viewLess}</span>
                 <ChevronUp className="w-3.5 h-3.5" />
               </>
             ) : (
               <>
-                <span>View More</span>
+                <span>{t.viewMore}</span>
                 <ChevronDown className="w-3.5 h-3.5" />
               </>
             )}
@@ -1108,7 +1115,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                       )}
                       <div className="flex items-center justify-between border-b border-theme-border/50 pb-2 gap-2">
                         <h4 className="font-bold text-theme-text text-sm break-words flex flex-wrap items-center gap-1.5 w-full">
-                          <span className="shrink-0">⚖️ Comparison:</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold break-words">
+                          <span className="shrink-0">t.comparisonLabel</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold break-words">
                             {(() => {
                               const val = msg.data?.agentResult?.comparison?.comparisonTitle || msg.data?.agentResult?.comparison?.keyNutrientConcern || 'Nutrients of Concern';
                               return typeof val === 'string' ? val.replace(/^key\s*:\s*/i, '') : val;
@@ -1200,7 +1207,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400 pr-6">
                                  <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                  <div className="flex flex-col">
-                                   <span className="text-[11px] font-bold leading-tight">Low confidence identification</span>
+                                   <span className="text-[11px] font-bold leading-tight">{t.lowConfidence}</span>
                                    <span className="text-[10px] font-medium leading-tight">
                                      {activeScoutItems
                                         .filter((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0))
@@ -1773,11 +1780,11 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                             {isActiveItem && (
                                                               <div className="col-span-full w-full basis-full mt-3 mb-5 border border-indigo-100 dark:border-indigo-900/40 rounded-xl p-3 bg-white/50 dark:bg-slate-900/50 shadow-sm animate-in fade-in slide-in-from-top-2 duration-300 font-sans">
                                                                 {itemLoading ? (
-                                                                  <div className="text-[10px] text-indigo-500 animate-pulse text-center py-2">Searching images...</div>
+                                                                  <div className="text-[10px] text-indigo-500 animate-pulse text-center py-2">{t.searchingImages}</div>
                                                                 ) : itemResults.length > 0 ? (
                                                                   <div className="flex flex-col">
                                                                     <div className="flex justify-between items-center mb-2 px-1">
-                                                                      <div className="text-[10px] font-medium text-slate-500">Image Results</div>
+                                                                      <div className="text-[10px] font-medium text-slate-500">{t.imageResults}</div>
                                                                       <button 
                                                                         onClick={(e) => { e.stopPropagation(); setSearchResults(prev => ({...prev, [fullItemKey]: []})); setSearchModes(prev => ({...prev, [fullItemKey]: false})); }}
                                                                         className="p-1 bg-slate-100 dark:bg-slate-800 rounded-md text-slate-400 hover:text-rose-500 hover:bg-rose-50 transition-colors"
@@ -1811,7 +1818,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                                                 ) : (
                                                                   <div className="flex flex-col items-center justify-center py-4 gap-2 text-center text-theme-text-secondary">
                                                                     <Search className="w-5 h-5 text-slate-300 dark:text-slate-600" />
-                                                                    <span className="text-[11px] font-semibold text-theme-text-secondary">No images found</span>
+                                                                    <span className="text-[11px] font-semibold text-theme-text-secondary">{t.noImagesFound}</span>
                                                                     <span className="text-[9.5px] text-slate-400 max-w-[200px]">
                                                                       No web images could be retrieved for "{itemDisplayName}".
                                                                     </span>
@@ -1968,7 +1975,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                         <div className="bg-indigo-50/70 dark:bg-indigo-950/20 border border-indigo-100 dark:border-indigo-900/50 rounded-xl p-3 text-left font-sans text-xs text-indigo-800 dark:text-indigo-300 mb-2 flex items-start gap-2">
                           <span className="text-sm">💬</span>
                           <div className="flex-1">
-                            <span className="font-bold text-indigo-900 dark:text-indigo-200 block mb-0.5">Dietitian Update:</span>
+                            <span className="font-bold text-indigo-900 dark:text-indigo-200 block mb-0.5">{t.dietitianUpdate}</span>
                             <span className="leading-relaxed whitespace-pre-line">{msg.data.pendingFoodLog.dietitianUpdateSentence}</span>
                           </div>
                         </div>
@@ -2132,7 +2139,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                  <div className="flex items-start gap-1.5 text-amber-700 dark:text-amber-400 pr-6">
                                    <svg className="w-3.5 h-3.5 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>
                                    <div className="flex flex-col gap-0.5">
-                                     <span className="text-[11px] font-bold leading-tight">Low confidence identification</span>
+                                     <span className="text-[11px] font-bold leading-tight">{t.lowConfidence}</span>
                                      {displayedScoutItems
                                         .filter((i: any) => i.itemConfidence?.toLowerCase().includes('low') || i.itemConfidence?.toLowerCase().includes('medium') || (i.anomalyFlags && i.anomalyFlags.length > 0))
                                         .map((i: any, reviewIdx: number) => (
@@ -2355,11 +2362,11 @@ export const FoodCard: React.FC<AgentCardProps & {
                                     <table className="w-full text-left border-collapse text-[11px]">
                                       <thead>
                                         <tr className="border-b border-theme-border bg-slate-50 dark:bg-slate-800/30 text-theme-text-secondary font-bold">
-                                          <th className="p-2">Item Name</th>
-                                          <th className="p-2 text-right">Weight</th>
-                                          <th className="p-2 text-right">Calories</th>
-                                          <th className="p-2 text-right">Sat Fat</th>
-                                          <th className="p-2 text-right">Sodium</th>
+                                          <th className="p-2">{t.itemName}</th>
+                                          <th className="p-2 text-right">{t.weightLabel}</th>
+                                          <th className="p-2 text-right">{t.caloriesLabel}</th>
+                                          <th className="p-2 text-right">{t.satFatLabel}</th>
+                                          <th className="p-2 text-right">{t.sodiumLabel}</th>
                                         </tr>
                                       </thead>
                                       <tbody>
@@ -2431,7 +2438,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                 <div className="px-3 py-2 space-y-3 text-[11px] font-mono">
                                   {/* Core Nutrients */}
                                   <div>
-                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 pb-0.5 border-b border-slate-200/50 dark:border-slate-800/50 font-sans text-left">Core Nutrients (11)</div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 pb-0.5 border-b border-slate-200/50 dark:border-slate-800/50 font-sans text-left">{t.coreNutrients11}</div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
                                       {(() => {
                                         const coreKeys = ["calories", "protein", "carbohydrates", "totalFat", "saturatedFat", "transFat", "addedSugar", "sodium", "potassium", "totalFibre", "solubleFibre"];
@@ -2454,7 +2461,7 @@ export const FoodCard: React.FC<AgentCardProps & {
 
                                   {/* Additional Nutrients */}
                                   <div>
-                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 pb-0.5 border-b border-slate-200/50 dark:border-slate-800/50 font-sans text-left">Additional Nutrients (20)</div>
+                                    <div className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1.5 pb-0.5 border-b border-slate-200/50 dark:border-slate-800/50 font-sans text-left">{t.additionalNutrients20}</div>
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1">
                                       {(() => {
                                         const coreKeys = ["calories", "protein", "carbohydrates", "totalFat", "saturatedFat", "transFat", "addedSugar", "sodium", "potassium", "totalFibre", "solubleFibre"];

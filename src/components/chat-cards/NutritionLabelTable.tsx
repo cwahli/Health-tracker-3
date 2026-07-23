@@ -1,6 +1,7 @@
 import React from 'react';
 import { Camera, Search } from 'lucide-react';
 import { nutrientDefinitions } from '../../utils/nutrition';
+import { translations } from '../../utils/translations';
 
 function normalizeNutritionKeys(obj: any) {
   if (!obj || typeof obj !== 'object') return obj;
@@ -30,7 +31,8 @@ function normalizeNutritionKeys(obj: any) {
   return normalized;
 }
 
-export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOpen = false }: { activeScoutItems: any[], onConfirmItem?: (idx: any) => void, defaultOpen?: boolean }) {
+export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOpen = false, language = "en" }: { activeScoutItems: any[], onConfirmItem?: (idx: any) => void, defaultOpen?: boolean, language?: string }) {
+  const t = translations[language || "en"] || translations.en;
   let items = activeScoutItems;
   if (typeof items === 'string') {
     try { items = JSON.parse(items); } catch(e) { items = []; }
@@ -95,7 +97,7 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
     <div className="mt-2 text-left pt-1 font-sans">
       <details className="group [&_summary::-webkit-details-marker]:hidden" open={defaultOpen}>
         <summary className="flex items-center gap-1.5 cursor-pointer text-[10px] font-bold text-indigo-600 dark:text-indigo-400 select-none">
-          <span>View Nutrition Labels</span>
+          <span>{t.viewNutritionLabels}</span>
           <svg
             className="w-3 h-3 transition-transform group-open:rotate-180"
             fill="none"
@@ -153,19 +155,19 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
 
                 <div className="flex flex-wrap gap-x-4 gap-y-1 mb-3 text-[10px]">
                   <div className="font-medium text-theme-neutral">
-                    <span className="text-slate-400 font-normal">Weight:</span>{' '}
-                    {missingWeight ? <span className="text-amber-500 font-bold">Unknown</span> : `${item.estimatedWeightGrams}g`}
+                    <span className="text-slate-400 font-normal">{t.weightLabelWithColon}</span>{' '}
+                    {missingWeight ? <span className="text-amber-500 font-bold">{t.unknown}</span> : `${item.estimatedWeightGrams}g`}
                   </div>
                   {(item.rawNutritionLabel?.servingSize || item.nutritionFacts?.servingSize) && (
                     <div className="font-medium text-theme-neutral">
-                      <span className="text-slate-400 font-normal">Serving Size:</span>{' '}
+                      <span className="text-slate-400 font-normal">{t.servingSizeColon}</span>{' '}
                       {item.rawNutritionLabel?.servingSize || item.nutritionFacts?.servingSize}
                     </div>
                   )}
                   {((item.rawNutritionLabel?.servingsPerContainer !== undefined && item.rawNutritionLabel?.servingsPerContainer !== null) || 
                     (item.nutritionFacts?.servingsPerContainer !== undefined && item.nutritionFacts?.servingsPerContainer !== null)) && (
                     <div className="font-medium text-theme-neutral">
-                      <span className="text-slate-400 font-normal">Servings Per Container:</span>{' '}
+                      <span className="text-slate-400 font-normal">{t.servingsPerContainerColon}</span>{' '}
                       {item.rawNutritionLabel?.servingsPerContainer !== undefined && item.rawNutritionLabel?.servingsPerContainer !== null 
                         ? item.rawNutritionLabel.servingsPerContainer 
                         : item.nutritionFacts?.servingsPerContainer}
@@ -257,7 +259,7 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
                                       <path d="M12 17h.01"></path>
                                     </svg>
                                     <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none whitespace-normal min-w-[200px] w-max max-w-[250px] p-2 bg-slate-800 text-white text-[10px] rounded shadow-lg text-center">
-                                      Received abnormal value of {item.originalCalories} kcal which deviated &gt;20% from calculation (Fat×9 + Carbs×4 + Protein×4). Auto-corrected to {originalDisplay}.
+                                      {t.abnormalValueMsg.replace("{item.originalCalories}", item.originalCalories).replace("{originalDisplay}", originalDisplay)}
                                     </div>
                                   </div>
                                 )}
@@ -275,7 +277,7 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
 
                 {item.ingredientsList && (
                   <div className="mt-2.5 p-2 bg-slate-100/60 dark:bg-slate-800/40 rounded-lg text-[9.5px] leading-normal border border-slate-200/40 dark:border-slate-700/30 text-left">
-                    <span className="font-bold text-theme-text-secondary uppercase tracking-wider block mb-1 text-[8.5px]">📋 Ingredients / Komposisi:</span>
+                    <span className="font-bold text-theme-text-secondary uppercase tracking-wider block mb-1 text-[8.5px]">{t.ingredientsLabel}</span>
                     <span className="text-theme-neutral font-normal">{item.ingredientsList}</span>
                   </div>
                 )}
@@ -288,12 +290,12 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
                       </svg>
                       <div className="flex flex-col">
                         <span className="text-[11px] font-bold leading-tight">
-                          {missingWeight ? "Missing portion size to calculate total nutrients." : "Visual scout flagged this item as unclear."}
+                          {missingWeight ? t.missingPortionSize : t.visualScoutUnclear}
                         </span>
                         <span className="text-[10px] font-medium leading-tight opacity-90 mt-0.5">
                           {isUnclear 
                             ? `Low confidence or anomalies detected (${item.anomalyFlags?.join(', ') || 'unclear detail'}).` 
-                            : "Provide a portion size or weight so the total nutrients can be computed."}
+                            : t.providePortionSize}
                         </span>
                       </div>
                     </div>
@@ -319,7 +321,7 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
                 )}
                 {item._preservedAnomalyFlags && item._preservedAnomalyFlags.length > 0 && (
                   <div className="mt-2 text-[10px] text-theme-text-secondary font-sans px-1">
-                    Note: {item._preservedAnomalyFlags.join(', ')}
+                    t.noteAnomaly
                   </div>
                 )}
               </div>

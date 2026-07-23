@@ -5,14 +5,16 @@ import { AGENT_REGISTRY } from '../../utils/agentConfig';
 import { CheckCircle, XCircle, Activity, Target, Calendar, Check, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AgentThoughtBox, getNutrientColor } from './FoodCard';
 import { isCoreNutrient, isAdditionalNutrient } from '../../utils/nutrients';
+import { translations } from '../../utils/translations';
 
 export const HealthBaselineCard: React.FC<AgentCardProps> = ({
-  msg,
+  language, msg,
   onAgentFinish,
   setLoggedMessageIds,
   loggedMessageIds,
   onDeleteMessage
 }) => {
+  const t = translations[language || "en"] || translations.en;
   const initialReport = msg.data?.agentResult?.report || msg.data?.agentResult || {};
   const initialHasReport = Array.isArray(initialReport.riskCategories) && initialReport.riskCategories.length > 0;
 
@@ -182,7 +184,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
           <div className="flex items-center space-x-2">
             <Activity className="w-5 h-5 text-indigo-500" />
             <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
-              {agentConfig?.displayName || 'Health Coach'}
+              {agentConfig?.displayName || t.healthCoach}
             </h2>
           </div>
 
@@ -192,7 +194,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
 
           {globalSummary && (
             <div className="py-2">
-              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2">Global Summary</h3>
+              <h3 className="text-sm font-semibold text-slate-800 dark:text-slate-200 mb-2">{t.globalSummary}</h3>
               <p className="text-sm text-theme-text-secondary leading-relaxed">{globalSummary}</p>
             </div>
           )}
@@ -229,8 +231,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                           {category.categoryName}
                         </h4>
                         <div className="text-xs font-medium text-slate-500 capitalize">
-                          {category.level} Risk
-                        </div>
+                          {category.level}t.riskStr                        </div>
                       </div>
                     </div>
                     {!isHandled && (
@@ -243,9 +244,9 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                         }`}
                       >
                         {isSelected ? (
-                          <><CheckCircle className="w-4 h-4" /><span className="text-xs font-medium hidden sm:inline">Included</span></>
+                          <><CheckCircle className="w-4 h-4" /><span className="text-xs font-medium hidden sm:inline">{t.included}</span></>
                         ) : (
-                          <><XCircle className="w-4 h-4" /><span className="text-xs font-medium hidden sm:inline">Excluded</span></>
+                          <><XCircle className="w-4 h-4" /><span className="text-xs font-medium hidden sm:inline">{t.excluded}</span></>
                         )}
                       </button>
                     )}
@@ -253,7 +254,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
 
                   <div className="py-2 space-y-5">
                     <div className="space-y-2">
-                      <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Analysis</div>
+                      <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{t.analysisStr}</div>
                       <p className="text-sm text-theme-neutral leading-relaxed">
                         {category.description || category.analysis}
                       </p>
@@ -261,7 +262,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
 
                     {category.unaddressedRisk && (
                       <div className="space-y-2">
-                        <div className="text-xs font-bold text-red-500 uppercase tracking-wider">Unaddressed Risk</div>
+                        <div className="text-xs font-bold text-red-500 uppercase tracking-wider">{t.unaddressedRisk}</div>
                         <p className="text-sm text-theme-neutral leading-relaxed">
                           {category.unaddressedRisk}
                         </p>
@@ -272,7 +273,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                       <div className="space-y-3">
                         <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center space-x-1.5">
                           <Target className="w-3.5 h-3.5" />
-                          <span>Biomarker Targets</span>
+                          <span>{t.biomarkerTargets}</span>
                         </div>
                         <div className="grid gap-2">
                           {mappedBiomarkerTargets.map((bt: any, i: number) => (
@@ -295,7 +296,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                       <div className="space-y-5">
                           {category.nutrientTargets?.length > 0 && (
                           <div className="space-y-3">
-                              <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Nutrient Targets</div>
+                              <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{t.nutrientTargets}</div>
                               <div className="grid gap-2">
                                 {category.nutrientTargets.map((nt: any, i: number) => (
                                   <div key={i} className="py-2 flex flex-col space-y-1">
@@ -311,7 +312,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                           )}
                           {category.dailyActivities?.length > 0 && (
                           <div className="space-y-3">
-                              <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Daily Activities</div>
+                              <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{t.dailyActivities}</div>
                               <div className="space-y-2">
                                 {category.dailyActivities.map((da: any, i: number) => (
                                   <div key={i} className="py-2 flex justify-between items-center">
@@ -379,7 +380,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
           {(topNutrientTargetsList.length > 0 || topWeeklyNutrientTargetsList.length > 0 || additionalNutrientTargetsList.length > 0 || dailyActivities.length > 0) && (
             <div className="py-4 space-y-6">
               <div className="space-y-2">
-                <h3 className="text-base font-semibold text-theme-text">Global Action Plan</h3>
+                <h3 className="text-base font-semibold text-theme-text">{t.globalActionPlan}</h3>
                 
                 {(() => {
                   const rankingCopy = report.nutrientRankingRationale || 
@@ -406,7 +407,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
               
               {topNutrientTargetsList.length > 0 && (
                 <div className="space-y-3 pt-2">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Top Nutrient Targets</div>
+                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{t.topNutrientTargets}</div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {topNutrientTargetsList.map((nt: any, i: number) => (
                       <div key={i} className="py-2">
@@ -426,7 +427,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
 
               {topWeeklyNutrientTargetsList.length > 0 && (
                 <div className="space-y-3 pt-2">
-                  <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Top Weekly Nutrient Targets</div>
+                  <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">{t.topWeeklyNutrientTargets}</div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {topWeeklyNutrientTargetsList.map((nt: any, i: number) => (
                       <div key={i} className="py-2">
@@ -446,7 +447,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
 
               {additionalNutrientTargetsList.length > 0 && (
                 <div className="space-y-3 pt-2">
-                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">Additional Nutrient Targets</div>
+                  <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">{t.additionalNutrientTargets}</div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     {additionalNutrientTargetsList.map((nt: any, i: number) => (
                       <div key={i} className="py-2">
@@ -468,7 +469,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                 <div className="space-y-3 pt-2">
                   <div className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center space-x-1.5">
                     <Activity className="w-3.5 h-3.5" />
-                    <span>Daily Activities</span>
+                    <span>{t.dailyActivities}</span>
                   </div>
                   <div className="space-y-2">
                     {dailyActivities.map((da: any, i: number) => (
@@ -487,7 +488,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
             <div className="py-4 space-y-3">
               <div className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider flex items-center space-x-1.5">
                 <Calendar className="w-4 h-4" />
-                <span>Timeline to Optimal</span>
+                <span>{t.timelineToOptimal}</span>
               </div>
               <p className="text-sm text-slate-800 dark:text-slate-200 leading-relaxed font-medium">{timelineToOptimal}</p>
             </div>
@@ -500,7 +501,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                 className="w-full sm:w-auto flex-1 flex items-center justify-center space-x-2 bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-3 rounded-2xl text-sm font-bold shadow-md shadow-indigo-600/10 transition-all active:scale-[0.98]"
               >
                 <Check className="w-4 h-4" />
-                <span>Accept Selected</span>
+                <span>{t.acceptSelected}</span>
               </button>
               
               <button
@@ -508,7 +509,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                 className="w-full sm:w-auto flex-1 flex items-center justify-center space-x-2 bg-white dark:bg-slate-800 border border-theme-border hover:bg-slate-50 dark:hover:bg-slate-700/50 text-theme-neutral px-5 py-3 rounded-2xl text-sm font-bold shadow-sm transition-all active:scale-[0.98]"
               >
                 <CheckCircle className="w-4 h-4" />
-                <span>Accept All</span>
+                <span>{t.acceptAll}</span>
               </button>
 
               <button
@@ -517,7 +518,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
                 title="Delete / Dismiss"
               >
                 <Trash2 className="w-5 h-5" />
-                <span className="ml-2 sm:hidden font-bold text-sm">Delete Analysis</span>
+                <span className="ml-2 sm:hidden font-bold text-sm">{t.deleteAnalysis}</span>
               </button>
             </div>
           )}
@@ -525,7 +526,7 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
           {isHandled && onAgentFinish && (
             <div className="flex items-center justify-center space-x-2 p-3 bg-slate-50 dark:bg-slate-800/30 border border-theme-border/50 rounded-2xl">
               <CheckCircle className="w-4 h-4 text-emerald-500" />
-              <span className="text-sm font-semibold text-theme-text-secondary">Analysis Handled</span>
+              <span className="text-sm font-semibold text-theme-text-secondary">{t.analysisHandled}</span>
             </div>
           )}
         </div>

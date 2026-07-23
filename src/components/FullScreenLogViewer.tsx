@@ -2,8 +2,10 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { X, Copy, Send, Check, AlertTriangle, Search, ChevronDown, ChevronUp, Trash2 } from 'lucide-react';
 import { getAgentRequestLogs, deleteAgentRequestLog, AgentRequestLog } from '../utils/agentLogsTracker';
+import { translations } from '../utils/translations';
 
 interface FullScreenLogViewerProps {
+  language?: string;
   isOpen: boolean;
   onClose: () => void;
   title: string;
@@ -306,8 +308,10 @@ export default function FullScreenLogViewer({
   eventsCount,
   conversationsList,
   activeConversationId,
-  showFilters = false
+  showFilters = false,
+  language
 }: FullScreenLogViewerProps) {
+  const t = translations[language || "en"] || translations.en;
   const [copiedAll, setCopiedAll] = useState(false);
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -597,13 +601,13 @@ export default function FullScreenLogViewer({
           {isDiagnostic ? (
             requestLogs.length > 0 && (
               <div className="flex items-center gap-2 shrink-0">
-                <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Request:</span>
+                <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">{t.requestLabel}</span>
                 <select
                   value={selectedResponse}
                   onChange={(e) => setSelectedResponse(e.target.value)}
                   className="bg-slate-900 border border-slate-800/80 rounded-xl px-3 py-1.5 outline-none text-slate-200 font-mono focus:border-indigo-500/50 cursor-pointer shadow-sm text-xs max-w-[200px] truncate"
                 >
-                  <option value="all">All Requests</option>
+                  <option value="all">{t.allRequests}</option>
                   {requestLogs.map((req) => (
                     <option key={req.id} value={req.id}>
                       {new Date(req.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit'})} - {req.summary}
@@ -626,7 +630,7 @@ export default function FullScreenLogViewer({
             )
           ) : conversationsList && conversationsList.length > 0 && (
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Session:</span>
+              <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">{t.sessionLabel}</span>
               <select
                 value={selectedSessionId}
                 onChange={(e) => handleSessionChange(e.target.value)}
@@ -643,20 +647,20 @@ export default function FullScreenLogViewer({
 
           {/* Agent Filter */}
           <div className="flex items-center gap-2 shrink-0">
-            <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">Agent:</span>
+            <span className="text-slate-500 font-bold uppercase tracking-wider text-[10px]">{t.agentLabel}</span>
             <select
               value={selectedAgent}
               onChange={(e) => setSelectedAgent(e.target.value)}
               className="bg-slate-900 border border-slate-800/80 rounded-xl px-3 py-1.5 outline-none text-slate-200 font-mono focus:border-indigo-500/50 cursor-pointer shadow-sm text-xs"
             >
-              <option value="all">All Agents / Process Steps</option>
+              <option value="all">{t.allAgentsProcessSteps}</option>
               {availableAgents.map((agent) => (
                 <option key={agent.id} value={agent.id}>
                   {agent.name}
                 </option>
               ))}
               {agentLogs['other'] && agentLogs['other'].length > 0 && availableAgents.length === 0 && (
-                <option value="other">System Logs</option>
+                <option value="other">{t.systemLogs}</option>
               )}
             </select>
           </div>
@@ -762,12 +766,12 @@ export default function FullScreenLogViewer({
             {copiedAll ? (
               <>
                 <Check className="w-4 h-4 text-emerald-400" />
-                <span>Copied All!</span>
+                <span>{t.copiedAll}</span>
               </>
             ) : (
               <>
                 <Copy className="w-4 h-4" />
-                <span>Copy All</span>
+                <span>{t.copyAll}</span>
               </>
             )}
           </button>
@@ -786,22 +790,22 @@ export default function FullScreenLogViewer({
               {isSendingLogs ? (
                 <>
                   <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin"></span>
-                  <span>Sending...</span>
+                  <span>{t.sending}</span>
                 </>
               ) : logsSendStatus === 'success' ? (
                 <>
                   <Check className="w-4 h-4" />
-                  <span>Sent!</span>
+                  <span>{t.sent}</span>
                 </>
               ) : logsSendStatus === 'error' ? (
                 <>
                   <AlertTriangle className="w-4 h-4" />
-                  <span>Failed!</span>
+                  <span>{t.failed}</span>
                 </>
               ) : (
                 <>
                   <Send className="w-4 h-4" />
-                  <span>Send to Admin</span>
+                  <span>{t.sendToAdmin}</span>
                 </>
               )}
             </button>

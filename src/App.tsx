@@ -4597,7 +4597,7 @@ export default function App() {
         </div>
       )}
       {/* Bottom Material Tab Bar (Icons only) */}
-      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} language={profile.language} />
+      <BottomNav activeTab={activeTab} setActiveTab={setActiveTab} language={profile?.language || "en"} />
       {/* Slide-over interactive dialogs */}
       
       {(() => {

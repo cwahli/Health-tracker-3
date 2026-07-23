@@ -5,12 +5,15 @@ import { collection, writeBatch, doc } from 'firebase/firestore';
 import { db } from '../firebase';
 import { ApiCallEvent, trackApiCall } from '../utils/apiTracker';
 import { getAllLocalUsers } from '../utils/userManagement';
+import { translations } from '../utils/translations';
 interface ApiCallTrackerModalProps {
+  language?: string;
   isOpen: boolean;
   onClose: () => void;
   userEmail: string;
 }
-export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiCallTrackerModalProps) {
+export default function ApiCallTrackerModal({ isOpen, onClose, userEmail, language }: ApiCallTrackerModalProps) {
+  const t = translations[language || "en"] || translations.en;
   const [events, setEvents] = useState<ApiCallEvent[]>([]);
   const [isSyncing, setIsSyncing] = useState(false);
   const [syncStatusMsg, setSyncStatusMsg] = useState<'idle' | 'success' | 'error'>('idle');
@@ -229,8 +232,8 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
             <Activity className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="text-base font-bold text-white leading-tight">API & Agent Call Tracker</h2>
-            <p className="text-[10px] text-slate-400 font-medium">Offline telemetry logs & Firestore Cloud synchronization</p>
+            <h2 className="text-base font-bold text-white leading-tight">{t.apiCallTracker}</h2>
+            <p className="text-[10px] text-slate-400 font-medium">{t.apiTrackerSubTitle}</p>
           </div>
         </div>
         <button
@@ -248,26 +251,26 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div className="flex items-center gap-4 flex-wrap">
                 <div>
-                   <label className="block text-[10px] text-slate-400 font-bold mb-1">Start Date</label>
+                   <label className="block text-[10px] text-slate-400 font-bold mb-1">{t.startDate}</label>
                    <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-white outline-none focus:border-indigo-500 transition-colors" />
                    <input type="time" value={startTime} onChange={e => setStartTime(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-white ml-2 outline-none focus:border-indigo-500 transition-colors" />
                 </div>
                 <div>
-                   <label className="block text-[10px] text-slate-400 font-bold mb-1">End Date</label>
+                   <label className="block text-[10px] text-slate-400 font-bold mb-1">{t.endDate}</label>
                    <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-white outline-none focus:border-indigo-500 transition-colors" />
                    <input type="time" value={endTime} onChange={e => setEndTime(e.target.value)} className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1 text-xs text-white ml-2 outline-none focus:border-indigo-500 transition-colors" />
                 </div>
                 <div>
-                   <label className="block text-[10px] text-slate-400 font-bold mb-1">User Type Filter</label>
+                   <label className="block text-[10px] text-slate-400 font-bold mb-1">{t.userTypeFilter}</label>
                    <select 
                      value={selectedUserType} 
                      onChange={e => setSelectedUserType(e.target.value as any)} 
                      className="bg-slate-900 border border-slate-700 rounded-md px-2 py-1.5 text-xs text-white outline-none focus:border-indigo-500 transition-colors cursor-pointer"
                    >
-                     <option value="all">All Users</option>
-                     <option value="Admin">Admins</option>
-                     <option value="Demo">Demo Accounts</option>
-                     <option value="Standard">Standard Users</option>
+                     <option value="all">{t.allUsers}</option>
+                     <option value="Admin">{t.admins}</option>
+                     <option value="Demo">{t.demoAccounts}</option>
+                     <option value="Standard">{t.standardUsers}</option>
                    </select>
                 </div>
               </div>
@@ -278,7 +281,7 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
                   className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold rounded-xl text-xs flex items-center gap-1.5 transition-all cursor-pointer hover:scale-[1.01]"
                 >
                   {isSyncing ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Cloud className="w-3.5 h-3.5" />}
-                  <span>Sync to Cloud</span>
+                  <span>{t.syncToCloud}</span>
                 </button>
                 <button
                   onClick={handleClearHistory}
@@ -297,7 +300,7 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
                   `From ${startDate} ${startTime || '00:00'} to ${endDate} ${endTime || '23:59'}`
                 )}
               </h3>
-              <p className="text-[10px] text-slate-500 font-medium">Aggregated counts for the selected timeframe. Click a metric to filter history.</p>
+              <p className="text-[10px] text-slate-500 font-medium">{t.aggregatedCountsDesc}</p>
             </div>
           </div>
           {/* Sync Status Banner */}
@@ -320,26 +323,26 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
             <button 
               onClick={() => setSelectedMetric(selectedMetric === 'gemini' ? null : 'gemini')}
               className={`p-4 text-left border rounded-2xl transition-all cursor-pointer outline-none focus:ring-2 focus:ring-indigo-500/50 ${selectedMetric === 'gemini' ? 'bg-indigo-950/40 border-indigo-500/50 ring-1 ring-indigo-500/50' : 'bg-slate-900 border-slate-800/80 hover:bg-slate-800/50'}`}>
-              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Gemini Calls</span>
+              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.geminiCalls}</span>
               <span className="text-2xl font-mono font-bold text-indigo-400">{filteredTotals.gemini}</span>
             </button>
             
             <button 
               onClick={() => setSelectedMetric(selectedMetric === 'usda' ? null : 'usda')}
               className={`p-4 text-left border rounded-2xl transition-all cursor-pointer outline-none focus:ring-2 focus:ring-amber-500/50 ${selectedMetric === 'usda' ? 'bg-amber-950/40 border-amber-500/50 ring-1 ring-amber-500/50' : 'bg-slate-900 border-slate-800/80 hover:bg-slate-800/50'}`}>
-              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">USDA Queries</span>
+              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.usdaQueries}</span>
               <span className="text-2xl font-mono font-bold text-amber-400">{filteredTotals.usda}</span>
             </button>
             <button 
               onClick={() => setSelectedMetric(selectedMetric === 'brave' ? null : 'brave')}
               className={`p-4 text-left border rounded-2xl transition-all cursor-pointer outline-none focus:ring-2 focus:ring-sky-500/50 ${selectedMetric === 'brave' ? 'bg-sky-950/40 border-sky-500/50 ring-1 ring-sky-500/50' : 'bg-slate-900 border-slate-800/80 hover:bg-slate-800/50'}`}>
-              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Brave Searches</span>
+              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.braveSearches}</span>
               <span className="text-2xl font-mono font-bold text-sky-400">{filteredTotals.brave}</span>
             </button>
             <button 
               onClick={() => setSelectedMetric(selectedMetric === 'unsplash_wiki' ? null : 'unsplash_wiki')}
               className={`p-4 text-left border rounded-2xl transition-all cursor-pointer outline-none focus:ring-2 focus:ring-emerald-500/50 ${selectedMetric === 'unsplash_wiki' ? 'bg-emerald-950/40 border-emerald-500/50 ring-1 ring-emerald-500/50' : 'bg-slate-900 border-slate-800/80 hover:bg-slate-800/50'}`}>
-              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">Unsplash / Wiki</span>
+              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-1">{t.unsplashWiki}</span>
               <span className="text-2xl font-mono font-bold text-emerald-400">{filteredTotals.unsplash + filteredTotals.wikipedia}</span>
             </button>
           </div>
@@ -347,15 +350,15 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
             onClick={() => setSelectedMetric(selectedMetric === 'firebase_all' ? null : 'firebase_all')}
             className={`w-full p-4 border rounded-2xl grid grid-cols-3 gap-4 text-center transition-all cursor-pointer outline-none focus:ring-2 focus:ring-slate-500/50 ${selectedMetric === 'firebase_all' ? 'bg-slate-800/80 border-slate-500/50 ring-1 ring-slate-500/50' : 'bg-slate-900 border-slate-800/80 hover:bg-slate-800/50'}`}>
             <div>
-              <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Firestore Reads</span>
+              <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">{t.firestoreReads}</span>
               <span className="text-base font-mono font-semibold text-slate-300">{filteredTotals.firebase_read}</span>
             </div>
             <div className="border-x border-slate-800">
-              <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Firestore Writes</span>
+              <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">{t.firestoreWrites}</span>
               <span className="text-base font-mono font-semibold text-slate-300">{filteredTotals.firebase_write}</span>
             </div>
             <div>
-              <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">Firestore Deletes</span>
+              <span className="block text-[9px] font-bold text-slate-500 uppercase tracking-wider mb-0.5">{t.firestoreDeletes}</span>
               <span className="text-base font-mono font-semibold text-slate-300">{filteredTotals.firebase_delete}</span>
             </div>
           </button>
@@ -364,8 +367,8 @@ export default function ApiCallTrackerModal({ isOpen, onClose, userEmail }: ApiC
         <div className="space-y-4">
           <div className="flex items-center justify-between px-1">
             <div>
-              <h3 className="text-sm font-bold text-slate-200">Query Sessions History</h3>
-              <p className="text-[10px] text-slate-500 font-medium">Grouped sequence of calls executed per user interaction</p>
+              <h3 className="text-sm font-bold text-slate-200">{t.querySessionsHistory}</h3>
+              <p className="text-[10px] text-slate-500 font-medium">{t.groupedSequenceDesc}</p>
             </div>
             <span className="text-[10px] font-bold text-indigo-400 bg-indigo-950/50 px-2 py-0.5 rounded-full border border-indigo-900/30">
               {groupedQueries.length} Sessions Logged

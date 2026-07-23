@@ -1,10 +1,13 @@
 import React from 'react';
+import { translations } from '../../utils/translations';
 
 interface FoodEvaluationComparisonCardProps {
+  language?: string;
   msg: any;
 }
 
-export const FoodEvaluationComparisonCard: React.FC<FoodEvaluationComparisonCardProps> = ({ msg }) => {
+export const FoodEvaluationComparisonCard: React.FC<FoodEvaluationComparisonCardProps> = ({ msg, language }) => {
+  const t = translations[language || "en"] || translations.en;
   if (!msg.agentResult || msg.agentResult.mode !== 'evaluation' || !msg.agentResult.comparison) return null;
 
   return (
@@ -12,7 +15,7 @@ export const FoodEvaluationComparisonCard: React.FC<FoodEvaluationComparisonCard
       <div className="bg-white dark:bg-slate-800 border border-theme-border rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-[70%] max-w-full mx-auto min-w-0 overflow-hidden">
         <div className="flex items-center justify-between border-b border-theme-border/50 pb-2 gap-2">
           <h4 className="font-bold text-theme-text text-sm break-words flex flex-wrap items-center gap-1.5 w-full">
-            <span className="shrink-0">⚖️ Comparison:</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold break-words">{msg.agentResult.comparison.keyNutrientConcern || 'Nutrients of Concern'}</span>
+            <span className="shrink-0">{t.comparisonLabel}</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold break-words">{msg.agentResult.comparison.keyNutrientConcern || t.nutrientsOfConcern}</span>
           </h4>
         </div>
         {/* Key Nutrient Comparison Table */}
@@ -28,11 +31,11 @@ export const FoodEvaluationComparisonCard: React.FC<FoodEvaluationComparisonCard
                 <table className="w-full text-[11px] text-left border-collapse">
                   <thead className="bg-slate-50 dark:bg-slate-900 sticky top-0 z-10 border-b border-theme-border">
                     <tr>
-                      <th className="px-3 py-2.5 font-bold text-theme-text-secondary font-mono text-[10px] tracking-wider uppercase whitespace-nowrap">Nutrient</th>
+                      <th className="px-3 py-2.5 font-bold text-theme-text-secondary font-mono text-[10px] tracking-wider uppercase whitespace-nowrap">{t.nutrientLabel}</th>
                       {(msg.agentResult.comparison.foods || []).map((food: any, i: number) => (
                         <th key={i} className="px-3 py-2.5 font-bold text-theme-text-secondary font-mono text-[10px] tracking-wider uppercase whitespace-nowrap">{food.name}</th>
                       ))}
-                      <th className="px-3 py-2.5 font-bold text-theme-text-secondary font-mono text-[10px] tracking-wider uppercase whitespace-nowrap">Target</th>
+                      <th className="px-3 py-2.5 font-bold text-theme-text-secondary font-mono text-[10px] tracking-wider uppercase whitespace-nowrap">{t.targetLabel}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">

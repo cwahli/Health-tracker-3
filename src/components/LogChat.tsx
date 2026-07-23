@@ -3391,6 +3391,7 @@ ${JSON.stringify(profile, null, 2)}`);
                             isLive={msg.isLive}
                             placeholderStep={msg.isLive && isAgent('food') ? ANALYZING_STEPS[analyzingStepIndex] : undefined}
                             hasImage={msg.data?.hasImage}
+                            language={profile?.language || "en"}
                             scoutInstruction={msg.data?.agentResult?.scoutInstruction}
                             scoutAnswer={msg.data?.agentResult?.scoutAnswer}
                             dbSearchLog={msg.data?.agentResult?.dbSearchLog}
@@ -3406,6 +3407,7 @@ ${JSON.stringify(profile, null, 2)}`);
                           messages={messages}
                           report={report}
                           foodLogs={activeFoodLogs}
+                          language={profile?.language || "en"}
                           t={t}
                           formatNutrientValue={formatNutrientValue}
                           onLogFood={onLogFood}

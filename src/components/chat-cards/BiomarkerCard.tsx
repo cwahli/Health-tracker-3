@@ -6,13 +6,15 @@ import { AgentResultTable } from '../AgentResultTable';
 import { GenericAgentResultView } from '../AgentResultViews';
 import { biomarkerDefinitions } from '../../utils/biomarkers';
 import { AgentType, AGENT_REGISTRY } from '../../utils/agentConfig';
+import { translations } from '../../utils/translations';
 
 export const BiomarkerCard: React.FC<AgentCardProps> = ({
-  msg, messages, idx, profile, biomarkerHistory,
+  language, msg, messages, idx, profile, biomarkerHistory,
   handleAgent1Step, handleContinueExtractionChunk, setLoggedMessageIds,
   loggedMessageIds, onAgentFinish, handleSend, setActiveInstructionAgentType,
   setActiveInstructionPrompt, onLogMedical, isAnalyzing
 }) => {
+  const t = translations[language || "en"] || translations.en;
   const hasValidAgentResult = React.useMemo(() => {
     if (msg.isLive) return false;
     if (!msg.data?.agentResult) return false;
@@ -144,7 +146,7 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                     <div className="bg-white dark:bg-slate-800 border border-theme-border rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden">
                       <div className="border-b border-theme-border/50 pb-2">
                         <h4 className="font-bold text-theme-text text-xs tracking-wider uppercase font-display">
-                          {msg.mode === 'modify' ? 'Proposed Modifications' : 'Extracted Information'}
+                          {msg.mode === 'modify' ? t.proposedModifications : t.extractedInformation}
                         </h4>
                       </div>
 
@@ -154,10 +156,10 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                             {msg.modificationCommand.map((cmd, idx) => (
                               <div key={idx} className="flex items-center justify-between py-1 border-b border-slate-50 dark:border-slate-800/20 text-xs px-2">
                                 <span className="text-theme-text-secondary font-medium">
-                                  {cmd.action === 'remove_biomarker' ? 'Remove' : 'Update'} {cmd.keyName} {cmd.date ? `(${cmd.date})` : ''}
+                                  {cmd.action === 'remove_biomarker' ? t.removeAction : t.updateAction} {cmd.keyName} {cmd.date ? `(${cmd.date})` : ''}
                                 </span>
                                 <span className="font-mono font-bold text-slate-800 dark:text-slate-200">
-                                  {cmd.action === 'remove_biomarker' ? 'DELETED' : (typeof cmd.newValue === 'object' ? JSON.stringify(cmd.newValue) : String(cmd.newValue))}
+                                  {cmd.action === 'remove_biomarker' ? t.deletedStatus : (typeof cmd.newValue === 'object' ? JSON.stringify(cmd.newValue) : String(cmd.newValue))}
                                 </span>
                               </div>
                             ))}
@@ -166,7 +168,7 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                           <>
                             {msg.pendingProfile && Object.entries(msg.pendingProfile).filter(([k, v]) => typeof v !== 'object' && k !== 'customBiomarkers').length > 0 && (
                               <div className="space-y-1">
-                                <h5 className="text-[10px] uppercase font-bold text-slate-500 mb-1">Profile Updates</h5>
+                                <h5 className="text-[10px] uppercase font-bold text-slate-500 mb-1">{t.profileUpdates}</h5>
                                 {Object.entries(msg.pendingProfile)
                                   .filter(([key, val]) => typeof val !== 'object' && key !== 'customBiomarkers')
                                   .map(([key, val]) => (
@@ -184,18 +186,18 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
 
                             {msg.mode === 'plan' && msg.planningDetails && (
                               <div className="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-xl border border-indigo-100 dark:border-indigo-800/30">
-                                <h5 className="text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-400 mb-2">Extraction Plan</h5>
+                                <h5 className="text-[10px] uppercase font-bold text-indigo-600 dark:text-indigo-400 mb-2">{t.extractionPlan}</h5>
                                 <div className="space-y-1.5 text-xs text-indigo-800 dark:text-indigo-200">
                                   <div className="flex justify-between">
-                                    <span>Estimated Metrics:</span>
+                                    <span>{t.estimatedMetrics}</span>
                                     <span className="font-mono font-bold">{msg.planningDetails.estimatedTotalMetrics || 'Unknown'}</span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span>Batches Required:</span>
+                                    <span>{t.batchesRequired}</span>
                                     <span className="font-mono font-bold">{msg.planningDetails.batchesRequired || 'Unknown'}</span>
                                   </div>
                                   <div className="flex justify-between">
-                                    <span>Max Per Batch:</span>
+                                    <span>{t.maxPerBatch}</span>
                                     <span className="font-mono font-bold">{msg.planningDetails.maxMetricsPerBatch}</span>
                                   </div>
                                 </div>
@@ -256,8 +258,8 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                               (msg.data?.pendingBiomarkers && typeof msg.data?.pendingBiomarkers === 'object' && Object.keys(msg.data?.pendingBiomarkers).length > 0 ? [{ date: msg.pendingDate || null, biomarkers: msg.data?.pendingBiomarkers }] : []).map((entry, idx) => (
                                 <div key={idx} className="space-y-1">
                                   <div className="flex items-center justify-between py-1 bg-slate-50 dark:bg-slate-800/50 px-2 rounded-md mb-2">
-                                    <span className="text-theme-text-secondary font-bold text-[10px] uppercase">Record Date</span>
-                                    <span className="font-mono font-bold text-theme-neutral text-xs">{entry.date || 'Unknown Date'}</span>
+                                    <span className="text-theme-text-secondary font-bold text-[10px] uppercase">{t.recordDate}</span>
+                                    <span className="font-mono font-bold text-theme-neutral text-xs">{entry.date || t.unknownDate}</span>
                                   </div>
                                   {entry.biomarkers && typeof entry.biomarkers === 'object' && Object.entries(entry.biomarkers).map(([key, val]) => {
                                     const def = biomarkerDefinitions.find(d => d.key === key);
@@ -302,7 +304,7 @@ export const BiomarkerCard: React.FC<AgentCardProps> = ({
                             className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-md shadow-indigo-600/10 flex items-center justify-center gap-1.5 transition-all cursor-pointer"
                           >
                             <Plus className="w-4 h-4" />
-                            {msg.mode === 'modify' ? 'Apply modifications' : (!!(msg.status === 'needs_continuation' || msg.data?.agentResult?.status === 'needs_continuation' || msg.data?.agentResult?.hasMore || msg.data?.agentResult?.hasMoreMarkers || msg.data?.agentResult?.needsContinuation)) ? 'Save and continue to next batch' : 'Save extracted data'}
+                            {msg.mode === 'modify' ? t.applyModifications : (!!(msg.status === 'needs_continuation' || msg.data?.agentResult?.status === 'needs_continuation' || msg.data?.agentResult?.hasMore || msg.data?.agentResult?.hasMoreMarkers || msg.data?.agentResult?.needsContinuation)) ? t.saveAndContinueBatch : t.saveExtractedData}
                           </button>
                           
                           <button

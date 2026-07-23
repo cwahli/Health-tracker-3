@@ -1,6 +1,7 @@
 import { ChatMessage } from '../../types';
 
 export interface AgentCardProps {
+  language?: string;
   msg: ChatMessage;
   messages: ChatMessage[];
   idx: number;

@@ -50,8 +50,10 @@ function generateDynamicInsight(def: BiomarkerDefinition, profile: UserProfile, 
 import { reverseStandardizeUnit, formatNormalRange, CONVERSION_FACTORS, standardizeUnit } from '../utils/unitConversion';
 import BiomarkerCalculationPanel from './BiomarkerCalculationPanel';
 import { getAgentCalibration } from '../utils/agentCalibration';
+import { translations } from '../utils/translations';
 
 interface BiomarkerExpandedSectionProps {
+  language?: string;
   def: BiomarkerDefinition;
   profile: UserProfile;
   biomarkerHistory: BiomarkerLog[];
@@ -75,7 +77,7 @@ interface BiomarkerExpandedSectionProps {
 }
 
 export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> = ({
-  def,
+  language, def,
   profile,
   biomarkerHistory,
   biomarkers,
@@ -91,6 +93,7 @@ export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> =
   hideSensitive,
   onEditBiomarkerDef,
 }) => {
+  const t = translations[language || "en"] || translations.en;
   const [editingLogId, setEditingLogId] = useState<string | null>(null);
   const [editValue, setEditValue] = useState<string>('');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -199,7 +202,7 @@ export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> =
       <div className="p-4 bg-indigo-50/30 dark:bg-indigo-950/10 border border-indigo-100/50 dark:border-indigo-900/30 rounded-2xl">
         <div className="flex items-center gap-1.5 mb-2 text-indigo-600 dark:text-indigo-400 font-bold text-xs uppercase tracking-wider">
           <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" className="shrink-0"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          <span>Medical Insight</span>
+          <span>{t.medicalInsightLabel}</span>
         </div>
         <p className="text-slate-700 dark:text-slate-200 text-sm leading-relaxed font-medium">
           {insightText}
@@ -229,7 +232,7 @@ export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> =
             {/* Description */}
             {description && (
               <div>
-                <span className="block text-[10px] font-bold text-slate-450 uppercase tracking-wider mb-1">Description</span>
+                <span className="block text-[10px] font-bold text-slate-450 uppercase tracking-wider mb-1">{t.descriptionLabel}</span>
                 <p className="text-theme-text-secondary text-xs leading-relaxed font-medium font-sans">
                   {description}
                 </p>
@@ -253,7 +256,7 @@ export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> =
             {/* Risk Assessment & Notes (if benefitRisk is present) */}
             {def.benefitRisk && (
               <div className="p-3 bg-slate-50 dark:bg-slate-850/30 border border-slate-200/50 dark:border-slate-800/45 rounded-xl">
-                <span className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1 font-sans">Risk Assessment & Benefits</span>
+                <span className="block text-[10px] text-slate-500 font-bold uppercase tracking-wider mb-1 font-sans">{t.riskAssessmentBenefits}</span>
                 <p className="text-theme-text-secondary text-xs leading-relaxed font-medium font-sans">
                   {def.benefitRisk}
                 </p>
@@ -352,7 +355,7 @@ export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> =
       {historyData.length > 0 && (
         <div className="flex flex-col max-h-[300px]">
           <div className="flex items-center justify-between mb-2 shrink-0">
-            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">Historical Logs</h4>
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider">{t.historicalLogsLabel}</h4>
 
           </div>
           <div className="space-y-2 overflow-y-auto flex-1 pr-1 pb-1">
@@ -382,8 +385,8 @@ export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> =
                             onChange={(e) => setEditValue(e.target.value)}
                             className="form-input-styled w-16 text-xs text-slate-800 dark:text-slate-100"
                           />
-                          <button onClick={() => handleSaveEdit(h.logId)} className="text-indigo-600 font-bold text-xs cursor-pointer">Save</button>
-                          <button onClick={() => setEditingLogId(null)} className="text-slate-400 font-bold text-xs cursor-pointer">Cancel</button>
+                          <button onClick={() => handleSaveEdit(h.logId)} className="text-indigo-600 font-bold text-xs cursor-pointer">{t.save}</button>
+                          <button onClick={() => setEditingLogId(null)} className="text-slate-400 font-bold text-xs cursor-pointer">{t.cancel}</button>
                         </div>
                       ) : (
                         <>
@@ -424,17 +427,17 @@ export const BiomarkerExpandedSection: React.FC<BiomarkerExpandedSectionProps> =
                     <div className="text-[10px] space-y-1 text-theme-text-secondary pt-1 border-t border-theme-border/40">
                       {testDetail.originalTestName && testDetail.originalTestName !== def.name && (
                         <div>
-                          <span className="font-medium">Original Name:</span> <span className="italic">{testDetail.originalTestName}</span>
+                          <span className="font-medium">{t.originalNameLabel}</span> <span className="italic">{testDetail.originalTestName}</span>
                         </div>
                       )}
                       {testDetail.normalRange && (
                         <div>
-                          <span className="font-medium">Extracted Range:</span> <span className="font-mono">{testDetail.normalRange}</span>
+                          <span className="font-medium">{t.extractedRangeLabel}</span> <span className="font-mono">{testDetail.normalRange}</span>
                         </div>
                       )}
                       {testDetail.doctorComment && (
                         <div className="bg-indigo-50/40 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 p-1.5 rounded border border-indigo-100/30 mt-1 leading-relaxed">
-                          <span className="font-bold uppercase text-[8px] tracking-wider block mb-0.5">Doctor/Lab Comment</span>
+                          <span className="font-bold uppercase text-[8px] tracking-wider block mb-0.5">{t.doctorLabCommentLabel}</span>
                           {testDetail.doctorComment}
                         </div>
                       )}
