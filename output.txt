@@ -1,0 +1,30 @@
+**Report of Findings:**
+
+1. **Hardcoded English strings visible to end users:**
+   - `src/components/HomeTab.tsx:1108`: Hardcoded text "Core Nutrients".
+   - `src/components/HomeTab.tsx:1116`: Hardcoded text "Additional Nutrients".
+   - `src/components/HomeTab.tsx:1149`: Hardcoded text "How Rolling Budget Works".
+   - `src/components/HomeTab.tsx:1205`: Hardcoded text "Rolling Timeframe".
+   - `src/App.tsx:4243`: Hardcoded text "Checking your health portal...".
+   - `src/App.tsx:4321`: Hardcoded text "Switch Demo Profile:".
+   - `src/App.tsx:5602`: Hardcoded text "No snapshots yet. Snapshots are created automatically before each agent approval.".
+   - `src/App.tsx:5635`: Hardcoded text "Snapshots are stored locally on this device only. Up to 5 are kept.".
+
+2. **Missing translation keys in all four locales:**
+   - No instances found; all translation keys (e.g. `t.someKey`) referenced in the listed files correctly exist in the `en`, `fr`, `zh`, and `id` objects in `translations.ts`.
+
+3. **Components from the list accepting a `language` prop missing at a call site:**
+   - `src/components/Header.tsx:3000`: Renders `<GoogleHealthIntegration>` without passing the `language` prop.
+   - `src/components/chat-cards/FoodCard.tsx:1391`: Renders `<NutritionLabelTable>` without passing the `language` prop.
+   - `src/components/chat-cards/FoodCard.tsx:2179`: Renders `<NutritionLabelTable>` without passing the `language` prop.
+   - `src/components/FoodHistoryTab.tsx:1424`: Renders `<NutritionLabelTable>` without passing the `language` prop.
+   - `src/components/InsightsTab.tsx:1095`: Renders `<HealthBaselineCard>` without passing the `language` prop.
+   - `src/components/InsightsTab.tsx:2884`: Renders `<HealthBaselineCard>` without passing the `language` prop.
+   - `src/components/chat-cards/HealthBaselineCard.tsx:192`: Renders `<AgentThoughtBox>` without passing the `language` prop.
+   - `src/components/chat-cards/FoodCard.tsx:1154`: Renders `<CroppedFoodImage>` without passing the `language` prop.
+   - `src/components/chat-cards/FoodCard.tsx:1332`: Renders `<CroppedFoodImage>` without passing the `language` prop.
+   - `src/components/chat-cards/FoodCard.tsx:2076`: Renders `<CroppedFoodImage>` without passing the `language` prop.
+   - `src/components/chat-cards/FoodScoutItemPreview.tsx:110`: Renders `<CroppedFoodImage>` without passing the `language` prop.
+
+4. **Hardcoded locale key used for writing instead of `[profile.language || 'en']`:**
+   - `src/components/HomeTab.tsx:187`: Modifies a biomarker definition by hardcoding the update to the `en` key (`en: 'A measure of body fat based on height and weight.'`) instead of using the dynamic language key.
