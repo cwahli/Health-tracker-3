@@ -112,6 +112,37 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
   const scratchpad = report.scratchpad || '';
   const timelineToOptimal = report.timelineToOptimal || '';
 
+  let displayScratchpad = scratchpad;
+  if (globalSummary) {
+    const normSummary = globalSummary.trim();
+    if (msg.content) {
+      const idx = msg.content.indexOf(normSummary);
+      if (idx !== -1) {
+        msg.content = (msg.content.slice(0, idx) + msg.content.slice(idx + normSummary.length)).trim();
+      } else {
+        const lowerContent = msg.content.toLowerCase();
+        const lowerSummary = normSummary.toLowerCase();
+        const idxLower = lowerContent.indexOf(lowerSummary);
+        if (idxLower !== -1) {
+          msg.content = (msg.content.slice(0, idxLower) + msg.content.slice(idxLower + lowerSummary.length)).trim();
+        }
+      }
+    }
+    if (displayScratchpad) {
+      const idx = displayScratchpad.indexOf(normSummary);
+      if (idx !== -1) {
+        displayScratchpad = (displayScratchpad.slice(0, idx) + displayScratchpad.slice(idx + normSummary.length)).trim();
+      } else {
+        const lowerScratch = displayScratchpad.toLowerCase();
+        const lowerSummary = normSummary.toLowerCase();
+        const idxLower = lowerScratch.indexOf(lowerSummary);
+        if (idxLower !== -1) {
+          displayScratchpad = (displayScratchpad.slice(0, idxLower) + displayScratchpad.slice(idxLower + lowerSummary.length)).trim();
+        }
+      }
+    }
+  }
+
   const isHandled = (loggedMessageIds || []).includes(msg.id);
 
   const scrollToCard = (index: number) => {
@@ -188,8 +219,8 @@ export const HealthBaselineCard: React.FC<AgentCardProps> = ({
             </h2>
           </div>
 
-          {scratchpad && (
-            <AgentThoughtBox dietitianScratchpad={scratchpad} isLive={false} hasImage={false} />
+          {displayScratchpad && (
+            <AgentThoughtBox dietitianScratchpad={displayScratchpad} isLive={false} hasImage={false} />
           )}
 
           {globalSummary && (

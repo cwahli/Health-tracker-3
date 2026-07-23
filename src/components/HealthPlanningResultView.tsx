@@ -426,16 +426,14 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
                             )}
                           </div>
                         </div>
-                        {item.priorityReason && (
-                          <p className="text-[10px] font-medium text-indigo-700 dark:text-indigo-400 bg-indigo-50/60 dark:bg-indigo-950/40 p-1.5 rounded-lg border border-indigo-200/50 dark:border-indigo-800/40">
-                            <span className="font-bold">Priority Rationale:</span> {safeStr(item.priorityReason)}
-                          </p>
-                        )}
-                        {item.reason && (
-                          <p className="text-[11px] text-theme-text-secondary leading-relaxed">
-                            {safeStr(item.reason)}
-                          </p>
-                        )}
+                        <p className="text-[11px] text-theme-text-secondary leading-relaxed">
+                          {safeStr(item.reason)}
+                          {item.priorityReason && (
+                            <span className="ml-1 text-amber-700 dark:text-amber-400 font-semibold">
+                              (Priority: {safeStr(item.priorityReason)})
+                            </span>
+                          )}
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -506,16 +504,14 @@ export const HealthPlanningResultView: React.FC<HealthPlanningResultViewProps> =
                             )}
                           </div>
                         </div>
-                        {item.priorityReason && (
-                          <p className="text-[10px] font-medium text-theme-neutral bg-slate-100/80 dark:bg-slate-800/80 p-1.5 rounded-lg border border-theme-border">
-                            <span className="font-bold">Priority Rationale:</span> {item.priorityReason}
-                          </p>
-                        )}
-                        {item.reason && (
-                          <p className="text-[11px] text-theme-text-secondary leading-relaxed">
-                            {item.reason}
-                          </p>
-                        )}
+                        <p className="text-[11px] text-theme-text-secondary leading-relaxed">
+                          {safeStr(item.reason)}
+                          {item.priorityReason && (
+                            <span className="ml-1 text-amber-700 dark:text-amber-400 font-semibold">
+                              (Priority: {safeStr(item.priorityReason)})
+                            </span>
+                          )}
+                        </p>
                       </div>
                     </div>
                   </div>

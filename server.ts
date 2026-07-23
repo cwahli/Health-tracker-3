@@ -1484,6 +1484,66 @@ app.get("/api/admin/users", async (req, res) => {
   }
 });
 
+// Delete Auth user
+app.delete("/api/admin/user/auth", async (req, res) => {
+  try {
+    const adminEmail = await requireAdmin(req, res);
+    if (!adminEmail) return;
+    const { uid } = req.body;
+    if (!uid) return res.status(400).json({ error: "Missing uid" });
+    await adminAuth.deleteUser(uid);
+    console.log(`[Admin] ${adminEmail} deleted Auth user ${uid}`);
+    res.json({ success: true, message: `Auth user ${uid} deleted` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to delete Auth user" });
+  }
+});
+
+// Delete Firestore User Data
+app.delete("/api/admin/user/data", async (req, res) => {
+  try {
+    const adminEmail = await requireAdmin(req, res);
+    if (!adminEmail) return;
+    const { uid } = req.body;
+    if (!uid) return res.status(400).json({ error: "Missing uid" });
+    await db.collection("users").doc(uid).delete();
+    console.log(`[Admin] ${adminEmail} deleted Firestore user data ${uid}`);
+    res.json({ success: true, message: `User data for ${uid} deleted` });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to delete user data" });
+  }
+});
+
+// Resend Verification Email Link
+app.post("/api/admin/user/resend-verification", async (req, res) => {
+  try {
+    const adminEmail = await requireAdmin(req, res);
+    if (!adminEmail) return;
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Missing email" });
+    const link = await adminAuth.generateEmailVerificationLink(email);
+    console.log(`[Admin] Generated verification link for ${email}`);
+    res.json({ success: true, link });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to generate verification link" });
+  }
+});
+
+// Generate Password Reset Link
+app.post("/api/admin/user/send-password-reset", async (req, res) => {
+  try {
+    const adminEmail = await requireAdmin(req, res);
+    if (!adminEmail) return;
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ error: "Missing email" });
+    const link = await adminAuth.generatePasswordResetLink(email);
+    console.log(`[Admin] Generated password reset link for ${email}`);
+    res.json({ success: true, link });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message || "Failed to generate password reset link" });
+  }
+});
+
 // GET Endpoint for System Instruction Preview
 app.get("/api/gemini/instruction-preview", async (req, res) => {
   try {
@@ -5387,8 +5447,86 @@ app.post("/api/gemini/health-baseline-analyze", async (req, res) => {
     }
   }
 });
+const RouteAgentOutputSchema = z.object({
+  scratchpad: z.string().optional(),
+  selectedAgent: z.string(),
+  reasoning: z.string().optional(),
+  targetDbId: z.string().nullable().optional()
+});
+
 app.post("/api/gemini/route-biomarker", async (req, res) => {
-  res.json({ text: "Not implemented in V2" });
+  try {
+    const { message, engine, context } = req.body;
+    const modelId = engine || "gemini-3.5-flash-lite";
+
+    const systemInstruction = `You are the RouteAgent, an intelligent health data and clinical router.
+Your job is to parse the user request, analyze any context, and route the user to the most appropriate specialized health agent.
+
+Available agents:
+- 'agent1': Clinical Calibration Agent (For terminology mapping & standardizing clinical terms)
+- 'agent2': Clinical Assessment Agent (For adding standard groupings & risk categories)
+- 'agent3': Clinical Harmonization Agent (For terminology consolidation & assembly into buckets)
+- 'agent4': Health Planning Agent (For retest timelines, auditing test errors, and finding short/long term gaps)
+- 'agent5': Holistic Review Agent (For broad health & demographics-aware insights)
+- 'agent7': Health Report Agent (For final cohesive formatted health report generation)
+- 'front_desk': Health Preparation Agent (For general health questions, logging biomarkers & profile updates)
+- 'health_baseline': Health Coach (For evidence-based, sustainable food & coaching habits)
+
+You MUST respond with a JSON object containing:
+{
+  "scratchpad": "Your step-by-step thinking.",
+  "selectedAgent": "The ID of the chosen agent (e.g. 'agent4', 'front_desk', 'health_baseline')",
+  "reasoning": "A concise explanation of why this agent was selected.",
+  "targetDbId": null // Optional target database ID or key if applicable
+}`;
+
+    const promptText = `User Message: "${message || ''}"\nContext: ${JSON.stringify(context || {})}`;
+
+    const textOutput = await callUnifiedLLM({
+      modelId,
+      systemInstruction,
+      promptText,
+      responseMimeType: "application/json"
+    });
+
+    let cleanJson = textOutput.replace(/```(?:json)?/gi, "").trim();
+    let parsed: any;
+    try {
+      parsed = JSON.parse(cleanJson);
+    } catch (err: any) {
+      const firstBrace = cleanJson.indexOf("{");
+      const lastBrace = cleanJson.lastIndexOf("}");
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        parsed = JSON.parse(cleanJson.substring(firstBrace, lastBrace + 1));
+      } else {
+        throw err;
+      }
+    }
+
+    const validation = RouteAgentOutputSchema.safeParse(parsed);
+    if (!validation.success) {
+      addDebugLog(`[Zod Validation Failed] RouteAgent response validation failed: ${validation.error.message}. Raw: ${textOutput}`);
+      // Gracefully fall back to the default agent route
+      res.json({
+        scratchpad: "Fallback active due to validation failure",
+        selectedAgent: "front_desk",
+        reasoning: "Graceful fallback to default agent route (front_desk).",
+        targetDbId: null
+      });
+      return;
+    }
+
+    res.json(validation.data);
+  } catch (error: any) {
+    addDebugLog(`[RouteAgent Error] routing failed: ${error.message}`);
+    // Gracefully fall back to the default agent route
+    res.json({
+      scratchpad: "Fallback active due to exception: " + error.message,
+      selectedAgent: "front_desk",
+      reasoning: "Graceful fallback to default agent route (front_desk) on error.",
+      targetDbId: null
+    });
+  }
 });
 
 app.post("/api/gemini/route-chat", async (req, res) => {
