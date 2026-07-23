@@ -38,7 +38,8 @@ BRANCH A — INDIVIDUAL BREAKDOWN MODE (< 15 total items):
 - Provide a tight, precise individual \`boundingBox2D\` [ymin, xmin, ymax, xmax] for EVERY item.
 - Provide detailed \`components\` array with volume percentages, \`visualSheen\` (0.0-1.0), \`visualCoating\` (0.0-1.0), and \`pieceCount\`.
 - MEAL vs. COMPARISON ROUTING: if the images show distinct packaged products or menu options of the same category meant to be compared (e.g., 4 different bread wrappers, or a menu of options), set "recommendedMode" to "evaluation". If the images show ingredients or dishes meant to be eaten together as one meal (e.g., fish + rice + a side, or several grocery items for a single meal), set "recommendedMode" to "new_log".
-- COMPONENT DECOMPOSITION DIRECTIVE: For every identified item, decompose complex dishes or products into their core sub-components inside the 'components' array with corresponding estimated volume percentages (totaling 100%). For example, 'siomai with seaweed' becomes keyword: 'siomai dumpling' with component: 'pork dumpling' (80%) and component: 'seaweed' (20%). If the food is simple and has no sub-components, just add a single component matching the base food name with 100% volume.
+- COMPONENT DECOMPOSITION DIRECTIVE: For every identified item, decompose complex dishes or products into their core sub-components inside the 'components' array with corresponding estimated volume percentages (totaling 100%), AND list all distinct visual components in 'visualIngredients' (e.g., for 'mix vegetable with mayonnaise', components must contain 'sweet corn' (30%), 'carrots' (25%), 'green peas' (25%), 'mayonnaise' (20%), and visualIngredients must be ['sweet corn', 'carrots', 'green peas', 'mayonnaise']). If the food is simple and has no sub-components, add a single component matching the base food name with 100% volume.
+- ITEM-LEVEL COOKING METHOD ACCURACY DIRECTIVE: Identify the exact individual cooking method for EACH item separately (e.g. potato wedges are 'deep_fried' or 'roasted', mixed vegetables are 'boiled' or 'steamed', steak is 'pan_fried' or 'grilled'). NEVER copy a single top-level cooking method to all items on a plate if the items were prepared differently.
 - FIRST-PRINCIPLES RESTAURANT MEAL DECOMPOSITION DIRECTIVE: For restaurant or cooked meals (e.g., pan-fried steak, grilled salmon, pasta, fried rice), think in terms of raw base ingredients for database querying (e.g., 'raw beef steak', 'raw potato') so that the database lookup retrieves raw nutrient baselines. Identify the exact restaurant cooking method (e.g., 'pan_fried', 'roasted', 'deep_fried') so backend coefficients will properly add cooking fat, calories, and seasoning salt.
 
 BRANCH B — COMPACT / SPREADSHEET MODE (>= 15 total items):
@@ -431,17 +432,25 @@ export function parseAndHealVisionScout(
       });
 
       for (const item of visionScoutItems) {
+        if (item.keyword) {
+          queriesToSearch.push(item.keyword);
+        }
         if (item.components && Array.isArray(item.components) && item.components.length > 0) {
           item.components.forEach((c: any) => {
-            if (c.searchQuery) {
-              queriesToSearch.push(c.searchQuery);
+            const queryName = typeof c === 'string' ? c : (c.searchQuery || c.name || c.keyword);
+            if (queryName) {
+              queriesToSearch.push(queryName);
             }
           });
-          visionScoutRanAndReturnedItems = true;
-        } else if (item.keyword) {
-          queriesToSearch.push(item.keyword);
-          visionScoutRanAndReturnedItems = true;
         }
+        if (item.visualIngredients && Array.isArray(item.visualIngredients)) {
+          item.visualIngredients.forEach((v: any) => {
+            if (typeof v === 'string' && v.trim()) {
+              queriesToSearch.push(v.trim());
+            }
+          });
+        }
+        visionScoutRanAndReturnedItems = true;
       }
     }
   }

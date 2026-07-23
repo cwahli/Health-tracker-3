@@ -2,8 +2,64 @@ import { formatMessageContent } from '../../utils/formatUtils';
 import { NutritionLabelTable } from "./NutritionLabelTable";
 import { trackApiCall } from '../../utils/apiTracker';
 import * as React from 'react';
+import Markdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { AgentCardProps } from './types';
 import { Plus, Check, ChevronDown, ChevronUp, Sparkles, Search, X, Trash2, Eye, Camera } from 'lucide-react';
+
+export const ScratchpadMarkdownViewer: React.FC<{ content: string; className?: string }> = ({ content, className = '' }) => {
+  if (!content) return null;
+  const cleanContent = content.replace(/\\\|/g, '•');
+
+  return (
+    <div className={`text-xs text-theme-text-secondary leading-relaxed bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10 overflow-x-auto max-w-full ${className}`}>
+      <Markdown 
+        remarkPlugins={[remarkGfm]}
+        components={{
+          h3: ({ children }) => (
+            <h3 className="text-[12px] font-bold text-indigo-500 dark:text-indigo-400 my-1 flex items-center gap-1 font-sans">
+              {children}
+            </h3>
+          ),
+          table: ({ children }) => (
+            <div className="my-2 overflow-x-auto rounded-xl border border-indigo-200/40 dark:border-indigo-800/40 bg-white dark:bg-slate-900 shadow-sm font-sans">
+              <table className="w-full text-[11px] text-left border-collapse min-w-[500px]">
+                {children}
+              </table>
+            </div>
+          ),
+          thead: ({ children }) => (
+            <thead className="bg-indigo-50/90 dark:bg-indigo-950/80 border-b border-indigo-200/60 dark:border-indigo-800/60 text-indigo-900 dark:text-indigo-200 font-bold text-[10px] uppercase tracking-wider">
+              {children}
+            </thead>
+          ),
+          th: ({ children }) => (
+            <th className="px-2.5 py-1.5 border-r border-indigo-200/40 dark:border-indigo-800/40 last:border-r-0 whitespace-nowrap">
+              {children}
+            </th>
+          ),
+          tr: ({ children }) => (
+            <tr className="border-b border-slate-100 dark:border-slate-800/60 last:border-b-0 hover:bg-indigo-50/30 dark:hover:bg-indigo-950/20 transition-colors">
+              {children}
+            </tr>
+          ),
+          td: ({ children }) => (
+            <td className="px-2.5 py-1.5 text-[11px] text-slate-800 dark:text-slate-200 border-r border-slate-100 dark:border-slate-800/40 last:border-r-0 leading-snug">
+              {children}
+            </td>
+          ),
+          p: ({ children }) => (
+            <p className="my-1 font-sans text-[11px] leading-relaxed whitespace-pre-wrap">
+              {children}
+            </p>
+          )
+        }}
+      >
+        {cleanContent}
+      </Markdown>
+    </div>
+  );
+};
 import ImageSlider from '../ImageSlider';
 import { NutrientPieChart } from '../NutrientPieChart';
 
@@ -231,25 +287,19 @@ export const AgentThoughtBox = ({
                   {scoutInstruction && (
                     <div className="flex flex-col gap-1 mt-1 mb-2">
                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{t.visionScoutInstruction}</span>
-                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
-                        {scoutInstruction}
-                      </p>
+                      <ScratchpadMarkdownViewer content={scoutInstruction} />
                     </div>
                   )}
                   {scoutScratchpad && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{t.visionScoutScratchpad}</span>
-                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
-                        {scoutScratchpad}
-                      </p>
+                      <ScratchpadMarkdownViewer content={scoutScratchpad} />
                     </div>
                   )}
                   {scoutAnswer && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{t.visionScoutResult}</span>
-                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
-                        {scoutAnswer}
-                      </p>
+                      <ScratchpadMarkdownViewer content={scoutAnswer} />
                     </div>
                   )}
                 </StepItem>
@@ -258,9 +308,7 @@ export const AgentThoughtBox = ({
                   {dbSearchLog && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">{t.databaseLog}</span>
-                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-slate-100/50 dark:bg-slate-950/20 rounded-lg p-2 border border-slate-200/30 dark:border-slate-800/30">
-                        {dbSearchLog}
-                      </p>
+                      <ScratchpadMarkdownViewer content={dbSearchLog} />
                     </div>
                   )}
                 </StepItem>
@@ -269,9 +317,7 @@ export const AgentThoughtBox = ({
                   {dietitianInstruction && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">{t.dietitianInstruction}</span>
-                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
-                        {dietitianInstruction}
-                      </p>
+                      <ScratchpadMarkdownViewer content={dietitianInstruction} />
                     </div>
                   )}
                 </StepItem>
@@ -280,17 +326,13 @@ export const AgentThoughtBox = ({
                   {dietitianScratchpad && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">{t.dietitianScratchpad}</span>
-                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
-                        {dietitianScratchpad}
-                      </p>
+                      <ScratchpadMarkdownViewer content={dietitianScratchpad} />
                     </div>
                   )}
                   {dietitianAnswer && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">{t.dietitianResult}</span>
-                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
-                        {dietitianAnswer}
-                      </p>
+                      <ScratchpadMarkdownViewer content={dietitianAnswer} />
                     </div>
                   )}
                 </StepItem>
@@ -302,9 +344,7 @@ export const AgentThoughtBox = ({
                   {dietitianInstruction && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">{t.dietitianInstruction}</span>
-                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
-                        {dietitianInstruction}
-                      </p>
+                      <ScratchpadMarkdownViewer content={dietitianInstruction} />
                     </div>
                   )}
                 </StepItem>
@@ -312,17 +352,13 @@ export const AgentThoughtBox = ({
                   {dietitianScratchpad && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">{t.dietitianScratchpad}</span>
-                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
-                        {dietitianScratchpad}
-                      </p>
+                      <ScratchpadMarkdownViewer content={dietitianScratchpad} />
                     </div>
                   )}
                   {dietitianAnswer && (
                     <div className="flex flex-col gap-1 mt-1">
                       <span className="text-[9px] font-bold text-indigo-400 uppercase tracking-wider">{t.dietitianResult}</span>
-                      <p className="text-xs text-theme-text-secondary whitespace-pre-wrap leading-relaxed font-mono text-[11px] bg-indigo-50/5 dark:bg-indigo-950/10 rounded-lg p-2 border border-indigo-200/10 dark:border-indigo-800/10">
-                        {dietitianAnswer}
-                      </p>
+                      <ScratchpadMarkdownViewer content={dietitianAnswer} />
                     </div>
                   )}
                 </StepItem>
@@ -2052,6 +2088,11 @@ export const FoodCard: React.FC<AgentCardProps & {
                                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-500" />
                                        <span className="text-[10px] font-bold">
                                          {showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
+                                         {((item.visualIngredients && item.visualIngredients.length > 0) || item.ingredientsList) && (
+                                           <span className="font-normal text-indigo-600 dark:text-indigo-400 ml-1">
+                                             ({Array.isArray(item.visualIngredients) && item.visualIngredients.length > 0 ? item.visualIngredients.join(', ') : item.ingredientsList})
+                                           </span>
+                                         )}
                                        </span>
                                      </div>
                                    );
@@ -2110,6 +2151,15 @@ export const FoodCard: React.FC<AgentCardProps & {
                                      <span className="text-[10px] text-center font-medium leading-tight text-slate-500 break-words line-clamp-2 w-full font-sans">
                                        {showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
                                      </span>
+                                     {((item.visualIngredients && item.visualIngredients.length > 0) || (item.components && item.components.length > 0) || item.ingredientsList) && (
+                                       <span className="text-[9px] text-center font-medium leading-tight text-indigo-600 dark:text-indigo-400 break-words line-clamp-3 w-full font-sans bg-indigo-50/60 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded-md border border-indigo-200/50 dark:border-indigo-800/50">
+                                         {Array.isArray(item.visualIngredients) && item.visualIngredients.length > 0
+                                           ? item.visualIngredients.join(', ')
+                                           : Array.isArray(item.components) && item.components.length > 0
+                                             ? item.components.map((c: any) => typeof c === 'string' ? c : (c.searchQuery || c.name || c.keyword)).join(', ')
+                                             : item.ingredientsList}
+                                       </span>
+                                     )}
                                      {item.cookingMethod && (
                                        <div className="flex justify-center w-full mt-0.5 scale-90 origin-top">
                                          {getCookingMethodChip(item.cookingMethod, true)}

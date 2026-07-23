@@ -92,7 +92,8 @@ export function aggregateItemsNutrients(
     const visualSheen = item.visualSheen !== undefined ? item.visualSheen : 0.5;
     const visualCoating = item.visualCoating !== undefined ? item.visualCoating : 0.5;
     const diningEnvironment = item.diningEnvironment || 'casual_restaurant';
-    const foodMatrix = item.foodType === 'ultra_processed' ? 'CELLULAR_STARCH' : 'WHOLE_FOOD';
+    const nameLowerForMatrix = canonicalName.toLowerCase();
+    const foodMatrix = (item.foodType === 'ultra_processed' || item.foodType === 'root_veg' || nameLowerForMatrix.includes('potato') || nameLowerForMatrix.includes('wedge') || nameLowerForMatrix.includes('fry') || nameLowerForMatrix.includes('fries') || nameLowerForMatrix.includes('chip')) ? 'CELLULAR_STARCH' : 'WHOLE_FOOD';
     
     const addedNutrients = calculateUniversalAddedNutrients(foodMatrix, cookingMethod, itemWeight, visualSheen, visualCoating, diningEnvironment);
 
@@ -161,14 +162,30 @@ export function aggregateItemsNutrients(
       originalLocalName: item.originalLocalName || item.originalName || null,
       weightGrams: itemWeight,
       calories: itemNutrients.calories || 0,
+      protein: itemNutrients.protein || 0,
+      totalFat: itemNutrients.totalFat || 0,
       saturatedFat: itemNutrients.saturatedFat || 0,
+      transFat: itemNutrients.transFat || 0,
+      carbohydrates: itemNutrients.carbohydrates || 0,
+      addedSugar: itemNutrients.addedSugar || 0,
       sodium: itemNutrients.sodium || 0,
+      potassium: itemNutrients.potassium || 0,
+      totalFibre: itemNutrients.totalFibre || 0,
+      solubleFibre: itemNutrients.solubleFibre || 0,
+      labelNutrientsPerServing: item.labelNutrientsPerServing || null,
       dbSource,
       dbId,
       isUnverified: itemNutrients.isUnverified || false,
       cookingMethod: item.cookingMethod || null,
       boundingBox2D: item.boundingBox2D || null,
-      sourceImageIndex: item.sourceImageIndex !== undefined ? item.sourceImageIndex : null
+      sourceImageIndex: item.sourceImageIndex !== undefined ? item.sourceImageIndex : null,
+      components: item.components || null,
+      visualIngredients: item.visualIngredients || null,
+      saucesDetailList: item.saucesDetailList || [],
+      primaryBase100g: item.primaryBase100g || null,
+      primaryBaseMatchName: item.primaryBaseMatchName || null,
+      primaryBaseWeightG: item.primaryBaseWeightG || null,
+      cookingAdded: item.cookingAdded || null
     };
   });
 

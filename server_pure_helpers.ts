@@ -139,19 +139,35 @@ export function findItemIndexInList(itemsBreakdown: any[], itemNameStr: string, 
   return -1;
 }
 
+export function getUSDANutrientValue(n: any): number {
+  if (!n) return 0;
+  if (typeof n === 'number') return isNaN(n) ? 0 : n;
+  if (typeof n.value === 'number') return isNaN(n.value) ? 0 : n.value;
+  if (typeof n.amount === 'number') return isNaN(n.amount) ? 0 : n.amount;
+  if (n.value && typeof n.value === 'number') return n.value;
+  if (n.value && typeof n.value === 'object' && typeof n.value.amount === 'number') return n.value.amount;
+  if (n.amount && typeof n.amount === 'object' && typeof n.amount.value === 'number') return n.amount.value;
+  const raw = n.value !== undefined ? n.value : n.amount;
+  if (raw !== undefined && raw !== null) {
+    const parsed = parseFloat(String(raw));
+    if (!isNaN(parsed)) return parsed;
+  }
+  return 0;
+}
+
 export function extractUSDANutrientsPer100g(food: any): Record<string, number> {
   const profile: Record<string, number> = {};
   if (!food || !food.foodNutrients) return profile;
   
   const findNut = (namePatterns: string[]) => {
     const exactMatch = food.foodNutrients.find((n: any) => {
-      const name = (n.nutrientName || "").toLowerCase().trim();
+      const name = (n.nutrientName || (n.nutrient && n.nutrient.name) || "").toLowerCase().trim();
       return namePatterns.some(p => name === p.toLowerCase().trim());
     });
     if (exactMatch) return exactMatch;
 
     return food.foodNutrients.find((n: any) => {
-      const name = (n.nutrientName || "").toLowerCase();
+      const name = (n.nutrientName || (n.nutrient && n.nutrient.name) || "").toLowerCase();
       return namePatterns.some(p => {
         const cleanP = p.toLowerCase().trim();
         if (cleanP === "fat" && name.includes("fatty")) {
@@ -165,14 +181,14 @@ export function extractUSDANutrientsPer100g(food: any): Record<string, number> {
   const setVal = (key: string, namePatterns: string[]) => {
     const nut = findNut(namePatterns);
     if (nut) {
-      profile[key] = Number(nut.value) || 0;
+      profile[key] = getUSDANutrientValue(nut);
     }
   };
   
   const energyNut = findNut(["energy", "calories"]);
   if (energyNut) {
-    const val = Number(energyNut.value) || 0;
-    const unit = (energyNut.unitName || "").toLowerCase();
+    const val = getUSDANutrientValue(energyNut);
+    const unit = (energyNut.unitName || (energyNut.nutrient && energyNut.nutrient.unitName) || "").toLowerCase();
     profile["calories"] = unit === "kj" ? Math.round(val / 4.184) : Math.round(val);
   }
   
