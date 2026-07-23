@@ -63,7 +63,7 @@ export function aggregateItemsNutrients(
     }
 
     // STEP 2: If USDA/OFF match found, override core-11 with verified DB data (reinforcement)
-    if ((dbSource === "usda" || dbSource === "off" || dbSource === "backend_calculated") && dbId) {
+    if ((dbSource === "usda" || dbSource === "off" || dbSource === "backend_calculated") && dbId && !item.primaryBase100g) {
       const hasInMap = dbMatchMap.has(dbId);
       const match = !hasInMap ? databaseMatchesArray.find((m: any) => m.id === dbId) : null;
       if (hasInMap) {

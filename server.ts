@@ -75,7 +75,7 @@ import YAML from "yaml";
 import { AsyncLocalStorage } from "async_hooks";
 import { biomarkerDefinitions, getBiomarkerStatus, getBiomarkerStatusLabel, getBiomarkerMetadata, getCustomBiomarkerDef } from "./src/utils/biomarkers";
 import { NUTRIENT_KEYS } from "./src/utils/nutrients";
-import { jsToYaml, extractBalancedJson, sanitizeMealWeight, findItemIndexInList, getUSDANutrientValue } from "./server_pure_helpers";
+import { jsToYaml, extractBalancedJson, sanitizeMealWeight, findItemIndexInList, getUSDANutrientValue, extractUSDANutrientsPer100g } from "./server_pure_helpers";
 import { aggregateItemsNutrients } from "./server_nutrient_aggregation";
 import { 
   ScoutItemSchema, 
@@ -2016,82 +2016,6 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       return mapped.join(", ");
     };
 
-    const extractUSDANutrientsPer100g = (food: any): Record<string, number> => {
-      const profile: Record<string, number> = {};
-      // DO NOT initialize all keys to 0, so missing DB values don't overwrite LLM estimates with 0
-      if (!food.foodNutrients) return profile;
-      
-      const findNut = (namePatterns: string[]) => {
-        const exactMatch = food.foodNutrients.find((n: any) => {
-          const name = (n.nutrientName || "").toLowerCase().trim();
-          return namePatterns.some(p => name === p.toLowerCase().trim());
-        });
-        if (exactMatch) return exactMatch;
-
-        return food.foodNutrients.find((n: any) => {
-          const name = (n.nutrientName || "").toLowerCase();
-          return namePatterns.some(p => {
-            const cleanP = p.toLowerCase().trim();
-            if (cleanP === "fat" && name.includes("fatty")) {
-              return false;
-            }
-            return name.includes(cleanP);
-          });
-        });
-      };
-      
-      const setVal = (key: string, namePatterns: string[]) => {
-        const nut = findNut(namePatterns);
-        if (nut) {
-          profile[key] = Number(nut.value) || 0;
-        }
-      };
-      
-      const energyNut = findNut(["energy", "calories"]);
-      if (energyNut) {
-        const val = Number(energyNut.value) || 0;
-        const unit = (energyNut.unitName || "").toLowerCase();
-        profile["calories"] = unit === "kj" ? Math.round(val / 4.184) : Math.round(val);
-      }
-      
-      setVal("protein", ["protein"]);
-      setVal("totalFat", ["total lipid", "fat"]);
-      setVal("saturatedFat", ["saturated fat", "fatty acids, total saturated"]);
-      setVal("transFat", ["trans fat", "fatty acids, total trans"]);
-      
-      if (profile["totalFat"] !== undefined) {
-         profile["unsaturatedFat"] = Math.max(0, profile["totalFat"] - (profile["saturatedFat"] || 0) - (profile["transFat"] || 0));
-      }
-      
-      setVal("omega3", ["omega-3", "omega 3", "n-3 fatty acid"]);
-      setVal("carbohydrates", ["carbohydrate, by difference"]);
-      setVal("addedSugar", ["added sugar"]);
-      setVal("totalFibre", ["fiber, total dietary", "fibre"]);
-      setVal("solubleFibre", ["fiber, soluble", "soluble fiber"]);
-      setVal("sodium", ["sodium"]);
-      setVal("potassium", ["potassium"]);
-      setVal("magnesium", ["magnesium"]);
-      setVal("calcium", ["calcium"]);
-      setVal("iron", ["iron"]);
-      setVal("zinc", ["zinc"]);
-      setVal("selenium", ["selenium"]);
-      setVal("iodine", ["iodine"]);
-      setVal("phosphorus", ["phosphorus"]);
-      setVal("vitaminD", ["vitamin d"]);
-      setVal("vitaminB12", ["vitamin b-12", "vitamin b12"]);
-      setVal("folate", ["folate"]);
-      setVal("vitaminC", ["vitamin c", "ascorbic acid"]);
-      setVal("vitaminE", ["vitamin e", "tocopherol"]);
-      setVal("vitaminK", ["vitamin k"]);
-      setVal("vitaminA", ["vitamin a"]);
-      setVal("vitaminB6", ["vitamin b-6", "vitamin b6"]);
-      setVal("thiamine", ["thiamine"]);
-      setVal("riboflavin", ["riboflavin"]);
-      setVal("niacin", ["niacin"]);
-      
-      return profile;
-    };
-
     const extractOFFNutrientsPer100g = (product: any): Record<string, number> => {
       const profile: Record<string, number> = {};
       const n = product.nutriments;
@@ -3533,7 +3457,12 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
                   components: item.components || match.components || null,
                   dbId: preCalc.bestMatchDbId,
                   dbSource: preCalc.bestMatchDbSource,
-                  labelNutrientsPerServing: {
+                  primaryBase100g: preCalc.primaryBase100g || null,
+                  primaryBaseMatchName: preCalc.primaryBaseMatchName || null,
+                  primaryBaseWeightG: preCalc.primaryBaseWeightG || item.weightGrams,
+                  saucesDetailList: preCalc.saucesDetailList || [],
+                  cookingAdded: preCalc.cookingAdded || { addedCalories: 0, addedFat: 0, addedSaturatedFat: 0, addedSodium: 0 },
+                  labelNutrientsPerServing: preCalc.primaryBase100g || {
                     servingSizeGrams: 100,
                     calories: preCalc.nutrients.calories,
                     protein: preCalc.nutrients.protein,
@@ -3575,7 +3504,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
               return itemLower === pOrigLower || itemLower === pKwLower || itemLower.includes(pKwLower) || pKwLower.includes(itemLower);
             }) || preCalculatedItems[idx] || preCalculatedItems[0];
 
-            if (preMatch && preMatch.nutrients && item.weightGrams > 0) {
+            if (preMatch && preMatch.bestMatchDbId && preMatch.nutrients && item.weightGrams > 0) {
               const weight = item.weightGrams;
               const n = preMatch.nutrients;
               const scale = 100 / weight;
@@ -3599,7 +3528,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
                 saucesDetailList: preMatch.saucesDetailList || [],
                 cookingAdded: preMatch.cookingAdded || { addedCalories: 0, addedFat: 0, addedSaturatedFat: 0, addedSodium: 0 },
                 dbSource: preMatch.bestMatchDbSource || "usda",
-                dbId: preMatch.bestMatchDbId || "2727574"
+                dbId: preMatch.bestMatchDbId
               };
             }
             return item;
@@ -3659,23 +3588,62 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
             ? ` ⚠️ [SANITY CHECK OVERRIDE: ${it.overrideReason || 'Adjusted Value'}]`
             : (it.isUnverified ? " ⚠️ (Est)" : " ✅");
 
+          let visualBreakdownStr = "";
+          if (it.visualIngredients && Array.isArray(it.visualIngredients) && it.visualIngredients.length > 0) {
+            visualBreakdownStr = ` (${it.visualIngredients.join(', ')})`;
+          } else if (it.components && Array.isArray(it.components) && it.components.length > 0) {
+            visualBreakdownStr = ` (${it.components.map((c: any) => typeof c === 'string' ? c : c.searchQuery || c.name || c.keyword).join(', ')})`;
+          }
+
           // Row 1: Main Item Header Row with total weight
-          receiptTable += `| **${idx + 1}. ${it.name}**${badge} - ${itemWeightG}g | - | - | - | - |\n`;
+          receiptTable += `| **${idx + 1}. ${it.name}**${badge} - ${itemWeightG}g${visualBreakdownStr} | - | - | - | - |\n`;
 
           // Base Ingredient calculation
-          const raw100 = it.primaryBase100g || it.labelNutrientsPerServing || {};
+          let raw100 = it.primaryBase100g || it.labelNutrientsPerServing || {};
+          const dbMatchObj = databaseMatchesArray ? databaseMatchesArray.find((m: any) => String(m.id) === String(it.dbId)) : null;
+          
+          if (it.dbId && dbMatchMap && dbMatchMap.has(String(it.dbId))) {
+            const mapped = dbMatchMap.get(String(it.dbId));
+            if (mapped) {
+               raw100 = mapped;
+            }
+          } else if (dbMatchObj) {
+            if (it.dbSource === 'usda' || it.dbSource === 'off') {
+              raw100 = {
+                calories: Number(dbMatchObj.calories) || 0,
+                protein: Number(dbMatchObj.protein) || 0,
+                totalFat: Number(dbMatchObj.fat) || 0,
+                saturatedFat: Number(dbMatchObj.saturatedFat) || 0,
+                sodium: Number(dbMatchObj.sodium) || 0
+              };
+            }
+          }
+
+          let baseW = it.primaryBaseWeightG || itemWeightG;
+          let sauceWSum = 0;
+          let scaleRatio = 1;
+          
+          if (it.saucesDetailList && it.saucesDetailList.length > 0) {
+            sauceWSum = it.saucesDetailList.reduce((acc: number, s: any) => acc + (s.weightGrams || 0), 0);
+          }
+          
+          if (it.primaryBaseWeightG) {
+             const originalWeight = it.primaryBaseWeightG + sauceWSum;
+             if (originalWeight > 0 && Math.abs(originalWeight - itemWeightG) > 2) {
+                scaleRatio = itemWeightG / originalWeight;
+                baseW = Math.round(it.primaryBaseWeightG * scaleRatio);
+             }
+          } else if (sauceWSum > 0) {
+             if (baseW === itemWeightG && sauceWSum < itemWeightG) {
+                baseW = Math.max(10, itemWeightG - sauceWSum);
+             }
+          }
+
           const base100Cal = safeNum(raw100.calories);
           const base100P = safeNum(raw100.protein);
           const base100SatFat = safeNum(raw100.saturatedFat);
           const base100Na = safeNum(raw100.sodium);
 
-          let baseW = it.primaryBaseWeightG || itemWeightG;
-          if (it.saucesDetailList && it.saucesDetailList.length > 0) {
-            const sauceWSum = it.saucesDetailList.reduce((acc: number, s: any) => acc + (s.weightGrams || 0), 0);
-            if (baseW === itemWeightG && sauceWSum < itemWeightG) {
-              baseW = Math.max(10, itemWeightG - sauceWSum);
-            }
-          }
           const baseFactor = baseW / 100;
 
           const portionBaseCal = Math.round(base100Cal * baseFactor);
@@ -3683,7 +3651,6 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           const portionBaseSatFat = Math.round(base100SatFat * baseFactor * 10) / 10;
           const portionBaseNa = Math.round(base100Na * baseFactor);
 
-          const dbMatchObj = databaseMatchesArray ? databaseMatchesArray.find((m: any) => String(m.id) === String(it.dbId)) : null;
           const dbNameStr = it.primaryBaseMatchName || (dbMatchObj && dbMatchObj.name ? dbMatchObj.name : '');
           const dbRefTag = `${String(it.dbSource).toUpperCase()}${it.dbId ? ' #' + it.dbId : ''}${dbNameStr ? ' (' + dbNameStr + ')' : ''}`;
 
@@ -3693,14 +3660,13 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           // Row 3: Sauce / Dressing / Sub-components (if any)
           if (it.saucesDetailList && Array.isArray(it.saucesDetailList) && it.saucesDetailList.length > 0) {
             it.saucesDetailList.forEach((s: any) => {
-              const sSatFat = s.saturatedFat !== undefined ? s.saturatedFat : 0.3;
-              receiptTable += `| ${s.name} - ${s.weightGrams}g | ${fVal(s.calories)} | ${fVal(s.protein, 'g')} | ${fVal(sSatFat, 'g')} | ${fVal(s.sodium, 'mg')} |\n`;
+              const sW = Math.round((s.weightGrams || 0) * scaleRatio);
+              const sCal = Math.round((s.calories || 0) * scaleRatio);
+              const sP = Math.round((s.protein || 0) * scaleRatio * 10) / 10;
+              const sNa = Math.round((s.sodium || 0) * scaleRatio);
+              const sSatFat = Math.round((s.saturatedFat !== undefined ? s.saturatedFat : 0.3) * scaleRatio * 10) / 10;
+              receiptTable += `| ${s.name} - ${sW}g | ${fVal(sCal)} | ${fVal(sP, 'g')} | ${fVal(sSatFat, 'g')} | ${fVal(sNa, 'mg')} |\n`;
             });
-          } else if (it.visualIngredients && Array.isArray(it.visualIngredients) && it.visualIngredients.length > 0) {
-            receiptTable += `| Visual breakdown (${it.visualIngredients.join(', ')}) | - | - | - | - |\n`;
-          } else if (it.components && Array.isArray(it.components) && it.components.length > 0) {
-            const compStr = it.components.map((c: any) => typeof c === 'string' ? c : `${c.searchQuery || c.name || c.keyword} (${c.volumePercentage || 100}%)`).join(', ');
-            receiptTable += `| Visual breakdown (${compStr}) | - | - | - | - |\n`;
           }
 
           // Row 4: Thermodynamic Physics Engine
