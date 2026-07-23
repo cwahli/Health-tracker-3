@@ -411,10 +411,13 @@ TRANS FAT AVOIDANCE: Trans fat (partially hydrogenated oils) is universally harm
 
 === DATA EXTRACTION DEPTH RULES ===
 1. CORE NUTRIENTS: For EVERY new item, you MUST populate labelNutrientsPerServing with your best clinical estimate per 100g (set servingSizeGrams=100). When a physical label is visible, use the exact label values. When databaseMatches contains a relevant entry, use it to improve your estimate and set dbSource accordingly.
-1b. BACKEND NUTRITIONAL CALCULATOR DIRECTIVE: The backend has pre-calculated precise nutrient weights for each component item inside "BACKEND PRE-CALCULATED ITEM NUTRIENTS". You MUST treat these numbers as the Absolute Truth and populate "labelNutrientsPerServing" directly from these values (scaled to 100g serving size). Set "dbSource": "backend_calculated". You should ONLY override these values (setting "dbSource": "estimated_override") if the numbers are physically impossible or wildly mismatch the food's visual volume.
-1c. RAW WHOLE FOOD SANITY CHECK (CRITICAL):
-If the item's cookingMethod is "raw", you MUST independently verify the sodium and sugar values provided by the database matches for whole meats, vegetables, and fruits.
-* The Plumping Override: Natural, unenhanced raw chicken, beef, or fish rarely exceeds 80mg of sodium per 100g. If a database match shows >150mg of sodium for raw, unseasoned meat, it represents a saline-injected commercial variant. You MUST autonomously reject that database sodium number and manually estimate it at ~50mg–70mg per 100g to accurately reflect true biological baseline levels, unless the user explicitly scanned a commercial branded package.
+=== NUTRITIONAL BASELINE & CLINICAL SANITY CHECK DIRECTIVE ===
+The backend provides pre-calculated precise nutrient weights inside "=== BACKEND PRE-CALCULATED ITEM NUTRIENTS ===".
+1. DEFAULT BASELINE: Treat these pre-calculated numbers as your default baseline for your evaluation. Write your prose message, benefits, risks, and recommendations based directly on these numbers.
+2. CLINICAL SANITY CHECK OVERRIDE: If a pre-calculated database entry is physically impossible or wildly wrong (e.g. >150mg Na in raw meat, or 5000 kcal for a 50g salad), you MUST override those numbers:
+   - Set "dbSource": "estimated_override".
+   - Supply your corrected clinical estimate in "labelNutrientsPerServing".
+   - Add an explicit reason to "anomalyFlags" (e.g. ["Sanity Check Override: Overrode saline-injected 2500mg sodium database value to raw baseline ~50mg"]).
 2. TRACE NUTRIENTS: Do NOT estimate these individually. Instead, output the single most appropriate foodType string for each item (e.g., 'red_meat', 'leafy_veg', 'root_veg', etc.).
 
 Critical: Original Name Override & Anti-Merging Rule
@@ -3425,18 +3428,39 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         // Construct Step-by-Step Nutritional Receipt Ledger
         let receiptText = "=== 🧾 FIRST-PRINCIPLES NUTRITIONAL RECEIPT ===\n\n";
         parsedData.itemsBreakdown.forEach((it: any, idx: number) => {
-          receiptText += `${idx + 1}. ${it.name} (${it.weightGrams}g, ${it.cookingMethod || 'standard'})\n` +
+          const badge = it.dbSource === 'estimated_override' 
+            ? ` ⚠️ [SANITY CHECK OVERRIDE: ${it.overrideReason || 'Adjusted Database Value'}]`
+            : (it.isUnverified ? " ⚠️ (Estimated / Unverified)" : " ✅ (Verified Baseline)");
+          
+          receiptText += `${idx + 1}. ${it.name} (${it.weightGrams}g, ${it.cookingMethod || 'standard'})${badge}\n` +
             `   ├─ Base Nutrients (${String(it.dbSource).toUpperCase()}${it.dbId ? ' #' + it.dbId : ''}): ${Math.round(it.calories || 0)} kcal | ${Math.round(it.sodium || 0)}mg Sodium\n` +
             `   └─ DbSource: ${it.dbSource}\n\n`;
         });
         receiptText += "===============================================\n";
+        receiptText += `MEAL TOTAL: ${Math.round(parsedData.nutrients.calories || 0)} kcal | ${Math.round(parsedData.nutrients.protein || 0)}g Protein | ${Math.round(parsedData.nutrients.sodium || 0)}mg Sodium\n`;
+
+        // Prepend receiptText directly to dietitianScratchpad and parsedData.thought
+        parsedData.thought = receiptText + "\n\n" + (parsedData.thought || rawParsed.scratchpad || "");
+        rawParsed.scratchpad = receiptText + "\n\n" + (rawParsed.scratchpad || "");
 
         // Stream to live "Agent thought..." box in UI
         sendStreamEvent({ type: 'stream', stage: 'dietitian', thought: receiptText });
 
-        // Attach receiptText to parsedData.thought and rawParsed.scratchpad
-        parsedData.thought = receiptText + "\n\n" + (parsedData.thought || rawParsed.scratchpad || "");
-        rawParsed.scratchpad = receiptText + "\n\n" + (rawParsed.scratchpad || "");
+        // GUARANTEED ZERO-DISCREPANCY SYNCHRONIZATION:
+        // Overwrite initial LLM prose message numbers with exact calculated backend totals
+        if (rawParsed.message && parsedData.nutrients && parsedData.nutrients.calories > 0) {
+          const calcCal = Math.round(parsedData.nutrients.calories);
+          const calcP = Math.round(parsedData.nutrients.protein || 0);
+          const calcF = Math.round(parsedData.nutrients.totalFat || 0);
+          const calcSodium = Math.round(parsedData.nutrients.sodium || 0);
+
+          rawParsed.message = rawParsed.message
+            .replace(/roughly \d+ calories/i, `roughly ${calcCal} calories`)
+            .replace(/\d+\.?\d* calories/i, `${calcCal} calories`)
+            .replace(/\d+\.?\d*g of protein/i, `${calcP}g of protein`)
+            .replace(/\d+\.?\d*g of total fat/i, `${calcF}g of total fat`)
+            .replace(/\d+\.?\d*mg of sodium/i, `${calcSodium}mg of sodium`);
+        }
       } else {
         addDebugLog(`[Nutrient Warning] LLM returned no itemsBreakdown for "${parsedData.name}". All nutrients will be zero. Check LLM prompt compliance.`);
         parsedData.nutrients = {};
