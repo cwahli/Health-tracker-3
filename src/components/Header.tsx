@@ -224,6 +224,7 @@ export default function Header({
   const [themeActiveSection, setThemeActiveSection] = useState<'colors' | 'fonts' | 'tokens' | 'components' | 'elements' | 'presets'>('colors');
   const [expandedColorKey, setExpandedColorKey] = useState<string | null>(null);
   const [inspectedElement, setInspectedElement] = useState<any>(null);
+  const [inspectorPaused, setInspectorPaused] = useState(false);
   const [inspectorProperty, setInspectorProperty] = useState('color');
   const [inspectorVariable, setInspectorVariable] = useState('');
   const [showDbInteractionsOverlay, setShowDbInteractionsOverlay] = useState(false);
@@ -269,6 +270,7 @@ export default function Header({
         return;
       }
       if ((e.target as Element).closest('#inspector-popup')) return;
+      if (inspectorPaused) return; // let the click through untouched
       e.preventDefault();
       e.stopPropagation();
       
@@ -289,7 +291,7 @@ export default function Header({
     };
     document.addEventListener('click', handler, true);
     return () => document.removeEventListener('click', handler, true);
-  }, [themePreviewMode]);
+  }, [themePreviewMode, inspectorPaused]);
 
   // Handle saving overrides
   const saveOverride = () => {
@@ -1267,6 +1269,26 @@ export default function Header({
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
                     ) : (
                       <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                    )}
+                  </button>
+                )}
+                {themePreviewMode && (
+                  <button
+                    onClick={() => {
+                      setInspectorPaused(!inspectorPaused);
+                      if (!inspectorPaused) setInspectedElement(null);
+                    }}
+                    className={`p-1.5 rounded-lg transition-colors cursor-pointer mr-1 ${
+                      inspectorPaused
+                        ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'
+                        : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                    }`}
+                    title={inspectorPaused ? 'Resume click-to-assign' : 'Pause click-to-assign (interact with the page)'}
+                  >
+                    {inspectorPaused ? (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                    ) : (
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
                     )}
                   </button>
                 )}
