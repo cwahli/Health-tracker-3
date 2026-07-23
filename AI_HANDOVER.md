@@ -1,298 +1,133 @@
-# Health Cockpit App — AI Handover Document
-*Last updated: 2026-07-17 (part 2) | Always check GitHub commits before starting any session*
+# Health Cockpit App — Master AI Handover Document
+*Last updated: 2026-07-23 (Post commit 3c608aa) | Always check GitHub commits before starting any session*
+
+---
 
 ## 1. Source of Truth
 - **Live codebase:** https://github.com/cwahli/Health-tracker-3
 - **Always read the latest commits** before working. The AI Studio agent is self-directed and may have progressed since this doc was last written.
-- **This document lives in the repo root** as `AI_HANDOVER.md` and must be updated after each significant session.
+- **This document lives in the repo root** as `AI_HANDOFF.md` and must be updated after each significant session.
 
 ---
 
 ## 2. Architecture
 | Layer | Tech | Notes |
 |---|---|---|
-| Frontend | React (TypeScript) | src/ |
-| Backend | Express (TypeScript) | server.ts (~4500 lines) |
+| Frontend | React (TypeScript) | `src/` |
+| Backend | Express (TypeScript) | `server.ts` + modular helper modules |
 | Database | Firebase Firestore | Free tier — minimize reads/writes |
-| Auth | Firebase Auth | Google sign-in |
-| AI | Gemini via @google/genai SDK | See quota table below |
-| Hosting | Firebase App Hosting | Cloud Run |
+| Auth | Firebase Auth | Google sign-in & Email authentication |
+| AI Engine | Gemini API via `@google/genai` SDK | See quota table below |
+| Hosting | Google Cloud Run | Production Deployment |
+
+---
 
 ## 3. AI Models & Quotas
 | Model ID (in code) | Friendly Name | Daily Quota | When to Use |
 |---|---|---|---|
-| gemini-3.5-flash-lite | Flash Lite | 500 calls/day | ALL routine tasks (default) |
-| gemini-3.5-flash | Flash | 20 calls/day | Moderate complexity |
-| gemini-3.1-pro | Pro | 20 calls/day | Complex, architectural |
+| `gemini-3.5-flash-lite` | Flash Lite | ~500 calls/day | ALL routine app features (default) |
+| `gemini-3.5-flash` | Flash | ~20 calls/day | Moderate complexity |
+| `gemini-3.1-pro` | Pro | ~20 calls/day | Complex, multi-file refactors |
 
-There is NO gemini-2.5-flash. Always default to Flash Lite.
+*There is NO `gemini-2.5-flash`. Always default to `gemini-3.5-flash-lite` for runtime app features.*
 
-## 4. Operating Rules
+---
+
+## 4. Operating Rules & Pre-Commit Checklist
+
+### Operational Rules
 - Read this document at the start of every session.
 - **Task Declaration Rule**: Before starting a task, state which file(s) you expect to touch. If your actual diff touches a file outside that list, STOP and flag it for review rather than committing.
-- Execute the next unchecked item in Section 7 (Task Queue).
-- Commit changes to GitHub with a meaningful commit message.
-- Update this document with what you did and tick off completed tasks.
+- Execute tasks in small, isolated steps. One task per session.
+- Commit changes to GitHub with meaningful commit messages.
 - Never undo existing fixes — all prior patches are intentional.
 - Never delete user data (biomarkers, food logs, targets).
-- Never add extra Firebase reads/writes — free tier has limits.
+- Never add extra Firebase reads/writes — free tier has strict quota limits.
 - Never change agent model IDs without explicit instruction.
-- **Required Verification**: Run `npm run lint` and `npm run test` before marking any task complete. Paste the output of both into your session log.
+- **Required Verification**: Run `npx vitest run src server_*.test.ts` and `npm run lint` before marking any task complete.
 
 ### Pre-Commit Checklist (Self-Check before every commit):
 - [ ] **Literal Newline Check**: Never split text on a literal `\n` string — use `/\r?\n|\\n/` or confirm actual encoding first.
 - [ ] **Division by Zero Guard**: Never divide by a field that can legitimately be 0 without a defensive guard.
 - [ ] **Field Shape Impact Analysis**: When changing a field's shape (renaming/removing/retyping a key), grep every usage of that field name across the whole repo before committing — not just the file you're editing.
 - [ ] **No Telemetry or Margin Clutter**: Avoid adding status lines, network indicators, or mock logging lines to UI margins. Keep outer backgrounds clean.
-- [ ] **Strict User Intent ceiling**: Implement exactly what was requested. Avoid adding unsolicited features, visual tabs, or API layers.
+- [ ] **Strict User Intent Ceiling**: Implement exactly what was requested. Avoid adding unsolicited features, visual tabs, or API layers.
 
-## 5. Key Components
-### Server (server.ts)
-- `callUnifiedLLM()` — central LLM dispatcher. Params: modelId, systemInstruction, promptText, imagePayloads, responseMimeType, maxOutputTokens.
-- `sanitizeForFirestore()` — deep-cleans undefined fields before any Firestore write. Applied to all writes.
-- Food log endpoint pipeline:
-  - Stage 1: Vision Scout (image-only, identifies food keywords via lightweight LLM)
-  - Stage 2: DB Search (USDA + OpenFoodFacts using Vision Scout keywords)
-  - Stage 3: RouteAgent (full clinical dietitian JSON response, 4 modes: new_log / discuss / modify / evaluation)
-  - JSON parse with truncation repair fallback.
-- maxOutputTokens: 3072 is set on the RouteAgent call to prevent truncation (raised from 2048 on Jul 12 for headroom now that itemsBreakdown is emitted earlier in the schema).
+---
 
-### Frontend
-- `src/components/LogChat.tsx` — chat component used by food log agent.
-- `src/components/FoodHistoryTab.tsx` — food log history.
-- `src/App.tsx` — main app, auth, data loading, local snapshot/undo system.
+## 5. Key Components & Modular Architecture
+### Server Components
+- `server.ts` — main Express app, route definitions, and unified LLM dispatch.
+- `server_vision_scout.ts` — Vision Scout prompt generation, JSON repair, and Zod schema validation.
+- `server_nutrient_aggregation.ts` — pure nutrient calculation math, item breakdown scaling, and trace nutrient taxonomy.
+- `server_pure_helpers.ts` — pure utility functions (`sanitizeForFirestore`, `sanitizeMealWeight`, number coercion guards).
+- `server_food_db.ts` — database matching algorithms, USDA & OpenFoodFacts product extractions, and Mode C item index lookup.
 
-### Chat Session Storage
-- Conversation history is stored in sessionStorage (per-session) as primary.
-- Firestore is the durable backup for history.
-- Local snapshots (up to 5) in localStorage for undo:
-  - Base64 images are stripped to stay within 5–10 MB localStorage limit
-  - **Known limitation**: Undoing a food log revision loses the attached image
-  - Recommendation: Reimport the image if needed, or use Firestore cloud backup to recover with images
+### Frontend Components
+- `src/components/LogChat.tsx` — unified chat component used by food log & health agents.
+- `src/components/chat-cards/` — modularized chat card views (`BiomarkerCard`, `FoodCard`, `FoodEvaluationComparisonCard`, `FoodScoutItemPreview`, `HealthBaselineCard`, `NutritionLabelTable`, `WelcomeCard`).
+- `src/components/UserManagementTab.tsx` — admin dashboard for real Firebase Auth user management.
+- `src/components/FoodHistoryTab.tsx` — food log history view with detailed nutrition breakdown.
+- `src/components/TrendsTab.tsx` — biomarker trajectory and nutrient analytics.
+- `src/components/App.tsx` — main app shell, auth bootstrap, and auto-recompression safety patch.
 
-## 6. What Has Been Fixed (Do Not Undo)
-| Date | Fix |
-|---|---|
-| Jul 11 | useRef missing import in App.tsx causing blank screen |
-| Jul 11 | firebase-admin ESM import fixed |
-| Jul 12 | maxOutputTokens: 2048 added to RouteAgent LLM call |
-| Jul 12 | Truncation repair fallback for malformed JSON |
-| Jul 12 | sanitizeForFirestore() applied to all Firestore writes |
-| Jul 12 | MODE C (modify) routing strengthened in system prompt |
-| Jul 12 | weightGrams schema updated — integer strings only, no decimals |
-| Jul 12 | Biomarker deletion safeguards added |
-| Jul 12 | LLM output switched from YAML to JSON for reliability |
-| Jul 12 | Firestore security rules restricted to user-specific paths |
-| Jul 12 | Biomarker review endpoint implemented |
-| Jul 12 | Stopped truncation of System Instruction and User Prompt in diagnostic logs |
-| Jul 12 | Implemented sanitizeMealWeight() to defensively validate/guard meal weight entries |
-| Jul 12 | Reordered foodData schema and textual descriptions to prioritize nutrient-carrying itemsBreakdown |
-| Jul 12 | Raised RouteAgent output-token limit from 2048 to 3072 for headroom |
-| Jul 12 | Stripped customBiomarkers from lightProfile payload for food routes |
-| Jul 12 | Enforced strict required fields across all nested levels of foodAnalyzeSchema |
-| Jul 16 | Updated FoodCard: Grouped food by bracketed categories, fixed hero image name cleaning, and implemented expand/collapse interactions with eye-preview. |
+### Storage & Sync Safety
+- Primary store: **IndexedDB (`idb-keyval`)** to prevent 5MB `localStorage` quota crashes.
+- Firestore as durable cloud backup (`{ merge: true }` mandatory on all user profile writes).
+- Tombstone priority deletion (`deletedFoodLogIds`, `deletedBiomarkerLogIds`) takes absolute precedence during union merges.
+- Local snapshot system (up to 5) for undo capabilities.
 
-## 7. Task Queue
-Pick the first unchecked item. Complete it. Tick it off. Update Section 9 (Session Log).
+---
 
-### Robustness & Feature Plan (CRITICAL FOUNDATION)
-- [x] **Robustness Phase 0a — Zod validation at Vision Scout + RouteAgent JSON parse sites**
-  Integrated schema validations immediately following extraction/parsing with robust fallback handling.
-- [x] **Robustness Phase 0b — Pre-commit checklist added to Section 4**
-  Documented and structured checklist in Operating Rules.
-- [x] **Robustness Phase 1a/b — Vitest + 15+ robust fixture tests for known-recurring bug classes**
-  Implemented 15+ robust unit tests in `server_pure_helpers.test.ts` (totaling 30 passing tests in the suite) covering `findItemIndexInList`, USDA/OFF nutrient extractions, literal newlines, and balanced JSON parser recovery.
-- [x] **Robustness Phase 2 — Extract monolith modules from server.ts & App.tsx**
-  - [x] **Phase 2a: Extract nutrientAggregation.ts from server.ts** (Move aggregateItemsNutrients and trace calculation helpers)
-  - [x] **Phase 2b: Extract visionScout.ts from server.ts** (Prompt definition, JSON schemas, extraction helpers)
-  - [x] **Phase 2c: Extract loadData & local/cloud sync logic from App.tsx**
-  Model: gemini-3.1-pro (one extraction per session, running tests to confirm zero behavior changes)
-- [x] **Robustness Phase 3 — Component-Based Nutrition Evaluation (Per-Item cooking method, Oil modifiers)**
-  - [x] **Phase 3a — Oil absorption data table in server_food_db.ts** (Model: gemini-3.5-flash-lite)
-  - [x] **Phase 3b — Per-item cooking method in Vision Scout prompt & schemas** (Model: gemini-3.1-pro)
-  - [x] **Phase 3c — Nutrient aggregation + modify support in server.ts** (Model: gemini-3.1-pro)
-  - [x] **Phase 3d — FoodCard UI chip (Mode A only) in FoodCard.tsx** (Model: gemini-3.5-flash)
+## 6. What Has Been Fixed & Historical Achievements (Do Not Undo)
 
-### Design System & Theme Revamp (Roadmap)
-- [x] **Step 1: UI & Design Token Audit**
-  Review the entire website content and identify:
-  - All font sizes used.
-  - All colors used.
-  - Set of margins and paddings used (design tokens).
-  - Set of components used (e.g., table, unified modal, accordion, food answer, target chart).
-  - All elements such as buttons, paragraphs, links, etc.
-  - Anything else that doesn't fit the above categories.
-  *Output*: Provide an analysis of the audit with the entire list for each category. Do not implement anything yet.
-- [x] **Step 2: Theme Section Revamp**
-  Update the theme section on the user profile to include a dynamic dropdown to pick between various sections:
-  - **Colours**: All the website colors with a picker to edit.
-  - **Font**: All the different font sizes with weight and font type listed.
-  - **Design token**: All factors such as margin, padding, corner radius, etc. that are used.
-  - **Components**: All the components existing in the website.
-  - **Elements**: All the elements (buttons, paragraphs, etc.) in the website.
-  *Constraint*: It needs to be fully dynamic so that any new style, new color, font size, or component added in the website are automatically reflected.
-- [x] **Step 3: Component & Element Token Integration (Standard)**
-  Apply the new dynamic design tokens (colors, typography, spacing, corners, shadows) across all standard UI elements and major components across the app. 
-  *Constraint*: **Exclude `FoodCard` from this step.** Ensure the rest of the application is stable and the theme engine applies cleanly.
-- [ ] **Step 4: FoodCard Token Integration (High Risk)**
-  Only after Step 3 is fully working and verified, carefully apply the dynamic design tokens to the `FoodCard` component. This is the most complex component and must be done last to isolate and minimize risk.
-
-### P0 — Critical
-- [x] **Fix (part 2): Mode D comparison-group rendering broke under category-block scout items**
-  The part-1 adaptive-density Vision Scout prompt introduced category-block scout items (`estimatedWeightGrams: 0`, comma-separated multi-dish `originalName`). Three Mode D (evaluation/comparison) rendering paths assumed the old one-dish-per-scout-item shape and broke as a result. Exact find-and-replace instructions in `URGENT_FIX_2026-07-17-part2.md` (repo root): (1) `resolveComparisonGroups()` in `server.ts` now explodes a category block's comma-separated `originalName` into individual dish items instead of one giant merged chip. (2) `FoodCard.tsx`'s Mode D nutrient bar no longer multiplies `averageNutrients` by a weight-based scaling factor (was dividing by `estimatedWeightGrams: 0`, zeroing out every value) — `averageNutrients` is already a final total, not a per-100g figure. (3) `FoodCard.tsx` no longer fabricates a fake `rawNutritionLabel` from `averageNutrients` when a group has no matched scout items — that re-broke the part-1 "View Nutrition Labels" fix. Follow the fix doc exactly.
-  Model: gemini-3.5-flash-lite for all 3 edits.
-- [x] **Fix: Dietitian agent anti-confusion clause**
-  Added a critical anti-confusion clause to the Dietitian agent's prompt to ensure it treats Scout indices as individual items even if they contain comma-separated names, preventing bucket mode mis-triggering.
-  Model: gemini-3.5-flash-lite
-- [x] **Fix (part 1): "View Nutrition Labels" false positive + adaptive-density Vision Scout bounding boxes**
-  Verified applied correctly in commit `c8c985b` — `NutritionLabelTable.tsx` now gates on `rawNutritionLabel` only, and the Vision Scout prompt now always emits structured `items[]` with real bounding boxes from 2–100 items.
-- [x] **Fix: Food weight schema integers + USDA extraction + Map priority**
-  Enforce Type.INTEGER on all weight schema fields to stop runaway float decimals. Update USDA search insertion to use extractUSDANutrientsPer100g to fix zero-value fields (protein, sat fat, sodium). Prioritize dbMatchMap lookup over the matches array in server.ts.
-  Model: gemini-3.5-flash
-- [x] **Fix B: Skip Vision Scout + DB search on weight-only modifications**
-  When activeMeal is set AND no new image is attached AND user message matches /\d+\s*g(ram)?s?/i, skip Vision Scout and DB Search entirely and jump straight to RouteAgent. DB search must NEVER use the raw user message text as a search query — only Vision Scout keywords.
-  Model: gemini-3.5-flash
-- [x] **Fix: Server-Side Nutrition Calculation (Accurate Calories/Nutrients)**
-  Simplified LLM's `new_log` schema for `itemsBreakdown` by removing direct nutrient requirements from prompt text unless `dbSource === 'label'`. The backend computes and aggregates nutrients dynamically from standard DB matches or high-precision local database.
-  Model: gemini-3.5-flash
-### P1 — Important
-- [x] **Fix: Food log card weight not updating after modify response**
-  When RouteAgent returns mode "modify" with modificationCommand, the frontend (LogChat.tsx) must apply the weight change to the active meal card display and recalculate nutrient display. Currently the card shows the original weight even after correction.
-  Model: gemini-3.5-flash
-- [x] **Fix: Verify chat session scratchpad uses sessionStorage**
-  Verified that conversation history is saved to sessionStorage for unauthenticated users. Refactoring required for authenticated users to use sessionStorage as primary store, currently writes to Firestore on every message.
-  Model: gemini-3.5-flash-lite
-- [x] **Fix: Display Scout Log History**
-- [x] **Fix 1-A: Add foodType field to the JSON schema**
-- [x] **Fix 1-B: Update LLM prompt — DATA EXTRACTION DEPTH RULES**
-- [x] **Fix 1-C: Replace server_food_db.ts with food-type classification table**
-- [x] **Fix 1-D: Update server.ts — Replace all getNutrientsForFood call sites**
-- [x] **Fix 1-E: Update modify → add_item handler**
-- [x] **Fix 2-A: Replace scout system instruction**
-- [x] **Fix 2-B: Add keyword cleaning before USDA/OFF search**
-- [x] **Fix 2-C: Return visionScoutItems in the API response**
-- [x] **Fix 2-D: Display scout log in frontend**
-- [x] **Fix 2-E: Inject scout context into clinical LLM prompt context**
-- [x] **Fix 3: Food Comparison: Scale to 10 Items**
-- [x] **Fix 5: Food Agent: Alias vs. Identity Change**
-- [x] **Fix 6: Biomarker Batch Processing Fix**
-### P2 — Future
-- [ ] **Verify food log card layout has no tab switcher regression**
-  The correct layout is: card (meal name, date, nutrients) + collapsible nutrition table. There must be NO Prose/Table/Bento tab switcher on the food log chat. Check the current state first. Only fix if the regression is present.
-  Model: gemini-3.5-flash-lite
-- [ ] **Expand chat component to all 13 agents**
-  LogChat.tsx will serve all agents. Add an agentConfig object keyed by agentType to declare per-agent layouts. Do not implement until food log is fully stable.
-  Model: gemini-3.5-flash
-
-## 8. Open Decisions
-- Scratchpad: sessionStorage as primary, Firestore as backup. Keep it. Confirmed 2026-07-12.
-- Food log layout: card + collapsible table. No tab switcher. Confirmed 2026-07-12.
-- DB search on modify: skip entirely. Only run on new image or fresh food description. Confirmed 2026-07-12.
-
-## 9. Session Log
-| Date | What was done | By |
+| Date | Category | Fix / Milestone Description |
 |---|---|---|
-| 2026-07-11 | Fixed blank screen (useRef, firebase-admin). App loads again. | Antigravity + AI Studio |
-| 2026-07-12 | Fixed JSON truncation, Firestore undefined error, MODE C routing, weightGrams schema, biomarker review endpoint. 13 commits. | AI Studio (self-directed) |
-| 2026-07-12 | Created this handover document. Identified remaining P0/P1 tasks. | Antigravity |
-| 2026-07-12 | Verified session storage behavior for chat. | AI Studio (self-directed) |
-| 2026-07-12 | Implemented Fix B (skipping scout/DB search on modification). | AI Studio (self-directed) |
-| 2026-07-12 | Implemented fallback itemsBreakdown compilation. | AI Studio (self-directed) |
-| 2026-07-12 | Completed Step 2 (exact server-side nutrient lookup & kJ conversion), Step 3 (system prompt log reduction), and Step 4 (Vision Scout itemsBreakdown truncation fallback). | AI Studio (self-directed) |
-| 2026-07-12 | Fixed food log card display not updating on weight modification (implemented mode: modify on server & setMessages reactivity on frontend). | AI Studio (self-directed) |
-| 2026-07-12 | Fixed Food Weight Schema types to Type.INTEGER / Type.NUMBER, unified USDA/OFF extraction using robust helpers, and prioritized dbMatchMap lookup. | AI Studio (self-directed) |
-| 2026-07-12 | Fixed whole-meal weight modify scaling bug, rounded raw USDA/OFF search numbers to block repetition loops, and scoped dropdown filters exclusively to Diagnostic Logs. | AI Studio (self-directed) |
-| 2026-07-12 | Stopped truncation of System Instruction and User Prompt in diagnostic logs. | AI Studio (self-directed) |
-| 2026-07-12 | Implemented sanitizeMealWeight() defensive guard to prevent runaway LLM numbers from corrupting data. | AI Studio (self-directed) |
-| 2026-07-12 | Reordered foodData JSON schema and textual prompt description to prioritize itemsBreakdown, preventing data loss on truncation. | AI Studio (self-directed) |
-| 2026-07-12 | Raised RouteAgent output-token limit from 2048 to 3072 for headroom. | AI Studio (self-directed) |
-| 2026-07-12 | Conditionally delete customBiomarkers from lightProfile for food types to reduce payload size and protect privacy. | AI Studio (self-directed) |
-| 2026-07-12 | Enforced strictly-validated required properties at all nested levels of foodAnalyzeSchema to ensure Gemini outputs itemsBreakdown, risks, and healthImpact. | AI Studio (self-directed) |
-| 2026-07-12 | Removed sessions dropdown in LogChat, changed Diagnostic Modal to use Discussion Thread selection, added search text highlighting in Diagnostic Modal. | AI Studio (self-directed) |
-| 2026-07-12 | Updated Vision Scout prompt to check for cooking method and freshness. | AI Studio (self-directed) |
-| 2026-07-12 | Replaced `{` with `[` as autocomplete trigger for variable insertion in FullScreenInstructionViewer. | AI Studio (self-directed) |
-| 2026-07-12 | Updated LogChat comparison table styling to match the Clinical Calibration table style, and updated prompt schema to include Pros and Cons inside the table. | AI Studio (self-directed) |
-| 2026-07-12 | Began Chat Component Consolidation Strategy: created `agentConfig.ts` with AGENT_REGISTRY containing all 13 agents, refactored `LogChat.tsx` to accept AgentType and generate welcome messages dynamically from the registry. | AI Studio (self-directed) |
-| 2026-07-16 | Updated FoodCard: Grouped food by bracketed categories, fixed hero image name cleaning, and implemented expand/collapse interactions with eye-preview. | AI Studio (self-directed) |
+| Jul 11 | Stability | Fixed `useRef` missing import in `App.tsx` causing blank screen; fixed `firebase-admin` ESM imports. |
+| Jul 12 | LLM Reliability | Raised `maxOutputTokens` to 3072; added truncation repair fallback for malformed JSON; reordered schema fields. |
+| Jul 12 | Persistence | Implemented `sanitizeForFirestore()` across all Firestore writes; enforced strict nested `required` arrays. |
+| Jul 16 | Food Card | Redesigned `FoodCard.tsx` with bracketed food categories, hero image name cleaning, and expandable preview. |
+| Jul 17 | Multi-Agent | Consolidated 12 separate agent chat modals into a unified card and streaming framework. |
+| Jul 18 | Theme Engine | Built dynamic CSS token registry, preset CSV export/import payload generator, and live preview cancel revert. |
+| Jul 19 | Health Planning | Rebranded Projections Agent to Health Planning Agent focusing on holistic testing gaps (ApoB, HbA1c, ACR test). |
+| Jul 20 | Telemetry | Overhauled `ApiCallTrackerModal.tsx` into a daily grid layout with color-coded tags and model indicators. |
+| Jul 20 | Robustness | Extracted 4 modular server helper files (`server_vision_scout.ts`, `server_nutrient_aggregation.ts`, `server_pure_helpers.ts`, `server_food_db.ts`). |
+| Jul 20 | Unit Testing | Integrated Vitest runner with **60 fixture-based unit tests** covering all critical food math and sync edge cases. |
+| Jul 23 | Firebase Admin | Implemented read-only user listing (`/api/admin/users`), Auth/Data deletion endpoints, email reset link generators, and typed confirmation UI modals (Commit `3c608aa`). |
+| Jul 23 | UI Polish | Deduplicated Health Coach global summary rendering and merged testing gap priority rationale into single UI field (Commit `3c608aa`). |
+| Jul 23 | Vision Scout | Updated Scout `responseSchema` with `sourceImageIndex`, `scanCompleteness`, and nutrition label/ingredient fields; added `skipThinking` parameter to `callUnifiedLLMInternal` to bypass thinking tokens on structured vision extraction; removed `scoutScratchpad` from response payloads. |
 
-## 10. LLM Gotchas & Lessons Learned
-### Runaway Decimal Floats & Truncations
-Issue: The LLM would output weights as strings like "150.000000000000000000000000000..." eating up the response token limit (2048) and causing JSON truncation.
-Cause: Placing negative instructions in prompts (e.g. "NEVER write 150.0 or 300.000...") causes the LLM's attention mechanism to lock onto the pattern and trigger it.
-Solution: Enforce Type.INTEGER in the responseSchema configuration. This blocks decimals at the API engine level. Remove negative examples from the system instruction to avoid reinforcing the behavior.
-### USDA Nutrient Extraction (Substrings vs Exact Match)
-Issue: USDA database lookup matches would populate nutrients with 0 values on the server.
-Cause: The database matches mapping was using exact string matching for nutrient names, e.g. n.nutrientName === "protein". However, USDA nutrient names are things like "Protein, total", "Sodium, Na", or "Fatty acids, total saturated".
-Solution: Always use the robust extractUSDANutrientsPer100g helper which uses .includes() substring matching. Never perform exact matches for nutrient keys.
+---
 
-## 11. Chat Component Consolidation Strategy
-**Goal**: Expand `LogChat.tsx` to handle all 13 agents, replacing isolated agent chat modals, minimizing regressions.
-**Proposed Approach**:
-1. **Agent Configuration Registry**: Create an `agentConfig.ts` file exporting a map of `AgentType` -> `{ layoutSchema, capabilities, displayNames, allowedModes }`.
-2. **Abstract Rendering**: Refactor `LogChat.tsx` so that it doesn't hardcode `if (type === 'food')` everywhere. Instead, it should query the config for which card renderer to use (e.g., `<FoodCard />` vs `<BiomarkerCard />`).
-3. **Phased Migration**:
-   - Step 1: Migrate the simplest agents first (e.g. `medical_extract`) to `LogChat.tsx` without deleting their original modals.
-   - Step 2: Implement a feature flag to toggle between the old modal and the new unified chat for that specific agent.
-   - Step 3: Gradually port complex agents (like the Biomarker Clinical Calibration). Wrap their unique tables (like `AgentResultTable`) as modular sub-components inside `LogChat.tsx`.
-4. **State Normalization**: Unify the message payload format across all agents so that `LogChat.tsx` only ever deals with a standardized `ChatMessage` interface, while parsing specific agent outputs in the backend.
+## 7. Lessons Learned & Critical Gotchas
 
-## 12. Known Intentional Behaviors (Do Not "Fix")
-- **Hardcoded static report for chiwah.liu@gmail.com / cwah.liu@gmail.com / john@mail.com** in `/api/gemini/insight-analyze` (server.ts) and `src/utils/fallbackReport.ts`: on first report generation (`refinement` falsy), these accounts receive a fixed, non-live report instead of a fresh Gemini call. This is INTENTIONAL (confirmed 2026-07-13). Only follow-up refinement messages call the live model. Do not remove or "fix" this without explicit new instruction.
-- **Replacement of agent6 with health_baseline in Clinical Calibration**: The Action Plan Agent (`agent6`) was fully replaced by the new Health Baseline Agent (`health_baseline`). Dead code paths for `agent6` have been cleaned up from the frontend, and the sequence now transitions directly using `health_baseline`. This replacement is intentional (confirmed 2026-07-14).
+### Schema Field Ordering & Token Truncation
+With LLMs, fields emitted later in a JSON schema are the first to be lost when maximum token limits are reached. **High-priority fields (e.g. `items`, `calories`, `suitability`) must be positioned early** in schemas and structured-output definitions.
 
-## 13. Audit Log
-### 2026-07-13 — Diagnostic review
-- Verified `foodAnalyzeSchema.foodData.required` correctly lists composition/benefits/risks/healthImpact/recommendation. Confirmed maxOutputTokens raised to 3072.
-- Verified commit `0f516a9` fixes two real causes of the Firestore quota spike: (1) image recompression in App.tsx now only writes when the result is actually smaller; (2) `runCleanupMigration` now keyed by uid instead of email (email never matched Firestore rules requiring `request.auth.uid == userId`, so the migration silently failed/retried every session).
-- Verified AGENT_REGISTRY: 12/13 agents at rolloutStatus 'unified', medical_extract still 'legacy' by design.
-- Found and fixed PII leak: `/api/gemini/daily-recommendation-chat` was embedding the raw, unfiltered `userProfile` (including email, lastUpdatedAt, deleted-ID arrays) into the Gemini prompt. Replaced with whitelisted `cleanProfile`.
-- This document was stale — last updated after commit `02ecd52`. Ten commits since then were undocumented. Future sessions: run `git log --oneline -20` first and reconcile against this file.
+### Unsafe Numeric Coercion Protection
+Using `Number(x) || fallback` is **unsafe** for LLM numeric output because runaway digit strings (or `Infinity` values) are truthy and bypass fallbacks. Always use dedicated sanitization helpers (such as `sanitizeMealWeight` or `safeStr`) to coerce LLM numbers.
 
-### 2026-07-17 — Visual Scout Spatial Row Clustering & Dietitian Index Indivisibility
-- Updated the Vision Scout's High Density (`BRANCH B`) prompt in `server.ts` to implement **Spatial Row Clustering** for physical grocery shelves and image grids. Instead of extracting individual items that exceed the token or display budgets (which led to omitted items) or drawing a single giant bounding box (which triggered frontend duplicate crops), the Vision Scout now groups physical shelves and grids by spatial blocks/rows (e.g. "Top Shelf Snacks", "Middle Row Drinks") with a clear bounding box for each row and a comma-separated list of items.
-- Updated the Dietitian / Nutrition Agent's Mode D prompt in `server.ts` to enforce the **Index Indivisibility** rule. Since a physical bounding box (or Index) is structurally unbreakable in the UI crop, the Dietitian is now strictly forbidden from splitting items belonging to the same visual index across multiple groups.
-- Enforced strict index-based counting (counting distinct scout indices instead of originalName words) in the Dietitian grouping strategy prompt to reliably select between INDIVIDUAL MODE (8 or fewer indices, creating exactly one group mapping to one visual shelf/row) and BUCKET MODE (9 or more indices).
-- Verified clean syntax parsing and error-free compilation of the updated full-stack server application.
+### Firestore Document Size Limits & Image Recompression
+The auto-recompression patch in `App.tsx` (recompressing images over ~25,000 characters to 400x400 at 0.5 quality on load) **must never be removed**. High-resolution images may only pass through transient API requests (`/api/analyze-food`), never persistence.
 
-- Replaced `src/utils/apiTracker.ts` with standard robust offline local storage tracking, dynamic user email resolution via Firebase Auth, and synchronization status indicators.
-- Created `src/components/ApiCallTrackerModal.tsx` containing an interactive daily summary dashboard, categorized diagnostic metrics (Gemini, USDA, Brave, Firebase operations), duration computation, query session grouping, and one-click cloud synchronization using batched Firestore writes to the `api_events` collection.
-- Integrated the API Call Tracker into `src/components/Header.tsx` as a general-access Action Controls button (Activity icon) and as a prominent control next to the diagnostic "View AI Logs" button within the admin view mode of the Settings dialog.
-- Implemented automated query session lifecycle management in `src/components/BiomarkerDictionaryModal.tsx` via `useEffect` to trigger and reset `activeQueryId` upon opening/closing, ensuring all API calls within the modal are correctly grouped.
-- Implemented automated query session lifecycle management in `src/components/ReviewBiomarkerModal.tsx` via `useEffect` to trigger and reset `activeQueryId` upon opening/closing, ensuring all API calls within the modal are correctly grouped.
-- Redesigned and polished `src/components/ApiCallTrackerModal.tsx` by removing card boxes in favor of a sleek, borderless, transparent daily grid layout, changing description titles to highly legible white text in dark mode (`dark:text-white`), and completely stripping white backgrounds from session summary footers.
-- Structured logs into a dynamic Day-by-Day organized chronological grouping, displaying collapsible/grouped queries with clear headers for each day.
-- Added dynamic click-to-filter mechanics allowing immediate categorization filters by tapping on "Gemini Agent", "USDA Lookups", "Brave Search", or "Firebase Call", highlighting selected filters by underlining and fading other metrics into semi-opacity.
-- Injected strict prompt guardrails into the Vision Scout prompt (`SEMANTIC ALIGNMENT RULE`, `Visual Cross-Referencing Rule`, `Confidence Scoring Calibration`, `ANTI-OMISSION RULE`, and `USER TEXT SUPREMACY & CONTEXT FILTERING`) and the Nutrition Agent prompt (`Local Language Priority`, `Protein Verification`, `Strict Anti-Merging`, `Zero Hallucination`, and `Trace Nutrients Taxonomy`) in `server.ts` to enforce originalName preservation as absolute ground truth, handle protein names, restrict DB ID hallucination, support fungi categorization, mandate anti-omission fallback strategies, enforce user text supremacy for mathematical quantity scaling, and prevent upstream vision errors from corrupting calculations.
-- Further consolidated and refined Vision Scout prompt rules by embedding logic constraints directly into the JSON schema keys to enforce strict compliance with anti-omission and data accuracy requirements.
-- Finalized Vision Scout robustness by implementing an "unknown item" / "UNREADABLE LABEL" escape hatch, explicitly instructing the agent to log items with low confidence when visual identification is ambiguous due to glare or obstruction rather than omitting them.
-- Updated mode routing logic to explicitly prioritize `MODE C` (MODIFICATION COMMAND) over `MODE D` (EVALUATION/COMPARISON) for user correction inputs, and expanded the `modificationCommand` schema to support `rename_item` to resolve food identification inaccuracies without disrupting logging flow.
-- Refined Vision Scout instructions to enforce "Transparent Guessing": the agent is permitted to guess/infer cut-off labels, but MUST explicitly document the guess in the `confidenceComment` and downgrade confidence to Medium or Low, ensuring higher transparency and avoiding overconfident but incorrect labels.
-- Verified zero syntax warnings via standard linter check and verified successful application compilation.
+### Structured Output `required` Arrays
+A `required` array specified at the root of a JSON schema does **not** enforce presence on nested child objects. Each nested object requires its own explicit `required` property array.
 
-### 2026-07-20 — System Robustness Foundation (Phase 0 & 1)
-- **Phase 0b & 0c (Operational Discipline)**: Added a highly structured pre-commit checklist directly to Section 4 of `AI_HANDOVER.md` covering literal newline checks, division by zero guards, field shape impact analysis, anti-AI-slop layout rules, and strict user intent boundary compliance. Updated Operating Rules to enforce task-level declarations of expected files to touch.
-- **Phase 1a & 1b (Fixture Testing Engine)**: Implemented 15 robust fixture-based unit tests inside `/server_pure_helpers.test.ts` to cover known-recurring bug classes:
-  - Precise fallback and lookups in `findItemIndexInList` (dbId matching, name-case sensitivity, canonical name matches, prefix/suffix patterns, fuzzy substring includes, and word-by-word intersection fallback).
-  - Web/API USDA database extraction (`extractUSDANutrientsPer100g`), handling energy conversion from kJ to kcal, and tracing custom nutrient matches.
-  - OpenFoodFacts product extraction (`extractOFFNutrientsPer100g`) with proper Scaling, trans-fat handling, and energy parsing.
-  - Newline / YAML splitting edge-case parsing (ensuring literal `\n` and real newlines are handled identicaly across systems).
-  - Truncated or garbage-padded JSON recovery with nested curly brace parsing.
-- **Modularity & Monolith Refactoring**: Replaced the nested inline `findItemIndex` algorithm inside `server.ts` (~line 3168) with a direct import and clean delegation to the pure, unit-tested `findItemIndexInList` helper, reducing the monolithic bloat of `server.ts` and establishing a clean pattern for subsequent refactoring (Phase 2).
-- **Verification**: Executed the test suite to confirm all 30 tests pass cleanly, and successfully linted and compiled the full-stack application.
+---
 
-- Implemented `explodeScoutItemIntoDishItems` in `resolveComparisonGroups` to explode category-block dish names into individual items, improving UI representation of dense menu items.
-- Fixed `FoodCard.tsx`: Removed fake nutrition label fabrication and corrected Mode D nutrient scaling to stop erroneous weight-based multiplication.
-- Updated RAG color-coding logic in `FoodCard.tsx` for suitability tags, expanding keywords and ensuring Red is evaluated first to avoid false positives.
-- Improved `ApiCallTrackerModal.tsx`: Fixed query session numbering to 1-based ascending, switched start/event timestamps to 24-hour format, added interactive purple badges identifying the Gemini model in event rows, and added distinct, color-coded tag/badge styling for all transaction event rows (Brave, USDA, Wikipedia, Unsplash, and specific read/write/delete operations for Firebase).
-- Refined suitability tag RAG color coding in `FoodCard.tsx`: Introduced robust regex checks to properly color negated positive terms (e.g., "NOT RECOMMENDED" or "not safe") in red/destructive tone instead of green/success.
-- Upgraded High Density `BRANCH B` of the Vision Scout in `server.ts` with a strict "Anti-Giant-Box" rule that mathematically forbids drawing a single full-image box for physical grocery shelves and grids, forcing the model to divide them into 3 to 6 distinct spatial rows or shelves with real individual crop coordinates.
-- Upgraded the Dietitian / Nutrition Agent Mode D prompt in `server.ts` with the "Index Uniqueness Law" to enforce mathematical index-uniqueness constraints (forbidding reuse of the same visual crop coordinates across different clinical categories) and ensure that if the Vision Scout yields only a single combined index, the Dietitian outputs exactly one group representing that combined block.
-- Implemented persistent structured request logging for the Diagnostic Agent Log Viewer by creating `agentLogsTracker.ts`. Instead of a flat array of transient global logs, agent execution logs are now captured at the end of each `handleSend` request and saved into `localStorage` under `agent_request_logs`.
-- Updated `FullScreenLogViewer.tsx` to group diagnostic logs by individual request session and load them from `localStorage`. Added a dropdown to switch between "All Requests" (showing merged real-time and historical logs) and specific historical requests, along with a deletion function for individual sessions.
+## 8. Current Feature Status & Roadmap
 
-### 2026-07-20 — System Robustness Refactoring (Phase 2)
-- **Monolith Decomposition (Phase 2a & 2b)**: Successfully extracted the core nutrient aggregation, database overrides, core-11 estimates, trace-20 food classification mapping, and fat-consistency physical checks from the monolithic `server.ts` into a self-contained module `/server_nutrient_aggregation.ts`, and extracted Vision Scout schemas/prompts into `/server_vision_scout.ts`.
-- **Pure Unit Tests (Phase 2a & 2b)**: Added comprehensive fixture-based unit test suites in `/server_nutrient_aggregation.test.ts` and `/server_vision_scout.test.ts`. All tests pass cleanly in Vitest.
-- **Storage & Sync Extraction (Phase 2c)**: Moved monolithic local storage, quota-management, IndexedDB wrappers, and snapshot backup/restore management code from `src/App.tsx` into a robust, dedicated utility module: `/src/utils/storageUtils.ts`. Fully covered with 7 robust unit tests in `/src/utils/storageUtils.test.ts`.
-- **Verification**: Fully verified compiling/bundling with Esbuild and type safety via standard linter checks. All 49 tests in the test suite pass cleanly in Vitest, achieving a modular, highly robust codebase.
+| Initiative / Feature Area | Status | Progress % | Key Milestone / Current Focus |
+| :--- | :---: | :---: | :--- |
+| **1. Multi-Language (i18n) Framework** | ⏸️ **PAUSED** | **75%** | *Paused per user request until explicitly asked to resume.* |
+| **2. Admin Panel for Real Firebase Users** | 🟢 Completed | **100%** | All 4 phases complete (List, Delete Auth/Data, Resets, UI modals) in `3c608aa`. |
+| **3. Food Agent Menu Screening (MODE D1 / D2)** | 🟢 Completed | **100%** | Menu mode up to 100 items, compact ranked UI list, and schema depth rules verified. |
+| **4. Health Coach & Health Planning UI Polish** | 🟢 Completed | **100%** | Global Summary de-duplication & testing gap reason merge verified in `3c608aa`. |
+| **5. System Robustness & Safety Harness** | 🟢 Completed | **100%** | Vitest (60 tests), Zod validation (Scout & RouteAgent) active in `3c608aa`. |
+| **6. Theme Customization & Visual Inspector Engine** | 🟢 Completed | **100%** | CSS variable engine, preset updates, draft colors, and export payload generator complete. |
+| **7. Core Storage, Sync & Persistence Safety** | 🟢 Completed | **100%** | IndexedDB primary store, image auto-recompression patch, and tombstone priority active. |
 
+---
+
+## 9. Multi-Language (i18n) Framework — [PAUSED / PENDING USER REQUEST]
+- **Note:** *All multi-language tasks (UI string fixes, prop pass-throughs, agent system prompt translations, CSV export/import) are on hold until user explicitly requests to resume them.*

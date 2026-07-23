@@ -791,7 +791,8 @@ async function callUnifiedLLMInternal({
   googleSearch,
   enablePlaceIdTool,
   maxOutputTokens,
-  onStream
+  onStream,
+  skipThinking
 }: {
   modelId: string;
   systemInstruction: string;
@@ -804,6 +805,7 @@ async function callUnifiedLLMInternal({
   enablePlaceIdTool?: boolean;
   maxOutputTokens?: number;
   onStream?: (chunk: string, isThought?: boolean) => void;
+  skipThinking?: boolean;
 }) {
   const explicitSessionId = logSessionStorage.getStore();
   const addDebugLog = (msg: string) => actualAddDebugLog(msg, explicitSessionId);
@@ -1017,7 +1019,7 @@ async function callUnifiedLLMInternal({
   };
 
   // Enable native reasoning for models that support it (Gemini 2.5/3.1/3.5 Pro/Flash, including 3.1 Flash Lite)
-  if (isJson && (
+  if (isJson && !skipThinking && (
     normalizedModelId.includes("pro") || 
     normalizedModelId.includes("flash-lite") || 
     (normalizedModelId.includes("flash") && !normalizedModelId.includes("1.5"))
@@ -2195,6 +2197,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                 recommendedMode: { type: Type.STRING },
                 contentType: { type: Type.STRING },
                 cookingMethod: { type: Type.STRING },
+                scanCompleteness: { type: Type.STRING },
                 items: {
                   type: Type.ARRAY,
                   items: {
@@ -2203,11 +2206,11 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                       keyword: { type: Type.STRING, description: "Base food name in database-friendly English" },
                       originalName: { type: Type.STRING, description: "Exact localized food name" },
                       estimatedWeightGrams: { type: Type.NUMBER },
+                      sourceImageIndex: { type: Type.INTEGER, description: "0-based index of which image this item appears in" },
                       boundingBox2D: {
                         type: Type.ARRAY,
                         items: { type: Type.INTEGER },
-                        description: "4-element bounding box array [ymin, xmin, ymax, xmax] scale 0-1000",
-                        nullable: true
+                        description: "4-element bounding box array [ymin, xmin, ymax, xmax] scale 0-1000"
                       },
                       components: {
                         type: Type.ARRAY,
@@ -2223,15 +2226,32 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                       source: { type: Type.STRING },
                       cookingMethod: { type: Type.STRING },
                       itemConfidence: { type: Type.STRING },
-                      anomalyFlags: { type: Type.ARRAY, items: { type: Type.STRING } }
+                      anomalyFlags: { type: Type.ARRAY, items: { type: Type.STRING } },
+                      visualIngredients: { type: Type.ARRAY, items: { type: Type.STRING } },
+                      ingredientsList: { type: Type.STRING, nullable: true },
+                      rawNutritionLabel: {
+                        type: Type.OBJECT,
+                        properties: {
+                          servingSize: { type: Type.STRING, nullable: true },
+                          calories: { type: Type.NUMBER, nullable: true },
+                          protein: { type: Type.STRING, nullable: true },
+                          totalFat: { type: Type.STRING, nullable: true },
+                          saturatedFat: { type: Type.STRING, nullable: true },
+                          totalCarbohydrate: { type: Type.STRING, nullable: true },
+                          sugar: { type: Type.STRING, nullable: true },
+                          sodium: { type: Type.STRING, nullable: true }
+                        },
+                        nullable: true
+                      },
+                      nutritionFacts: { type: Type.OBJECT, nullable: true }
                     },
-                    required: ["keyword", "originalName", "estimatedWeightGrams", "boundingBox2D"]
+                    required: ["keyword", "originalName", "estimatedWeightGrams", "boundingBox2D", "sourceImageIndex"]
                   }
                 },
                 queriesToSearch: { type: Type.ARRAY, items: { type: Type.STRING } }
               },
               required: ["recommendedMode", "contentType", "items"],
-              propertyOrdering: ["items", "recommendedMode", "contentType", "cookingMethod", "queriesToSearch"]
+              propertyOrdering: ["items", "recommendedMode", "contentType", "cookingMethod", "scanCompleteness", "queriesToSearch"]
             },
             onStream: isStream ? (chunk: string, isThought?: boolean) => {
               if (isThought) {
@@ -3174,7 +3194,6 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       addDebugLog(`[Mode Routing] DISCUSSION mode triggered (0 database operations).`);
       return res.json({
         mode: "discussion",
-        scoutScratchpad,
         dietitianScratchpad: rawParsed.scratchpad,
         text: rawParsed.message || "Here is the details on this meal composition.",
         data: null,
@@ -3194,7 +3213,6 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       
       return res.json({
         mode: "evaluation",
-        scoutScratchpad,
         dietitianScratchpad: rawParsed.scratchpad,
         comparison: comparisonData,
         scoutItems: mergeScoutItems(visionScoutItems, rawParsed.scoutItems),
@@ -3341,7 +3359,6 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         
         return res.json({
           mode: "modify",
-          scoutScratchpad,
           dietitianScratchpad: rawParsed.scratchpad,
           text: rawParsed.message || `I have updated your meal to reflect the correction.`,
           data: parsedData,
@@ -3353,7 +3370,6 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
 
       return res.json({
         mode: "new_log",
-        scoutScratchpad,
         dietitianScratchpad: rawParsed.scratchpad,
         text: rawParsed.message || `I have analyzed the food: **${parsedData.name}** (${parsedData.quantity}).`,
         data: parsedData,
