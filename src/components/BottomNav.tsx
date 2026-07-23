@@ -1,18 +1,22 @@
 import React from 'react';
 import { Home, Lightbulb, Utensils, Stethoscope, TrendingUp } from 'lucide-react';
+import { translations } from '../utils/translations';
 
 interface BottomNavProps {
   activeTab: 'home' | 'insights' | 'food' | 'medical' | 'trends';
   setActiveTab: (tab: 'home' | 'insights' | 'food' | 'medical' | 'trends') => void;
+  language: string;
 }
 
-export default function BottomNav({ activeTab, setActiveTab }: BottomNavProps) {
+export default function BottomNav({ activeTab, setActiveTab, language }: BottomNavProps) {
+  const t = translations[language] || translations.en;
+
   const tabs = [
-    { id: 'home', icon: Home, label: 'Home' },
-    { id: 'insights', icon: Lightbulb, label: 'Health insights' },
-    { id: 'food', icon: Utensils, label: 'Food History' },
-    { id: 'medical', icon: Stethoscope, label: 'Body Info' },
-    { id: 'trends', icon: TrendingUp, label: 'Trends' },
+    { id: 'home', icon: Home, label: t.home },
+    { id: 'insights', icon: Lightbulb, label: t.insights },
+    { id: 'food', icon: Utensils, label: t.foodHistory },
+    { id: 'medical', icon: Stethoscope, label: t.bodyInfo },
+    { id: 'trends', icon: TrendingUp, label: t.trends },
   ] as const;
 
   return (
