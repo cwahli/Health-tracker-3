@@ -391,10 +391,10 @@ export default function TrendsTab({
     return { name: label, value: value.toFixed(1), unit: unit, target: targetText, bounds: { min: 0, max: Infinity }, statusText: text, color, key };
   }) : [];
   return (
-    <div className="space-y-5 pb-40 animation-fade-in max-w-md mx-auto px-4 mt-4 font-sans text-slate-900">
-      <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl mb-4">
-        <button onClick={() => setActiveSubTab('trends')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${activeSubTab === 'trends' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}>Trends</button>
-        <button onClick={() => setActiveSubTab('summary')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${activeSubTab === 'summary' ? 'bg-white dark:bg-slate-700 shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-slate-500'}`}>Summary</button>
+    <div className="space-y-5 pb-40 animation-fade-in max-w-md mx-auto px-4 mt-4 font-sans text-theme-text">
+      <div className="flex bg-theme-border/30 p-1 rounded-xl mb-4">
+        <button onClick={() => setActiveSubTab('trends')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${activeSubTab === 'trends' ? 'bg-theme-bg-card shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-theme-text-secondary'}`}>Trends</button>
+        <button onClick={() => setActiveSubTab('summary')} className={`flex-1 py-1.5 text-xs font-bold rounded-lg transition-all ${activeSubTab === 'summary' ? 'bg-theme-bg-card shadow-sm text-indigo-600 dark:text-indigo-400' : 'text-theme-text-secondary'}`}>Summary</button>
       </div>
       
       {activeSubTab === 'summary' && (
@@ -402,14 +402,14 @@ export default function TrendsTab({
           <div className="flex justify-between items-center bg-theme-bg-card border border-theme-border/80 p-3 rounded-xl relative">
             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide font-mono">Aggregated Time Period</span>
             <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-950 dark:text-slate-200">Last</span>
+              <span className="text-xs font-bold text-theme-text">Last</span>
               <input 
                 type="number" 
                 value={summaryDays} 
                 onChange={e => setSummaryDays(e.target.value === '' ? '' : parseInt(e.target.value, 10))} 
                 className="w-12 text-center text-xs font-bold text-white bg-slate-800 dark:bg-slate-800 rounded-lg py-1 border-none focus:ring-2 focus:ring-indigo-500/20"
               />
-              <span className="text-xs font-bold text-slate-950 dark:text-slate-200">days</span>
+              <span className="text-xs font-bold text-theme-text">days</span>
             </div>
             
             <button 
@@ -437,7 +437,7 @@ export default function TrendsTab({
           </div>
           
           <div>
-            <h3 className="text-xs font-bold text-slate-950 dark:text-slate-200 mb-3 font-display uppercase tracking-wider">Nutrients (Last {summaryDays} Days)</h3>
+            <h3 className="text-xs font-bold text-theme-text mb-3 font-display uppercase tracking-wider">Nutrients (Last {summaryDays} Days)</h3>
             <div className="grid grid-cols-10 gap-x-1 gap-y-3 justify-items-center">
               {nutrientDots.map((dot, i) => (
                 <div 
@@ -479,7 +479,7 @@ export default function TrendsTab({
           </div>
           
           <div>
-            <h3 className="text-xs font-bold text-slate-950 dark:text-slate-200 mb-3 font-display uppercase tracking-wider mt-6">Biomarkers (Latest Value)</h3>
+            <h3 className="text-xs font-bold text-theme-text mb-3 font-display uppercase tracking-wider mt-6">Biomarkers (Latest Value)</h3>
             <div className="grid grid-cols-10 gap-x-1 gap-y-3 justify-items-center">
               {biomarkerDots.map((dot, i) => (
                 <div 

@@ -1652,7 +1652,7 @@ export default function InsightsTab({
       <div id="agent-diagnostics-dashboard" className="space-y-4">
         <div className="flex items-center gap-2 pb-3 border-b border-theme-border/50">
           <Sparkles className="w-5 h-5 text-indigo-600" />
-          <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center gap-2">
+          <h3 className="font-bold text-theme-text text-sm flex items-center gap-2">
             Clinical Multi-Agent Pipeline
           </h3>
         </div>
@@ -3115,7 +3115,7 @@ export default function InsightsTab({
           
           {/* Health Risk Forecasting Timelines - 5, 10, 20 Years */}
           <div id="risk-timeline-card" className="bg-theme-bg-card border border-theme-border/80 rounded-3xl p-6 shadow-sm space-y-4">
-            <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center gap-1.5 font-display">
+            <h3 className="font-bold text-theme-text text-sm flex items-center gap-1.5 font-display">
               <TrendingDown className="w-4 h-4 text-rose-500" />
               Cardiovascular & Renal Risk Forecasting
             </h3>
@@ -3167,7 +3167,7 @@ export default function InsightsTab({
 
           {/* Core Medical Insights summarised bullet points */}
           <div id="latest-insights-card" className="bg-theme-bg-card border border-theme-border/80 rounded-3xl p-6 shadow-sm space-y-4">
-            <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center gap-1.5 font-display">
+            <h3 className="font-bold text-theme-text text-sm flex items-center gap-1.5 font-display">
               <BookOpen className="w-4 h-4 text-indigo-600" />
               {t.latestInsights}
             </h3>
@@ -3211,7 +3211,7 @@ export default function InsightsTab({
           <div className="bg-theme-bg-card border border-theme-border rounded-3xl w-full max-w-7xl h-[85vh] flex flex-col shadow-2xl overflow-hidden animation-zoom-in">
             <div className="flex items-center justify-between px-6 py-5 border-b border-theme-border bg-slate-50/50 dark:bg-slate-950/20">
               <div>
-                <h3 className="text-sm font-bold text-slate-950 dark:text-slate-100 font-display">
+                <h3 className="text-sm font-bold text-theme-text font-display">
                   Batch {fullscreenBatchIndex + 1} Full-Screen Calibrated Reference Table
                 </h3>
                 <p className="text-[10px] text-slate-450 mt-1">

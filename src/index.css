@@ -29,6 +29,8 @@
   --app-text: #1e293b;
   --app-text-secondary: #64748b;
   --app-neutral: #334155;
+  --theme-text-dark-primary: rgba(255, 255, 255, 0.9);
+  --theme-text-dark-secondary: rgba(255, 255, 255, 0.7);
 }
 
 @media (prefers-color-scheme: dark) {

@@ -92,9 +92,16 @@ export interface UserProfile {
     success?: string;
     text?: string;
     textSecondary?: string;
+    textDarkPrimary?: string;
+    textDarkSecondary?: string;
+    textAccent?: string;
+    textMuted?: string;
+    textSuccess?: string;
+    textError?: string;
     bgApp?: string;
     bgCard?: string;
     neutralSetting?: string;
+    [key: string]: string | undefined;
   };
   customBiomarkers?: {
     [key: string]: {

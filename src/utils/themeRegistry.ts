@@ -8,6 +8,7 @@ export interface ThemeColor {
   defaultHex: string;
   tailwindVar: string;
   category?: 'general' | 'text' | 'status' | 'nutrients';
+  darkGroup?: 'dark' | 'light';
 }
 
 export interface ThemeFont {
@@ -85,52 +86,76 @@ export const auditColors: ThemeColor[] = [
     category: 'general'
   },
   {
+    key: 'textDarkPrimary',
+    label: 'Primary text over dark',
+    description: 'Primary high-contrast text used on dark background elements',
+    defaultHex: 'rgba(255, 255, 255, 0.9)',
+    tailwindVar: '--theme-text-dark-primary',
+    category: 'text',
+    darkGroup: 'dark'
+  },
+  {
+    key: 'textDarkSecondary',
+    label: 'Secondary text over dark',
+    description: 'Secondary supporting text used on dark background elements',
+    defaultHex: 'rgba(255, 255, 255, 0.7)',
+    tailwindVar: '--theme-text-dark-secondary',
+    category: 'text',
+    darkGroup: 'dark'
+  },
+  {
     key: 'text',
-    label: 'Primary Text',
-    description: 'Main readable text used in headers, labels, and primary sentences',
+    label: 'Primary text over light',
+    description: 'Main readable text used in headers, labels, and primary sentences on light backgrounds',
     defaultHex: '#1e293b',
     tailwindVar: '--color-slate-900',
-    category: 'text'
+    category: 'text',
+    darkGroup: 'light'
   },
   {
     key: 'textSecondary',
-    label: 'Secondary Text',
-    description: 'Supporting notes, timestamps, descriptions, and descriptive prompts',
+    label: 'Secondary text over light',
+    description: 'Supporting notes, timestamps, descriptions, and descriptive prompts on light backgrounds',
     defaultHex: '#64748b',
     tailwindVar: '--color-slate-500',
-    category: 'text'
+    category: 'text',
+    darkGroup: 'light'
   },
   {
     key: 'textAccent',
-    label: 'Accent Highlight Text',
-    description: 'Text color used for highlights, links, or accented typographic elements',
-    defaultHex: '#4f46e5',
-    tailwindVar: '--color-indigo-600',
-    category: 'text'
+    label: 'Accent Highlight over dark',
+    description: 'Text color used for highlights, links, or accented typographic elements on dark backgrounds',
+    defaultHex: '#818cf8',
+    tailwindVar: '--color-indigo-400',
+    category: 'text',
+    darkGroup: 'dark'
   },
   {
     key: 'textMuted',
     label: 'Muted Hint Text',
-    description: 'Lighter text for placeholder labels, disabled headers, and secondary details',
+    description: 'Lighter text for placeholder labels, disabled headers, and secondary details on dark backgrounds',
     defaultHex: '#94a3b8',
     tailwindVar: '--color-slate-400',
-    category: 'text'
+    category: 'text',
+    darkGroup: 'dark'
   },
   {
     key: 'textSuccess',
     label: 'Success Text',
-    description: 'Text color indicating positive health accomplishments, completed targets, or normal lab levels',
-    defaultHex: '#16a34a',
-    tailwindVar: '--color-green-600',
-    category: 'text'
+    description: 'Text color indicating positive health accomplishments, completed targets, or normal lab levels on dark backgrounds',
+    defaultHex: '#4ade80',
+    tailwindVar: '--color-green-400',
+    category: 'text',
+    darkGroup: 'dark'
   },
   {
     key: 'textError',
     label: 'Critical Alert Text',
-    description: 'Text color signaling critical risks, high-level biomarker warnings, or urgent actions',
-    defaultHex: '#dc2626',
-    tailwindVar: '--color-red-600',
-    category: 'text'
+    description: 'Text color signaling critical risks, high-level biomarker warnings, or urgent actions on dark backgrounds',
+    defaultHex: '#f87171',
+    tailwindVar: '--color-red-400',
+    category: 'text',
+    darkGroup: 'dark'
   },
   {
     key: 'warning',
@@ -334,9 +359,9 @@ export const auditDesignTokens: ThemeDesignToken[] = [
     description: 'Proportion of spacing margin used between layout blocks and grid containers',
     type: 'select',
     options: [
-      { value: 'compact', label: 'Compact Spacing (0.8x)' },
-      { value: 'normal', label: 'Normal Spacing (1.0x)' },
-      { value: 'relaxed', label: 'Relaxed Spacing (1.25x)' }
+      { value: 'compact', label: 'Compact Spacing (0.8x - 12px)' },
+      { value: 'normal', label: 'Normal Spacing (1.0x - 16px)' },
+      { value: 'relaxed', label: 'Relaxed Spacing (1.25x - 20px)' }
     ],
     defaultValue: 'normal',
     tokenKey: 'marginScale'
@@ -347,9 +372,9 @@ export const auditDesignTokens: ThemeDesignToken[] = [
     description: 'Proportion of breathing space inside cards, buttons, and input fields',
     type: 'select',
     options: [
-      { value: 'compact', label: 'Compact Padding (0.8x)' },
-      { value: 'normal', label: 'Normal Padding (1.0x)' },
-      { value: 'relaxed', label: 'Relaxed Padding (1.25x)' }
+      { value: 'compact', label: 'Compact Padding (0.8x - 12px)' },
+      { value: 'normal', label: 'Normal Padding (1.0x - 16px)' },
+      { value: 'relaxed', label: 'Relaxed Padding (1.25x - 20px)' }
     ],
     defaultValue: 'normal',
     tokenKey: 'paddingScale'
@@ -360,11 +385,11 @@ export const auditDesignTokens: ThemeDesignToken[] = [
     description: 'Overall border radius rounding factor of card outlines and action buttons',
     type: 'select',
     options: [
-      { value: 'none', label: 'None (Brutalist Sharp)' },
-      { value: 'small', label: 'Subtle Round (0.5x)' },
-      { value: 'normal', label: 'Standard (1.0x - Rounded 2xl)' },
-      { value: 'large', label: 'Pillowy Rounded (1.5x - Rounded 3xl)' },
-      { value: 'pill', label: 'Maximum Rounded (2.5x)' }
+      { value: 'none', label: 'None (Brutalist Sharp - 0px)' },
+      { value: 'small', label: 'Subtle Round (0.5x - 8px)' },
+      { value: 'normal', label: 'Standard (1.0x - 16px / 2xl)' },
+      { value: 'large', label: 'Pillowy Rounded (1.5x - 24px / 3xl)' },
+      { value: 'pill', label: 'Maximum Rounded (2.5x - 40px)' }
     ],
     defaultValue: 'normal',
     tokenKey: 'cornerRadius'
@@ -375,10 +400,10 @@ export const auditDesignTokens: ThemeDesignToken[] = [
     description: 'Contrast intensity of the drop shadows framing the modular containers',
     type: 'select',
     options: [
-      { value: 'none', label: 'None (Flat 2D Aesthetic)' },
-      { value: 'light', label: 'Light (Minimal Contrast)' },
-      { value: 'normal', label: 'Normal (Refined Elevation)' },
-      { value: 'heavy', label: 'High Depth (Tactile Elevation)' }
+      { value: 'none', label: 'None (Flat 2D Aesthetic - 0px)' },
+      { value: 'light', label: 'Light (Minimal Contrast - 4px)' },
+      { value: 'normal', label: 'Normal (Refined Elevation - 8px)' },
+      { value: 'heavy', label: 'High Depth (Tactile Elevation - 16px)' }
     ],
     defaultValue: 'normal',
     tokenKey: 'shadowScale'

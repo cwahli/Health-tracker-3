@@ -87,19 +87,34 @@ export function aggregateItemsNutrients(
       }
     }
 
-    // STEP 2.5: Apply cooking method oil modifiers
+    // STEP 2.5: Apply cooking method modifiers (fat, calories, sodium)
     const cookingMethod = item.cookingMethod || 'unknown';
     const oilModifier = getCookingMethodModifier(cookingMethod);
-    if (oilModifier.addedFatPer100g > 0 && dbSource !== 'estimated') {
+    if ((oilModifier.addedFatPer100g > 0 || oilModifier.addedSodiumPer100g > 0) && dbSource !== 'estimated') {
       const factor = itemWeight / 100;
       const addedFat = parseFloat((oilModifier.addedFatPer100g * factor).toFixed(2));
       const addedSatFat = parseFloat((oilModifier.addedSaturatedFatPer100g * factor).toFixed(2));
       const addedCalories = parseFloat((oilModifier.addedCaloriesPer100g * factor).toFixed(1));
+      const addedSodium = parseFloat((oilModifier.addedSodiumPer100g * factor).toFixed(1));
 
       itemNutrients.totalFat = parseFloat((itemNutrients.totalFat + addedFat).toFixed(2));
       itemNutrients.saturatedFat = parseFloat((itemNutrients.saturatedFat + addedSatFat).toFixed(2));
       itemNutrients.calories = parseFloat((itemNutrients.calories + addedCalories).toFixed(1));
-      addDebugLog(`[Nutrient Modifier] Applied cooking method "${cookingMethod}" (${oilModifier.description}) to "${canonicalName}": added +${addedFat}g fat, +${addedSatFat}g satFat, +${addedCalories} kcal.`);
+      itemNutrients.sodium = parseFloat((itemNutrients.sodium + addedSodium).toFixed(1));
+      addDebugLog(`[Nutrient Modifier] Applied cooking method "${cookingMethod}" (${oilModifier.description}) to "${canonicalName}": added +${addedFat}g fat, +${addedSatFat}g satFat, +${addedCalories} kcal, +${addedSodium}mg sodium.`);
+    }
+
+    // DIETITIAN REALITY CHECK: Sodium & Macro Sanity Check
+    // Raw meat or standard restaurant cooked meat/dishes shouldn't have 1000mg+ sodium per 100g unless cured/sauced
+    const nameLower = canonicalName.toLowerCase();
+    const isCuredOrSalted = nameLower.includes('cured') || nameLower.includes('bacon') || nameLower.includes('ham') || 
+                            nameLower.includes('sausage') || nameLower.includes('soy sauce') || nameLower.includes('salted') || 
+                            nameLower.includes('anchovy') || nameLower.includes('pickle') || nameLower.includes('fish sauce');
+    const sodiumPer100g = (itemNutrients.sodium / itemWeight) * 100;
+    if (!isCuredOrSalted && sodiumPer100g > 500) {
+      const realisticSodium = Math.round((250 + (oilModifier.addedSodiumPer100g || 150)) * (itemWeight / 100));
+      addDebugLog(`[Dietitian Reality Check] Sodium for "${canonicalName}" (${itemNutrients.sodium}mg) was unrealistically high for a non-cured item. Reality check adjusted sodium from ${itemNutrients.sodium}mg to ${realisticSodium}mg.`);
+      itemNutrients.sodium = realisticSodium;
     }
 
     // STEP 3: Derive the 20 trace nutrients from food-type classification
@@ -137,7 +152,9 @@ export function aggregateItemsNutrients(
       dbSource,
       dbId,
       isUnverified: itemNutrients.isUnverified || false,
-      cookingMethod: item.cookingMethod || null
+      cookingMethod: item.cookingMethod || null,
+      boundingBox2D: item.boundingBox2D || null,
+      sourceImageIndex: item.sourceImageIndex !== undefined ? item.sourceImageIndex : null
     };
   });
 

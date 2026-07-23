@@ -44,20 +44,21 @@ export interface OilModifier {
   addedFatPer100g: number; // grams of oil absorbed per 100g of food weight
   addedSaturatedFatPer100g: number; // of that absorbed fat, how much is saturated fat (approx 15% for typical veggie/frying oil)
   addedCaloriesPer100g: number; // 9 calories per gram of fat
+  addedSodiumPer100g: number; // mg of sodium added per 100g from cooking seasoning / butter / pan glazing
   description: string;
 }
 
 export const COOKING_METHOD_OIL_MODIFIERS: Record<string, OilModifier> = {
-  deep_fried: { addedFatPer100g: 10.0, addedSaturatedFatPer100g: 1.5, addedCaloriesPer100g: 90.0, description: "Deep-fried" },
-  pan_fried:  { addedFatPer100g: 5.0,  addedSaturatedFatPer100g: 0.75, addedCaloriesPer100g: 45.0, description: "Pan-fried" },
-  stir_fried: { addedFatPer100g: 3.0,  addedSaturatedFatPer100g: 0.45, addedCaloriesPer100g: 27.0, description: "Stir-fried" },
-  roasted:    { addedFatPer100g: 1.5,  addedSaturatedFatPer100g: 0.22, addedCaloriesPer100g: 13.5, description: "Roasted" },
-  boiled:     { addedFatPer100g: 0.0,  addedSaturatedFatPer100g: 0.0,  addedCaloriesPer100g: 0.0,  description: "Boiled" },
-  steamed:    { addedFatPer100g: 0.0,  addedSaturatedFatPer100g: 0.0,  addedCaloriesPer100g: 0.0,  description: "Steamed" },
-  grilled:    { addedFatPer100g: 0.5,  addedSaturatedFatPer100g: 0.07, addedCaloriesPer100g: 4.5,  description: "Grilled" },
-  baked:      { addedFatPer100g: 0.5,  addedSaturatedFatPer100g: 0.07, addedCaloriesPer100g: 4.5,  description: "Baked" },
-  raw:        { addedFatPer100g: 0.0,  addedSaturatedFatPer100g: 0.0,  addedCaloriesPer100g: 0.0,  description: "Raw / Uncooked" },
-  unknown:    { addedFatPer100g: 0.0,  addedSaturatedFatPer100g: 0.0,  addedCaloriesPer100g: 0.0,  description: "Standard" }
+  deep_fried: { addedFatPer100g: 10.0, addedSaturatedFatPer100g: 1.5, addedCaloriesPer100g: 90.0, addedSodiumPer100g: 250.0, description: "Deep-fried" },
+  pan_fried:  { addedFatPer100g: 5.0,  addedSaturatedFatPer100g: 0.75, addedCaloriesPer100g: 45.0, addedSodiumPer100g: 200.0, description: "Pan-fried" },
+  stir_fried: { addedFatPer100g: 3.0,  addedSaturatedFatPer100g: 0.45, addedCaloriesPer100g: 27.0, addedSodiumPer100g: 180.0, description: "Stir-fried" },
+  roasted:    { addedFatPer100g: 1.5,  addedSaturatedFatPer100g: 0.22, addedCaloriesPer100g: 13.5, addedSodiumPer100g: 150.0, description: "Roasted" },
+  boiled:     { addedFatPer100g: 0.0,  addedSaturatedFatPer100g: 0.0,  addedCaloriesPer100g: 0.0,  addedSodiumPer100g: 50.0,  description: "Boiled" },
+  steamed:    { addedFatPer100g: 0.0,  addedSaturatedFatPer100g: 0.0,  addedCaloriesPer100g: 0.0,  addedSodiumPer100g: 30.0,  description: "Steamed" },
+  grilled:    { addedFatPer100g: 0.5,  addedSaturatedFatPer100g: 0.07, addedCaloriesPer100g: 4.5,  addedSodiumPer100g: 150.0, description: "Grilled" },
+  baked:      { addedFatPer100g: 0.5,  addedSaturatedFatPer100g: 0.07, addedCaloriesPer100g: 4.5,  addedSodiumPer100g: 120.0, description: "Baked" },
+  raw:        { addedFatPer100g: 0.0,  addedSaturatedFatPer100g: 0.0,  addedCaloriesPer100g: 0.0,  addedSodiumPer100g: 0.0,   description: "Raw / Uncooked" },
+  unknown:    { addedFatPer100g: 0.0,  addedSaturatedFatPer100g: 0.0,  addedCaloriesPer100g: 0.0,  addedSodiumPer100g: 100.0, description: "Standard" }
 };
 
 export function getCookingMethodModifier(methodStr: string | null | undefined): OilModifier {

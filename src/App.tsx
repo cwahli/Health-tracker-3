@@ -154,13 +154,19 @@ const getDynamicStyles = (profile: any) => {
     `;
   }
   if (p.background) {
-    colorCss += `--app-bg: ${p.background} !important;`;
+    colorCss += `
+      --app-bg: ${p.background} !important;
+      --color-slate-50: ${p.background} !important;
+    `;
   }
   if (p.bgCard) {
     colorCss += `--app-bg-card: ${p.bgCard} !important;`;
   }
   if (p.border) {
-    colorCss += `--app-border: ${p.border} !important;`;
+    colorCss += `
+      --app-border: ${p.border} !important;
+      --color-slate-200: ${p.border} !important;
+    `;
   }
   if (p.warning) {
     colorCss += `
@@ -186,23 +192,52 @@ const getDynamicStyles = (profile: any) => {
     `;
   }
   if (p.text) {
-    colorCss += `--app-text: ${p.text} !important;`;
+    colorCss += `
+      --app-text: ${p.text} !important;
+      --color-slate-900: ${p.text} !important;
+    `;
   }
   if (p.textSecondary) {
-    colorCss += `--app-text-secondary: ${p.textSecondary} !important;`;
+    colorCss += `
+      --app-text-secondary: ${p.textSecondary} !important;
+      --color-slate-500: ${p.textSecondary} !important;
+    `;
+  }
+  if (p.textDarkPrimary) {
+    colorCss += `--theme-text-dark-primary: ${p.textDarkPrimary} !important;`;
+  }
+  if (p.textDarkSecondary) {
+    colorCss += `--theme-text-dark-secondary: ${p.textDarkSecondary} !important;`;
   }
   if (p.textAccent) {
     colorCss += `
       --color-text-accent: ${p.textAccent} !important;
+      --color-indigo-400: ${p.textAccent} !important;
     `;
   }
   if (p.textMuted) {
     colorCss += `
       --color-text-muted: ${p.textMuted} !important;
+      --color-slate-400: ${p.textMuted} !important;
+    `;
+  }
+  if (p.textSuccess) {
+    colorCss += `
+      --color-text-success: ${p.textSuccess} !important;
+      --color-green-400: ${p.textSuccess} !important;
+    `;
+  }
+  if (p.textError) {
+    colorCss += `
+      --color-text-error: ${p.textError} !important;
+      --color-red-400: ${p.textError} !important;
     `;
   }
   if (p.neutralSetting) {
-    colorCss += `--app-neutral: ${p.neutralSetting} !important;`;
+    colorCss += `
+      --app-neutral: ${p.neutralSetting} !important;
+      --color-slate-700: ${p.neutralSetting} !important;
+    `;
   }
   if (p.info) {
     colorCss += `
@@ -239,6 +274,13 @@ const getDynamicStyles = (profile: any) => {
       --color-nutrient-sodium: ${p.nutrientSodium} !important;
     `;
   }
+
+  // Generic emitter for all keys in themePalette
+  Object.entries(p).forEach(([key, val]) => {
+    if (val && typeof val === 'string') {
+      colorCss += `--color-${key}: ${val} !important;\n`;
+    }
+  });
 
   if (profile.customColors && Array.isArray(profile.customColors)) {
     profile.customColors.forEach((color: any) => {
@@ -1276,50 +1318,12 @@ export default function App() {
               console.error("Failed to fetch consolidated logs", err);
             }
             
-            if (v2Foods.length === 0) {
-              console.log("Fetching foodLogs...");
-              const foodLogsSnap = await withTimeout(getDocs(collection(db, 'users', uid, 'foodLogs')), 15000, 'getDocs (foodLogs)');
-              if (foodLogsSnap) {
-                const subcolFoods = foodLogsSnap.docs.map(d => d.data() as FoodLog);
-                const mergedMap = new Map<string, FoodLog>();
-                v2Foods.forEach(f => mergedMap.set(f.id, f));
-                subcolFoods.forEach(f => {
-                  const existing = mergedMap.get(f.id);
-                  if (existing) {
-                    const existingTime = existing.updated_at || 0;
-                    const legacyTime = f.updated_at || 0;
-                    if (legacyTime >= existingTime) {
-                      mergedMap.set(f.id, { ...existing, ...f });
-                    }
-                  } else {
-                    mergedMap.set(f.id, f);
-                  }
-                });
-                foods = Array.from(mergedMap.values());
-                completeInteraction(tFoodsId, true, foodLogsSnap.docs.reduce((acc, d) => acc + JSON.stringify(d.data()).length, 0), undefined, foodLogsSnap.size);
-              } else if (v2Foods.length === 0) {
-                throw new Error("getDocs (foodLogs) timed out");
-              } else {
-                foods = v2Foods;
-                completeInteraction(tFoodsId, true, 0, undefined, 0);
-              }
-            } else {
-              foods = v2Foods;
-              completeInteraction(tFoodsId, true, 0, undefined, 0);
-            }
+            foods = v2Foods;
+            completeInteraction(tFoodsId, true, 0, undefined, 0);
           } catch (foodErr: any) {
             console.warn("Failed to fetch foodLogs:", foodErr);
             handleFirestoreError(foodErr);
-            if (checkQuotaFlag()) {
-              abortWithLocalFallback();
-              return;
-            }
-            try {
-              const cacheSnap = await getDocs(collection(db, 'users', uid, 'foodLogs'));
-              foods = cacheSnap.docs.map(d => d.data() as FoodLog);
-            } catch (e) {
-              foods = localFoods; // Fallback to local
-            }
+            foods = localFoods; // Fallback to local
             completeInteraction(tFoodsId, false, 0, foodErr.message || String(foodErr));
           }
           // 1. Fetch biomarker history robustly
@@ -1330,53 +1334,12 @@ export default function App() {
             }
             // v2Logs is already populated from fetchAllConsolidatedLogs
             
-            // If v2Logs is empty, fetch the subcollection to ensure we don't miss anything
-            if (v2Logs.length === 0) {
-              const bioHistorySnap = await withTimeout(getDocs(collection(db, 'users', uid, 'biomarkerHistory')), 15000, 'getDocs (biomarkerHistory)');
-              if (bioHistorySnap) {
-                const subcolLogs = bioHistorySnap.docs.map(d => d.data() as BiomarkerLog);
-                
-                // Merge v2Logs and subcolLogs
-                const mergedMap = new Map<string, BiomarkerLog>();
-                v2Logs.forEach(l => mergedMap.set(l.id, l));
-                subcolLogs.forEach(l => {
-                  const existing = mergedMap.get(l.id);
-                  if (existing) {
-                    const existingTime = existing.updated_at || 0;
-                    const legacyTime = l.updated_at || 0;
-                    if (legacyTime >= existingTime) {
-                      mergedMap.set(l.id, { ...existing, ...l, biomarkers: { ...existing.biomarkers, ...l.biomarkers } });
-                    }
-                  } else {
-                    mergedMap.set(l.id, l);
-                  }
-                });
-                bioHistory = Array.from(mergedMap.values());
-                
-                completeInteraction(tBioId, true, bioHistorySnap.docs.reduce((acc, d) => acc + JSON.stringify(d.data()).length, 0), undefined, bioHistorySnap.size);
-              } else if (v2Logs.length === 0) {
-                throw new Error("getDocs (biomarkerHistory) timed out");
-              } else {
-                bioHistory = v2Logs;
-                completeInteraction(tBioId, true, 0, undefined, 0);
-              }
-            } else {
-              bioHistory = v2Logs;
-              completeInteraction(tBioId, true, 0, undefined, 0);
-            }
+            bioHistory = v2Logs;
+            completeInteraction(tBioId, true, 0, undefined, 0);
           } catch (bioErr: any) {
             console.warn("Failed to fetch biomarkerHistory:", bioErr);
             handleFirestoreError(bioErr);
-            if (checkQuotaFlag()) {
-              abortWithLocalFallback();
-              return;
-            }
-            try {
-              const cacheSnap = await getDocs(collection(db, 'users', uid, 'biomarkerHistory'));
-              bioHistory = cacheSnap.docs.map(d => d.data() as BiomarkerLog);
-            } catch (e) {
-              bioHistory = localBioHistory; // Fallback to local
-            }
+            bioHistory = localBioHistory; // Fallback to local
             completeInteraction(tBioId, false, 0, bioErr.message || String(bioErr));
           }
           const pDashboard = (async () => {
@@ -2432,6 +2395,8 @@ export default function App() {
     },
     currFoodIdeas: FoodIdea[] = foodIdeas
   ) => {
+    let finalFoodsToSave = currFoods;
+    let finalBioToSave = currBioHistory;
     const now = Date.now();
     const isAutoLog = !!(specificUpdate?.isAutoLog || 
       (specificUpdate?.type === 'biomarkerLog' && String(specificUpdate.targetId).startsWith('med_log_bmi_init_')) ||
@@ -2612,7 +2577,7 @@ export default function App() {
           const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
           const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {};
           await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, async (sf, sb) => {
-            setFoodLogs(sf);
+            finalFoodsToSave = sf; finalBioToSave = sb; setFoodLogs(sf);
             setBiomarkerHistory(sb);
             // Persist purged/synced logs to IndexedDB immediately so deletes survive refresh
             const updatedBundle = {
@@ -2637,13 +2602,13 @@ export default function App() {
           const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
           const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {};
           await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
-            setFoodLogs(sf); setBiomarkerHistory(sb);
+            finalFoodsToSave = sf; finalBioToSave = sb; setFoodLogs(sf); setBiomarkerHistory(sb);
           });
         } else if (specificUpdate.type === 'biomarkerLogsBatch' && (specificUpdate.targetIds || specificUpdate.deletedIds)) {
           const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
           const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {};
           await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
-            setFoodLogs(sf); setBiomarkerHistory(sb);
+            finalFoodsToSave = sf; finalBioToSave = sb; setFoodLogs(sf); setBiomarkerHistory(sb);
           });
           const profilePromise = setDoc(doc(db, 'users', uid), sanitizeForFirestore(profileForCloud), { merge: true }).catch(err => handleFirestoreError(err));
           await withTimeout(profilePromise, 3000, 'biomarkerLogsBatch');
@@ -2697,14 +2662,14 @@ export default function App() {
           const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
           const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {};
           await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
-            setFoodLogs(sf); setBiomarkerHistory(sb);
+            finalFoodsToSave = sf; finalBioToSave = sb; setFoodLogs(sf); setBiomarkerHistory(sb);
           });
           deleteDoc(doc(db, 'users', uid, 'foodLogs', specificUpdate.targetId)).catch(() => {});
         } else if (specificUpdate.type === 'deleteBiomarker' && specificUpdate.targetId) {
           const deletedFoods = updatedProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
           const deletedBioLogs = updatedProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {};
           await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
-            setFoodLogs(sf); setBiomarkerHistory(sb);
+            finalFoodsToSave = sf; finalBioToSave = sb; setFoodLogs(sf); setBiomarkerHistory(sb);
           });
           deleteDoc(doc(db, 'users', uid, 'biomarkerHistory', specificUpdate.targetId)).catch(() => {});
         }
@@ -2722,7 +2687,7 @@ export default function App() {
         const deletedFoods = currProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
         const deletedBioLogs = currProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {};
         await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
-          setFoodLogs(sf); setBiomarkerHistory(sb);
+          finalFoodsToSave = sf; finalBioToSave = sb; setFoodLogs(sf); setBiomarkerHistory(sb);
         });
 
         // Run promises in small sequential batches of 5 to avoid exhausting the Firestore write stream
@@ -2743,7 +2708,7 @@ export default function App() {
         const foodImagePromise = chunkPromises(foodImageTasks, 5).then(() => {
           // Mark all saved food items as synced in memory to prevent re-uploading on routine syncs
           const syncedFoods = currFoods.map(f => ({ ...f, sync_state: 'synced' as const }));
-          setFoodLogs(syncedFoods);
+          finalFoodsToSave = syncedFoods; setFoodLogs(syncedFoods);
           // Persist full images in local IndexedDB so offline/quota fallback retains them
           safeSaveToLocalStorage(getStorageKey(updatedProfile?.email || profile?.email || auth.currentUser?.email), {
             profile: updatedProfile,
@@ -2803,7 +2768,7 @@ export default function App() {
         const deletedFoods = currProfile?.deletedFoodLogIds || profile?.deletedFoodLogIds || {};
         const deletedBioLogs = currProfile?.deletedBiomarkerLogIds || profile?.deletedBiomarkerLogIds || {};
         await syncLogsWithTimeBuckets(db, uid, currFoods, currBioHistory, deletedFoods, deletedBioLogs, (sf, sb) => {
-          setFoodLogs(sf); setBiomarkerHistory(sb);
+          finalFoodsToSave = sf; finalBioToSave = sb; setFoodLogs(sf); setBiomarkerHistory(sb);
         });
 
         // Run promises in small sequential batches of 5 to avoid exhausting the Firestore write stream
@@ -2848,9 +2813,9 @@ export default function App() {
       await new Promise(resolve => setTimeout(resolve, 800));
       const finalBundle = {
         profile: updatedProfile,
-        foodLogs: currFoods,
+        foodLogs: finalFoodsToSave,
         biomarkers: currBiomarkers,
-        biomarkerHistory: currBioHistory,
+        biomarkerHistory: finalBioToSave,
         actions: currActions,
         dailyBenefits: currBenefits,
         foodIdeas: currFoodIdeas,

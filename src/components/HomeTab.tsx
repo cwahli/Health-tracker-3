@@ -759,7 +759,7 @@ export default function HomeTab({
 
   if (hasNoData) {
     return (
-      <div className="space-y-6 pb-40 animation-fade-in max-w-md mx-auto px-4 mt-4 font-sans text-slate-900">
+      <div className="space-y-6 pb-40 animation-fade-in max-w-md mx-auto px-4 mt-4 font-sans text-theme-text">
         <div className="text-center py-8 space-y-3">
           <div className="w-16 h-16 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-3xl flex items-center justify-center mx-auto shadow-inner">
             <Sparkles className="w-8 h-8" />
@@ -837,17 +837,17 @@ export default function HomeTab({
   }
 
   return (
-    <div className="space-y-6 pb-40 animation-fade-in max-w-md mx-auto px-4 mt-4 font-sans text-slate-900">
+    <div className="space-y-6 pb-40 animation-fade-in max-w-md mx-auto px-4 mt-4 font-sans text-theme-text">
       
       {/* Daily Recommendation */}
       <div id="primary-action-card" className="p-2">
-        <div className="flex items-center justify-between bg-indigo-50 dark:bg-indigo-900/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-800/50 shadow-sm">
+        <div className="flex items-center justify-between bg-theme-bg-card p-4 rounded-2xl border border-theme-border shadow-sm">
           <div className="space-y-1">
-            <h3 className="text-sm font-bold text-indigo-900 dark:text-indigo-100 flex items-center gap-2">
+            <h3 className="text-sm font-bold text-theme-text flex items-center gap-2">
               <Sparkles className="w-4 h-4 text-indigo-500" />
               Daily Recommendation
             </h3>
-            <p className="text-xs text-indigo-700 dark:text-indigo-300">
+            <p className="text-xs text-theme-text-secondary">
               Get personalized insights on your progress and today's goals.
             </p>
           </div>
@@ -863,7 +863,7 @@ export default function HomeTab({
       {/* Nutrition Allowance Tracker Dashboard (MOVED UP just above Health Status & BMI) */}
       <div id="dashboard-nutrition-targets" className="space-y-4">
         <div className="flex justify-between items-center pb-2 border-b border-theme-border/50">
-          <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center gap-2">
+          <h3 className="font-bold text-theme-text text-sm flex items-center gap-2">
             <Heart className="w-4 h-4 text-indigo-600" />
             Top Targets
           </h3>
@@ -964,7 +964,7 @@ export default function HomeTab({
         {topWeeklyNutrientKeys.length > 0 && (
           <div id="dashboard-weekly-targets" className="space-y-4 pt-4 border-t border-theme-border/50">
             <div className="flex justify-between items-center pb-2 border-b border-theme-border/50">
-              <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center gap-2">
+              <h3 className="font-bold text-theme-text text-sm flex items-center gap-2">
                 <Calendar className="w-4 h-4 text-indigo-600" />
                 Weekly Targets
               </h3>
@@ -1401,7 +1401,7 @@ export default function HomeTab({
       {/* Health status to improve (Previously Health & BMI Summary) */}
       <div id="health-summary-section" className="space-y-5">
         <div className="flex justify-between items-center pb-2 border-b border-theme-border/50">
-          <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center gap-2 font-display">
+          <h3 className="font-bold text-theme-text text-sm flex items-center gap-2 font-display">
             <Heart className="w-4.5 h-4.5 text-indigo-600" />
             Health status to improve
           </h3>
@@ -1622,7 +1622,7 @@ export default function HomeTab({
       {/* Clinical Action Steps checklist */}
       <div id="actions-checklist-section" className="space-y-4">
         <div>
-          <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm flex items-center justify-between">
+          <h3 className="font-bold text-theme-text text-sm flex items-center justify-between">
             <span>Clinical Action Recommendations</span>
             {actions.length > 0 && (
               <span className="text-[10px] font-semibold text-theme-text-secondary bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-full">
@@ -1788,7 +1788,7 @@ export default function HomeTab({
       {/* Daily Benefit tasks checkoff */}
       <div id="benefits-checklist-section" className="space-y-4">
         <div>
-          <h3 className="font-bold text-slate-950 dark:text-slate-100 text-sm">
+          <h3 className="font-bold text-theme-text text-sm">
             {t.dailyBenefits}
           </h3>
           <p className="text-xs text-theme-text-secondary mt-1 font-medium">

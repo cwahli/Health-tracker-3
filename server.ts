@@ -2121,8 +2121,9 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
         const scoutPromptText = message ? `Analyze this image and list the food items you see, taking into consideration the user's message: "${message}"` : "Analyze this image and list the food items you see.";
         sendLog('scout_instruction', 'scout', `Vision Scout Instruction dispatched (model: ${engine || "gemini-3.5-flash-lite"}). Prompt: "${scoutPromptText}"`);
         addDebugLog(`[Vision Scout] Running Stage 3 lightweight vision scout...`);
+        let scoutOutput: any;
         try {
-          const scoutOutput = await callUnifiedLLM({
+          scoutOutput = await callUnifiedLLM({
             modelId: engine || "gemini-3.5-flash-lite",
             systemInstruction: scoutSystemInstruction,
             promptText: scoutPromptText,
@@ -2147,7 +2148,8 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                       boundingBox2D: {
                         type: Type.ARRAY,
                         items: { type: Type.INTEGER },
-                        description: "4-element bounding box array [ymin, xmin, ymax, xmax] scale 0-1000"
+                        description: "4-element bounding box array [ymin, xmin, ymax, xmax] scale 0-1000",
+                        nullable: true
                       },
                       components: {
                         type: Type.ARRAY,
@@ -2165,7 +2167,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                       itemConfidence: { type: Type.STRING },
                       anomalyFlags: { type: Type.ARRAY, items: { type: Type.STRING } }
                     },
-                    required: ["keyword", "originalName", "estimatedWeightGrams", "boundingBox2D"]
+                    required: ["keyword", "originalName", "estimatedWeightGrams"]
                   }
                 },
                 queriesToSearch: { type: Type.ARRAY, items: { type: Type.STRING } }
@@ -2181,6 +2183,21 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
               }
             } : undefined
           });
+        } catch (scoutErr: any) {
+          addDebugLog(`[Vision Scout Primary Failed] (${scoutErr.message}). Retrying with gemini-2.5-flash fallback...`);
+          try {
+            scoutOutput = await callUnifiedLLM({
+              modelId: "gemini-2.5-flash",
+              systemInstruction: scoutSystemInstruction,
+              promptText: scoutPromptText,
+              imagePayloads,
+              responseMimeType: "application/json"
+            });
+          } catch (retryErr: any) {
+            addDebugLog(`[Vision Scout Fallback Failed] (${retryErr.message}). Proceeding with default vision scout fallback.`);
+            scoutOutput = { scratchpad: "Vision Scout fallback engaged.", items: [] };
+          }
+        }
 
           const scoutResult = parseAndHealVisionScout(scoutOutput, addDebugLog);
           
@@ -2228,10 +2245,6 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
             const labelStr = rawLabelHasRealData ? ` | Nutrition Label: ${JSON.stringify(item.rawNutritionLabel)}` : '';
             addDebugLog(`[Vision Scout] - Index: ${item.scoutIndex} | Name: "${item.originalName || item.keyword}" | Keyword: "${item.keyword}"${labelStr}${flagStr}${confStr}`);
           });
-        } catch (scoutErr: any) {
-          addDebugLog(`[Vision Scout Error] Failed: ${scoutErr.message}`);
-          throw new Error(`Vision Scout Analysis Failed: ${scoutErr.message}`);
-        }
       } else if (message) {
         addDebugLog(`[Text Search Extraction] No image supplied. Extracting search terms from message: "${message}"`);
         const lowerMsg = message.trim().toLowerCase();
@@ -2294,6 +2307,20 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
           clean = clean.replace(regex, eng);
         }
       }
+      
+      // Automatically prepend "raw" to meats to prevent fetching salted/cooked versions, unless it's a known chain or already specified
+      const meats = ["beef", "chicken", "pork", "fish", "steak", "lamb", "mutton", "veal", "salmon", "tuna", "cod", "shrimp", "prawn", "duck"];
+      const preparedModifiers = ["raw", "cooked", "fried", "roasted", "grilled", "baked", "boiled", "smoked", "cured", "canned"];
+      const chainModifiers = ["mcdonald", "kfc", "burger king", "subway", "brand"];
+      
+      const isMeat = meats.some(m => clean.includes(m));
+      const hasPreparation = preparedModifiers.some(p => clean.includes(p));
+      const isChain = chainModifiers.some(c => clean.includes(c));
+
+      if (isMeat && !hasPreparation && !isChain) {
+        clean = "raw " + clean;
+      }
+
       return clean;
     };
 
@@ -2400,7 +2427,8 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
           'paste', 'canned in oil', 'soup', 'cracker', 'fritter', 'seasoning', 'mix', 'extract', 
           'powder', 'flavor', 'coating', 'syrup', 'glazed', 'meatball', 'sausage', 'processed',
           'bakso', 'sosis', 'nugget', 'kerupuk', 'siomay', 'dimsum', 'goreng', 'tepung', 'instant',
-          'cooked with', 'prepared', 'ready meal'
+          'cooked with', 'prepared', 'ready meal', 'cured', 'salted', 'broth', 'smoked', 'jerky', 'deli',
+          'bacon', 'ham', 'corned', 'marinated', 'canned'
         ];
         
         const queryHasProcessedTerm = processedTerms.some(term => {
@@ -2467,18 +2495,18 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
           });
 
           if (candidateHasProcessedTerm && !queryHasProcessedTerm) {
-            // Heavy penalty for processed candidate when query doesn't ask for it
-            score -= 300;
+            // Heavy penalty for processed/cured/salted candidate when query doesn't ask for it
+            score -= 500;
           }
 
-          // 6. If query asks for "raw" or "fresh", and candidate has "raw" or "fresh", give a major bonus
+          // 6. If query asks for "raw" or "fresh", and candidate has "raw" or "fresh" or "unprepared", give a major bonus
           const queryHasRaw = kw.includes('raw') || kw.includes('fresh');
-          const candidateHasRaw = candidateName.includes('raw') || candidateName.includes('fresh');
+          const candidateHasRaw = candidateName.includes('raw') || candidateName.includes('fresh') || candidateName.includes('unprepared');
           if (queryHasRaw && candidateHasRaw) {
-            score += 200;
+            score += 350;
           } else if (queryHasRaw && !candidateHasRaw) {
             // Penalize if user explicitly asked for raw but candidate isn't
-            score -= 100;
+            score -= 150;
           }
 
           // Save the best match

@@ -34,6 +34,7 @@ BRANCH A — LOW DENSITY (< 15 total items):
 - Draw a tight, precise \`boundingBox2D\` around each item.
 - MEAL vs. COMPARISON ROUTING: if the images show distinct packaged products or menu options of the same category meant to be compared (e.g., 4 different bread wrappers, or a menu of options), set "recommendedMode" to "evaluation". If the images show ingredients or dishes meant to be eaten together as one meal (e.g., fish + rice + a side, or several grocery items for a single meal), set "recommendedMode" to "new_log".
 - COMPONENT DECOMPOSITION DIRECTIVE: For every identified item, decompose complex dishes or products into their core sub-components inside the 'components' array with corresponding estimated volume percentages (totaling 100%). For example, 'siomai with seaweed' becomes keyword: 'siomai dumpling' with component: 'pork dumpling' (80%) and component: 'seaweed' (20%). If the food is simple and has no sub-components, just add a single component matching the base food name with 100% volume.
+- FIRST-PRINCIPLES RESTAURANT MEAL DECOMPOSITION DIRECTIVE: For restaurant or cooked meals (e.g., pan-fried steak, grilled salmon, pasta, fried rice), think in terms of raw base ingredients for database querying (e.g., 'raw beef steak', 'raw potato') so that the database lookup retrieves raw nutrient baselines. Identify the exact restaurant cooking method (e.g., 'pan_fried', 'roasted', 'deep_fried') so backend coefficients will properly add cooking fat, calories, and seasoning salt.
 
 BRANCH B — HIGH DENSITY (>= 15 total items):
 Still populate "items" as real JSON objects. Adapt HOW you group items based on the visual layout to guarantee 100% coverage without crashing token limits:
@@ -66,7 +67,7 @@ CRITICAL RULES:
   Before extracting, determine the camera's focus and depth of field:
   * HELD ITEMS / CLOSE-UPS: If the image clearly shows a hand holding a specific product in the foreground, or is a clear macro close-up of a single package/label, that single item is the SOLE subject. You MUST completely ignore and omit all out-of-focus products and background store shelves. The "Flag and Extract" rule does NOT apply to background inventory in this scenario. Do not extract them.
   * WIDE SHELF SCANS: If the image is a wide shot of a grocery shelf or display with NO single item held in the foreground, then the shelf itself is the primary subject. Proceed with Branch B density rules.
-  * PLATED MEALS: For a meal on a table, extract ALL visible dishes, sides, drinks, and condiments. Never treat a side dish on a table as "background inventory."
+  * PLATED MEALS: For a meal on a table, extract ALL visible dishes, sides, drinks, and condiments as SEPARATE items in the \`items\` array, each with its OWN distinct \`boundingBox2D\`. Do NOT group distinct foods (e.g., a steak and its side of potatoes) into a single overarching "meal" item. They must be individually bounded and listed. Never treat a side dish on a table as "background inventory."
 - USER TEXT SUPREMACY & TARGET FILTERING (CRITICAL FOCUS OVERRIDE):
   The user's text message is the absolute authority on WHAT to extract and HOW MUCH:
 
@@ -336,6 +337,12 @@ export function parseAndHealVisionScout(
 
       visionScoutItems = explodedItems.map((item: any, idx: number) => {
         let newItem = { ...item, scoutIndex: idx };
+        if (!newItem.boundingBox2D || !Array.isArray(newItem.boundingBox2D) || newItem.boundingBox2D.length !== 4) {
+          newItem.boundingBox2D = [100, 100, 900, 900];
+        }
+        if (newItem.sourceImageIndex === undefined || newItem.sourceImageIndex === null) {
+          newItem.sourceImageIndex = 0;
+        }
         const rawLabelHasRealData = newItem.rawNutritionLabel && typeof newItem.rawNutritionLabel === 'object'
           ? Object.keys(newItem.rawNutritionLabel).some((k: string) => {
               if (k === 'servingSize' || k === 'weight' || k === 'servingsPerContainer') return false;

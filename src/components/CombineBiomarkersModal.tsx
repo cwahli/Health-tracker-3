@@ -197,7 +197,7 @@ export default function CombineBiomarkersModal({
               <Merge className="w-4 h-4" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-slate-950 dark:text-slate-100 font-display">
+              <h3 className="text-sm font-bold text-theme-text font-display">
                 Combine Duplicate Biomarkers
               </h3>
               <p className="text-[10px] text-slate-400 font-mono">

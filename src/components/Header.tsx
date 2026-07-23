@@ -17,7 +17,7 @@ import FullScreenLogViewer from './FullScreenLogViewer';
 import ApiCallTrackerModal from './ApiCallTrackerModal';
 import UserManagementTab from './UserManagementTab';
 import BackupRestoreTab from './BackupRestoreTab';
-import { Activity, Stethoscope } from 'lucide-react';
+import { Activity, Stethoscope, X } from 'lucide-react';
 import {
   getGoogleAccessToken,
   hasGoogleToken,
@@ -31,6 +31,71 @@ import {
 import { compressImage } from '../utils/imageCompressor';
 import { checkQuotaFlag } from '../utils/firestoreUtils';
 import { auditColors, auditFonts, auditDesignTokens, auditComponents, auditElements } from '../utils/themeRegistry';
+
+export const parseColorAndOpacity = (val: string) => {
+  let v = (val || '').trim();
+  let hex6 = '#ffffff';
+  let opacity = 100;
+
+  if (v.startsWith('rgba(')) {
+    const parts = v.replace('rgba(', '').replace(')', '').split(',').map(s => s.trim());
+    if (parts.length >= 4) {
+      const r = parseInt(parts[0], 10) || 0;
+      const g = parseInt(parts[1], 10) || 0;
+      const b = parseInt(parts[2], 10) || 0;
+      const a = parseFloat(parts[3]);
+      opacity = Math.round((isNaN(a) ? 1 : a) * 100);
+      const toHex = (n: number) => n.toString(16).padStart(2, '0');
+      hex6 = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+    }
+  } else if (v.startsWith('rgb(')) {
+    const parts = v.replace('rgb(', '').replace(')', '').split(',').map(s => s.trim());
+    if (parts.length >= 3) {
+      const r = parseInt(parts[0], 10) || 0;
+      const g = parseInt(parts[1], 10) || 0;
+      const b = parseInt(parts[2], 10) || 0;
+      const toHex = (n: number) => n.toString(16).padStart(2, '0');
+      hex6 = `#${toHex(r)}${toHex(g)}${toHex(b)}`;
+      opacity = 100;
+    }
+  } else if (v.startsWith('#')) {
+    let clean = v.replace('#', '');
+    if (clean.length === 3) {
+      clean = clean.split('').map(c => c + c).join('');
+    }
+    if (clean.length === 8) {
+      hex6 = '#' + clean.substring(0, 6);
+      const alphaHex = clean.substring(6, 8);
+      opacity = Math.round((parseInt(alphaHex, 16) / 255) * 100);
+    } else if (clean.length === 6) {
+      hex6 = '#' + clean;
+      opacity = 100;
+    }
+  } else if (v) {
+    hex6 = v;
+  }
+
+  return { hex6, opacity };
+};
+
+export const formatColorWithOpacity = (hex6: string, opacityPercent: number) => {
+  let cleanHex = (hex6 || '#ffffff').trim();
+  if (!cleanHex.startsWith('#')) cleanHex = '#' + cleanHex;
+  let h = cleanHex.replace('#', '');
+  if (h.length === 3) h = h.split('').map(c => c + c).join('');
+  if (h.length !== 6) h = 'ffffff';
+
+  const opacity = Math.max(0, Math.min(100, opacityPercent));
+  if (opacity >= 100) {
+    return `#${h}`;
+  }
+
+  const r = parseInt(h.substring(0, 2), 16) || 0;
+  const g = parseInt(h.substring(2, 4), 16) || 0;
+  const b = parseInt(h.substring(4, 6), 16) || 0;
+  const a = (opacity / 100).toFixed(2).replace(/\.?0+$/, '');
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+};
 
 const ColorPickerField = ({ label, value, onChange }: { label: string, value: string, onChange: (v: string) => void }) => (
   <div className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-2xl gap-2">
@@ -77,7 +142,7 @@ const formatTimezone = (tz: string) => {
 
 interface HeaderProps {
   profile: UserProfile;
-  setProfile: (p: UserProfile) => void;
+  setProfile: (p: UserProfile | ((prev: UserProfile) => UserProfile) | any) => void;
   onSaveProfile?: (p: UserProfile) => Promise<void>;
   hideSensitive: boolean;
   setHideSensitive: (h: boolean) => void;
@@ -226,10 +291,54 @@ export default function Header({
   const [colorDraft, setColorDraft] = useState<{ key: string; label: string; value: string } | null>(null);
   const [textPreviewOverride, setTextPreviewOverride] = useState<Record<string, 'light' | 'dark'>>({});
   const [justSavedKey, setJustSavedKey] = useState<string | null>(null);
+  const [newPresetName, setNewPresetName] = useState<string>('');
   const [inspectedElement, setInspectedElement] = useState<any>(null);
   const [inspectorPaused, setInspectorPaused] = useState(false);
   const [inspectorProperty, setInspectorProperty] = useState('color');
   const [inspectorVariable, setInspectorVariable] = useState('');
+
+  const initialThemeSnapshot = useRef<any>(null);
+  const colorOriginalVal = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    if (showThemeScreen) {
+      setThemePreviewMode(true);
+      setInspectorPaused(false);
+
+      initialThemeSnapshot.current = JSON.parse(JSON.stringify({
+        themePalette: profile.themePalette,
+        customColors: profile.customColors,
+        customFonts: profile.customFonts,
+        fontSize: profile.fontSize,
+        fontFamily: profile.fontFamily,
+        fontMono: profile.fontMono,
+        fontSizeTitle: profile.fontSizeTitle,
+        fontSizeSubtitle: profile.fontSizeSubtitle,
+        fontSizeDescription: profile.fontSizeDescription,
+        fontSizeBodySmall: profile.fontSizeBodySmall,
+        fontSizeSubtitleSmall: profile.fontSizeSubtitleSmall,
+        fontSizeKeyMetric: profile.fontSizeKeyMetric,
+        fontSizeXS: profile.fontSizeXS,
+        fontSizeBody: profile.fontSizeBody,
+        marginScale: profile.marginScale,
+        paddingScale: profile.paddingScale,
+        cornerRadius: profile.cornerRadius,
+        shadowScale: profile.shadowScale,
+        themeOverrides: profile.themeOverrides
+      }));
+    } else {
+      if (initialThemeSnapshot.current) {
+        setProfile(prev => ({
+          ...prev,
+          ...initialThemeSnapshot.current
+        }));
+        initialThemeSnapshot.current = null;
+      }
+      setThemePreviewMode(false);
+      revertPreview();
+      setInspectedElement(null);
+    }
+  }, [showThemeScreen]);
   const [showDbInteractionsOverlay, setShowDbInteractionsOverlay] = useState(false);
   const [dbOverlayViewMode, setDbOverlayViewMode] = useState<'admin' | 'user'>(() => {
     if (profile?.email?.toLowerCase().trim() !== 'cwah.liu@gmail.com') return 'user';
@@ -279,6 +388,8 @@ export default function Header({
       e.preventDefault();
       e.stopPropagation();
       
+      revertPreview();
+
       const el = e.target as HTMLElement;
       let selector = el.tagName.toLowerCase();
       if (el.id) {
@@ -369,7 +480,18 @@ export default function Header({
 
     const colours: Record<string, Record<string, string>> = {};
     colorsSource.forEach((c: any) => {
-      const sectionLabel = THEME_CATEGORY_SECTION_LABELS[c.category] || 'Other colours';
+      let sectionLabel = THEME_CATEGORY_SECTION_LABELS[c.category];
+      if (c.category === 'text' || ['text', 'textSecondary', 'textDarkPrimary', 'textDarkSecondary', 'textAccent', 'textMuted', 'textSuccess', 'textError'].includes(c.key)) {
+        const getEffectiveGroupForColor = (col: any) => {
+          if (textPreviewOverride[col.key]) return textPreviewOverride[col.key];
+          if (col.key === 'textDarkPrimary' || col.key === 'textDarkSecondary') return 'dark';
+          if (col.key === 'text' || col.key === 'textSecondary' || col.key === 'textAccent' || col.key === 'textMuted' || col.key === 'textSuccess' || col.key === 'textError') return 'light';
+          return col.darkGroup || 'light';
+        };
+        const mode = getEffectiveGroupForColor(c);
+        sectionLabel = mode === 'dark' ? 'Text colour: Text over dark' : 'Text colour: Text over light';
+      }
+      if (!sectionLabel) sectionLabel = 'Other colours';
       if (!colours[sectionLabel]) colours[sectionLabel] = {};
       const value = palette[c.key] !== undefined ? palette[c.key] : c.defaultHex;
       const displayName = c.key.startsWith('custom_') ? `${c.label} (custom)` : c.label;
@@ -417,6 +539,171 @@ export default function Header({
         themeOverrides: presetConfig?.themeOverrides
       }
     };
+  };
+
+  const normalizeImportedPreset = (rawInput: any) => {
+    if (!rawInput) return null;
+    let rawPreset = rawInput.preset && typeof rawInput.preset === 'object' && !Array.isArray(rawInput.preset) ? rawInput.preset : rawInput;
+
+    const name = rawPreset.name || 'Imported Preset';
+    const themePalette = rawPreset.themePalette ? { ...rawPreset.themePalette } : {};
+    let fontFamily = rawPreset.fontFamily || 'Inter';
+    let fontMono = rawPreset.fontMono || 'JetBrains Mono';
+    const themeOverrides = rawPreset.themeOverrides || [];
+
+    const presetResult: any = {
+      ...rawPreset,
+      name,
+      themePalette,
+      fontFamily,
+      fontMono,
+      themeOverrides
+    };
+
+    if (rawPreset.colours && typeof rawPreset.colours === 'object') {
+      const colorsSource = profile.customColors || auditColors;
+      Object.entries(rawPreset.colours).forEach(([sectionName, section]: [string, any]) => {
+        if (section && typeof section === 'object') {
+          Object.entries(section).forEach(([displayName, hexVal]: [string, any]) => {
+            if (typeof hexVal === 'string') {
+              const cleanName = displayName.replace(' (custom)', '').replace(/_/g, ' ').trim();
+              
+              let match = colorsSource.find((c: any) => 
+                c.label === cleanName || 
+                c.label === displayName || 
+                c.key === cleanName || 
+                c.key === displayName ||
+                c.key.toLowerCase() === displayName.toLowerCase().replace(/_/g, '') ||
+                c.key.toLowerCase() === displayName.toLowerCase().replace(/_/g, ' ')
+              );
+
+              if (!match) {
+                match = auditColors.find((c: any) => 
+                  c.label === cleanName || 
+                  c.label === displayName || 
+                  c.key === cleanName || 
+                  c.key === displayName ||
+                  c.key.toLowerCase() === displayName.toLowerCase().replace(/_/g, '') ||
+                  c.key.toLowerCase() === displayName.toLowerCase().replace(/_/g, ' ')
+                );
+              }
+
+              if (!match) {
+                const lower = cleanName.toLowerCase();
+                const lowerSection = (sectionName || '').toLowerCase();
+                let keyMatch: string | null = null;
+
+                if (lower.includes('primary text over dark') || (lowerSection.includes('over dark') && lower.includes('primary'))) keyMatch = 'textDarkPrimary';
+                else if (lower.includes('secondary text over dark') || (lowerSection.includes('over dark') && lower.includes('secondary'))) keyMatch = 'textDarkSecondary';
+                else if (lower.includes('primary text') || lower === 'primary text over light') keyMatch = 'text';
+                else if (lower.includes('secondary text') || lower === 'secondary text light') keyMatch = 'textSecondary';
+                else if (lower.includes('highlight text') || lower.includes('accent highlight')) keyMatch = 'textAccent';
+                else if (lower.includes('muted hint') || lower.includes('muted')) keyMatch = 'textMuted';
+                else if (lower.includes('success text')) keyMatch = 'textSuccess';
+                else if (lower.includes('critical alert') || lower.includes('critical text') || lower.includes('error text')) keyMatch = 'textError';
+                else if (lower.includes('buttons') || lower.includes('button')) keyMatch = 'button';
+                else if (lower.includes('app background') || lower.includes('background')) keyMatch = 'background';
+                else if (lower.includes('card') || lower.includes('container')) keyMatch = 'bgCard';
+                else if (lower.includes('border') || lower.includes('divider')) keyMatch = 'border';
+                else if (lower.includes('neutral setting') || lower.includes('neutral')) keyMatch = 'neutralSetting';
+                else if (lower.includes('severe warning') || lower.includes('warning') || lower.includes('rose')) keyMatch = 'warning';
+                else if (lower.includes('caution') || lower.includes('amber')) keyMatch = 'caution';
+                else if (lower.includes('success highlight') || lower.includes('success')) keyMatch = 'success';
+                else if (lower.includes('information') || lower.includes('info') || lower.includes('blue')) keyMatch = 'info';
+                else if (lower.includes('calories')) keyMatch = 'nutrientCalories';
+                else if (lower.includes('protein')) keyMatch = 'nutrientProtein';
+                else if (lower.includes('carbs') || lower.includes('carbohydrate')) keyMatch = 'nutrientCarbs';
+                else if (lower.includes('sat. fat') || lower.includes('saturated fat') || lower.includes('sat fat')) keyMatch = 'nutrientSatFat';
+                else if (lower.includes('fat')) keyMatch = 'nutrientFat';
+                else if (lower.includes('sodium')) keyMatch = 'nutrientSodium';
+
+                if (keyMatch) {
+                  match = auditColors.find((c: any) => c.key === keyMatch);
+                }
+              }
+
+              if (match) {
+                themePalette[match.key] = hexVal;
+              }
+            }
+          });
+        }
+      });
+      presetResult.themePalette = themePalette;
+    }
+
+    if (rawPreset.fonts && typeof rawPreset.fonts === 'object') {
+      const fontsSource = profile.customFonts || auditFonts;
+      Object.entries(rawPreset.fonts).forEach(([displayName, fontData]: [string, any]) => {
+        if (displayName === 'Sans Font' && (fontData?.current || typeof fontData === 'string')) {
+          presetResult.fontFamily = fontData.current || fontData;
+        } else if (displayName === 'Mono Font' && (fontData?.current || typeof fontData === 'string')) {
+          presetResult.fontMono = fontData.current || fontData;
+        } else if (fontData) {
+          const cleanName = displayName.replace(' (custom)', '').trim();
+          let match = fontsSource.find((f: any) => f.label === cleanName || f.label === displayName || f.key === cleanName);
+          if (!match) {
+            match = auditFonts.find((f: any) => f.label === cleanName || f.label === displayName || f.key === cleanName);
+          }
+          if (!match) {
+            const lower = cleanName.toLowerCase();
+            if (lower.includes('base root') || lower.includes('root font')) match = auditFonts.find(f => f.key === 'fontSize');
+            else if (lower.includes('heading') || lower.includes('title font')) match = auditFonts.find(f => f.key === 'fontSizeTitle');
+            else if (lower.includes('subtitle font')) match = auditFonts.find(f => f.key === 'fontSizeSubtitle');
+            else if (lower.includes('standard body') || lower.includes('body font')) match = auditFonts.find(f => f.key === 'fontSizeBody');
+            else if (lower.includes('supporting') || lower.includes('caption font')) match = auditFonts.find(f => f.key === 'fontSizeBodySmall');
+            else if (lower.includes('small section') || lower.includes('tag font')) match = auditFonts.find(f => f.key === 'fontSizeSubtitleSmall');
+            else if (lower.includes('key metric')) match = auditFonts.find(f => f.key === 'fontSizeKeyMetric');
+            else if (lower.includes('micro') || lower.includes('label font')) match = auditFonts.find(f => f.key === 'fontSizeXS');
+          }
+
+          if (match) {
+            const val = fontData.current || fontData;
+            const optMatch = (match.options || []).find((o: any) => 
+              o.label === val || 
+              o.value === val || 
+              (typeof val === 'string' && (
+                o.label.toLowerCase() === val.toLowerCase() ||
+                o.value.toLowerCase() === val.toLowerCase() ||
+                o.label.toLowerCase().includes(val.toLowerCase()) ||
+                val.toLowerCase().includes(o.value.toLowerCase())
+              ))
+            );
+            presetResult[match.fontSizeKey] = optMatch ? optMatch.value : val;
+          }
+        }
+      });
+    }
+
+    if (rawPreset.tokens && typeof rawPreset.tokens === 'object') {
+      Object.entries(rawPreset.tokens).forEach(([tokenLabel, tokenData]: [string, any]) => {
+        let match = auditDesignTokens.find(t => t.label === tokenLabel || t.key === tokenLabel);
+        if (!match) {
+          const lower = tokenLabel.toLowerCase();
+          if (lower.includes('margin')) match = auditDesignTokens.find(t => t.tokenKey === 'marginScale');
+          else if (lower.includes('padding')) match = auditDesignTokens.find(t => t.tokenKey === 'paddingScale');
+          else if (lower.includes('corner') || lower.includes('rounding')) match = auditDesignTokens.find(t => t.tokenKey === 'cornerRadius');
+          else if (lower.includes('shadow')) match = auditDesignTokens.find(t => t.tokenKey === 'shadowScale');
+        }
+
+        if (match && tokenData) {
+          const val = tokenData.current || tokenData;
+          const optMatch = (match.options || []).find(o => 
+            o.label === val || 
+            o.value === val || 
+            (typeof val === 'string' && (
+              o.label.toLowerCase() === val.toLowerCase() ||
+              o.value.toLowerCase() === val.toLowerCase() ||
+              o.label.toLowerCase().includes(val.toLowerCase()) ||
+              val.toLowerCase().includes(o.value.toLowerCase())
+            ))
+          );
+          presetResult[match.tokenKey] = optMatch ? optMatch.value : val;
+        }
+      });
+    }
+
+    return presetResult;
   };
 
   const PRESET_COMPARE_KEYS = ['themePalette', 'fontFamily', 'fontMono', 'fontSize', 'marginScale', 'paddingScale', 'cornerRadius', 'shadowScale', 'themeOverrides', 'customColors', 'fontSizeTitle', 'fontSizeSubtitle', 'fontSizeDescription', 'fontSizeBodySmall', 'fontSizeSubtitleSmall', 'fontSizeKeyMetric', 'fontSizeXS', 'fontSizeBody', 'customFonts'];
@@ -555,21 +842,38 @@ export default function Header({
     }
   }, [inspectedElement, inspectorProperty]);
 
-  const inspectorOriginalValue = useRef<string | null>(null);
+  const inspectorOriginalValue = useRef<{ el: HTMLElement; property: string; value: string } | null>(null);
 
   const applyPreview = (variable: string, property: string, el: HTMLElement) => {
-    const cssProp = property === 'color' ? 'color' : property === 'background-color' ? 'backgroundColor' : property === 'border-color' ? 'borderColor' : null;
+    const cssPropMap: Record<string, string> = {
+      'color': 'color',
+      'background-color': 'backgroundColor',
+      'border-color': 'borderColor',
+      'font-family': 'fontFamily',
+      'font-size': 'fontSize'
+    };
+    const cssProp = cssPropMap[property];
     if (!cssProp) return;
-    if (inspectorOriginalValue.current === null) {
-      inspectorOriginalValue.current = el.style[cssProp as any] || '';
+
+    if (!inspectorOriginalValue.current || inspectorOriginalValue.current.el !== el || inspectorOriginalValue.current.property !== cssProp) {
+      if (inspectorOriginalValue.current) {
+        revertPreview();
+      }
+      inspectorOriginalValue.current = {
+        el,
+        property: cssProp,
+        value: (el.style as any)[cssProp] || ''
+      };
     }
     (el.style as any)[cssProp] = variable ? variable : '';
   };
 
   const revertPreview = () => {
-    if (inspectedElement?.el && inspectorOriginalValue.current !== null) {
-      const cssProp = inspectorProperty === 'color' ? 'color' : inspectorProperty === 'background-color' ? 'backgroundColor' : inspectorProperty === 'border-color' ? 'borderColor' : null;
-      if (cssProp) (inspectedElement.el.style as any)[cssProp] = inspectorOriginalValue.current;
+    if (inspectorOriginalValue.current) {
+      const { el, property, value } = inspectorOriginalValue.current;
+      if (el && property) {
+        (el.style as any)[property] = value;
+      }
     }
     inspectorOriginalValue.current = null;
   };
@@ -869,7 +1173,7 @@ export default function Header({
           <div className="min-w-0 flex-1">
             <div className="flex flex-col justify-center">
               <div className="flex items-center gap-1.5">
-                <span id="user-nickname-text" className="font-semibold text-slate-950 dark:text-slate-100 truncate text-base leading-tight">
+                <span id="user-nickname-text" className="font-semibold text-theme-text truncate text-base leading-tight">
                   {profile.nickname || 'Healthy User'}
                 </span>
                 {(() => {
@@ -979,7 +1283,7 @@ export default function Header({
             {/* Header */}
             <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between flex-shrink-0">
               <div>
-                <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Edit Profile</h2>
+                <h2 className="text-lg font-bold text-theme-text">Edit Profile</h2>
                 <p className="text-xs text-slate-450 dark:text-slate-400">Update your health indicators and settings</p>
               </div>
               <div className="flex gap-2">
@@ -1290,7 +1594,10 @@ export default function Header({
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-slate-500 uppercase">Property</label>
-            <select value={inspectorProperty} onChange={e => setInspectorProperty(e.target.value)} className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-slate-900 dark:text-slate-100">
+            <select value={inspectorProperty} onChange={e => {
+              revertPreview();
+              setInspectorProperty(e.target.value);
+            }} className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-slate-900 dark:text-slate-100">
               <option value="color">Text Color (color)</option>
               <option value="background-color">Background Color</option>
               <option value="border-color">Border Color</option>
@@ -1301,8 +1608,9 @@ export default function Header({
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-slate-500 uppercase">Variable</label>
             <select value={inspectorVariable} onChange={e => {
-              setInspectorVariable(e.target.value);
-              if (inspectedElement?.el) applyPreview(e.target.value, inspectorProperty, inspectedElement.el);
+              const val = e.target.value;
+              setInspectorVariable(val);
+              if (inspectedElement?.el) applyPreview(val, inspectorProperty, inspectedElement.el);
             }} className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-slate-900 dark:text-slate-100">
               <option value="">Select variable...</option>
               {inspectorProperty.includes('color') ? (
@@ -1334,12 +1642,25 @@ export default function Header({
         </div>
       ), document.body)}
 
+      {/* Inspector Highlight Box */}
+      {themePreviewMode && inspectedElement && createPortal((
+        <div
+          id="inspector-highlight"
+          className="fixed pointer-events-none z-[99] border-2 border-indigo-500 bg-indigo-500/10 rounded transition-all duration-150"
+          style={{
+            top: inspectedElement.rect.top,
+            left: inspectedElement.rect.left,
+            width: inspectedElement.rect.width,
+            height: inspectedElement.rect.height,
+          }}
+        />
+      ), document.body)}
+
 {showThemeScreen && createPortal((
         <>
-        {themePreviewMode && (
           <style>{`
             #root {
-              transform: translateX(0); /* containing block */
+              transform: translateX(0) !important; /* containing block for fixed children */
               transition: all 0.3s ease;
             }
             @media (min-width: 800px) {
@@ -1354,14 +1675,11 @@ export default function Header({
               }
             }
           `}</style>
-        )}
-        <div id="theme-customizer-screen" className={`fixed inset-0 z-[60] pointer-events-none ${themePreviewMode ? '' : 'p-4 overflow-y-auto bg-slate-900/60 backdrop-blur-sm flex items-center justify-center'}`}>
-          <div className={`bg-white dark:bg-slate-900 shadow-2xl flex flex-col animation-fade-in text-slate-800 dark:text-slate-100 pointer-events-auto transition-all duration-300 ${themePreviewMode ? "border-r border-slate-200 dark:border-slate-800" : "border border-slate-200 dark:border-slate-800"}
-            ${themePreviewMode 
-              ? (themeCompactMode 
-                 ? 'fixed top-0 left-0 w-full h-[200px] rounded-b-2xl shadow-xl z-[70] overflow-hidden' 
-                 : 'fixed top-0 left-0 w-full min-[800px]:w-1/2 h-[50vh] min-[800px]:h-[100vh] rounded-b-3xl min-[800px]:rounded-none shadow-2xl z-[70] overflow-hidden')
-              : 'relative w-full max-w-lg max-h-[90vh] rounded-3xl shadow-2xl m-auto overflow-hidden'}
+        <div id="theme-customizer-screen" className="fixed inset-0 z-[60] pointer-events-none">
+          <div className={`bg-white dark:bg-slate-900 shadow-2xl flex flex-col animation-fade-in text-slate-800 dark:text-slate-100 pointer-events-auto transition-all duration-300 border-r border-slate-200 dark:border-slate-800
+            ${themeCompactMode 
+               ? 'fixed top-0 left-0 w-full h-[200px] rounded-b-2xl shadow-xl z-[70] overflow-hidden' 
+               : 'fixed top-0 left-0 w-full min-[800px]:w-1/2 h-[50vh] min-[800px]:h-[100vh] rounded-b-3xl min-[800px]:rounded-none shadow-2xl z-[70] overflow-hidden'}
           `}>
             {themeCompactMode && (
               <button
@@ -1377,75 +1695,59 @@ export default function Header({
             {!themeCompactMode && (
             <div className="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
               <div className="flex items-center gap-3 w-full sm:w-auto">
-                {!themePreviewMode && (
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100 hidden sm:block">Theme & Accent Settings</h2>
-                )}
-                {themePreviewMode && (
-                  <select
-                    value={themeActiveSection}
-                    onChange={(e) => setThemeActiveSection(e.target.value as any)}
-                    className="text-sm font-semibold bg-white border border-slate-250 dark:border-slate-700 rounded-full px-3 py-1.5 text-slate-900 focus:outline-none cursor-pointer shadow-sm w-full sm:w-auto"
-                  >
-                    <option value="colors">🎨 Colours</option>
-                    <option value="fonts">🔤 Font</option>
-                    <option value="tokens">📐 Token</option>
-                    <option value="components">📦 Components</option>
-                    <option value="elements">🔗 Elements</option>
-                    <option value="presets">🔖 Presets</option>
-                  </select>
-                )}
+                <h2 className="text-base font-bold whitespace-nowrap" style={{ color: profile.themePalette?.textDarkPrimary || 'var(--theme-text-dark-primary, rgba(255, 255, 255, 0.9))' }}>Theme</h2>
+                <select
+                  value={themeActiveSection}
+                  onChange={(e) => setThemeActiveSection(e.target.value as any)}
+                  className="text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-250 dark:border-slate-700 rounded-full px-3 py-1.5 text-slate-900 dark:text-slate-100 focus:outline-none cursor-pointer shadow-sm w-full sm:w-auto"
+                >
+                  <option value="colors">🎨 Colours</option>
+                  <option value="fonts">🔤 Font</option>
+                  <option value="tokens">📐 Token</option>
+                  <option value="components">📦 Components</option>
+                  <option value="elements">🔗 Elements</option>
+                  <option value="presets">🔖 Presets</option>
+                </select>
               </div>
               <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
-                {themePreviewMode && (
-                  <button
-                    onClick={() => setThemeCompactMode(!themeCompactMode)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer mr-1"
-                    title={themeCompactMode ? "Expand" : "Compact Mode"}
-                  >
-                    {themeCompactMode ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
-                    )}
-                  </button>
-                )}
-                {themePreviewMode && (
-                  <button
-                    onClick={() => {
-                      setInspectorPaused(!inspectorPaused);
-                      if (!inspectorPaused) {
-                        revertPreview();
-                        setInspectedElement(null);
-                      }
-                    }}
-                    className={`p-1.5 rounded-lg transition-colors cursor-pointer mr-1 ${
-                      inspectorPaused
-                        ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'
-                        : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                    }`}
-                    title={inspectorPaused ? 'Resume click-to-assign' : 'Pause click-to-assign (interact with the page)'}
-                  >
-                    {inspectorPaused ? (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-                    ) : (
-                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
-                    )}
-                  </button>
-                )}
+                <button
+                  onClick={() => setThemeCompactMode(!themeCompactMode)}
+                  className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer mr-1"
+                  title={themeCompactMode ? "Expand" : "Compact Mode"}
+                >
+                  {themeCompactMode ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 3 21 3 21 9"></polyline><polyline points="9 21 3 21 3 15"></polyline><line x1="21" y1="3" x2="14" y2="10"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 14 10 14 10 20"></polyline><polyline points="20 10 14 10 14 4"></polyline><line x1="14" y1="10" x2="21" y2="3"></line><line x1="3" y1="21" x2="10" y2="14"></line></svg>
+                  )}
+                </button>
                 <button
                   onClick={() => {
-                    setThemePreviewMode(!themePreviewMode);
-                    if (themeCompactMode) setThemeCompactMode(false);
+                    setInspectorPaused(!inspectorPaused);
+                    if (!inspectorPaused) {
+                      revertPreview();
+                      setInspectedElement(null);
+                    }
                   }}
-                  className={`px-3 py-1.5 rounded-xl text-xs font-semibold shadow-sm transition-all cursor-pointer border ${themePreviewMode ? 'bg-indigo-50 border-indigo-200 text-indigo-700 dark:bg-indigo-900/30 dark:border-indigo-800 dark:text-indigo-300' : 'bg-slate-50 border-slate-200 text-slate-700 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}`}
+                  className={`p-1.5 rounded-lg transition-colors cursor-pointer mr-1 ${
+                    inspectorPaused
+                      ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400'
+                      : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                  }`}
+                  title={inspectorPaused ? 'Resume click-to-assign' : 'Pause click-to-assign (interact with the page)'}
                 >
-                  {themePreviewMode ? 'Exit Edit Mode' : 'Edit Mode'}
+                  {inspectorPaused ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                  )}
                 </button>
                 <button
                   onClick={() => {
                     if (onSaveProfile) {
                       onSaveProfile(profile);
                     }
+                    initialThemeSnapshot.current = null;
                     setThemePreviewMode(false);
                     revertPreview();
                     setInspectedElement(null);
@@ -1462,30 +1764,13 @@ export default function Header({
                     setInspectedElement(null);
                     setShowThemeScreen(false);
                   }}
-                  className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                  title="Close theme editor"
                 >
-                  ✕
+                  <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
-            )}
-
-            {/* Dynamic Section Dropdown Selector */}
-            {!themePreviewMode && !themeCompactMode && (
-              <div className="px-6 py-3 bg-slate-50 dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-3 flex-shrink-0 text-left">
-                <select
-                  value={themeActiveSection}
-                  onChange={(e) => setThemeActiveSection(e.target.value as any)}
-                  className="text-sm font-semibold bg-white border border-slate-250 dark:border-slate-700 rounded-full px-4 py-2 text-slate-900 focus:outline-none cursor-pointer shadow-sm w-full sm:w-auto"
-                >
-                  <option value="colors">🎨 Colours ({colorsList.length} Items)</option>
-                  <option value="fonts">🔤 Font ({fontsList.length} Sizes)</option>
-                  <option value="tokens">📐 Design Token ({auditDesignTokens.length} Factors)</option>
-                  <option value="components">📦 Components (4 Audited)</option>
-                  <option value="elements">🔗 Elements (9 Audited)</option>
-                  <option value="presets">🔖 Presets</option>
-                </select>
-              </div>
             )}
 
             {/* Content scroll area */}
@@ -1495,8 +1780,15 @@ export default function Header({
               {themeActiveSection === 'colors' && (
                 <div className="space-y-4">
                   {(() => {
+                    const getEffectiveGroup = (color: any) => {
+                      if (textPreviewOverride[color.key]) return textPreviewOverride[color.key];
+                      if (color.key === 'textDarkPrimary' || color.key === 'textDarkSecondary') return 'dark';
+                      if (color.key === 'text' || color.key === 'textSecondary' || color.key === 'textAccent' || color.key === 'textMuted' || color.key === 'textSuccess' || color.key === 'textError') return 'light';
+                      return color.darkGroup || 'light';
+                    };
+
                     const generalColors = colorsList.filter((c: any) => c.category === 'general' || ['button', 'background', 'bgCard', 'border', 'neutralSetting'].includes(c.key));
-                    const textColors = colorsList.filter((c: any) => c.category === 'text' || ['text', 'textSecondary', 'textAccent', 'textMuted'].includes(c.key));
+                    const textColors = colorsList.filter((c: any) => c.category === 'text' || ['text', 'textSecondary', 'textDarkPrimary', 'textDarkSecondary', 'textAccent', 'textMuted', 'textSuccess', 'textError'].includes(c.key));
                     const statusColors = colorsList.filter((c: any) => c.category === 'status' || ['warning', 'caution', 'success', 'info'].includes(c.key));
                     const nutrientColors = colorsList.filter((c: any) => c.category === 'nutrients' || ['nutrientCalories', 'nutrientProtein', 'nutrientCarbs', 'nutrientFat', 'nutrientSatFat', 'nutrientSodium'].includes(c.key));
 
@@ -1520,15 +1812,28 @@ export default function Header({
                                     setExpandedColorKey(null);
                                     setColorDraft(null);
                                   } else {
+                                    colorOriginalVal.current[color.key] = activeVal;
                                     setExpandedColorKey(color.key);
                                     setColorDraft({ key: color.key, label: color.label, value: activeVal });
                                   }
                                 }}
-                                className="w-5 h-5 rounded-full shadow-inner shrink-0 cursor-pointer hover:opacity-80 transition-opacity" 
+                                className="w-5 h-5 rounded-full shadow-inner shrink-0 cursor-pointer hover:opacity-80 transition-opacity border border-black/10 dark:border-white/10" 
                                 style={{ backgroundColor: activeVal }}
                                 title={isExpanded ? 'Close editor' : 'Click to edit'}
                               />
-                              <div className="ml-3 min-w-0">
+                              <div 
+                                className="ml-3 min-w-0 flex-1 cursor-pointer"
+                                onClick={() => {
+                                  if (isExpanded) {
+                                    setExpandedColorKey(null);
+                                    setColorDraft(null);
+                                  } else {
+                                    colorOriginalVal.current[color.key] = activeVal;
+                                    setExpandedColorKey(color.key);
+                                    setColorDraft({ key: color.key, label: color.label, value: activeVal });
+                                  }
+                                }}
+                              >
                                 <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block truncate">
                                   {color.label}
                                 </span>
@@ -1540,124 +1845,156 @@ export default function Header({
                           </div>
 
                           {/* Expanded Editor State */}
-                          {isExpanded && (
-                            <div className="mt-1 ml-8 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl space-y-3 shadow-inner text-left">
-                              <div className="flex flex-col gap-1">
-                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Variable Name</label>
-                                <input
-                                  type="text"
-                                  value={draftLabel}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onChange={(e) => setColorDraft(d => d && d.key === color.key ? { ...d, label: e.target.value } : d)}
-                                  className="text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none transition-all w-full"
-                                  placeholder="E.g. Primary Accent"
-                                />
-                              </div>
-
-                              <div className="flex flex-col gap-1">
-                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Hex Colour</label>
-                                <div className="flex items-center gap-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg p-1.5 shadow-sm">
-                                  <input
-                                    type="color"
-                                    value={draftVal.startsWith('#') && (draftVal.length === 7 || draftVal.length === 4) ? draftVal : color.defaultHex}
-                                    onClick={(e) => e.stopPropagation()}
-                                    onChange={(e) => setColorDraft(d => d && d.key === color.key ? { ...d, value: e.target.value } : d)}
-                                    className="w-6 h-6 rounded cursor-pointer overflow-hidden border border-slate-200 dark:border-slate-800 shrink-0 bg-transparent"
-                                    style={{ padding: 0, border: 'none' }}
-                                  />
+                          {isExpanded && (() => {
+                            const { hex6, opacity } = parseColorAndOpacity(draftVal);
+                            return (
+                              <div className="mt-1 ml-8 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl space-y-3 shadow-inner text-left">
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Variable Name</label>
                                   <input
                                     type="text"
-                                    value={draftVal}
+                                    value={draftLabel}
                                     onClick={(e) => e.stopPropagation()}
-                                    onChange={(e) => setColorDraft(d => d && d.key === color.key ? { ...d, value: e.target.value } : d)}
-                                    className="w-full text-xs font-mono bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none px-1"
-                                    placeholder="#FFFFFF"
+                                    onChange={(e) => setColorDraft(d => d && d.key === color.key ? { ...d, label: e.target.value } : d)}
+                                    className="text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none transition-all w-full"
+                                    placeholder="E.g. Primary Accent"
                                   />
                                 </div>
-                              </div>
 
-                              <div className="flex items-center gap-2 pt-1">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!colorDraft) return;
-                                    const currentList = [...(profile.customColors || auditColors)];
-                                    const updatedList = currentList.map((c: any) => c.key === color.key ? { ...c, label: colorDraft.label } : c);
-                                    const nextPalette = { ...(profile.themePalette || {}) };
-                                    (nextPalette as any)[color.key] = colorDraft.value;
-                                    if (color.key === 'background') {
-                                      nextPalette.bgApp = colorDraft.value;
-                                    }
-                                    setProfile({ ...profile, customColors: updatedList, themePalette: nextPalette });
-                                    setExpandedColorKey(null);
-                                    setColorDraft(null);
-                                  }}
-                                  className="flex-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all"
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setExpandedColorKey(null);
-                                    setColorDraft(null);
-                                  }}
-                                  className="flex-1 px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-all"
-                                >
-                                  Cancel
-                                </button>
-                                {color.key.startsWith('custom_') && (
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Colour & Hex</label>
+                                  <div className="flex items-center gap-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg p-1.5 shadow-sm">
+                                    <input
+                                      type="color"
+                                      value={hex6}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) => {
+                                        const newVal = formatColorWithOpacity(e.target.value, opacity);
+                                        setColorDraft(d => d && d.key === color.key ? { ...d, value: newVal } : d);
+                                        setProfile(p => ({
+                                          ...p,
+                                          themePalette: { ...(p.themePalette || {}), [color.key]: newVal }
+                                        }));
+                                      }}
+                                      className="w-6 h-6 rounded cursor-pointer overflow-hidden border border-slate-200 dark:border-slate-850 shrink-0 bg-transparent"
+                                      style={{ padding: 0, border: 'none' }}
+                                    />
+                                    <input
+                                      type="text"
+                                      value={draftVal}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) => {
+                                        const newVal = e.target.value;
+                                        setColorDraft(d => d && d.key === color.key ? { ...d, value: newVal } : d);
+                                        setProfile(p => ({
+                                          ...p,
+                                          themePalette: { ...(p.themePalette || {}), [color.key]: newVal }
+                                        }));
+                                      }}
+                                      className="w-full text-xs font-mono bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none px-1"
+                                      placeholder="#FFFFFF"
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Opacity Control */}
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex justify-between items-center text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                                    <span>Opacity</span>
+                                    <span className="text-slate-600 dark:text-slate-300 font-mono text-[10px]">{opacity}%</span>
+                                  </div>
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="100"
+                                    value={opacity}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => {
+                                      const newOpacity = parseInt(e.target.value, 10);
+                                      const newVal = formatColorWithOpacity(hex6, newOpacity);
+                                      setColorDraft(d => d && d.key === color.key ? { ...d, value: newVal } : d);
+                                      setProfile(p => ({
+                                        ...p,
+                                        themePalette: { ...(p.themePalette || {}), [color.key]: newVal }
+                                      }));
+                                    }}
+                                    className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                                  />
+                                </div>
+
+                                <div className="flex items-center gap-2 pt-1">
                                   <button
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleDeleteColor(color.key);
+                                      if (!colorDraft) return;
+                                      const currentList = [...(profile.customColors || auditColors)];
+                                      const updatedList = currentList.map((c: any) => c.key === color.key ? { ...c, label: colorDraft.label } : c);
+                                      const nextPalette = { ...(profile.themePalette || {}) };
+                                      (nextPalette as any)[color.key] = colorDraft.value;
+                                      if (color.key === 'background') {
+                                        nextPalette.bgApp = colorDraft.value;
+                                      }
+                                      setProfile({ ...profile, customColors: updatedList, themePalette: nextPalette });
                                       setExpandedColorKey(null);
                                       setColorDraft(null);
                                     }}
-                                    className="flex-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 rounded-lg text-xs font-bold border border-rose-200 dark:border-rose-800 transition-all"
+                                    className="flex-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
                                   >
-                                    Delete
+                                    Save
                                   </button>
-                                )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (colorOriginalVal.current[color.key] !== undefined) {
+                                        setProfile(p => ({
+                                          ...p,
+                                          themePalette: { ...(p.themePalette || {}), [color.key]: colorOriginalVal.current[color.key] }
+                                        }));
+                                      }
+                                      setExpandedColorKey(null);
+                                      setColorDraft(null);
+                                    }}
+                                    className="flex-1 px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                  {color.key.startsWith('custom_') && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteColor(color.key);
+                                        setExpandedColorKey(null);
+                                        setColorDraft(null);
+                                      }}
+                                      className="flex-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 rounded-lg text-xs font-bold border border-rose-200 dark:border-rose-800 transition-all cursor-pointer"
+                                    >
+                                      Delete
+                                    </button>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            );
+                          })()}
                         </div>
                       );
                     };
 
-                    const getTextPreviewContext = (hex: string): 'dark' | 'light' => {
-                      try {
-                        let h = (hex || '').replace('#', '');
-                        if (h.length === 3) h = h.split('').map(c => c + c).join('');
-                        if (h.length !== 6) return 'light';
-                        const r = parseInt(h.substring(0, 2), 16) / 255;
-                        const g = parseInt(h.substring(2, 4), 16) / 255;
-                        const b = parseInt(h.substring(4, 6), 16) / 255;
-                        const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-                        // Light colors (high luminance) read best on a dark background.
-                        // Dark colors (low luminance) read best on a light background.
-                        return lum > 0.5 ? 'dark' : 'light';
-                      } catch (e) {
-                        return 'light';
-                      }
-                    };
-
-                    const renderTextColorItem = (color: any) => {
+                    const renderTextColorItem = (color: any, sectionMode: 'dark' | 'light') => {
                       const activeVal = (profile.themePalette as any)?.[color.key] || color.defaultHex;
                       const isExpanded = expandedColorKey === color.key;
                       const draftLabel = colorDraft && colorDraft.key === color.key ? colorDraft.label : color.label;
                       const draftVal = colorDraft && colorDraft.key === color.key ? colorDraft.value : activeVal;
-                      const previewBg = textPreviewOverride[color.key] || getTextPreviewContext(activeVal);
 
                       return (
                         <div key={color.key} className="transition-all duration-200">
                           {/* Main Row */}
                           <div 
-                            className="flex flex-col sm:flex-row sm:items-center justify-between py-2 px-3 hover:bg-slate-50 dark:hover:bg-slate-800/35 rounded-xl transition-all group gap-2"
+                            className={sectionMode === 'dark'
+                              ? "flex items-center justify-between py-2 px-3 hover:bg-slate-800/60 rounded-xl transition-all group gap-2"
+                              : "flex items-center justify-between py-2 px-3 hover:bg-slate-150/80 rounded-xl transition-all group gap-2"}
                           >
                             <div className="flex items-center min-w-0 flex-1">
                               {/* Swatch */}
@@ -1667,132 +2004,196 @@ export default function Header({
                                     setExpandedColorKey(null);
                                     setColorDraft(null);
                                   } else {
+                                    colorOriginalVal.current[color.key] = activeVal;
                                     setExpandedColorKey(color.key);
                                     setColorDraft({ key: color.key, label: color.label, value: activeVal });
                                   }
                                 }}
-                                className="w-5 h-5 rounded-full shadow-inner shrink-0 cursor-pointer hover:opacity-80 transition-opacity" 
+                                className="w-5 h-5 rounded-full shadow-inner shrink-0 cursor-pointer hover:opacity-80 transition-opacity border border-black/10 dark:border-white/10" 
                                 style={{ backgroundColor: activeVal }}
                                 title={isExpanded ? 'Close editor' : 'Click to edit'}
                               />
-                              <div className="ml-3 min-w-0">
-                                <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block truncate">
+                              <div 
+                                className="ml-3 min-w-0 flex-1 cursor-pointer"
+                                onClick={() => {
+                                  if (isExpanded) {
+                                    setExpandedColorKey(null);
+                                    setColorDraft(null);
+                                  } else {
+                                    colorOriginalVal.current[color.key] = activeVal;
+                                    setExpandedColorKey(color.key);
+                                    setColorDraft({ key: color.key, label: color.label, value: activeVal });
+                                  }
+                                }}
+                              >
+                                <span 
+                                  className="text-xs font-bold block truncate transition-colors"
+                                  style={{ color: activeVal }}
+                                >
                                   {color.label}
                                 </span>
-                                <span className="text-[10px] text-slate-400 dark:text-slate-500 block truncate">
+                                <span className={sectionMode === 'dark' ? "text-[10px] text-slate-400 block truncate" : "text-[10px] text-slate-500 block truncate"}>
                                   {color.description || 'Text color variable'}
                                 </span>
                               </div>
                             </div>
 
-                            {/* Contrast preview with manual light/dark toggle */}
-                            <div className="flex items-center gap-1.5 ml-0 sm:ml-2 shrink-0">
-                              <div className={previewBg === 'light' ? "bg-white border border-slate-150 rounded-lg py-1 px-3 flex items-center justify-center shrink-0 shadow-sm" : "bg-slate-900 rounded-lg py-1 px-3 flex items-center justify-center shrink-0 shadow-sm"} style={{ minWidth: '48px' }}>
-                                <span style={{ color: activeVal }} className="text-xs font-bold tracking-tight">
-                                  Aa
-                                </span>
-                              </div>
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setTextPreviewOverride(prev => ({ ...prev, [color.key]: previewBg === 'light' ? 'dark' : 'light' }));
-                                }}
-                                className="text-slate-400 hover:text-indigo-500 transition-all p-1 rounded-lg cursor-pointer"
-                                title={previewBg === 'light' ? 'Preview on dark background' : 'Preview on light background'}
-                              >
-                                {previewBg === 'light' ? (
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
-                                ) : (
-                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
-                                )}
-                              </button>
-                            </div>
+                            {/* Light / Dark Toggle button */}
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const currentMode = getEffectiveGroup(color);
+                                const newMode = currentMode === 'dark' ? 'light' : 'dark';
+                                setTextPreviewOverride(prev => ({ ...prev, [color.key]: newMode }));
+                                const currentList = [...(profile.customColors || auditColors)];
+                                const updatedList = currentList.map((c: any) => c.key === color.key ? { ...c, darkGroup: newMode } : c);
+                                setProfile({ ...profile, customColors: updatedList });
+                              }}
+                              className={sectionMode === 'dark' 
+                                ? "text-slate-400 hover:text-amber-300 hover:bg-slate-800 p-1.5 rounded-lg transition-all cursor-pointer shrink-0 ml-2" 
+                                : "text-slate-400 hover:text-indigo-600 hover:bg-slate-200 p-1.5 rounded-lg transition-all cursor-pointer shrink-0 ml-2"}
+                              title={sectionMode === 'dark' ? 'Move to Text over light' : 'Move to Text over dark'}
+                            >
+                              {sectionMode === 'dark' ? (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                              ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                              )}
+                            </button>
                           </div>
 
                           {/* Expanded Editor State */}
-                          {isExpanded && (
-                            <div className="mt-1 ml-8 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl space-y-3 shadow-inner text-left">
-                              <div className="flex flex-col gap-1">
-                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Variable Name</label>
-                                <input
-                                  type="text"
-                                  value={draftLabel}
-                                  onClick={(e) => e.stopPropagation()}
-                                  onChange={(e) => setColorDraft(d => d && d.key === color.key ? { ...d, label: e.target.value } : d)}
-                                  className="text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none transition-all w-full"
-                                  placeholder="E.g. Brand Heading"
-                                />
-                              </div>
-
-                              <div className="flex flex-col gap-1">
-                                <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Hex Colour</label>
-                                <div className="flex items-center gap-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg p-1.5 shadow-sm">
-                                  <input
-                                    type="color"
-                                    value={draftVal.startsWith('#') && (draftVal.length === 7 || draftVal.length === 4) ? draftVal : color.defaultHex}
-                                    onClick={(e) => e.stopPropagation()}
-                                    onChange={(e) => setColorDraft(d => d && d.key === color.key ? { ...d, value: e.target.value } : d)}
-                                    className="w-6 h-6 rounded cursor-pointer overflow-hidden border border-slate-200 dark:border-slate-850 shrink-0 bg-transparent"
-                                    style={{ padding: 0, border: 'none' }}
-                                  />
+                          {isExpanded && (() => {
+                            const { hex6, opacity } = parseColorAndOpacity(draftVal);
+                            return (
+                              <div className="mt-1 ml-8 p-3 bg-slate-50 dark:bg-slate-900 rounded-xl space-y-3 shadow-inner text-left">
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Variable Name</label>
                                   <input
                                     type="text"
-                                    value={draftVal}
+                                    value={draftLabel}
                                     onClick={(e) => e.stopPropagation()}
-                                    onChange={(e) => setColorDraft(d => d && d.key === color.key ? { ...d, value: e.target.value } : d)}
-                                    className="w-full text-xs font-mono bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none px-1"
-                                    placeholder="#FFFFFF"
+                                    onChange={(e) => setColorDraft(d => d && d.key === color.key ? { ...d, label: e.target.value } : d)}
+                                    className="text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none transition-all w-full"
+                                    placeholder="E.g. Brand Heading"
                                   />
                                 </div>
-                              </div>
 
-                              <div className="flex items-center gap-2 pt-1">
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    if (!colorDraft) return;
-                                    const currentList = [...(profile.customColors || auditColors)];
-                                    const updatedList = currentList.map((c: any) => c.key === color.key ? { ...c, label: colorDraft.label } : c);
-                                    const nextPalette = { ...(profile.themePalette || {}) };
-                                    (nextPalette as any)[color.key] = colorDraft.value;
-                                    setProfile({ ...profile, customColors: updatedList, themePalette: nextPalette });
-                                    setExpandedColorKey(null);
-                                    setColorDraft(null);
-                                  }}
-                                  className="flex-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all"
-                                >
-                                  Save
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setExpandedColorKey(null);
-                                    setColorDraft(null);
-                                  }}
-                                  className="flex-1 px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-all"
-                                >
-                                  Cancel
-                                </button>
-                                {color.key.startsWith('custom_') && (
+                                <div className="flex flex-col gap-1">
+                                  <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Colour & Hex</label>
+                                  <div className="flex items-center gap-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg p-1.5 shadow-sm">
+                                    <input
+                                      type="color"
+                                      value={hex6}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) => {
+                                        const newVal = formatColorWithOpacity(e.target.value, opacity);
+                                        setColorDraft(d => d && d.key === color.key ? { ...d, value: newVal } : d);
+                                        setProfile(p => ({
+                                          ...p,
+                                          themePalette: { ...(p.themePalette || {}), [color.key]: newVal }
+                                        }));
+                                      }}
+                                      className="w-6 h-6 rounded cursor-pointer overflow-hidden border border-slate-200 dark:border-slate-850 shrink-0 bg-transparent"
+                                      style={{ padding: 0, border: 'none' }}
+                                    />
+                                    <input
+                                      type="text"
+                                      value={draftVal}
+                                      onClick={(e) => e.stopPropagation()}
+                                      onChange={(e) => {
+                                        const newVal = e.target.value;
+                                        setColorDraft(d => d && d.key === color.key ? { ...d, value: newVal } : d);
+                                        setProfile(p => ({
+                                          ...p,
+                                          themePalette: { ...(p.themePalette || {}), [color.key]: newVal }
+                                        }));
+                                      }}
+                                      className="w-full text-xs font-mono bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none px-1"
+                                      placeholder="#FFFFFF or rgba(255,255,255,0.9)"
+                                    />
+                                  </div>
+                                </div>
+
+                                {/* Opacity Control */}
+                                <div className="flex flex-col gap-1">
+                                  <div className="flex justify-between items-center text-[9px] font-bold text-slate-400 uppercase tracking-wider">
+                                    <span>Opacity</span>
+                                    <span className="text-slate-600 dark:text-slate-300 font-mono text-[10px]">{opacity}%</span>
+                                  </div>
+                                  <input
+                                    type="range"
+                                    min="0"
+                                    max="100"
+                                    value={opacity}
+                                    onClick={(e) => e.stopPropagation()}
+                                    onChange={(e) => {
+                                      const newOpacity = parseInt(e.target.value, 10);
+                                      const newVal = formatColorWithOpacity(hex6, newOpacity);
+                                      setColorDraft(d => d && d.key === color.key ? { ...d, value: newVal } : d);
+                                      setProfile(p => ({
+                                        ...p,
+                                        themePalette: { ...(p.themePalette || {}), [color.key]: newVal }
+                                      }));
+                                    }}
+                                    className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-200 dark:bg-slate-700 rounded-lg"
+                                  />
+                                </div>
+
+                                <div className="flex items-center gap-2 pt-1">
                                   <button
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
-                                      handleDeleteColor(color.key);
+                                      if (!colorDraft) return;
+                                      const currentList = [...(profile.customColors || auditColors)];
+                                      const updatedList = currentList.map((c: any) => c.key === color.key ? { ...c, label: colorDraft.label } : c);
+                                      const nextPalette = { ...(profile.themePalette || {}) };
+                                      (nextPalette as any)[color.key] = colorDraft.value;
+                                      setProfile({ ...profile, customColors: updatedList, themePalette: nextPalette });
                                       setExpandedColorKey(null);
                                       setColorDraft(null);
                                     }}
-                                    className="flex-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 rounded-lg text-xs font-bold border border-rose-200 dark:border-rose-800 transition-all"
+                                    className="flex-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all cursor-pointer"
                                   >
-                                    Delete
+                                    Save
                                   </button>
-                                )}
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      if (colorOriginalVal.current[color.key] !== undefined) {
+                                        setProfile(p => ({
+                                          ...p,
+                                          themePalette: { ...(p.themePalette || {}), [color.key]: colorOriginalVal.current[color.key] }
+                                        }));
+                                      }
+                                      setExpandedColorKey(null);
+                                      setColorDraft(null);
+                                    }}
+                                    className="flex-1 px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                                  >
+                                    Cancel
+                                  </button>
+                                  {color.key.startsWith('custom_') && (
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleDeleteColor(color.key);
+                                        setExpandedColorKey(null);
+                                        setColorDraft(null);
+                                      }}
+                                      className="flex-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 rounded-lg text-xs font-bold border border-rose-200 dark:border-rose-800 transition-all cursor-pointer"
+                                    >
+                                      Delete
+                                    </button>
+                                  )}
+                                </div>
                               </div>
-                            </div>
-                          )}
+                            );
+                          })()}
                         </div>
                       );
                     };
@@ -1829,17 +2230,29 @@ export default function Header({
                             </button>
                           </div>
 
-                          <div className="space-y-1">
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider pl-3">Text over dark</span>
-                            <div className="space-y-1">
-                              {textColors.filter((color: any) => getTextPreviewContext((profile.themePalette as any)?.[color.key] || color.defaultHex) === 'dark').map(color => renderTextColorItem(color))}
+                          {/* SUBSECTION 1: TEXT OVER DARK */}
+                          <div className="space-y-2 bg-slate-900 border border-slate-800 rounded-2xl p-3.5 shadow-inner">
+                            <div className="flex items-center justify-between pb-1 border-b border-slate-800">
+                              <span className="text-[10px] font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                                <span>🌙</span> Text over dark
+                              </span>
+                              <span className="text-[9px] text-slate-500 font-medium">Dark background</span>
+                            </div>
+                            <div className="space-y-1 pt-1">
+                              {textColors.filter((color: any) => getEffectiveGroup(color) === 'dark').map(color => renderTextColorItem(color, 'dark'))}
                             </div>
                           </div>
 
-                          <div className="space-y-1">
-                            <span className="text-[10px] font-bold text-slate-400 dark:text-slate-600 uppercase tracking-wider pl-3">Text over light</span>
-                            <div className="space-y-1">
-                              {textColors.filter((color: any) => getTextPreviewContext((profile.themePalette as any)?.[color.key] || color.defaultHex) === 'light').map(color => renderTextColorItem(color))}
+                          {/* SUBSECTION 2: TEXT OVER LIGHT */}
+                          <div className="space-y-2 bg-slate-50 border border-slate-200 rounded-2xl p-3.5 shadow-sm">
+                            <div className="flex items-center justify-between pb-1 border-b border-slate-200">
+                              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-wider flex items-center gap-1.5">
+                                <span>☀️</span> Text over light
+                              </span>
+                              <span className="text-[9px] text-slate-400 font-medium">Light background</span>
+                            </div>
+                            <div className="space-y-1 pt-1">
+                              {textColors.filter((color: any) => getEffectiveGroup(color) === 'light').map(color => renderTextColorItem(color, 'light'))}
                             </div>
                           </div>
                         </div>
@@ -2163,15 +2576,56 @@ export default function Header({
                             reader.onload = (ev) => {
                               try {
                                 const parsed = JSON.parse(ev.target?.result as string);
-                                 const newPresets = parsed.preset ? [parsed.preset] : (Array.isArray(parsed) ? parsed : [parsed]);
-                                 if (newPresets.length > 0) {
-                                   setProfile({ ...profile, themePresets: [...(profile.themePresets || []), ...newPresets] });
-                                 }
-                              } catch (e) {
-                                console.error('Failed to parse presets');
+                                let rawPresets: any[] = [];
+                                if (Array.isArray(parsed)) {
+                                  rawPresets = parsed;
+                                } else if (parsed.preset && Array.isArray(parsed.preset)) {
+                                  rawPresets = parsed.preset;
+                                } else {
+                                  rawPresets = [parsed];
+                                }
+                                const normalized = rawPresets.map(p => normalizeImportedPreset(p)).filter(Boolean);
+                                if (normalized.length > 0) {
+                                  const updatedPresets = [...(profile.themePresets || [])];
+                                  normalized.forEach(p => {
+                                    const existingIdx = updatedPresets.findIndex(x => x.name === p.name);
+                                    if (existingIdx >= 0) {
+                                      updatedPresets[existingIdx] = p;
+                                    } else {
+                                      updatedPresets.push(p);
+                                    }
+                                  });
+                                  const lastOne = normalized[normalized.length - 1];
+                                  setProfile({
+                                    ...profile,
+                                    themePresets: updatedPresets,
+                                    themePalette: lastOne.themePalette !== undefined ? lastOne.themePalette : profile.themePalette,
+                                    fontFamily: lastOne.fontFamily || profile.fontFamily,
+                                    fontMono: lastOne.fontMono || profile.fontMono,
+                                    fontSize: lastOne.fontSize || profile.fontSize,
+                                    marginScale: lastOne.marginScale || profile.marginScale,
+                                    paddingScale: lastOne.paddingScale || profile.paddingScale,
+                                    cornerRadius: lastOne.cornerRadius || profile.cornerRadius,
+                                    shadowScale: lastOne.shadowScale || profile.shadowScale,
+                                    themeOverrides: lastOne.themeOverrides !== undefined ? lastOne.themeOverrides : profile.themeOverrides,
+                                    fontSizeTitle: lastOne.fontSizeTitle || profile.fontSizeTitle,
+                                    fontSizeSubtitle: lastOne.fontSizeSubtitle || profile.fontSizeSubtitle,
+                                    fontSizeDescription: lastOne.fontSizeDescription || profile.fontSizeDescription,
+                                    fontSizeBodySmall: lastOne.fontSizeBodySmall || profile.fontSizeBodySmall,
+                                    fontSizeSubtitleSmall: lastOne.fontSizeSubtitleSmall || profile.fontSizeSubtitleSmall,
+                                    fontSizeKeyMetric: lastOne.fontSizeKeyMetric || profile.fontSizeKeyMetric,
+                                    fontSizeXS: lastOne.fontSizeXS || profile.fontSizeXS,
+                                    fontSizeBody: lastOne.fontSizeBody || profile.fontSizeBody,
+                                    customColors: lastOne.customColors !== undefined ? lastOne.customColors : profile.customColors,
+                                    customFonts: lastOne.customFonts !== undefined ? lastOne.customFonts : profile.customFonts
+                                  });
+                                }
+                              } catch (err) {
+                                console.error('Failed to parse presets', err);
                               }
                             };
                             reader.readAsText(file);
+                            e.target.value = '';
                           }} />
                         </label>
                       </div>
@@ -2179,6 +2633,7 @@ export default function Header({
                     <div className="grid grid-cols-1 gap-2">
                       {[
                         { name: "System Default", isSystem: true, profileUpdate: { marginScale: undefined, paddingScale: undefined, cornerRadius: undefined, shadowScale: undefined, themePalette: undefined, fontSize: undefined, fontFamily: undefined, fontMono: undefined, fontSizeTitle: undefined, fontSizeSubtitle: undefined, fontSizeDescription: undefined, fontSizeBodySmall: undefined, fontSizeSubtitleSmall: undefined, fontSizeKeyMetric: undefined, fontSizeXS: undefined, fontSizeBody: undefined, themeOverrides: [] } },
+                        { name: "Accessible High Contrast (Light)", isSystem: true, profileUpdate: { fontFamily: 'Inter', themePalette: { background: '#ffffff', bgCard: '#ffffff', button: '#0f172a', text: '#0f172a', textSecondary: '#1e293b', border: '#0f172a', textAccent: '#1e40af', textMuted: '#334155', textSuccess: '#166534', textError: '#991b1b', warning: '#9a3412', caution: '#854d0e', success: '#166534', info: '#1e40af', neutralSetting: '#1e293b' } } },
                         { name: "Midnight Blue (Dark)", isSystem: true, profileUpdate: { fontFamily: 'Space Grotesk', themePalette: { background: '#000000', bgCard: '#0f172a', button: '#2563eb', text: '#f8fafc', textSecondary: '#cbd5e1', border: '#1e293b', textAccent: '#a5b4fc', textMuted: '#94a3b8', textSuccess: '#4ade80', textError: '#f87171', warning: '#fb7185', caution: '#fbbf24', success: '#34d399', info: '#60a5fa', neutralSetting: '#cbd5e1' } } },
                         { name: "Emerald Forest (Dark)", isSystem: true, profileUpdate: { fontFamily: 'Outfit', themePalette: { background: '#000000', bgCard: '#06231a', button: '#047857', text: '#ecfdf5', textSecondary: '#a7f3d0', border: '#0f3527', textAccent: '#a5b4fc', textMuted: '#a7f3d0', textSuccess: '#4ade80', textError: '#f87171', warning: '#fb7185', caution: '#fbbf24', success: '#34d399', info: '#60a5fa', neutralSetting: '#d1fae5' } } },
                         { name: "Minimalist White (Light)", isSystem: true, profileUpdate: { fontFamily: 'Playfair Display', themePalette: { background: '#ffffff', bgCard: '#fafafa', button: '#18181b', text: '#09090b', textSecondary: '#52525b', border: '#e4e4e7', textMuted: '#71717a', textSuccess: '#15803d' } } }
@@ -2351,37 +2806,59 @@ export default function Header({
                         {getThemeVariableChangesCount()} Variable Changes
                       </span>
                     </div>
-                    <button onClick={() => {
-                      const name = prompt("Enter a name for this preset:");
-                      if (!name) return;
-                      const newPreset = {
-                        name,
-                        themePalette: profile.themePalette,
-                        fontSize: profile.fontSize,
-                        fontFamily: profile.fontFamily,
-                        fontMono: profile.fontMono,
-                        marginScale: profile.marginScale,
-                        paddingScale: profile.paddingScale,
-                        cornerRadius: profile.cornerRadius,
-                        shadowScale: profile.shadowScale,
-                        themeOverrides: profile.themeOverrides,
-                        customColors: profile.customColors,
-                        fontSizeTitle: profile.fontSizeTitle,
-                        fontSizeSubtitle: profile.fontSizeSubtitle,
-                        fontSizeDescription: profile.fontSizeDescription,
-                        fontSizeBodySmall: profile.fontSizeBodySmall,
-                        fontSizeSubtitleSmall: profile.fontSizeSubtitleSmall,
-                        fontSizeKeyMetric: profile.fontSizeKeyMetric,
-                        fontSizeXS: profile.fontSizeXS,
-                        fontSizeBody: profile.fontSizeBody,
-                        customFonts: profile.customFonts
-                      };
-                      setProfile({ ...profile, themePresets: [...(profile.themePresets || []), newPreset] });
-                      setJustSavedKey('new-preset');
-                      setTimeout(() => setJustSavedKey(null), 1800);
-                    }} className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all text-center cursor-pointer">
-                      {justSavedKey === 'new-preset' ? '✓ Saved' : 'Save Current Configuration as Preset'}
-                    </button>
+                    {(() => {
+                      const isCurrentConfigSaved = (profile.themePresets || []).some((p: any) => isPresetActive(p));
+                      return (
+                        <div className="space-y-3">
+                          <div className="space-y-1">
+                            <label className="text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">Preset Name</label>
+                            <input
+                              type="text"
+                              value={newPresetName}
+                              onChange={(e) => setNewPresetName(e.target.value)}
+                              placeholder="e.g. My Custom Theme"
+                              className="w-full px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-xs text-slate-800 dark:text-slate-100 placeholder-slate-400 dark:placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all"
+                            />
+                          </div>
+                          <button 
+                            disabled={!newPresetName.trim()}
+                            onClick={() => {
+                              const name = newPresetName.trim();
+                              if (!name) return;
+                              const newPreset = {
+                                name,
+                                themePalette: profile.themePalette,
+                                fontSize: profile.fontSize,
+                                fontFamily: profile.fontFamily,
+                                fontMono: profile.fontMono,
+                                marginScale: profile.marginScale,
+                                paddingScale: profile.paddingScale,
+                                cornerRadius: profile.cornerRadius,
+                                shadowScale: profile.shadowScale,
+                                themeOverrides: profile.themeOverrides,
+                                customColors: profile.customColors,
+                                fontSizeTitle: profile.fontSizeTitle,
+                                fontSizeSubtitle: profile.fontSizeSubtitle,
+                                fontSizeDescription: profile.fontSizeDescription,
+                                fontSizeBodySmall: profile.fontSizeBodySmall,
+                                fontSizeSubtitleSmall: profile.fontSizeSubtitleSmall,
+                                fontSizeKeyMetric: profile.fontSizeKeyMetric,
+                                fontSizeXS: profile.fontSizeXS,
+                                fontSizeBody: profile.fontSizeBody,
+                                customFonts: profile.customFonts
+                              };
+                              setProfile({ ...profile, themePresets: [...(profile.themePresets || []), newPreset] });
+                              setNewPresetName('');
+                              setJustSavedKey('new-preset');
+                              setTimeout(() => setJustSavedKey(null), 1800);
+                            }} 
+                            className={`w-full px-4 py-2.5 rounded-xl text-xs font-bold shadow-sm transition-all text-center ${!newPresetName.trim() ? 'bg-slate-100 dark:bg-slate-900 text-slate-400 dark:text-slate-600 cursor-not-allowed' : justSavedKey === 'new-preset' ? 'bg-emerald-600 text-white cursor-default' : 'bg-indigo-600 hover:bg-indigo-700 text-white cursor-pointer'}`}
+                          >
+                            {justSavedKey === 'new-preset' ? '✓ Preset Saved' : 'Save Current Configuration as Preset'}
+                          </button>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               )}
@@ -2401,7 +2878,7 @@ export default function Header({
               <div className="flex items-center gap-2.5">
                 <ShieldCheck className="w-5 h-5 text-indigo-600" />
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Settings</h2>
+                  <h2 className="text-lg font-bold text-theme-text">Settings</h2>
                   <span className="text-xs font-normal text-slate-400 block mt-0.5">
                     {(() => {
                       const buildTime = serverStartTime || 1782721085000;
@@ -2529,7 +3006,7 @@ export default function Header({
                   <div className="p-5 bg-indigo-50/30 dark:bg-slate-800/40 border border-indigo-100/40 dark:border-slate-800 rounded-2xl space-y-3.5">
                 <div className="flex items-start justify-between gap-4">
                   <div className="space-y-1">
-                    <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
+                    <h3 className="text-sm font-bold text-theme-text flex items-center gap-1.5">
                       <Cloud className="w-4.5 h-4.5 text-indigo-500" />
                       <span>Cloud Sync Mode</span>
                     </h3>
@@ -2874,7 +3351,7 @@ export default function Header({
               <div className="flex items-center gap-2.5">
                 <CloudUpload className="w-5.5 h-5.5 text-indigo-600 dark:text-indigo-400" />
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Create Secured Cloud Backup</h2>
+                  <h2 className="text-lg font-bold text-theme-text">Create Secured Cloud Backup</h2>
                   <span className="text-[10px] text-slate-500 font-medium block mt-0.5">Saves all patient logs and metadata in a password-secured ZIP archive</span>
                 </div>
               </div>
@@ -3074,7 +3551,7 @@ export default function Header({
               <div className="flex items-center gap-2.5">
                 <CloudDownload className="w-5.5 h-5.5 text-indigo-600 dark:text-indigo-400" />
                 <div>
-                  <h2 className="text-lg font-bold text-slate-900 dark:text-slate-100">Restore Database Records</h2>
+                  <h2 className="text-lg font-bold text-theme-text">Restore Database Records</h2>
                   <span className="text-[10px] text-slate-500 font-medium block mt-0.5">Restore data structures from Google Drive encrypted ZIP archives</span>
                 </div>
               </div>

@@ -2864,7 +2864,7 @@ ${logsText}`);
               <Sparkles className="w-5 h-5 animate-pulse" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-slate-950 dark:text-slate-100 font-display">
+              <h2 className="text-sm font-bold text-theme-text font-display">
                 {activeAgentKey === 'data_review' ? `${dataReviewBatchIdx === 'custom' ? 'Custom Test Batch' : 'Batch ' + (dataReviewBatchIdx !== null && dataReviewBatchIdx !== undefined ? (dataReviewBatchIdx as number) + 1 : 1)}` : (activeAgentConfig?.displayName || t.addMedical)}
               </h2>
               <button
@@ -3839,7 +3839,7 @@ ${JSON.stringify(profile, null, 2)}`);
                   <Table className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-950 dark:text-slate-100 font-display">
+                  <h3 className="text-base font-bold text-theme-text font-display">
                     {activeModalTitle}
                   </h3>
                   <p className="text-xs text-theme-text-secondary">
@@ -3938,7 +3938,7 @@ ${JSON.stringify(profile, null, 2)}`);
                   <Table className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-slate-950 dark:text-slate-100 font-display">
+                  <h3 className="text-base font-bold text-theme-text font-display">
                     Previous Review Data
                   </h3>
                   <p className="text-xs text-theme-text-secondary">

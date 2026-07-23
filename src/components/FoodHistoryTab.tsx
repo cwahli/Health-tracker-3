@@ -427,7 +427,7 @@ export default function FoodHistoryTab({
 
 
   return (
-    <div className="space-y-4 pb-40 animation-fade-in max-w-md mx-auto px-0 mt-4 font-sans text-slate-900">
+    <div className="space-y-4 pb-40 animation-fade-in max-w-md mx-auto px-0 mt-4 font-sans text-theme-text">
       
       {/* Search Input and Manual Entry Link */}
       <div className="space-y-2 px-4">

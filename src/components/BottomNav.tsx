@@ -16,7 +16,7 @@ export default function BottomNav({ activeTab, setActiveTab }: BottomNavProps) {
   ] as const;
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-950 border-t border-slate-100 dark:border-slate-900 shadow-lg py-2.5 px-4 z-40 transition-colors duration-200">
+    <nav className="fixed bottom-0 left-0 right-0 bg-theme-bg-card border-t border-theme-border shadow-lg py-2.5 px-4 z-40 transition-colors duration-200">
       <div className="max-w-md mx-auto flex items-center justify-around">
         {tabs.map((tab) => {
           const Icon = tab.icon;
@@ -34,7 +34,7 @@ export default function BottomNav({ activeTab, setActiveTab }: BottomNavProps) {
                 className={`absolute inset-0 rounded-2xl scale-95 transition-all duration-300 ${
                   isActive
                     ? 'bg-indigo-600/10 scale-100'
-                    : 'bg-transparent group-hover:bg-slate-100 dark:group-hover:bg-slate-800/50'
+                    : 'bg-transparent group-hover:bg-theme-border/40'
                 }`}
               />
               
@@ -42,7 +42,7 @@ export default function BottomNav({ activeTab, setActiveTab }: BottomNavProps) {
                 className={`w-6 h-6 relative z-10 transition-all duration-300 ${
                   isActive
                     ? 'text-indigo-600 stroke-[2.5px] scale-110'
-                    : 'text-slate-400 dark:text-slate-500 group-hover:text-slate-600 dark:group-hover:text-slate-300'
+                    : 'text-theme-text-secondary opacity-70 group-hover:opacity-100'
                 }`}
               />
             </button>
