@@ -227,7 +227,7 @@ export default function HomeTab({
             unit: def.unit || '',
             normalRange: def.normalRange || 'Unknown',
             descriptions: {
-              en: def.description || ''
+              [profile.language || 'en']: def.description || ''
             },
             benefitRisk: def.benefitRisk
           } as any);
