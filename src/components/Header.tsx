@@ -1980,14 +1980,50 @@ export default function Header({
                         const active = isPresetActive(preset.profileUpdate);
                         return (
                           <div key={idx} className={`flex justify-between items-center p-3 rounded-xl border shadow-sm transition-all ${active ? 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-400 dark:border-indigo-500 ring-2 ring-indigo-500/30' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700'}`}>
-                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">{preset.name}</span>
-                            {active ? (
-                              <span className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold">✓ Selected</span>
-                            ) : (
-                              <button onClick={() => {
-                                setProfile({ ...profile, ...preset.profileUpdate });
-                              }} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-all">Apply Default</button>
-                            )}
+                            <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex-1 truncate mr-2">{preset.name}</span>
+                            <div className="flex gap-2 items-center shrink-0">
+                              <button title="Export" onClick={() => {
+                                const exportPayload = {
+                                  _meta: {
+                                    format: 'health-tracker-3-theme-preset',
+                                    version: 1,
+                                    fields: {
+                                      themePalette: 'Hex colours. background/bgCard/border/text/textSecondary/neutralSetting are the accessible core; textAccent/textMuted/textSuccess/textError/warning/caution/success/info are status & accent text colours; nutrientCalories/nutrientProtein/nutrientCarbs/nutrientFat/nutrientSatFat/nutrientSodium are macro chart colours.',
+                                      fontFamily: 'Body/heading font name',
+                                      fontMono: 'Monospace font name (numbers, code)',
+                                      fontSize: 'Base root font size (tiny/small/normal/large/xl/xxl)',
+                                      'fontSizeTitle / fontSizeSubtitle / fontSizeBody / fontSizeBodySmall / fontSizeSubtitleSmall / fontSizeKeyMetric / fontSizeXS': 'Per-element font size overrides',
+                                      marginScale: 'Layout margin multiplier (compact/normal/relaxed)',
+                                      paddingScale: 'Component inner padding multiplier (compact/normal/relaxed)',
+                                      cornerRadius: 'Border radius scale (none/small/normal/large/pill)',
+                                      shadowScale: 'Drop shadow intensity (none/light/normal/heavy)',
+                                      customColors: 'User-added colour variables beyond the base set',
+                                      customFonts: 'Renamed labels for font-size controls',
+                                      themeOverrides: 'Raw CSS selector/property overrides (advanced)'
+                                    }
+                                  },
+                                  preset: {
+                                    name: preset.name,
+                                    ...preset.profileUpdate
+                                  }
+                                };
+                                const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+                                const url = URL.createObjectURL(blob);
+                                const a = document.createElement('a');
+                                a.href = url;
+                                a.download = `${preset.name}_preset.json`;
+                                a.click();
+                              }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 rounded-lg transition-all">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                              </button>
+                              {active ? (
+                                <span className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold">✓ Selected</span>
+                              ) : (
+                                <button onClick={() => {
+                                  setProfile({ ...profile, ...preset.profileUpdate });
+                                }} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-all">Apply Default</button>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
