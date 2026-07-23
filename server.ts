@@ -2184,19 +2184,8 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
             } : undefined
           });
         } catch (scoutErr: any) {
-          addDebugLog(`[Vision Scout Primary Failed] (${scoutErr.message}). Retrying with gemini-2.5-flash fallback...`);
-          try {
-            scoutOutput = await callUnifiedLLM({
-              modelId: "gemini-2.5-flash",
-              systemInstruction: scoutSystemInstruction,
-              promptText: scoutPromptText,
-              imagePayloads,
-              responseMimeType: "application/json"
-            });
-          } catch (retryErr: any) {
-            addDebugLog(`[Vision Scout Fallback Failed] (${retryErr.message}). Proceeding with default vision scout fallback.`);
-            scoutOutput = { scratchpad: "Vision Scout fallback engaged.", items: [] };
-          }
+          addDebugLog(`[Vision Scout Failed] (${scoutErr.message}). Skipping fallback and throwing error to user...`);
+          throw new Error(`Vision Scout Failed: ${scoutErr.message}. Please try again or change the agent manually.`);
         }
 
           const scoutResult = parseAndHealVisionScout(scoutOutput, addDebugLog);
@@ -3574,10 +3563,15 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
     }
   } catch (error: any) {
     console.error("[Food Analyze Error]:", error);
-    return res.status(200).json({
-      error: `Failed to process your request (Error: ${error.message || 'Connection timed out'}). Please try again with a different model from the top-left dropdown.`,
-      agentNotAvailable: true
-    });
+    if (isStream && hasSentHeaders) {
+      res.write(`data: ${JSON.stringify({ error: `Failed to process your request (Error: ${error.message || 'Connection timed out'}). Please try again with a different model from the top-left dropdown.`, agentNotAvailable: true })}\n\n`);
+      return res.end();
+    } else {
+      return res.status(200).json({
+        error: `Failed to process your request (Error: ${error.message || 'Connection timed out'}). Please try again with a different model from the top-left dropdown.`,
+        agentNotAvailable: true
+      });
+    }
   }
 });
 
