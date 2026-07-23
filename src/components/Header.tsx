@@ -1,5 +1,5 @@
 import { trackApiCall } from '../utils/apiTracker';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { UserProfile, DbInteraction, QuotaData, FoodLog } from '../types';
 import { translations } from '../utils/translations';
@@ -261,11 +261,13 @@ export default function Header({
   
   useEffect(() => {
     if (!themePreviewMode) {
+      revertPreview();
       setInspectedElement(null);
       return;
     }
     const handler = (e: MouseEvent) => {
       if ((e.target as Element).closest('#theme-customizer-screen') || (e.target as Element).closest('#font-select-portal') || (e.target as Element).closest('#font-select-overlay')) {
+        revertPreview();
         setInspectedElement(null);
         return;
       }
@@ -284,6 +286,7 @@ export default function Header({
       }
       
       setInspectedElement({
+        el,
         selector,
         rect: el.getBoundingClientRect(),
         text: el.innerText ? el.innerText.substring(0, 20) : 'Element'
@@ -306,6 +309,7 @@ export default function Header({
       variable: inspectorVariable
     }];
     setProfile({ ...profile, themeOverrides: newOverrides });
+    inspectorOriginalValue.current = null;
     setInspectedElement(null);
   };
 
@@ -357,10 +361,27 @@ export default function Header({
     return v;
   };
 
+  const deepEqual = (a: any, b: any): boolean => {
+    if (a === b) return true;
+    if (typeof a !== typeof b) return false;
+    if (a === null || b === null) return a === b;
+    if (Array.isArray(a) || Array.isArray(b)) {
+      if (!Array.isArray(a) || !Array.isArray(b) || a.length !== b.length) return false;
+      return a.every((v, i) => deepEqual(v, b[i]));
+    }
+    if (typeof a === 'object') {
+      const aKeys = Object.keys(a);
+      const bKeys = Object.keys(b);
+      if (aKeys.length !== bKeys.length) return false;
+      return aKeys.every(k => deepEqual(a[k], b[k]));
+    }
+    return false;
+  };
+
   const isPresetActive = (presetConfig: any) => {
     if (!presetConfig) return false;
     return PRESET_COMPARE_KEYS.every(k =>
-      JSON.stringify(normalizePresetValue((profile as any)[k])) === JSON.stringify(normalizePresetValue((presetConfig as any)[k]))
+      deepEqual(normalizePresetValue((profile as any)[k]), normalizePresetValue((presetConfig as any)[k]))
     );
   };
 
@@ -418,18 +439,18 @@ export default function Header({
   const getColorVariable = (key: string) => {
     const map: Record<string, string> = {
       button: '--color-indigo-500',
-      background: '--color-slate-50',
-      bgCard: '--color-white',
-      border: '--color-slate-200',
-      text: '--color-slate-900',
-      textSecondary: '--color-slate-500',
+      background: '--app-bg',
+      bgCard: '--app-bg-card',
+      border: '--app-border',
+      text: '--app-text',
+      textSecondary: '--app-text-secondary',
       textAccent: '--color-text-accent',
       textMuted: '--color-text-muted',
       warning: '--color-rose-500',
       caution: '--color-amber-500',
       success: '--color-emerald-500',
       info: '--color-blue-500',
-      neutralSetting: '--color-slate-700',
+      neutralSetting: '--app-neutral',
       nutrientCalories: '--color-nutrient-calories',
       nutrientProtein: '--color-nutrient-protein',
       nutrientCarbs: '--color-nutrient-carbohydrates',
@@ -438,6 +459,52 @@ export default function Header({
       nutrientSodium: '--color-nutrient-sodium'
     };
     return map[key] || `--color-${key}`;
+  };
+
+  const detectCurrentVariable = (el: HTMLElement, property: string) => {
+    const cssProp = property === 'color' ? 'color' : property === 'background-color' ? 'backgroundColor' : property === 'border-color' ? 'borderColor' : null;
+    if (!cssProp) return '';
+    const currentValue = getComputedStyle(el)[cssProp as any];
+    const probe = document.createElement('div');
+    probe.style.position = 'fixed';
+    probe.style.visibility = 'hidden';
+    probe.style.pointerEvents = 'none';
+    document.body.appendChild(probe);
+    let matched = '';
+    for (const color of colorsList) {
+      (probe.style as any)[cssProp] = `var(${getColorVariable(color.key)})`;
+      if (getComputedStyle(probe)[cssProp as any] === currentValue) {
+        matched = `var(${getColorVariable(color.key)})`;
+        break;
+      }
+    }
+    document.body.removeChild(probe);
+    return matched;
+  };
+
+  useEffect(() => {
+    if (inspectedElement?.el) {
+      setInspectorVariable(detectCurrentVariable(inspectedElement.el, inspectorProperty));
+    }
+  }, [inspectedElement, inspectorProperty]);
+
+  const inspectorOriginalValue = useRef<string | null>(null);
+
+  const applyPreview = (variable: string, property: string, el: HTMLElement) => {
+    const cssProp = property === 'color' ? 'color' : property === 'background-color' ? 'backgroundColor' : property === 'border-color' ? 'borderColor' : null;
+    if (!cssProp) return;
+    if (inspectorOriginalValue.current === null) {
+      inspectorOriginalValue.current = el.style[cssProp as any] || '';
+    }
+    (el.style as any)[cssProp] = variable ? variable : '';
+  };
+
+  const revertPreview = () => {
+    if (inspectedElement?.el && inspectorOriginalValue.current !== null) {
+      const cssProp = inspectorProperty === 'color' ? 'color' : inspectorProperty === 'background-color' ? 'backgroundColor' : inspectorProperty === 'border-color' ? 'borderColor' : null;
+      if (cssProp) (inspectedElement.el.style as any)[cssProp] = inspectorOriginalValue.current;
+    }
+    inspectorOriginalValue.current = null;
   };
 
   const getFontVariable = (key: string) => {
@@ -1152,7 +1219,7 @@ export default function Header({
         <div id="inspector-popup" className="fixed z-[100] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-4 flex flex-col gap-3 w-64" style={{ top: Math.min(window.innerHeight - 250, inspectedElement.rect.bottom + 10), left: Math.min(window.innerWidth - 270, Math.max(10, inspectedElement.rect.left)) }}>
           <div className="flex justify-between items-center">
             <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100 truncate flex-1">{inspectedElement.selector}</h4>
-            <button onClick={() => setInspectedElement(null)} className="text-slate-400 hover:text-slate-600 ml-2">✕</button>
+            <button onClick={() => { revertPreview(); setInspectedElement(null); }} className="text-slate-400 hover:text-slate-600 ml-2">✕</button>
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-slate-500 uppercase">Property</label>
@@ -1166,7 +1233,10 @@ export default function Header({
           </div>
           <div className="space-y-1">
             <label className="text-[10px] font-bold text-slate-500 uppercase">Variable</label>
-            <select value={inspectorVariable} onChange={e => setInspectorVariable(e.target.value)} className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-slate-900 dark:text-slate-100">
+            <select value={inspectorVariable} onChange={e => {
+              setInspectorVariable(e.target.value);
+              if (inspectedElement?.el) applyPreview(e.target.value, inspectorProperty, inspectedElement.el);
+            }} className="w-full text-xs bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-1.5 text-slate-900 dark:text-slate-100">
               <option value="">Select variable...</option>
               {inspectorProperty.includes('color') ? (
                 <>
@@ -1276,7 +1346,10 @@ export default function Header({
                   <button
                     onClick={() => {
                       setInspectorPaused(!inspectorPaused);
-                      if (!inspectorPaused) setInspectedElement(null);
+                      if (!inspectorPaused) {
+                        revertPreview();
+                        setInspectedElement(null);
+                      }
                     }}
                     className={`p-1.5 rounded-lg transition-colors cursor-pointer mr-1 ${
                       inspectorPaused
@@ -1307,6 +1380,7 @@ export default function Header({
                       onSaveProfile(profile);
                     }
                     setThemePreviewMode(false);
+                    revertPreview();
                     setInspectedElement(null);
                     setShowThemeScreen(false);
                   }}
@@ -1317,6 +1391,7 @@ export default function Header({
                 <button
                   onClick={() => {
                     setThemePreviewMode(false);
+                    revertPreview();
                     setInspectedElement(null);
                     setShowThemeScreen(false);
                   }}
