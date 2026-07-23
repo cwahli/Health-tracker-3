@@ -3422,21 +3422,21 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         parsedData.nutrients = nutrients;
         parsedData.itemsBreakdown = itemsBreakdown;
 
-        // Format & Stream Step-by-Step Nutritional Receipt into "Agent thought..."
-        let receiptText = "\n\n=== 🧾 FIRST-PRINCIPLES NUTRITIONAL RECEIPT ===\n";
+        // Construct Step-by-Step Nutritional Receipt Ledger
+        let receiptText = "=== 🧾 FIRST-PRINCIPLES NUTRITIONAL RECEIPT ===\n\n";
         parsedData.itemsBreakdown.forEach((it: any, idx: number) => {
           receiptText += `${idx + 1}. ${it.name} (${it.weightGrams}g, ${it.cookingMethod || 'standard'})\n` +
             `   ├─ Base Nutrients (${String(it.dbSource).toUpperCase()}${it.dbId ? ' #' + it.dbId : ''}): ${Math.round(it.calories || 0)} kcal | ${Math.round(it.sodium || 0)}mg Sodium\n` +
-            `   └─ DbSource: ${it.dbSource}\n`;
+            `   └─ DbSource: ${it.dbSource}\n\n`;
         });
-        receiptText += `===============================================\n`;
-        
+        receiptText += "===============================================\n";
+
         // Stream to live "Agent thought..." box in UI
         sendStreamEvent({ type: 'stream', stage: 'dietitian', thought: receiptText });
-        
-        // Persist inside response thought so user can expand "Agent thought..." anytime after loading
-        if (!parsedData.thought) parsedData.thought = "";
-        parsedData.thought += receiptText;
+
+        // Attach receiptText to parsedData.thought and rawParsed.scratchpad
+        parsedData.thought = receiptText + "\n\n" + (parsedData.thought || rawParsed.scratchpad || "");
+        rawParsed.scratchpad = receiptText + "\n\n" + (rawParsed.scratchpad || "");
       } else {
         addDebugLog(`[Nutrient Warning] LLM returned no itemsBreakdown for "${parsedData.name}". All nutrients will be zero. Check LLM prompt compliance.`);
         parsedData.nutrients = {};
