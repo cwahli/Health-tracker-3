@@ -3464,7 +3464,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
             
             addDebugLog(`[Modify Math] update_weight of entire meal "${activeMeal.name}" from ${oldTotalWeight}g to ${newWeight}g (ratio: ${R.toFixed(3)})`);
           } else {
-            const targetDbId = cmd.targetDbId ? String(cmd.targetDbId) : null;
+            const targetDbId = cmd.targetDbId ? String(cmd.targetDbId).replace(/[^\x20-\x7E]/g, '').trim() : null;
             const idx = findItemIndex(itemName, targetDbId);
             let item = idx !== -1 ? activeMeal.itemsBreakdown[idx] : null;
 
@@ -3484,7 +3484,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           }
         } 
         else if (action === "remove_item") {
-          const targetDbId = cmd.targetDbId ? String(cmd.targetDbId) : null;
+          const targetDbId = cmd.targetDbId ? String(cmd.targetDbId).replace(/[^\x20-\x7E]/g, '').trim() : null;
           const idx = findItemIndex(itemName, targetDbId);
 
           if (idx !== -1) {
@@ -3496,7 +3496,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           }
         } 
         else if (action === "rename_alias") {
-          const targetDbId = cmd.targetDbId ? String(cmd.targetDbId) : null;
+          const targetDbId = cmd.targetDbId ? String(cmd.targetDbId).replace(/[^\x20-\x7E]/g, '').trim() : null;
           const idx = findItemIndex(itemName, targetDbId);
           if (idx !== -1) {
             const item = activeMeal.itemsBreakdown[idx];
@@ -3509,7 +3509,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           }
         }
         else if (action === "update_cooking_method") {
-          const targetDbId = cmd.targetDbId ? String(cmd.targetDbId) : null;
+          const targetDbId = cmd.targetDbId ? String(cmd.targetDbId).replace(/[^\x20-\x7E]/g, '').trim() : null;
           const idx = findItemIndex(itemName, targetDbId);
           if (idx !== -1) {
             const item = activeMeal.itemsBreakdown[idx];

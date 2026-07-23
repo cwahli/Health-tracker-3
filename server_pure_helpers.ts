@@ -93,11 +93,13 @@ export function sanitizeString(val: any, fallback: string): string {
 export function findItemIndexInList(itemsBreakdown: any[], itemNameStr: string, targetDbId: string | null): number {
   if (!itemsBreakdown || !Array.isArray(itemsBreakdown)) return -1;
   const nameLower = itemNameStr.trim().toLowerCase();
-  if (!nameLower && !targetDbId) return -1;
+  // Sanitize targetDbId: strip all non-printable/non-ASCII characters (e.g. emoji variation selectors)
+  const cleanDbId = targetDbId ? String(targetDbId).replace(/[^\x20-\x7E]/g, '').trim() : null;
+  if (!nameLower && !cleanDbId) return -1;
 
   // 1. Exact match by dbId
-  if (targetDbId) {
-    const idx = itemsBreakdown.findIndex((it: any) => it.dbId && String(it.dbId) === targetDbId);
+  if (cleanDbId) {
+    const idx = itemsBreakdown.findIndex((it: any) => it.dbId && String(it.dbId) === cleanDbId);
     if (idx !== -1) return idx;
   }
 
