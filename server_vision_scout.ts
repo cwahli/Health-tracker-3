@@ -4,6 +4,9 @@ import { extractBalancedJson } from "./server_pure_helpers";
 export const ScoutItemComponentSchema = z.object({
   searchQuery: z.string(),
   volumePercentage: z.number().finite().positive(),
+  visualSheen: z.number().min(0.0).max(1.0).optional(),
+  visualCoating: z.number().min(0.0).max(1.0).optional(),
+  pieceCount: z.number().optional(),
 });
 
 export const ScoutItemSchema = z.object({
@@ -16,6 +19,7 @@ export const ScoutItemSchema = z.object({
 
 export const VisionScoutSchema = z.object({
   items: z.array(ScoutItemSchema).optional(),
+  diningEnvironment: z.string().optional(),
 }).passthrough();
 
 export const scoutSystemInstruction = `You are a fast, precise visual food identification and localization agent. You will receive one or more images along with the user's optional textual message.
@@ -29,24 +33,18 @@ For each image, determine if it contains:
 STEP 2 — DENSITY APPRAISAL:
 Appraise ALL provided images together and estimate the TOTAL number of distinct food items, menu options, or physical packages present across every image. Then follow ONE branch below. In BOTH branches you MUST always populate the "items" array with real JSON objects — never a flattened or delimited text row — and every object MUST carry a real \`boundingBox2D\`. This must work correctly whether there are 2 items on the table or 100 items on a menu.
 
-BRANCH A — LOW DENSITY (< 15 total items):
-- Extract EVERY single food item, product package, or nutrition label individually into "items".
-- Draw a tight, precise \`boundingBox2D\` around each item.
+BRANCH A — INDIVIDUAL BREAKDOWN MODE (< 15 total items):
+- Extract EVERY single food item, dish, side, or package 1-by-1 as an individual JSON object in \`items\`.
+- Provide a tight, precise individual \`boundingBox2D\` [ymin, xmin, ymax, xmax] for EVERY item.
+- Provide detailed \`components\` array with volume percentages, \`visualSheen\` (0.0-1.0), \`visualCoating\` (0.0-1.0), and \`pieceCount\`.
 - MEAL vs. COMPARISON ROUTING: if the images show distinct packaged products or menu options of the same category meant to be compared (e.g., 4 different bread wrappers, or a menu of options), set "recommendedMode" to "evaluation". If the images show ingredients or dishes meant to be eaten together as one meal (e.g., fish + rice + a side, or several grocery items for a single meal), set "recommendedMode" to "new_log".
 - COMPONENT DECOMPOSITION DIRECTIVE: For every identified item, decompose complex dishes or products into their core sub-components inside the 'components' array with corresponding estimated volume percentages (totaling 100%). For example, 'siomai with seaweed' becomes keyword: 'siomai dumpling' with component: 'pork dumpling' (80%) and component: 'seaweed' (20%). If the food is simple and has no sub-components, just add a single component matching the base food name with 100% volume.
 - FIRST-PRINCIPLES RESTAURANT MEAL DECOMPOSITION DIRECTIVE: For restaurant or cooked meals (e.g., pan-fried steak, grilled salmon, pasta, fried rice), think in terms of raw base ingredients for database querying (e.g., 'raw beef steak', 'raw potato') so that the database lookup retrieves raw nutrient baselines. Identify the exact restaurant cooking method (e.g., 'pan_fried', 'roasted', 'deep_fried') so backend coefficients will properly add cooking fat, calories, and seasoning salt.
 
-BRANCH B — HIGH DENSITY (>= 15 total items):
-Still populate "items" as real JSON objects. Adapt HOW you group items based on the visual layout to guarantee 100% coverage without crashing token limits:
-  1. TEXT-HEAVY STRUCTURED MENUS: Use semantic category blocking. One entry per section (e.g. "Aneka Ikan Bakar"). Draw ONE \`boundingBox2D\` around the section. Set "keyword" to the category name, and "originalName" to a comma-separated list of items.
-  2. PHYSICAL GROCERY SHELVES & IMAGE GRIDS (e.g. rows of drinks or chips): Group by PHYSICAL SPACE.
-     - CRITICAL REJECTION: You are strictly FORBIDDEN from drawing a single massive bounding box around the entire image (e.g., covering the whole frame).
-     - You MUST physically slice the image into 3 to 6 distinct spatial rows or shelves (e.g., "Top Row", "Middle Row").
-     - Create one "items" object per row. 
-     - Set \`keyword\` to the spatial name. 
-     - Set \`originalName\` to a comma-separated list of all legible products in that specific row.
-  3. UNSTRUCTURED TEXT LISTS: Group by physical proximity. One \`boundingBox2D\` per cluster of roughly 8-10 lines.
-  Every "items" entry, however it is grouped, MUST still carry a real, specific \`boundingBox2D\` and \`sourceImageIndex\` — never default to the full image bounds unless the item genuinely fills the entire frame.
+BRANCH B — COMPACT / SPREADSHEET MODE (>= 15 total items):
+- Switch to Compact / Spreadsheet Mode to prevent token truncation.
+- For structured text menus: group by category blocks (one entry per category with a single category \`boundingBox2D\`).
+- For physical grocery shelves (e.g. 40+ chips/drinks): slice the shelf into 3 to 6 distinct spatial row bounding boxes ("Top Row", "Middle Row"), listing all products in that row inside \`originalName\`.
 STEP 3 — CORE EXTRACTION & GROUPING LAWS (apply in both branches):
 - PRODUCT/PRICE LABELS (type a): Read the EXACT food name and weight. Convert kg to grams.
 - NUTRITION FACTS LABELS (type b): DO NOT perform math or scale values per 100g. Transcribe the EXACT total package weight, serving size weight, and nutrients per serving exactly as printed into the "rawNutritionLabel" object. Extract the full printed ingredients/Komposisi text into "ingredientsList". If an item has NO legible physical nutrition panel visible, leave "rawNutritionLabel" as {} and "ingredientsList" as null — do not estimate or hallucinate these values. The "nutritionFacts" field is reserved for downstream use and must always be left as {} by you; never populate it yourself.
@@ -103,6 +101,7 @@ JSON SCHEMA STRICT REQUIREMENT:
 {
   "recommendedMode": "new_log | evaluation | discussion",
   "contentType": "visual | menu_or_poster | text",
+  "diningEnvironment": "home_cooked | casual_restaurant | fast_food_chain | fine_dining | unknown",
   "items": [
     {
       "keyword": "string (The core base item only. No toppings, flavors, or subcomponents. e.g., 'siomai dumpling', 'pomfret fish')",
@@ -110,7 +109,10 @@ JSON SCHEMA STRICT REQUIREMENT:
       "components": [
         {
           "searchQuery": "string (Simple component name for the database, e.g., 'pork dumpling' or 'seaweed')",
-          "volumePercentage": "number (Volume percentage of this component in the total item weight, e.g., 80)"
+          "volumePercentage": "number (Volume percentage of this component in the total item weight, e.g., 80)",
+          "visualSheen": "number (0.0 to 1.0)",
+          "visualCoating": "number (0.0 to 1.0)",
+          "pieceCount": "number"
         }
       ],
       "originalName": "string",
@@ -182,6 +184,7 @@ export interface VisionScoutResult {
   scoutRecommendedMode: string | null;
   queriesToSearch: string[];
   visionScoutRanAndReturnedItems: boolean;
+  diningEnvironment: string;
 }
 
 export function parseAndHealVisionScout(
@@ -216,10 +219,14 @@ export function parseAndHealVisionScout(
   let scoutRecommendedMode: string | null = null;
   let queriesToSearch: string[] = [];
   let visionScoutRanAndReturnedItems = false;
+  let diningEnvironment = "casual_restaurant";
 
   if (parsedScout) {
     let lowestConfidence = "High (>90%)";
     let globalComment = "";
+    if (parsedScout.diningEnvironment) {
+      diningEnvironment = parsedScout.diningEnvironment;
+    }
     if (Array.isArray(parsedScout.items)) {
       for (const it of parsedScout.items) {
         if (it.itemConfidence && it.itemConfidence.toLowerCase().includes("low")) {
@@ -447,6 +454,7 @@ export function parseAndHealVisionScout(
     visionScoutContentType,
     scoutRecommendedMode,
     queriesToSearch,
-    visionScoutRanAndReturnedItems
+    visionScoutRanAndReturnedItems,
+    diningEnvironment
   };
 }

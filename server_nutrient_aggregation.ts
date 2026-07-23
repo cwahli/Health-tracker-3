@@ -1,5 +1,5 @@
 import { NUTRIENT_KEYS } from "./src/utils/nutrients";
-import { getTraceNutrientsForFoodType, getCookingMethodModifier } from "./server_food_db";
+import { getTraceNutrientsForFoodType, getCookingMethodModifier, calculateUniversalAddedNutrients } from "./server_food_db";
 import { 
   sanitizeMealWeight, 
   sanitizeString,
@@ -89,19 +89,19 @@ export function aggregateItemsNutrients(
 
     // STEP 2.5: Apply cooking method modifiers (fat, calories, sodium)
     const cookingMethod = item.cookingMethod || 'unknown';
-    const oilModifier = getCookingMethodModifier(cookingMethod);
-    if ((oilModifier.addedFatPer100g > 0 || oilModifier.addedSodiumPer100g > 0) && dbSource !== 'estimated') {
-      const factor = itemWeight / 100;
-      const addedFat = parseFloat((oilModifier.addedFatPer100g * factor).toFixed(2));
-      const addedSatFat = parseFloat((oilModifier.addedSaturatedFatPer100g * factor).toFixed(2));
-      const addedCalories = parseFloat((oilModifier.addedCaloriesPer100g * factor).toFixed(1));
-      const addedSodium = parseFloat((oilModifier.addedSodiumPer100g * factor).toFixed(1));
+    const visualSheen = item.visualSheen !== undefined ? item.visualSheen : 0.5;
+    const visualCoating = item.visualCoating !== undefined ? item.visualCoating : 0.5;
+    const diningEnvironment = item.diningEnvironment || 'casual_restaurant';
+    const foodMatrix = item.foodType === 'ultra_processed' ? 'CELLULAR_STARCH' : 'WHOLE_FOOD';
+    
+    const addedNutrients = calculateUniversalAddedNutrients(foodMatrix, cookingMethod, itemWeight, visualSheen, visualCoating, diningEnvironment);
 
-      itemNutrients.totalFat = parseFloat((itemNutrients.totalFat + addedFat).toFixed(2));
-      itemNutrients.saturatedFat = parseFloat((itemNutrients.saturatedFat + addedSatFat).toFixed(2));
-      itemNutrients.calories = parseFloat((itemNutrients.calories + addedCalories).toFixed(1));
-      itemNutrients.sodium = parseFloat((itemNutrients.sodium + addedSodium).toFixed(1));
-      addDebugLog(`[Nutrient Modifier] Applied cooking method "${cookingMethod}" (${oilModifier.description}) to "${canonicalName}": added +${addedFat}g fat, +${addedSatFat}g satFat, +${addedCalories} kcal, +${addedSodium}mg sodium.`);
+    if ((addedNutrients.addedFat > 0 || addedNutrients.addedSodium > 0) && dbSource !== 'estimated') {
+      itemNutrients.totalFat = parseFloat((itemNutrients.totalFat + addedNutrients.addedFat).toFixed(2));
+      itemNutrients.saturatedFat = parseFloat((itemNutrients.saturatedFat + addedNutrients.addedSaturatedFat).toFixed(2));
+      itemNutrients.calories = parseFloat((itemNutrients.calories + addedNutrients.addedCalories).toFixed(1));
+      itemNutrients.sodium = parseFloat((itemNutrients.sodium + addedNutrients.addedSodium).toFixed(1));
+      addDebugLog(`[Nutrient Modifier] Applied universal adhesion equation for "${canonicalName}": added +${addedNutrients.addedFat.toFixed(2)}g fat, +${addedNutrients.addedCalories.toFixed(1)} kcal, +${addedNutrients.addedSodium.toFixed(1)}mg sodium.`);
     }
 
     // DIETITIAN REALITY CHECK: Sodium & Macro Sanity Check
@@ -112,10 +112,24 @@ export function aggregateItemsNutrients(
                             nameLower.includes('anchovy') || nameLower.includes('pickle') || nameLower.includes('fish sauce');
     const sodiumPer100g = (itemNutrients.sodium / itemWeight) * 100;
     if (!isCuredOrSalted && sodiumPer100g > 500) {
-      const realisticSodium = Math.round((250 + (oilModifier.addedSodiumPer100g || 150)) * (itemWeight / 100));
+      const realisticSodium = Math.round((250 + (addedNutrients.addedSodium / (itemWeight / 100) || 150)) * (itemWeight / 100));
       addDebugLog(`[Dietitian Reality Check] Sodium for "${canonicalName}" (${itemNutrients.sodium}mg) was unrealistically high for a non-cured item. Reality check adjusted sodium from ${itemNutrients.sodium}mg to ${realisticSodium}mg.`);
       itemNutrients.sodium = realisticSodium;
     }
+
+    const proteinPer100g = (itemNutrients.protein / itemWeight) * 100;
+    const isProteinPowder = nameLower.includes('powder') || nameLower.includes('isolate') || nameLower.includes('whey');
+    if (!isProteinPowder && proteinPer100g > 45) {
+       const realisticProtein = 45 * (itemWeight / 100);
+       addDebugLog(`[Dietitian Reality Check] Protein for "${canonicalName}" (${itemNutrients.protein}g) exceeded 45g/100g ceiling. Capped to ${realisticProtein}g.`);
+       itemNutrients.protein = realisticProtein;
+    }
+
+    // Zero-macro fallback for essential fields
+    if (isNaN(itemNutrients.calories) || itemNutrients.calories < 0) itemNutrients.calories = 0;
+    if (isNaN(itemNutrients.protein) || itemNutrients.protein < 0) itemNutrients.protein = 0;
+    if (isNaN(itemNutrients.totalFat) || itemNutrients.totalFat < 0) itemNutrients.totalFat = 0;
+    if (isNaN(itemNutrients.carbohydrates) || itemNutrients.carbohydrates < 0) itemNutrients.carbohydrates = 0;
 
     // STEP 3: Derive the 20 trace nutrients from food-type classification
     const foodType = item.foodType || 'unknown';

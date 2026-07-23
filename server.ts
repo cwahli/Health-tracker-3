@@ -2521,6 +2521,12 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
           // 3. Source prioritization: prefer USDA (Foundation/SR Legacy) for raw ingredients
           if (m.source === 'usda') {
             score += 80;
+            const dataTypeLower = String(m.dataType || m.dataTypeName || '').toLowerCase();
+            if (dataTypeLower.includes('foundation') || dataTypeLower.includes('sr legacy') || dataTypeLower.includes('sr_legacy')) {
+              if (!queryHasBrand && !queryHasProcessedTerm) {
+                score += 200;
+              }
+            }
           } else if (m.source === 'off') {
             // Penalize OFF (Open Food Facts) by default unless query has a brand
             if (!queryHasBrand) {
@@ -2581,12 +2587,14 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       };
 
       let hasComponents = false;
+      let primaryBestMatch: any = null;
       if (item.components && Array.isArray(item.components) && item.components.length > 0) {
         hasComponents = true;
         item.components.forEach((comp: any) => {
           const compWeight = itemWeight * ((comp.volumePercentage || 100) / 100);
           const bestMatch = findBestMatch(comp.searchQuery);
           if (bestMatch && dbMatchMap.has(bestMatch.id)) {
+            if (!primaryBestMatch) primaryBestMatch = bestMatch;
             const baseNutrients = dbMatchMap.get(bestMatch.id);
             const factor = compWeight / 100;
             Object.keys(aggregatedNutrients).forEach(key => {
@@ -2599,6 +2607,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       } else {
         const bestMatch = findBestMatch(item.keyword);
         if (bestMatch && dbMatchMap.has(bestMatch.id)) {
+          primaryBestMatch = bestMatch;
           const baseNutrients = dbMatchMap.get(bestMatch.id);
           const factor = itemWeight / 100;
           Object.keys(aggregatedNutrients).forEach(key => {
@@ -2609,12 +2618,21 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
         }
       }
       
+      let pieceCount = 1;
+      if (item.components && Array.isArray(item.components) && item.components.length > 0) {
+         pieceCount = item.components[0].pieceCount || 1;
+      }
+
       return {
         keyword: item.keyword,
         originalName: item.originalName || item.keyword,
         estimatedWeightGrams: itemWeight,
         hasComponents,
-        nutrients: aggregatedNutrients
+        nutrients: aggregatedNutrients,
+        scoutIndex: item.scoutIndex,
+        bestMatchDbId: primaryBestMatch ? primaryBestMatch.id : null,
+        bestMatchDbSource: primaryBestMatch ? primaryBestMatch.source : null,
+        pieceCount: pieceCount
       };
     });
 
@@ -2936,7 +2954,8 @@ ${databaseMatches}
             recommendation: { type: Type.STRING },
             cookingMethod: { type: Type.STRING, description: "Identify the cooking method and list any seasonings/sauces used, as well as their contribution/impact on the total nutrients consumed (e.g. 'Pan-fried in vegetable oil adding approx 5g fat; seasoned with soy sauce contributing 150mg sodium')." },
             scoutConfidenceRating: { type: Type.STRING, description: "Confidence rating copied from the VISUAL FOOD SCOUT block: 'Low (<50%)', 'Medium (50-90%)', or 'High (>90%)'." },
-            scoutConfidenceComment: { type: Type.STRING, description: "Optional explanation of why confidence is Low or Medium and how to improve it, copied or adapted from VISUAL FOOD SCOUT comments.", nullable: true }
+            scoutConfidenceComment: { type: Type.STRING, description: "Optional explanation of why confidence is Low or Medium and how to improve it, copied or adapted from VISUAL FOOD SCOUT comments.", nullable: true },
+            diningEnvironment: { type: Type.STRING, description: "'home_cooked' | 'casual_restaurant' | 'fast_food_chain' | 'fine_dining' | 'unknown'", nullable: true }
           },
           required: [
             "date",
@@ -3299,7 +3318,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
 
       // Map and construct itemsBreakdown and aggregate all nutrients
       if (rawFoodData.itemsBreakdown && Array.isArray(rawFoodData.itemsBreakdown) && rawFoodData.itemsBreakdown.length > 0) {
-        // Enrich items with originalLocalName from visionScoutItems if available
+        // Enrich items with originalLocalName from visionScoutItems and preCalculatedItems if available
         if (visionScoutItems && Array.isArray(visionScoutItems)) {
           rawFoodData.itemsBreakdown = rawFoodData.itemsBreakdown.map((item: any) => {
             const canonicalLower = (item.canonicalDbName || item.name || "").toLowerCase();
@@ -3316,6 +3335,29 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
               );
             });
             if (match) {
+              const preCalc = preCalculatedItems.find((p: any) => p.scoutIndex === match.scoutIndex);
+              if (preCalc && preCalc.bestMatchDbId) {
+                return {
+                  ...item,
+                  originalLocalName: match.originalName || item.originalLocalName || null,
+                  dbId: preCalc.bestMatchDbId,
+                  dbSource: preCalc.bestMatchDbSource,
+                  labelNutrientsPerServing: {
+                    servingSizeGrams: 100,
+                    calories: preCalc.nutrients.calories,
+                    protein: preCalc.nutrients.protein,
+                    totalFat: preCalc.nutrients.totalFat,
+                    saturatedFat: preCalc.nutrients.saturatedFat,
+                    transFat: preCalc.nutrients.transFat || 0,
+                    carbohydrates: preCalc.nutrients.carbohydrates,
+                    addedSugar: preCalc.nutrients.addedSugar,
+                    sodium: preCalc.nutrients.sodium,
+                    potassium: preCalc.nutrients.potassium || 0,
+                    totalFibre: preCalc.nutrients.totalFibre || 0,
+                    solubleFibre: preCalc.nutrients.solubleFibre || 0
+                  }
+                };
+              }
               return {
                 ...item,
                 originalLocalName: match.originalName || item.originalLocalName || null
@@ -3334,6 +3376,15 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         );
         parsedData.nutrients = nutrients;
         parsedData.itemsBreakdown = itemsBreakdown;
+
+        let receiptText = "\n\n=== 🧾 FIRST-PRINCIPLES NUTRITIONAL RECEIPT ===\n";
+        itemsBreakdown.forEach((it: any, idx: number) => {
+          receiptText += `${idx + 1}. ${it.name} (${it.weightGrams}g, ${it.cookingMethod || 'standard'})\n` +
+            `   ├─ Base Nutrients (${String(it.dbSource).toUpperCase()}${it.dbId ? ' #' + it.dbId : ''}): ${Math.round(it.calories)} kcal | ${it.sodium}mg Sodium\n` +
+            `   └─ DbSource: ${it.dbSource}\n`;
+        });
+        receiptText += `===============================================\n`;
+        sendStreamEvent({ type: 'stream', stage: 'dietitian', thought: receiptText });
       } else {
         addDebugLog(`[Nutrient Warning] LLM returned no itemsBreakdown for "${parsedData.name}". All nutrients will be zero. Check LLM prompt compliance.`);
         parsedData.nutrients = {};

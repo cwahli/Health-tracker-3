@@ -61,6 +61,38 @@ export const COOKING_METHOD_OIL_MODIFIERS: Record<string, OilModifier> = {
   unknown:    { addedFatPer100g: 0.0,  addedSaturatedFatPer100g: 0.0,  addedCaloriesPer100g: 0.0,  addedSodiumPer100g: 100.0, description: "Standard" }
 };
 
+export function calculateUniversalAddedNutrients(
+  foodMatrix: string,
+  cookingMethod: string,
+  weightGrams: number,
+  visualSheen: number = 0.5,
+  visualCoating: number = 0.5,
+  diningEnvironment: string = 'casual_restaurant'
+) {
+  let kInternal = 0.0;
+  if (foodMatrix === 'CELLULAR_STARCH') {
+    if (cookingMethod === 'deep_fried') kInternal = 0.10;
+    else if (cookingMethod === 'pan_fried') kInternal = 0.03;
+  }
+
+  const envMults: Record<string, { sodium: number; lipid: number }> = {
+    home_cooked: { sodium: 0.60, lipid: 0.60 },
+    casual_restaurant: { sodium: 1.00, lipid: 1.00 },
+    fast_food_chain: { sodium: 1.40, lipid: 1.40 },
+    fine_dining: { sodium: 0.90, lipid: 1.30 },
+    unknown: { sodium: 1.00, lipid: 1.00 }
+  };
+  const env = envMults[diningEnvironment] || envMults.casual_restaurant;
+
+  const surfaceAreaFactor = weightGrams / 100;
+  const addedFat = (weightGrams * kInternal + surfaceAreaFactor * visualSheen * 8.0) * env.lipid;
+  const addedSaturatedFat = addedFat * 0.20;
+  const addedCalories = addedFat * 9.0;
+  const addedSodium = (surfaceAreaFactor * visualCoating * 500.0) * env.sodium;
+
+  return { addedFat, addedSaturatedFat, addedCalories, addedSodium };
+}
+
 export function getCookingMethodModifier(methodStr: string | null | undefined): OilModifier {
   if (!methodStr) return COOKING_METHOD_OIL_MODIFIERS.unknown;
   const normalized = methodStr.toLowerCase().replace(/[^a-z0-9_]/g, '_');
