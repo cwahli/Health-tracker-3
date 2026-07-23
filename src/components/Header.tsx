@@ -223,6 +223,8 @@ export default function Header({
   
   const [themeActiveSection, setThemeActiveSection] = useState<'colors' | 'fonts' | 'tokens' | 'components' | 'elements' | 'presets'>('colors');
   const [expandedColorKey, setExpandedColorKey] = useState<string | null>(null);
+  const [colorDraft, setColorDraft] = useState<{ key: string; label: string; value: string } | null>(null);
+  const [textPreviewOverride, setTextPreviewOverride] = useState<Record<string, 'light' | 'dark'>>({});
   const [justSavedKey, setJustSavedKey] = useState<string | null>(null);
   const [inspectedElement, setInspectedElement] = useState<any>(null);
   const [inspectorPaused, setInspectorPaused] = useState(false);
@@ -1501,7 +1503,9 @@ export default function Header({
                     const renderColorItem = (color: any) => {
                       const activeVal = (profile.themePalette as any)?.[color.key] || color.defaultHex;
                       const isExpanded = expandedColorKey === color.key;
-                      
+                      const draftLabel = colorDraft && colorDraft.key === color.key ? colorDraft.label : color.label;
+                      const draftVal = colorDraft && colorDraft.key === color.key ? colorDraft.value : activeVal;
+
                       return (
                         <div key={color.key} className="transition-all duration-200">
                           {/* Main Row */}
@@ -1511,7 +1515,15 @@ export default function Header({
                             <div className="flex items-center min-w-0 flex-1">
                               {/* Swatch */}
                               <div 
-                                onClick={() => setExpandedColorKey(isExpanded ? null : color.key)}
+                                onClick={() => {
+                                  if (isExpanded) {
+                                    setExpandedColorKey(null);
+                                    setColorDraft(null);
+                                  } else {
+                                    setExpandedColorKey(color.key);
+                                    setColorDraft({ key: color.key, label: color.label, value: activeVal });
+                                  }
+                                }}
                                 className="w-5 h-5 rounded-full shadow-inner shrink-0 cursor-pointer hover:opacity-80 transition-opacity" 
                                 style={{ backgroundColor: activeVal }}
                                 title={isExpanded ? 'Close editor' : 'Click to edit'}
@@ -1525,22 +1537,6 @@ export default function Header({
                                 </span>
                               </div>
                             </div>
-
-                            <div className="flex items-center gap-2 ml-2 shrink-0">
-                              {color.key.startsWith('custom_') && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteColor(color.key);
-                                  }}
-                                  className="text-slate-400 hover:text-rose-500 transition-all p-1 text-xs font-bold cursor-pointer"
-                                  title="Delete color variable"
-                                >
-                                  ✕
-                                </button>
-                              )}
-                            </div>
                           </div>
 
                           {/* Expanded Editor State */}
@@ -1550,9 +1546,9 @@ export default function Header({
                                 <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Variable Name</label>
                                 <input
                                   type="text"
-                                  value={color.label}
+                                  value={draftLabel}
                                   onClick={(e) => e.stopPropagation()}
-                                  onChange={(e) => handleRenameColor(color.key, e.target.value)}
+                                  onChange={(e) => setColorDraft(d => d && d.key === color.key ? { ...d, label: e.target.value } : d)}
                                   className="text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none transition-all w-full"
                                   placeholder="E.g. Primary Accent"
                                 />
@@ -1563,36 +1559,69 @@ export default function Header({
                                 <div className="flex items-center gap-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg p-1.5 shadow-sm">
                                   <input
                                     type="color"
-                                    value={activeVal.startsWith('#') && (activeVal.length === 7 || activeVal.length === 4) ? activeVal : color.defaultHex}
+                                    value={draftVal.startsWith('#') && (draftVal.length === 7 || draftVal.length === 4) ? draftVal : color.defaultHex}
                                     onClick={(e) => e.stopPropagation()}
-                                    onChange={(e) => {
-                                      const nextPalette = { ...(profile.themePalette || {}) };
-                                      (nextPalette as any)[color.key] = e.target.value;
-                                      if (color.key === 'background') {
-                                        nextPalette.bgApp = e.target.value;
-                                      }
-                                      setProfile({ ...profile, themePalette: nextPalette });
-                                    }}
+                                    onChange={(e) => setColorDraft(d => d && d.key === color.key ? { ...d, value: e.target.value } : d)}
                                     className="w-6 h-6 rounded cursor-pointer overflow-hidden border border-slate-200 dark:border-slate-800 shrink-0 bg-transparent"
                                     style={{ padding: 0, border: 'none' }}
                                   />
                                   <input
                                     type="text"
-                                    value={activeVal}
+                                    value={draftVal}
                                     onClick={(e) => e.stopPropagation()}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      const nextPalette = { ...(profile.themePalette || {}) };
-                                      (nextPalette as any)[color.key] = val;
-                                      if (color.key === 'background') {
-                                        nextPalette.bgApp = val;
-                                      }
-                                      setProfile({ ...profile, themePalette: nextPalette });
-                                    }}
+                                    onChange={(e) => setColorDraft(d => d && d.key === color.key ? { ...d, value: e.target.value } : d)}
                                     className="w-full text-xs font-mono bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none px-1"
                                     placeholder="#FFFFFF"
                                   />
                                 </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!colorDraft) return;
+                                    const currentList = [...(profile.customColors || auditColors)];
+                                    const updatedList = currentList.map((c: any) => c.key === color.key ? { ...c, label: colorDraft.label } : c);
+                                    const nextPalette = { ...(profile.themePalette || {}) };
+                                    (nextPalette as any)[color.key] = colorDraft.value;
+                                    if (color.key === 'background') {
+                                      nextPalette.bgApp = colorDraft.value;
+                                    }
+                                    setProfile({ ...profile, customColors: updatedList, themePalette: nextPalette });
+                                    setExpandedColorKey(null);
+                                    setColorDraft(null);
+                                  }}
+                                  className="flex-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedColorKey(null);
+                                    setColorDraft(null);
+                                  }}
+                                  className="flex-1 px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-all"
+                                >
+                                  Cancel
+                                </button>
+                                {color.key.startsWith('custom_') && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteColor(color.key);
+                                      setExpandedColorKey(null);
+                                      setColorDraft(null);
+                                    }}
+                                    className="flex-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 rounded-lg text-xs font-bold border border-rose-200 dark:border-rose-800 transition-all"
+                                  >
+                                    Delete
+                                  </button>
+                                )}
                               </div>
                             </div>
                           )}
@@ -1620,7 +1649,10 @@ export default function Header({
                     const renderTextColorItem = (color: any) => {
                       const activeVal = (profile.themePalette as any)?.[color.key] || color.defaultHex;
                       const isExpanded = expandedColorKey === color.key;
-                      
+                      const draftLabel = colorDraft && colorDraft.key === color.key ? colorDraft.label : color.label;
+                      const draftVal = colorDraft && colorDraft.key === color.key ? colorDraft.value : activeVal;
+                      const previewBg = textPreviewOverride[color.key] || getTextPreviewContext(activeVal);
+
                       return (
                         <div key={color.key} className="transition-all duration-200">
                           {/* Main Row */}
@@ -1630,7 +1662,15 @@ export default function Header({
                             <div className="flex items-center min-w-0 flex-1">
                               {/* Swatch */}
                               <div 
-                                onClick={() => setExpandedColorKey(isExpanded ? null : color.key)}
+                                onClick={() => {
+                                  if (isExpanded) {
+                                    setExpandedColorKey(null);
+                                    setColorDraft(null);
+                                  } else {
+                                    setExpandedColorKey(color.key);
+                                    setColorDraft({ key: color.key, label: color.label, value: activeVal });
+                                  }
+                                }}
                                 className="w-5 h-5 rounded-full shadow-inner shrink-0 cursor-pointer hover:opacity-80 transition-opacity" 
                                 style={{ backgroundColor: activeVal }}
                                 title={isExpanded ? 'Close editor' : 'Click to edit'}
@@ -1645,35 +1685,28 @@ export default function Header({
                               </div>
                             </div>
 
-                            {/* Single preview, shown against whichever background this color is actually readable on */}
+                            {/* Contrast preview with manual light/dark toggle */}
                             <div className="flex items-center gap-1.5 ml-0 sm:ml-2 shrink-0">
-                              {getTextPreviewContext(activeVal) === 'light' ? (
-                                <div className="bg-white border border-slate-150 rounded-lg py-1 px-3 flex items-center justify-center shrink-0 shadow-sm" style={{ minWidth: '100px' }}>
-                                  <span style={{ color: activeVal }} className="text-xs font-bold tracking-tight truncate">
-                                    {color.label}
-                                  </span>
-                                </div>
-                              ) : (
-                                <div className="bg-slate-900 rounded-lg py-1 px-3 flex items-center justify-center shrink-0 shadow-sm" style={{ minWidth: '100px' }}>
-                                  <span style={{ color: activeVal }} className="text-xs font-bold tracking-tight truncate">
-                                    {color.label}
-                                  </span>
-                                </div>
-                              )}
-
-                              {color.key.startsWith('custom_') && (
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteColor(color.key);
-                                  }}
-                                  className="text-slate-400 hover:text-rose-500 transition-all p-1 text-xs font-bold cursor-pointer"
-                                  title="Delete color variable"
-                                >
-                                  ✕
-                                </button>
-                              )}
+                              <div className={previewBg === 'light' ? "bg-white border border-slate-150 rounded-lg py-1 px-3 flex items-center justify-center shrink-0 shadow-sm" : "bg-slate-900 rounded-lg py-1 px-3 flex items-center justify-center shrink-0 shadow-sm"} style={{ minWidth: '48px' }}>
+                                <span style={{ color: activeVal }} className="text-xs font-bold tracking-tight">
+                                  Aa
+                                </span>
+                              </div>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setTextPreviewOverride(prev => ({ ...prev, [color.key]: previewBg === 'light' ? 'dark' : 'light' }));
+                                }}
+                                className="text-slate-400 hover:text-indigo-500 transition-all p-1 rounded-lg cursor-pointer"
+                                title={previewBg === 'light' ? 'Preview on dark background' : 'Preview on light background'}
+                              >
+                                {previewBg === 'light' ? (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                                ) : (
+                                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>
+                                )}
+                              </button>
                             </div>
                           </div>
 
@@ -1684,9 +1717,9 @@ export default function Header({
                                 <label className="text-[9px] font-bold text-slate-400 uppercase tracking-wider">Variable Name</label>
                                 <input
                                   type="text"
-                                  value={color.label}
+                                  value={draftLabel}
                                   onClick={(e) => e.stopPropagation()}
-                                  onChange={(e) => handleRenameColor(color.key, e.target.value)}
+                                  onChange={(e) => setColorDraft(d => d && d.key === color.key ? { ...d, label: e.target.value } : d)}
                                   className="text-xs font-semibold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg px-2.5 py-1.5 focus:border-indigo-500 focus:outline-none transition-all w-full"
                                   placeholder="E.g. Brand Heading"
                                 />
@@ -1697,30 +1730,66 @@ export default function Header({
                                 <div className="flex items-center gap-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg p-1.5 shadow-sm">
                                   <input
                                     type="color"
-                                    value={activeVal.startsWith('#') && (activeVal.length === 7 || activeVal.length === 4) ? activeVal : color.defaultHex}
+                                    value={draftVal.startsWith('#') && (draftVal.length === 7 || draftVal.length === 4) ? draftVal : color.defaultHex}
                                     onClick={(e) => e.stopPropagation()}
-                                    onChange={(e) => {
-                                      const nextPalette = { ...(profile.themePalette || {}) };
-                                      (nextPalette as any)[color.key] = e.target.value;
-                                      setProfile({ ...profile, themePalette: nextPalette });
-                                    }}
+                                    onChange={(e) => setColorDraft(d => d && d.key === color.key ? { ...d, value: e.target.value } : d)}
                                     className="w-6 h-6 rounded cursor-pointer overflow-hidden border border-slate-200 dark:border-slate-850 shrink-0 bg-transparent"
                                     style={{ padding: 0, border: 'none' }}
                                   />
                                   <input
                                     type="text"
-                                    value={activeVal}
+                                    value={draftVal}
                                     onClick={(e) => e.stopPropagation()}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      const nextPalette = { ...(profile.themePalette || {}) };
-                                      (nextPalette as any)[color.key] = val;
-                                      setProfile({ ...profile, themePalette: nextPalette });
-                                    }}
+                                    onChange={(e) => setColorDraft(d => d && d.key === color.key ? { ...d, value: e.target.value } : d)}
                                     className="w-full text-xs font-mono bg-transparent text-slate-800 dark:text-slate-100 focus:outline-none px-1"
                                     placeholder="#FFFFFF"
                                   />
                                 </div>
+                              </div>
+
+                              <div className="flex items-center gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!colorDraft) return;
+                                    const currentList = [...(profile.customColors || auditColors)];
+                                    const updatedList = currentList.map((c: any) => c.key === color.key ? { ...c, label: colorDraft.label } : c);
+                                    const nextPalette = { ...(profile.themePalette || {}) };
+                                    (nextPalette as any)[color.key] = colorDraft.value;
+                                    setProfile({ ...profile, customColors: updatedList, themePalette: nextPalette });
+                                    setExpandedColorKey(null);
+                                    setColorDraft(null);
+                                  }}
+                                  className="flex-1 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-bold transition-all"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setExpandedColorKey(null);
+                                    setColorDraft(null);
+                                  }}
+                                  className="flex-1 px-3 py-1.5 bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 rounded-lg text-xs font-bold transition-all"
+                                >
+                                  Cancel
+                                </button>
+                                {color.key.startsWith('custom_') && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleDeleteColor(color.key);
+                                      setExpandedColorKey(null);
+                                      setColorDraft(null);
+                                    }}
+                                    className="flex-1 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-900/30 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 rounded-lg text-xs font-bold border border-rose-200 dark:border-rose-800 transition-all"
+                                  >
+                                    Delete
+                                  </button>
+                                )}
                               </div>
                             </div>
                           )}
