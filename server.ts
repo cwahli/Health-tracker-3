@@ -3425,29 +3425,60 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         parsedData.nutrients = nutrients;
         parsedData.itemsBreakdown = itemsBreakdown;
 
-        // Construct Step-by-Step Nutritional Receipt Ledger
-        let receiptText = "=== 🧾 FIRST-PRINCIPLES NUTRITIONAL RECEIPT ===\n\n";
+        // Construct 3-Column Multi-Nutrient Vertical Mobile-Friendly Calculation Table Ledger
+        let receiptTable = "### 🧾 FIRST-PRINCIPLES NUTRITIONAL RECEIPT LEDGER\n\n";
+        receiptTable += "| Item & Step | Calculation Derivation | Impacted Nutrients Added |\n";
+        receiptTable += "|---|---|---|\n";
+
+        let grandCal = 0;
+        let grandP = 0;
+        let grandF = 0;
+        let grandNa = 0;
+
         parsedData.itemsBreakdown.forEach((it: any, idx: number) => {
+          grandCal += (it.calories || 0);
+          grandP += (it.protein || 0);
+          grandF += (it.totalFat || 0);
+          grandNa += (it.sodium || 0);
+
           const badge = it.dbSource === 'estimated_override' 
-            ? ` ⚠️ [SANITY CHECK OVERRIDE: ${it.overrideReason || 'Adjusted Database Value'}]`
-            : (it.isUnverified ? " ⚠️ (Estimated / Unverified)" : " ✅ (Verified Baseline)");
+            ? ` ⚠️ [SANITY CHECK OVERRIDE: ${it.overrideReason || 'Adjusted Value'}]`
+            : (it.isUnverified ? " ⚠️ (Est)" : " ✅");
           
-          receiptText += `${idx + 1}. ${it.name} (${it.weightGrams}g, ${it.cookingMethod || 'standard'})${badge}\n` +
-            `   ├─ Base Nutrients (${String(it.dbSource).toUpperCase()}${it.dbId ? ' #' + it.dbId : ''}): ${Math.round(it.calories || 0)} kcal | ${Math.round(it.sodium || 0)}mg Sodium\n` +
-            `   └─ DbSource: ${it.dbSource}\n\n`;
+          const base100Cal = it.labelNutrientsPerServing?.calories || Math.round((it.calories / (it.weightGrams / 100)));
+          const base100P = it.labelNutrientsPerServing?.protein || Math.round((it.protein / (it.weightGrams / 100)) * 10) / 10;
+          const base100F = it.labelNutrientsPerServing?.totalFat || Math.round((it.totalFat / (it.weightGrams / 100)) * 10) / 10;
+          const base100Na = it.labelNutrientsPerServing?.sodium || Math.round((it.sodium / (it.weightGrams / 100)));
+
+          const portionBaseCal = Math.round(base100Cal * (it.weightGrams / 100));
+          const portionBaseP = Math.round(base100P * (it.weightGrams / 100) * 10) / 10;
+          const portionBaseF = Math.round(base100F * (it.weightGrams / 100) * 10) / 10;
+          const portionBaseNa = Math.round(base100Na * (it.weightGrams / 100));
+
+          const addedCal = Math.round(it.calories - portionBaseCal);
+          const addedFatG = Math.round((addedCal / 9) * 10) / 10;
+          const addedSodiumMg = Math.round(it.sodium - portionBaseNa);
+
+          receiptTable += `| **${idx + 1}. ${it.name}**${badge} | *(${it.weightGrams}g, ${it.cookingMethod || 'standard'})* | |\n`;
+          receiptTable += `| ├─ Base Baseline | ${String(it.dbSource).toUpperCase()}${it.dbId ? ' #' + it.dbId : ''} | ${base100Cal} kcal, ${base100P}g P, ${base100F}g F, ${base100Na}mg Na / 100g |\n`;
+          receiptTable += `| ├─ Mass Portion Scaling | ${it.weightGrams}g portion mass | ${portionBaseCal} kcal \\| ${portionBaseP}g P \\| ${portionBaseF}g F \\| ${portionBaseNa}mg Na |\n`;
+          receiptTable += `| ├─ Cooking Fat Modifier | ${it.cookingMethod || 'standard'} | ${addedCal >= 0 ? '+' : ''}${addedCal} kcal (+${addedFatG}g Fat) |\n`;
+          if (addedSodiumMg !== 0) {
+            receiptTable += `| ├─ Seasoning / Sauce | Sauce & salt adhesion | ${addedSodiumMg >= 0 ? '+' : ''}${addedSodiumMg}mg Sodium |\n`;
+          }
+          receiptTable += `| └─ **Item Total** | | **${Math.round(it.calories || 0)} kcal** \\| ${Math.round(it.protein || 0)}g P \\| ${Math.round(it.totalFat || 0)}g F \\| **${Math.round(it.sodium || 0)}mg Na** |\n`;
+
+          // Stream incremental vertical table live to client during loading
+          sendStreamEvent({ type: 'stream', stage: 'dietitian', thought: receiptTable });
         });
-        receiptText += "===============================================\n";
-        receiptText += `MEAL TOTAL: ${Math.round(parsedData.nutrients.calories || 0)} kcal | ${Math.round(parsedData.nutrients.protein || 0)}g Protein | ${Math.round(parsedData.nutrients.sodium || 0)}mg Sodium\n`;
 
-        // Prepend receiptText directly to dietitianScratchpad and parsedData.thought
-        parsedData.thought = receiptText + "\n\n" + (parsedData.thought || rawParsed.scratchpad || "");
-        rawParsed.scratchpad = receiptText + "\n\n" + (rawParsed.scratchpad || "");
+        receiptTable += `| **🏆 GRAND MEAL TOTAL** | **Calculated Meal Nutrients** | **${Math.round(parsedData.nutrients.calories || grandCal)} kcal** \\| **${Math.round(parsedData.nutrients.protein || grandP)}g Protein** \\| **${Math.round(parsedData.nutrients.totalFat || grandF)}g Fat** \\| **${Math.round(parsedData.nutrients.sodium || grandNa)}mg Sodium** |\n`;
 
-        // Stream to live "Agent thought..." box in UI
-        sendStreamEvent({ type: 'stream', stage: 'dietitian', thought: receiptText });
+        // Attach receiptTable directly to dietitianScratchpad and parsedData.thought
+        parsedData.thought = receiptTable + "\n\n" + (parsedData.thought || rawParsed.scratchpad || "");
+        rawParsed.scratchpad = receiptTable + "\n\n" + (rawParsed.scratchpad || "");
 
         // GUARANTEED ZERO-DISCREPANCY SYNCHRONIZATION:
-        // Overwrite initial LLM prose message numbers with exact calculated backend totals
         if (rawParsed.message && parsedData.nutrients && parsedData.nutrients.calories > 0) {
           const calcCal = Math.round(parsedData.nutrients.calories);
           const calcP = Math.round(parsedData.nutrients.protein || 0);
