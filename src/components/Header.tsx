@@ -1349,8 +1349,10 @@ export default function Header({
                             <div className="flex items-center min-w-0 flex-1">
                               {/* Swatch */}
                               <div 
-                                className="w-5 h-5 rounded-full shadow-inner shrink-0" 
+                                onClick={() => setExpandedColorKey(isExpanded ? null : color.key)}
+                                className="w-5 h-5 rounded-full shadow-inner shrink-0 cursor-pointer hover:opacity-80 transition-opacity" 
                                 style={{ backgroundColor: activeVal }}
+                                title={isExpanded ? 'Close editor' : 'Click to edit'}
                               />
                               <div className="ml-3 min-w-0">
                                 <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block truncate">
@@ -1363,20 +1365,6 @@ export default function Header({
                             </div>
 
                             <div className="flex items-center gap-2 ml-2 shrink-0">
-                              <button
-                                type="button"
-                                onClick={() => setExpandedColorKey(isExpanded ? null : color.key)}
-                                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                                  isExpanded
-                                    ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'
-                                    : 'text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                }`}
-                                title={isExpanded ? 'Close editor' : 'Edit variable'}
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-                                </svg>
-                              </button>
                               {color.key.startsWith('custom_') && (
                                 <button
                                   type="button"
@@ -1480,8 +1468,10 @@ export default function Header({
                             <div className="flex items-center min-w-0 flex-1">
                               {/* Swatch */}
                               <div 
-                                className="w-5 h-5 rounded-full shadow-inner shrink-0" 
+                                onClick={() => setExpandedColorKey(isExpanded ? null : color.key)}
+                                className="w-5 h-5 rounded-full shadow-inner shrink-0 cursor-pointer hover:opacity-80 transition-opacity" 
                                 style={{ backgroundColor: activeVal }}
+                                title={isExpanded ? 'Close editor' : 'Click to edit'}
                               />
                               <div className="ml-3 min-w-0">
                                 <span className="text-xs font-bold text-slate-800 dark:text-slate-100 block truncate">
@@ -1508,21 +1498,6 @@ export default function Header({
                                   </span>
                                 </div>
                               )}
-
-                              <button
-                                type="button"
-                                onClick={() => setExpandedColorKey(isExpanded ? null : color.key)}
-                                className={`p-1.5 rounded-lg transition-all cursor-pointer ${
-                                  isExpanded
-                                    ? 'bg-indigo-100 dark:bg-indigo-900/40 text-indigo-600 dark:text-indigo-400'
-                                    : 'text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-                                }`}
-                                title={isExpanded ? 'Close editor' : 'Edit variable'}
-                              >
-                                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-                                </svg>
-                              </button>
 
                               {color.key.startsWith('custom_') && (
                                 <button
@@ -1977,7 +1952,8 @@ export default function Header({
                         { name: "Emerald Forest (Dark)", isSystem: true, profileUpdate: { fontFamily: 'Outfit', themePalette: { background: '#000000', bgCard: '#06231a', button: '#047857', text: '#ecfdf5', textSecondary: '#a7f3d0', border: '#0f3527', textAccent: '#a5b4fc', textMuted: '#a7f3d0', textSuccess: '#4ade80', textError: '#f87171', warning: '#fb7185', caution: '#fbbf24', success: '#34d399', info: '#60a5fa', neutralSetting: '#d1fae5' } } },
                         { name: "Minimalist White (Light)", isSystem: true, profileUpdate: { fontFamily: 'Playfair Display', themePalette: { background: '#ffffff', bgCard: '#fafafa', button: '#18181b', text: '#09090b', textSecondary: '#52525b', border: '#e4e4e7', textMuted: '#71717a', textSuccess: '#15803d' } } }
                       ].map((preset, idx) => {
-                        const active = isPresetActive(preset.profileUpdate);
+                        const effectiveUpdate = profile.systemPresetOverrides?.[preset.name] ? { ...preset.profileUpdate, ...profile.systemPresetOverrides[preset.name] } : preset.profileUpdate;
+                        const active = isPresetActive(effectiveUpdate);
                         return (
                           <div key={idx} className={`flex justify-between items-center p-3 rounded-xl border shadow-sm transition-all ${active ? 'bg-indigo-50 dark:bg-indigo-950/30 border-indigo-400 dark:border-indigo-500 ring-2 ring-indigo-500/30' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700'}`}>
                             <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex-1 truncate mr-2">{preset.name}</span>
@@ -2004,7 +1980,7 @@ export default function Header({
                                   },
                                   preset: {
                                     name: preset.name,
-                                    ...preset.profileUpdate
+                                    ...effectiveUpdate
                                   }
                                 };
                                 const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
@@ -2016,11 +1992,58 @@ export default function Header({
                               }} className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-500 rounded-lg transition-all">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
                               </button>
+                              {preset.name !== 'System Default' && (
+                                <>
+                                  <button onClick={() => {
+                                    setProfile({
+                                      ...profile,
+                                      systemPresetOverrides: {
+                                        ...(profile.systemPresetOverrides || {}),
+                                        [preset.name]: {
+                                          themePalette: profile.themePalette,
+                                          fontSize: profile.fontSize,
+                                          fontFamily: profile.fontFamily,
+                                          fontMono: profile.fontMono,
+                                          marginScale: profile.marginScale,
+                                          paddingScale: profile.paddingScale,
+                                          cornerRadius: profile.cornerRadius,
+                                          shadowScale: profile.shadowScale,
+                                          themeOverrides: profile.themeOverrides,
+                                          customColors: profile.customColors,
+                                          fontSizeTitle: profile.fontSizeTitle,
+                                          fontSizeSubtitle: profile.fontSizeSubtitle,
+                                          fontSizeDescription: profile.fontSizeDescription,
+                                          fontSizeBodySmall: profile.fontSizeBodySmall,
+                                          fontSizeSubtitleSmall: profile.fontSizeSubtitleSmall,
+                                          fontSizeKeyMetric: profile.fontSizeKeyMetric,
+                                          fontSizeXS: profile.fontSizeXS,
+                                          fontSizeBody: profile.fontSizeBody,
+                                          customFonts: profile.customFonts
+                                        }
+                                      }
+                                    });
+                                  }} className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-semibold border border-emerald-200 dark:border-emerald-800 transition-all">Update</button>
+                                  {profile.systemPresetOverrides?.[preset.name] && (
+                                    <button
+                                      type="button"
+                                      title="Reset to original preset"
+                                      onClick={() => {
+                                        const next = { ...(profile.systemPresetOverrides || {}) };
+                                        delete next[preset.name];
+                                        setProfile({ ...profile, systemPresetOverrides: next });
+                                      }}
+                                      className="p-1.5 text-slate-400 hover:text-rose-500 rounded-lg transition-all"
+                                    >
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+                                    </button>
+                                  )}
+                                </>
+                              )}
                               {active ? (
                                 <span className="px-3 py-1.5 bg-indigo-600 text-white rounded-lg text-xs font-bold">✓ Selected</span>
                               ) : (
                                 <button onClick={() => {
-                                  setProfile({ ...profile, ...preset.profileUpdate });
+                                  setProfile({ ...profile, ...effectiveUpdate });
                                 }} className="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-lg text-xs font-semibold transition-all">Apply Default</button>
                               )}
                             </div>

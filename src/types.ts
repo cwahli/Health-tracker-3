@@ -79,6 +79,7 @@ export interface UserProfile {
   cornerRadius?: 'none' | 'small' | 'normal' | 'large' | 'pill';
   shadowScale?: 'none' | 'light' | 'normal' | 'heavy';
   themePresets?: any[];
+  systemPresetOverrides?: { [presetName: string]: any };
   themeOverrides?: any[];
   customColors?: any[];
   customFonts?: any[];
