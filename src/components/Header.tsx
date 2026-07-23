@@ -223,6 +223,7 @@ export default function Header({
   
   const [themeActiveSection, setThemeActiveSection] = useState<'colors' | 'fonts' | 'tokens' | 'components' | 'elements' | 'presets'>('colors');
   const [expandedColorKey, setExpandedColorKey] = useState<string | null>(null);
+  const [justSavedKey, setJustSavedKey] = useState<string | null>(null);
   const [inspectedElement, setInspectedElement] = useState<any>(null);
   const [inspectorPaused, setInspectorPaused] = useState(false);
   const [inspectorProperty, setInspectorProperty] = useState('color');
@@ -2119,7 +2120,9 @@ export default function Header({
                                         }
                                       }
                                     });
-                                  }} className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-semibold border border-emerald-200 dark:border-emerald-800 transition-all">Update</button>
+                                    setJustSavedKey('system-update-' + preset.name);
+                                    setTimeout(() => setJustSavedKey(null), 1800);
+                                  }} className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-semibold border border-emerald-200 dark:border-emerald-800 transition-all">{justSavedKey === 'system-update-' + preset.name ? '✓ Saved' : 'Update'}</button>
                                   {profile.systemPresetOverrides?.[preset.name] && (
                                     <button
                                       type="button"
@@ -2209,7 +2212,9 @@ const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'applica
                                 customFonts: profile.customFonts
                               };
                               setProfile({ ...profile, themePresets: newPresets });
-                            }} className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-semibold border border-emerald-200 dark:border-emerald-800 transition-all">Update</button>
+                              setJustSavedKey('user-update-' + idx);
+                              setTimeout(() => setJustSavedKey(null), 1800);
+                            }} className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-900/30 dark:hover:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300 rounded-lg text-xs font-semibold border border-emerald-200 dark:border-emerald-800 transition-all">{justSavedKey === 'user-update-' + idx ? '✓ Saved' : 'Update'}</button>
                             <button onClick={() => {
                               setProfile({
                                 ...profile,
@@ -2282,8 +2287,10 @@ const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'applica
                         customFonts: profile.customFonts
                       };
                       setProfile({ ...profile, themePresets: [...(profile.themePresets || []), newPreset] });
+                      setJustSavedKey('new-preset');
+                      setTimeout(() => setJustSavedKey(null), 1800);
                     }} className="w-full px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold shadow-sm transition-all text-center cursor-pointer">
-                      Save Current Configuration as Preset
+                      {justSavedKey === 'new-preset' ? '✓ Saved' : 'Save Current Configuration as Preset'}
                     </button>
                   </div>
                 </div>
