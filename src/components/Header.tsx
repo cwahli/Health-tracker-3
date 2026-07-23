@@ -353,6 +353,70 @@ export default function Header({
     setProfile({ ...profile, customFonts: updatedList });
   };
 
+  const THEME_CATEGORY_SECTION_LABELS: Record<string, string> = {
+    general: 'General colours',
+    text: 'Text colour',
+    status: 'Status',
+    nutrients: 'Nutrients & Targets'
+  };
+
+  const buildExportPayload = (presetConfig: any, presetName: string) => {
+    const colorsSource = profile.customColors || auditColors;
+    const fontsSource = profile.customFonts || auditFonts;
+    const palette = presetConfig?.themePalette || {};
+
+    const colours: Record<string, Record<string, string>> = {};
+    colorsSource.forEach((c: any) => {
+      const sectionLabel = THEME_CATEGORY_SECTION_LABELS[c.category] || 'Other colours';
+      if (!colours[sectionLabel]) colours[sectionLabel] = {};
+      const value = palette[c.key] !== undefined ? palette[c.key] : c.defaultHex;
+      const displayName = c.key.startsWith('custom_') ? `${c.label} (custom)` : c.label;
+      colours[sectionLabel][displayName] = value;
+    });
+
+    const fonts: Record<string, any> = {};
+    fontsSource.forEach((f: any) => {
+      const currentVal = presetConfig?.[f.fontSizeKey] || 'normal';
+      const currentOption = (f.options || []).find((o: any) => o.value === currentVal);
+      const scale: Record<string, string> = {};
+      (f.options || []).forEach((o: any) => { scale[o.value] = o.label; });
+      const displayName = f.key.startsWith('custom_') ? `${f.label} (custom)` : f.label;
+      fonts[displayName] = {
+        current: currentOption ? currentOption.label : currentVal,
+        scale
+      };
+    });
+    fonts['Sans Font'] = { current: presetConfig?.fontFamily || 'Inter', scale: null };
+    fonts['Mono Font'] = { current: presetConfig?.fontMono || 'JetBrains Mono', scale: null };
+
+    const tokens: Record<string, any> = {};
+    auditDesignTokens.forEach((t) => {
+      const currentVal = presetConfig?.[t.tokenKey] || t.defaultValue;
+      const currentOption = (t.options || []).find((o) => o.value === currentVal);
+      const scale: Record<string, string> = {};
+      (t.options || []).forEach((o) => { scale[o.value] = o.label; });
+      tokens[t.label] = {
+        current: currentOption ? currentOption.label : currentVal,
+        scale
+      };
+    });
+
+    return {
+      _meta: {
+        format: 'health-tracker-3-theme-preset',
+        version: 2,
+        note: "Every colour, font, and layout token below is listed by its current display name (including custom renames) and computed value, grouped into the same sections shown in this app's theme editor. To import, match each name to the corresponding variable in the theme editor and apply its value."
+      },
+      preset: {
+        name: presetName,
+        colours,
+        fonts,
+        tokens,
+        themeOverrides: presetConfig?.themeOverrides
+      }
+    };
+  };
+
   const PRESET_COMPARE_KEYS = ['themePalette', 'fontFamily', 'fontMono', 'fontSize', 'marginScale', 'paddingScale', 'cornerRadius', 'shadowScale', 'themeOverrides', 'customColors', 'fontSizeTitle', 'fontSizeSubtitle', 'fontSizeDescription', 'fontSizeBodySmall', 'fontSizeSubtitleSmall', 'fontSizeKeyMetric', 'fontSizeXS', 'fontSizeBody', 'customFonts'];
 
   const normalizePresetValue = (v: any) => {
@@ -2057,30 +2121,7 @@ export default function Header({
                             <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex-1 truncate mr-2">{preset.name}</span>
                             <div className="flex gap-2 items-center shrink-0">
                               <button title="Export" onClick={() => {
-                                const exportPayload = {
-                                  _meta: {
-                                    format: 'health-tracker-3-theme-preset',
-                                    version: 1,
-                                    fields: {
-                                      themePalette: 'Hex colours. background/bgCard/border/text/textSecondary/neutralSetting are the accessible core; textAccent/textMuted/textSuccess/textError/warning/caution/success/info are status & accent text colours; nutrientCalories/nutrientProtein/nutrientCarbs/nutrientFat/nutrientSatFat/nutrientSodium are macro chart colours.',
-                                      fontFamily: 'Body/heading font name',
-                                      fontMono: 'Monospace font name (numbers, code)',
-                                      fontSize: 'Base root font size (tiny/small/normal/large/xl/xxl)',
-                                      'fontSizeTitle / fontSizeSubtitle / fontSizeBody / fontSizeBodySmall / fontSizeSubtitleSmall / fontSizeKeyMetric / fontSizeXS': 'Per-element font size overrides',
-                                      marginScale: 'Layout margin multiplier (compact/normal/relaxed)',
-                                      paddingScale: 'Component inner padding multiplier (compact/normal/relaxed)',
-                                      cornerRadius: 'Border radius scale (none/small/normal/large/pill)',
-                                      shadowScale: 'Drop shadow intensity (none/light/normal/heavy)',
-                                      customColors: 'User-added colour variables beyond the base set',
-                                      customFonts: 'Renamed labels for font-size controls',
-                                      themeOverrides: 'Raw CSS selector/property overrides (advanced)'
-                                    }
-                                  },
-                                  preset: {
-                                    name: preset.name,
-                                    ...effectiveUpdate
-                                  }
-                                };
+                                const exportPayload = buildExportPayload(effectiveUpdate, preset.name);
                                 const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
                                 const url = URL.createObjectURL(blob);
                                 const a = document.createElement('a');
@@ -2157,28 +2198,8 @@ export default function Header({
                           <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex-1 truncate mr-2">{preset.name}</span>
                           <div className="flex gap-2 shrink-0">
                             <button title="Export" onClick={() => {
-                              const exportPayload = {
-  _meta: {
-    format: 'health-tracker-3-theme-preset',
-    version: 1,
-    fields: {
-      themePalette: 'Hex colours. background/bgCard/border/text/textSecondary/neutralSetting are the accessible core; textAccent/textMuted/textSuccess/textError/warning/caution/success/info are status & accent text colours; nutrientCalories/nutrientProtein/nutrientCarbs/nutrientFat/nutrientSatFat/nutrientSodium are macro chart colours.',
-      fontFamily: 'Body/heading font name',
-      fontMono: 'Monospace font name (numbers, code)',
-      fontSize: 'Base root font size (tiny/small/normal/large/xl/xxl)',
-      'fontSizeTitle / fontSizeSubtitle / fontSizeBody / fontSizeBodySmall / fontSizeSubtitleSmall / fontSizeKeyMetric / fontSizeXS': 'Per-element font size overrides',
-      marginScale: 'Layout margin multiplier (compact/normal/relaxed)',
-      paddingScale: 'Component inner padding multiplier (compact/normal/relaxed)',
-      cornerRadius: 'Border radius scale (none/small/normal/large/pill)',
-      shadowScale: 'Drop shadow intensity (none/light/normal/heavy)',
-      customColors: 'User-added colour variables beyond the base set',
-      customFonts: 'Renamed labels for font-size controls',
-      themeOverrides: 'Raw CSS selector/property overrides (advanced)'
-    }
-  },
-  preset
-};
-const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
+                              const exportPayload = buildExportPayload(preset, preset.name);
+                              const blob = new Blob([JSON.stringify(exportPayload, null, 2)], { type: 'application/json' });
                               const url = URL.createObjectURL(blob);
                               const a = document.createElement('a');
                               a.href = url;
