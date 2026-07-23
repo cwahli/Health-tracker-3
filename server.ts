@@ -2586,19 +2586,26 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
         return bestMatch;
       };
 
+      const coreKeys = ["calories", "protein", "totalFat", "saturatedFat", "transFat", "carbohydrates", "addedSugar", "sodium", "potassium", "totalFibre", "solubleFibre"];
+
+      let primaryDbId: string | null = null;
+      let primaryDbSource: string = "usda";
+
       let hasComponents = false;
-      let primaryBestMatch: any = null;
       if (item.components && Array.isArray(item.components) && item.components.length > 0) {
         hasComponents = true;
         item.components.forEach((comp: any) => {
           const compWeight = itemWeight * ((comp.volumePercentage || 100) / 100);
           const bestMatch = findBestMatch(comp.searchQuery);
           if (bestMatch && dbMatchMap.has(bestMatch.id)) {
-            if (!primaryBestMatch) primaryBestMatch = bestMatch;
+            if (!primaryDbId) {
+              primaryDbId = String(bestMatch.id);
+              primaryDbSource = bestMatch.source || "usda";
+            }
             const baseNutrients = dbMatchMap.get(bestMatch.id);
             const factor = compWeight / 100;
-            Object.keys(aggregatedNutrients).forEach(key => {
-              if (baseNutrients[key] !== undefined) {
+            coreKeys.forEach(key => {
+              if (baseNutrients[key] !== undefined && baseNutrients[key] !== null) {
                 aggregatedNutrients[key] += parseFloat((baseNutrients[key] * factor).toFixed(2));
               }
             });
@@ -2607,11 +2614,12 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       } else {
         const bestMatch = findBestMatch(item.keyword);
         if (bestMatch && dbMatchMap.has(bestMatch.id)) {
-          primaryBestMatch = bestMatch;
+          primaryDbId = String(bestMatch.id);
+          primaryDbSource = bestMatch.source || "usda";
           const baseNutrients = dbMatchMap.get(bestMatch.id);
           const factor = itemWeight / 100;
-          Object.keys(aggregatedNutrients).forEach(key => {
-            if (baseNutrients[key] !== undefined) {
+          coreKeys.forEach(key => {
+            if (baseNutrients[key] !== undefined && baseNutrients[key] !== null) {
               aggregatedNutrients[key] = parseFloat((baseNutrients[key] * factor).toFixed(2));
             }
           });
@@ -2624,14 +2632,14 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       }
 
       return {
+        scoutIndex: item.scoutIndex,
         keyword: item.keyword,
         originalName: item.originalName || item.keyword,
         estimatedWeightGrams: itemWeight,
         hasComponents,
+        bestMatchDbId: primaryDbId || "2727574",
+        bestMatchDbSource: primaryDbSource || "usda",
         nutrients: aggregatedNutrients,
-        scoutIndex: item.scoutIndex,
-        bestMatchDbId: primaryBestMatch ? primaryBestMatch.id : null,
-        bestMatchDbSource: primaryBestMatch ? primaryBestMatch.source : null,
         pieceCount: pieceCount
       };
     });
@@ -3367,9 +3375,10 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           });
         }
 
-        // First-Principles Deterministic Injection: Overwrite LLM retyped numbers with backend pre-calc values
+        const coreKeys = ["calories", "protein", "totalFat", "saturatedFat", "transFat", "carbohydrates", "addedSugar", "sodium", "potassium", "totalFibre", "solubleFibre"];
+
         if (preCalculatedItems && Array.isArray(preCalculatedItems) && preCalculatedItems.length > 0) {
-          rawFoodData.itemsBreakdown = rawFoodData.itemsBreakdown.map((item: any) => {
+          rawFoodData.itemsBreakdown = rawFoodData.itemsBreakdown.map((item: any, idx: number) => {
             const preMatch = preCalculatedItems.find((p: any) => {
               if (item.scoutIndex !== undefined && item.scoutIndex !== null && p.scoutIndex !== undefined && p.scoutIndex !== null) {
                 return item.scoutIndex === p.scoutIndex;
@@ -3378,34 +3387,25 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
               const pOrigLower = (p.originalName || "").toLowerCase();
               const pKwLower = (p.keyword || "").toLowerCase();
               return itemLower === pOrigLower || itemLower === pKwLower || itemLower.includes(pKwLower) || pKwLower.includes(itemLower);
-            });
+            }) || preCalculatedItems[idx] || preCalculatedItems[0];
 
-            if (preMatch && preMatch.nutrients && preMatch.estimatedWeightGrams > 0) {
-              const weight = preMatch.estimatedWeightGrams;
+            if (preMatch && preMatch.nutrients && item.weightGrams > 0) {
+              const weight = item.weightGrams;
               const n = preMatch.nutrients;
               const scale = 100 / weight;
-              const injectedLabel = {
-                servingSizeGrams: 100,
-                calories: parseFloat(((n.calories || 0) * scale).toFixed(1)),
-                protein: parseFloat(((n.protein || 0) * scale).toFixed(2)),
-                totalFat: parseFloat(((n.totalFat || 0) * scale).toFixed(2)),
-                saturatedFat: parseFloat(((n.saturatedFat || 0) * scale).toFixed(2)),
-                transFat: parseFloat(((n.transFat || 0) * scale).toFixed(2)),
-                carbohydrates: parseFloat(((n.carbohydrates || 0) * scale).toFixed(2)),
-                addedSugar: parseFloat(((n.addedSugar || 0) * scale).toFixed(2)),
-                sodium: parseFloat(((n.sodium || 0) * scale).toFixed(1)),
-                potassium: parseFloat(((n.potassium || 0) * scale).toFixed(1)),
-                totalFibre: parseFloat(((n.totalFibre || 0) * scale).toFixed(2)),
-                solubleFibre: parseFloat(((n.solubleFibre || 0) * scale).toFixed(2))
-              };
 
-              addDebugLog(`[First-Principles Injection] Injecting deterministic backend nutrients for "${item.canonicalDbName || item.name}" (scoutIndex=${item.scoutIndex}, dbSource=${preMatch.bestMatchDbSource || 'usda'}, dbId=${preMatch.bestMatchDbId}).`);
+              const injectedLabel: Record<string, number> = { servingSizeGrams: 100 };
+              coreKeys.forEach(k => {
+                injectedLabel[k] = parseFloat(((n[k] || 0) * scale).toFixed(2));
+              });
+
+              addDebugLog(`[First-Principles Injection] Injecting deterministic backend nutrients for "${item.canonicalDbName || item.name}" (scoutIndex=${preMatch.scoutIndex}, dbSource=${preMatch.bestMatchDbSource}, dbId=${preMatch.bestMatchDbId}).`);
 
               return {
                 ...item,
                 labelNutrientsPerServing: injectedLabel,
-                dbSource: preMatch.bestMatchDbSource || 'usda',
-                dbId: preMatch.bestMatchDbId || item.dbId || "2727574"
+                dbSource: preMatch.bestMatchDbSource || "usda",
+                dbId: preMatch.bestMatchDbId || "2727574"
               };
             }
             return item;
