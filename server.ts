@@ -3367,6 +3367,51 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           });
         }
 
+        // First-Principles Deterministic Injection: Overwrite LLM retyped numbers with backend pre-calc values
+        if (preCalculatedItems && Array.isArray(preCalculatedItems) && preCalculatedItems.length > 0) {
+          rawFoodData.itemsBreakdown = rawFoodData.itemsBreakdown.map((item: any) => {
+            const preMatch = preCalculatedItems.find((p: any) => {
+              if (item.scoutIndex !== undefined && item.scoutIndex !== null && p.scoutIndex !== undefined && p.scoutIndex !== null) {
+                return item.scoutIndex === p.scoutIndex;
+              }
+              const itemLower = (item.canonicalDbName || item.name || "").toLowerCase();
+              const pOrigLower = (p.originalName || "").toLowerCase();
+              const pKwLower = (p.keyword || "").toLowerCase();
+              return itemLower === pOrigLower || itemLower === pKwLower || itemLower.includes(pKwLower) || pKwLower.includes(itemLower);
+            });
+
+            if (preMatch && preMatch.nutrients && preMatch.estimatedWeightGrams > 0) {
+              const weight = preMatch.estimatedWeightGrams;
+              const n = preMatch.nutrients;
+              const scale = 100 / weight;
+              const injectedLabel = {
+                servingSizeGrams: 100,
+                calories: parseFloat(((n.calories || 0) * scale).toFixed(1)),
+                protein: parseFloat(((n.protein || 0) * scale).toFixed(2)),
+                totalFat: parseFloat(((n.totalFat || 0) * scale).toFixed(2)),
+                saturatedFat: parseFloat(((n.saturatedFat || 0) * scale).toFixed(2)),
+                transFat: parseFloat(((n.transFat || 0) * scale).toFixed(2)),
+                carbohydrates: parseFloat(((n.carbohydrates || 0) * scale).toFixed(2)),
+                addedSugar: parseFloat(((n.addedSugar || 0) * scale).toFixed(2)),
+                sodium: parseFloat(((n.sodium || 0) * scale).toFixed(1)),
+                potassium: parseFloat(((n.potassium || 0) * scale).toFixed(1)),
+                totalFibre: parseFloat(((n.totalFibre || 0) * scale).toFixed(2)),
+                solubleFibre: parseFloat(((n.solubleFibre || 0) * scale).toFixed(2))
+              };
+
+              addDebugLog(`[First-Principles Injection] Injecting deterministic backend nutrients for "${item.canonicalDbName || item.name}" (scoutIndex=${item.scoutIndex}, dbSource=${preMatch.bestMatchDbSource || 'usda'}, dbId=${preMatch.bestMatchDbId}).`);
+
+              return {
+                ...item,
+                labelNutrientsPerServing: injectedLabel,
+                dbSource: preMatch.bestMatchDbSource || 'usda',
+                dbId: preMatch.bestMatchDbId || item.dbId || "2727574"
+              };
+            }
+            return item;
+          });
+        }
+
         const { nutrients, itemsBreakdown } = aggregateItemsNutrients(
           rawFoodData.itemsBreakdown,
           totalWeightGrams,
@@ -3377,14 +3422,21 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         parsedData.nutrients = nutrients;
         parsedData.itemsBreakdown = itemsBreakdown;
 
+        // Format & Stream Step-by-Step Nutritional Receipt into "Agent thought..."
         let receiptText = "\n\n=== 🧾 FIRST-PRINCIPLES NUTRITIONAL RECEIPT ===\n";
-        itemsBreakdown.forEach((it: any, idx: number) => {
+        parsedData.itemsBreakdown.forEach((it: any, idx: number) => {
           receiptText += `${idx + 1}. ${it.name} (${it.weightGrams}g, ${it.cookingMethod || 'standard'})\n` +
-            `   ├─ Base Nutrients (${String(it.dbSource).toUpperCase()}${it.dbId ? ' #' + it.dbId : ''}): ${Math.round(it.calories)} kcal | ${it.sodium}mg Sodium\n` +
+            `   ├─ Base Nutrients (${String(it.dbSource).toUpperCase()}${it.dbId ? ' #' + it.dbId : ''}): ${Math.round(it.calories || 0)} kcal | ${Math.round(it.sodium || 0)}mg Sodium\n` +
             `   └─ DbSource: ${it.dbSource}\n`;
         });
         receiptText += `===============================================\n`;
+        
+        // Stream to live "Agent thought..." box in UI
         sendStreamEvent({ type: 'stream', stage: 'dietitian', thought: receiptText });
+        
+        // Persist inside response thought so user can expand "Agent thought..." anytime after loading
+        if (!parsedData.thought) parsedData.thought = "";
+        parsedData.thought += receiptText;
       } else {
         addDebugLog(`[Nutrient Warning] LLM returned no itemsBreakdown for "${parsedData.name}". All nutrients will be zero. Check LLM prompt compliance.`);
         parsedData.nutrients = {};
