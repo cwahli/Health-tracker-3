@@ -2191,6 +2191,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
             promptText: scoutPromptText,
             imagePayloads,
             responseMimeType: "application/json",
+            skipThinking: true,
             responseSchema: {
               type: Type.OBJECT,
               properties: {
