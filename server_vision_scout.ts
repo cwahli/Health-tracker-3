@@ -89,17 +89,13 @@ CRITICAL RULES:
 
 === SYSTEM CONSTRAINTS ===
 
-First, think step-by-step in plain text.
+Output exactly one JSON object.
 
-Second, output exactly one JSON object.
-
-The JSON must contain ONLY the fields requested below. Do NOT include a scratchpad field inside the JSON.
+The JSON must contain ONLY the fields requested below.
 
 === OUTPUT INSTRUCTIONS ===
 
-First, write out your step-by-step reasoning in plain text. Explain how you are classifying the image, density appraisal, items found, and your weight reasoning for each.
-
-Then, output your final mapped results in a raw, valid JSON block.
+Output your final mapped results in a raw, valid JSON block.
 
 Ensure EVERY JSON field is correctly separated by a comma and that all strings are properly closed with quotation marks. Do not add markdown formatting blocks (such as \`\`\`json) around your JSON response.
 
@@ -178,7 +174,6 @@ export function mergeScoutItems(visionItems: any[], llmItems: any[] | null | und
 }
 
 export interface VisionScoutResult {
-  scratchpad?: string;
   items: any[];
   scoutConfidenceRating: string;
   scoutConfidenceComment: string;
@@ -445,7 +440,6 @@ export function parseAndHealVisionScout(
   }
 
   return {
-    scratchpad: parsedScout?.scratchpad || extractedScratchpad,
     items: visionScoutItems,
     scoutConfidenceRating,
     scoutConfidenceComment,

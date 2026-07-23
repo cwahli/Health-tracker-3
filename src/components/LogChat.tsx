@@ -490,7 +490,7 @@ export default function LogChat({
         }
       }
     } catch (err) {
-      console.error("Error fetching debug logs:", err);
+      console.warn("Error fetching debug logs:", err);
     }
   };
 
@@ -542,7 +542,7 @@ export default function LogChat({
             }
           }
         } catch (err) {
-          console.error("Error fetching debug logs:", err);
+          console.warn("Error fetching debug logs:", err);
         }
         setDebugLogsSendStatus('success');
         setTimeout(() => setDebugLogsSendStatus('idle'), 3000);

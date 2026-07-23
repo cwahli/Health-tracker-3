@@ -2132,7 +2132,6 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
             responseSchema: {
               type: Type.OBJECT,
               properties: {
-                scratchpad: { type: Type.STRING },
                 recommendedMode: { type: Type.STRING },
                 contentType: { type: Type.STRING },
                 cookingMethod: { type: Type.STRING },
@@ -2144,7 +2143,6 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                       keyword: { type: Type.STRING, description: "Base food name in database-friendly English" },
                       originalName: { type: Type.STRING, description: "Exact localized food name" },
                       estimatedWeightGrams: { type: Type.NUMBER },
-                      weightReasoning: { type: Type.STRING },
                       boundingBox2D: {
                         type: Type.ARRAY,
                         items: { type: Type.INTEGER },
@@ -2167,13 +2165,13 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
                       itemConfidence: { type: Type.STRING },
                       anomalyFlags: { type: Type.ARRAY, items: { type: Type.STRING } }
                     },
-                    required: ["keyword", "originalName", "estimatedWeightGrams"]
+                    required: ["keyword", "originalName", "estimatedWeightGrams", "boundingBox2D"]
                   }
                 },
                 queriesToSearch: { type: Type.ARRAY, items: { type: Type.STRING } }
               },
-              required: ["scratchpad", "recommendedMode", "contentType", "items"],
-              propertyOrdering: ["scratchpad", "items", "recommendedMode", "contentType", "cookingMethod", "queriesToSearch"]
+              required: ["recommendedMode", "contentType", "items"],
+              propertyOrdering: ["items", "recommendedMode", "contentType", "cookingMethod", "queriesToSearch"]
             },
             onStream: isStream ? (chunk: string, isThought?: boolean) => {
               if (isThought) {
@@ -2190,14 +2188,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
 
           const scoutResult = parseAndHealVisionScout(scoutOutput, addDebugLog);
           
-          if (scoutResult.scratchpad) {
-            scoutScratchpad = scoutResult.scratchpad;
-            addDebugLog(`[Scout Scratchpad]\n${scoutResult.scratchpad}`);
-            if (isStream) {
-              const fakeChunk = `{"scoutScratchpad":${JSON.stringify(scoutScratchpad)}}`;
-              sendStreamEvent({ type: 'stream', stage: 'scout', chunk: fakeChunk });
-            }
-          }
+          // Vision Scout scratchpad is removed per user request
 
           visionScoutItems = scoutResult.items;
           scoutConfidenceRating = scoutResult.scoutConfidenceRating;
