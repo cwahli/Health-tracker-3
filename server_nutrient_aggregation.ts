@@ -250,7 +250,8 @@ export function aggregateItemsNutrients(
       itemWeight,
       itemNutrients,
       addedNutrients.addedSodium,
-      addDebugLog
+      addDebugLog,
+      dbSource
     );
 
     // Zero-macro fallback for essential fields

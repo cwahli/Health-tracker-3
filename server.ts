@@ -2123,7 +2123,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       const hasImage = imagePayloads && imagePayloads.length > 0;
       if (hasImage) {
         sendStreamEvent({ type: 'status', stage: 'scout', status: 'started', message: 'Reading your photos...' });
-        const imageCount = imagePayloads?.length || (imagePayload ? 1 : 0);
+        const imageCount = imagePayloads?.length || 0;
         const scoutPromptText = message 
           ? `Analyze the provided ${imageCount > 1 ? imageCount + ' images' : 'image'} and list the food items you see, taking into consideration the user's message: "${message}".${imageCount > 1 ? ' NOTE: If these images show different views/sides of the same package (e.g. front of package and back nutrition label), scan ALL images together to extract both the product name and the complete nutrition/ingredient label into a single merged item.' : ''}`
           : `Analyze the provided ${imageCount > 1 ? imageCount + ' images' : 'image'} and list the food items you see.${imageCount > 1 ? ' NOTE: If these images show different views/sides of the same package (e.g. front of package and back nutrition label), scan ALL images together to extract both the product name and the complete nutrition/ingredient label into a single merged item.' : ''}`;
@@ -2935,7 +2935,8 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
         itemWeight,
         aggregatedNutrients,
         added.addedSodium,
-        addDebugLog
+        addDebugLog,
+        primaryDbSource || item.dbSource || item.source
       );
 
       return {
@@ -4045,7 +4046,8 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
             itemWeightG,
             receiptRealityCheckNutrients,
             cookingNa,
-            addDebugLog
+            addDebugLog,
+            it.dbSource || it.source
           );
           sumNa = receiptRealityCheckNutrients.sodium;
           sumP = receiptRealityCheckNutrients.protein;

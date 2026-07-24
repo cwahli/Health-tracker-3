@@ -226,5 +226,17 @@ describe('server_pure_helpers', () => {
       applyNutrientRealityChecks("Beef Steak", 100, nutrients, 50);
       expect(nutrients.protein).toBe(45); // Capped at 45g per 100g
     });
+
+    it('never overrides sodium when dbSource is "label", even for unusual items', () => {
+      const nutrients = { sodium: 1110, protein: 3 };
+      applyNutrientRealityChecks("HANA Mat Kimchi (Diced Radish Kimchi)", 150, nutrients, 0, undefined, "label");
+      expect(nutrients.sodium).toBe(1110); // Unchanged — label data is ground truth
+    });
+
+    it('never overrides protein when dbSource is "label"', () => {
+      const nutrients = { sodium: 100, protein: 60 };
+      applyNutrientRealityChecks("Some Label Item", 100, nutrients, 0, undefined, "label");
+      expect(nutrients.protein).toBe(60); // Unchanged — label data is ground truth
+    });
   });
 });

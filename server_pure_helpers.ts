@@ -440,8 +440,19 @@ export function applyNutrientRealityChecks(
   itemWeight: number,
   itemNutrients: Record<string, number>,
   addedSodium: number,
-  addDebugLog?: (msg: string) => void
+  addDebugLog?: (msg: string) => void,
+  dbSource?: string
 ): void {
+  // Values sourced directly from a scanned/printed nutrition label are
+  // verified ground truth and must never be overridden by heuristic
+  // sanity checks below. Skip entirely for label-sourced items.
+  if (dbSource === "label") {
+    if (addDebugLog) {
+      addDebugLog(`[Dietitian Reality Check] Skipped for "${itemName}" — dbSource is "label" (printed nutrition label is ground truth).`);
+    }
+    return;
+  }
+
   const nameLower = itemName.toLowerCase();
   
   // 1. Sodium Reality Check
