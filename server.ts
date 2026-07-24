@@ -94,7 +94,8 @@ async function searchUSDA(query: string, maxResults: number = 5, dataTypes: stri
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     const dataTypeQuery = dataTypes.split(',').map(d => 'dataType=' + encodeURIComponent(d)).join('&');
-    const url = `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${process.env.USDA_API_KEY}&query=${encodeURIComponent(query)}&pageSize=${maxResults}&${dataTypeQuery}`;
+    const usdaApiKey = process.env.USDA_API_KEY || "DEMO_KEY";
+    const url = `https://api.nal.usda.gov/fdc/v1/foods/search?api_key=${usdaApiKey}&query=${encodeURIComponent(query)}&pageSize=${maxResults}&${dataTypeQuery}`;
     
     const response = await fetch(url, { signal: controller.signal as any });
     clearTimeout(timeout);
@@ -1978,6 +1979,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
         const unit = nut.unitName || (nut.nutrient && nut.nutrient.unitName) || "";
         return `${val}${unit}`;
       };
+      const mapped: string[] = [];
       const kcal = findNutrient(["energy", "calories"]);
       const protein = findNutrient(["protein"]);
       const fat = findNutrient(["total lipid", "fat"]);
@@ -2321,32 +2323,34 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
 
     const hasImage = imagePayloads && imagePayloads.length > 0;
     const isMenuScale = visionScoutContentType === "menu_or_poster" || visionScoutContentType === "text";
-    // Skip database search if evaluating a large number of items (Mode D / Evaluation Scale) to prevent connection pool exhaustion and timeouts
-    const isEvaluationScale = queriesToSearch.length >= 10;
-    const shouldRunDbSearch = !isWeightModification && !isMenuScale && !isEvaluationScale && (visionScoutRanAndReturnedItems || (!hasImage && queriesToSearch.length > 0));
-    if (shouldRunDbSearch && queriesToSearch.length > 0) {
-      if (visionScoutItems && visionScoutItems.length > 0) {
-        visionScoutItems.forEach((it: any) => {
-          const combined = [
-            it.originalName, it.keyword, it.originalLocalName, it.canonicalDbName, it.name,
-            ...(it.visualIngredients || []),
-            ...(it.components ? it.components.map((c: any) => typeof c === 'string' ? c : c.name || c.searchQuery || c.keyword) : [])
-          ].filter(Boolean).join(' ').toLowerCase();
 
-          if (combined.includes('mayo') || combined.includes('mayonnaise')) {
-            if (!queriesToSearch.some(q => q.toLowerCase().includes('mayonnaise'))) {
-              queriesToSearch.push('mayonnaise');
-            }
-          }
-          if (combined.includes('black pepper sauce') || combined.includes('pepper sauce')) {
-            if (!queriesToSearch.some(q => q.toLowerCase().includes('black pepper sauce'))) {
-              queriesToSearch.push('black pepper sauce');
-            }
-          }
-        });
-      }
+    // Clean and consolidate queries first
+    if (visionScoutItems && visionScoutItems.length > 0) {
+      visionScoutItems.forEach((it: any) => {
+        const combined = [
+          it.originalName, it.keyword, it.originalLocalName, it.canonicalDbName, it.name,
+          ...(it.visualIngredients || []),
+          ...(it.components ? it.components.map((c: any) => typeof c === 'string' ? c : c.name || c.searchQuery || c.keyword) : [])
+        ].filter(Boolean).join(' ').toLowerCase();
 
-      const uniqueQueries = Array.from(new Set(queriesToSearch));
+        if (combined.includes('mayo') || combined.includes('mayonnaise')) {
+          if (!queriesToSearch.some(q => q.toLowerCase().includes('mayonnaise'))) {
+            queriesToSearch.push('mayonnaise');
+          }
+        }
+        if (combined.includes('black pepper sauce') || combined.includes('pepper sauce')) {
+          if (!queriesToSearch.some(q => q.toLowerCase().includes('black pepper sauce'))) {
+            queriesToSearch.push('black pepper sauce');
+          }
+        }
+      });
+    }
+
+    const uniqueQueries = Array.from(new Set(queriesToSearch));
+    const isEvaluationScale = uniqueQueries.length >= 15;
+    const shouldRunDbSearch = !isWeightModification && !isMenuScale && !isEvaluationScale && (visionScoutRanAndReturnedItems || (!hasImage && uniqueQueries.length > 0));
+
+    if (shouldRunDbSearch && uniqueQueries.length > 0) {
       sendStreamEvent({ type: 'status', stage: 'db_search', status: 'started', message: 'Searching nutrition databases...' });
       sendLog('db_search', 'db_search', `Querying USDA & OpenFoodFacts databases for: [${uniqueQueries.join(', ')}]`);
       addDebugLog(`[Database Search] Performing USDA & OFF searches for queries: ${JSON.stringify(uniqueQueries)}`);
@@ -2733,8 +2737,8 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
         cookingMethod: itemCookingMethod,
         estimatedWeightGrams: itemWeight,
         hasComponents,
-        bestMatchDbId: primaryDbId || "2727574",
-        bestMatchDbSource: primaryDbSource || "usda",
+        bestMatchDbId: primaryDbId || null,
+        bestMatchDbSource: primaryDbSource || "estimated",
         primaryBaseMatchName: primaryBaseMatchName || item.keyword,
         primaryBase100g: primaryBase100g,
         primaryBaseWeightG: primaryBaseWeightG,
