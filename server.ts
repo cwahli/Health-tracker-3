@@ -3870,10 +3870,15 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
 
           // Check the BASE INGREDIENT's own identity (not the full composite item name,
           // which may contain a sauce/mayo sub-component name and falsely trigger this).
+          // Note: it.keyword is never populated at this stage (the dietitian's
+          // itemsBreakdown schema only has canonicalDbName, not keyword), so both
+          // arguments must use the clean base-ingredient name — otherwise the
+          // fallback silently reintroduces the composite name (e.g. "...with Sauce")
+          // and defeats this check the same way it.originalName did before.
           const baseIngredientNameForPrepCheck = dbNameStr || it.keyword || it.name;
           const isAlreadyPreparedReceipt = checkIfItemIsAlreadyPrepared(
             baseIngredientNameForPrepCheck,
-            it.keyword || it.name,
+            baseIngredientNameForPrepCheck,
             it.dbSource,
             base100Na
           );
