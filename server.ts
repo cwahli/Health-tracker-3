@@ -75,7 +75,7 @@ import YAML from "yaml";
 import { AsyncLocalStorage } from "async_hooks";
 import { biomarkerDefinitions, getBiomarkerStatus, getBiomarkerStatusLabel, getBiomarkerMetadata, getCustomBiomarkerDef } from "./src/utils/biomarkers";
 import { NUTRIENT_KEYS } from "./src/utils/nutrients";
-import { jsToYaml, extractBalancedJson, sanitizeMealWeight, findItemIndexInList, getUSDANutrientValue, extractUSDANutrientsPer100g } from "./server_pure_helpers";
+import { jsToYaml, extractBalancedJson, sanitizeMealWeight, findItemIndexInList, getUSDANutrientValue, extractUSDANutrientsPer100g, checkIfItemIsAlreadyPrepared, applyNutrientRealityChecks } from "./server_pure_helpers";
 import { aggregateItemsNutrients } from "./server_nutrient_aggregation";
 import { 
   ScoutItemSchema, 
@@ -2823,13 +2823,36 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
         }
       }
       const foodMatrix = (kwLower.includes('potato') || kwLower.includes('chip') || kwLower.includes('fry') || kwLower.includes('wedge')) ? 'CELLULAR_STARCH' : 'WHOLE_FOOD';
-      const added = calculateUniversalAddedNutrients(foodMatrix, itemCookingMethod, itemWeight, 0.5, 0.5, 'casual_restaurant');
+      const isAlreadyPrepared = checkIfItemIsAlreadyPrepared(
+        item.originalName || item.keyword,
+        item.keyword,
+        primaryDbSource || "estimated",
+        primaryBase100g?.sodium
+      );
+      const added = calculateUniversalAddedNutrients(
+        foodMatrix, 
+        itemCookingMethod, 
+        itemWeight, 
+        0.5, 
+        0.5, 
+        'casual_restaurant',
+        isAlreadyPrepared
+      );
       if (added.addedFat > 0 || added.addedSodium > 0) {
         aggregatedNutrients.totalFat = parseFloat((aggregatedNutrients.totalFat + added.addedFat).toFixed(2));
         aggregatedNutrients.saturatedFat = parseFloat((aggregatedNutrients.saturatedFat + added.addedSaturatedFat).toFixed(2));
         aggregatedNutrients.calories = parseFloat((aggregatedNutrients.calories + added.addedCalories).toFixed(1));
         aggregatedNutrients.sodium = parseFloat((aggregatedNutrients.sodium + added.addedSodium).toFixed(1));
       }
+
+      // Apply the exact same dietitian reality checks before message generation
+      applyNutrientRealityChecks(
+        item.originalName || item.keyword,
+        itemWeight,
+        aggregatedNutrients,
+        added.addedSodium,
+        addDebugLog
+      );
 
       return {
         scoutIndex: item.scoutIndex,

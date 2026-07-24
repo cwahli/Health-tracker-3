@@ -6,7 +6,9 @@ import {
   sanitizeString,
   findItemIndexInList,
   extractUSDANutrientsPer100g,
-  extractOFFNutrientsPer100g
+  extractOFFNutrientsPer100g,
+  checkIfItemIsAlreadyPrepared,
+  applyNutrientRealityChecks
 } from './server_pure_helpers';
 
 describe('server_pure_helpers', () => {
@@ -194,6 +196,35 @@ describe('server_pure_helpers', () => {
 
       expect(splitReal).toEqual(["line1", "line2", "line3"]);
       expect(splitLiteral).toEqual(["line1", "line2", "line3"]);
+    });
+  });
+
+  describe('checkIfItemIsAlreadyPrepared', () => {
+    it('detects prepared/pre-seasoned foods correctly', () => {
+      expect(checkIfItemIsAlreadyPrepared("McCain Potato Wedges", "potato wedges", "off")).toBe(true);
+      expect(checkIfItemIsAlreadyPrepared("Raw Potato", "raw potato", "usda", 5)).toBe(false);
+      expect(checkIfItemIsAlreadyPrepared("French Fries", "potato", "usda")).toBe(true);
+      expect(checkIfItemIsAlreadyPrepared("Steak with Pepper Sauce", "steak", "usda", 600)).toBe(true);
+    });
+  });
+
+  describe('applyNutrientRealityChecks', () => {
+    it('corrects unrealistically high sodium for non-cured items', () => {
+      const nutrients = { sodium: 800, protein: 10 };
+      applyNutrientRealityChecks("Potato Wedges", 100, nutrients, 200);
+      expect(nutrients.sodium).toBe(450); // Adjusted (250 + 200) * (100 / 100)
+    });
+
+    it('retains high sodium for cured or salted items', () => {
+      const nutrients = { sodium: 1200, protein: 15 };
+      applyNutrientRealityChecks("Cured Bacon", 100, nutrients, 150);
+      expect(nutrients.sodium).toBe(1200); // Unchanged
+    });
+
+    it('caps unrealistically high protein for standard items', () => {
+      const nutrients = { sodium: 100, protein: 60 };
+      applyNutrientRealityChecks("Beef Steak", 100, nutrients, 50);
+      expect(nutrients.protein).toBe(45); // Capped at 45g per 100g
     });
   });
 });

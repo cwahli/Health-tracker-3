@@ -67,8 +67,15 @@ export function calculateUniversalAddedNutrients(
   weightGrams: number,
   visualSheen: number = 0.5,
   visualCoating: number = 0.5,
-  diningEnvironment: string = 'casual_restaurant'
+  diningEnvironment: string = 'casual_restaurant',
+  isAlreadyPrepared: boolean = false
 ) {
+  if (isAlreadyPrepared) {
+    // Prepared/packaged/seasoned products already have their fat and sodium fully accounted for in their database entries.
+    // Cooking additions are bypassed to prevent double-counting.
+    return { addedFat: 0, addedSaturatedFat: 0, addedCalories: 0, addedSodium: 0 };
+  }
+
   let kInternal = 0.0;
   if (foodMatrix === 'CELLULAR_STARCH') {
     if (cookingMethod === 'deep_fried') kInternal = 0.10;

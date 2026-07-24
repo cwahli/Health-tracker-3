@@ -4,7 +4,9 @@ import {
   sanitizeMealWeight, 
   sanitizeString,
   extractUSDANutrientsPer100g, 
-  extractOFFNutrientsPer100g 
+  extractOFFNutrientsPer100g,
+  checkIfItemIsAlreadyPrepared,
+  applyNutrientRealityChecks
 } from "./server_pure_helpers";
 
 export interface AggregatedNutrientsResult {
@@ -210,7 +212,24 @@ export function aggregateItemsNutrients(
     const nameLowerForMatrix = canonicalName.toLowerCase();
     const foodMatrix = (item.foodType === 'ultra_processed' || item.foodType === 'root_veg' || nameLowerForMatrix.includes('potato') || nameLowerForMatrix.includes('wedge') || nameLowerForMatrix.includes('fry') || nameLowerForMatrix.includes('fries') || nameLowerForMatrix.includes('chip')) ? 'CELLULAR_STARCH' : 'WHOLE_FOOD';
     
-    const addedNutrients = calculateUniversalAddedNutrients(foodMatrix, cookingMethod, itemWeight, visualSheen, visualCoating, diningEnvironment);
+    // Check if the item is already prepared or seasoned to avoid "double-salting"
+    let baselineSodium: number | undefined = undefined;
+    if (item.primaryBase100g && item.primaryBase100g.sodium !== undefined) {
+      baselineSodium = item.primaryBase100g.sodium;
+    } else if (item.labelNutrientsPerServing && item.labelNutrientsPerServing.sodium !== undefined) {
+      baselineSodium = item.labelNutrientsPerServing.sodium;
+    }
+    const isAlreadyPrepared = checkIfItemIsAlreadyPrepared(canonicalName, item.keyword || "", dbSource, baselineSodium);
+
+    const addedNutrients = calculateUniversalAddedNutrients(
+      foodMatrix, 
+      cookingMethod, 
+      itemWeight, 
+      visualSheen, 
+      visualCoating, 
+      diningEnvironment,
+      isAlreadyPrepared
+    );
 
     if ((addedNutrients.addedFat > 0 || addedNutrients.addedSodium > 0) && dbSource !== 'estimated' && !item.primaryBase100g) {
       itemNutrients.totalFat = parseFloat((itemNutrients.totalFat + addedNutrients.addedFat).toFixed(2));
@@ -220,26 +239,14 @@ export function aggregateItemsNutrients(
       addDebugLog(`[Nutrient Modifier] Applied universal adhesion equation for "${canonicalName}": added +${addedNutrients.addedFat.toFixed(2)}g fat, +${addedNutrients.addedCalories.toFixed(1)} kcal, +${addedNutrients.addedSodium.toFixed(1)}mg sodium.`);
     }
 
-    // DIETITIAN REALITY CHECK: Sodium & Macro Sanity Check
-    // Raw meat or standard restaurant cooked meat/dishes shouldn't have 1000mg+ sodium per 100g unless cured/sauced
-    const nameLower = canonicalName.toLowerCase();
-    const isCuredOrSalted = nameLower.includes('cured') || nameLower.includes('bacon') || nameLower.includes('ham') || 
-                            nameLower.includes('sausage') || nameLower.includes('soy sauce') || nameLower.includes('salted') || 
-                            nameLower.includes('anchovy') || nameLower.includes('pickle') || nameLower.includes('fish sauce');
-    const sodiumPer100g = (itemNutrients.sodium / itemWeight) * 100;
-    if (!isCuredOrSalted && sodiumPer100g > 500) {
-      const realisticSodium = Math.round((250 + (addedNutrients.addedSodium / (itemWeight / 100) || 150)) * (itemWeight / 100));
-      addDebugLog(`[Dietitian Reality Check] Sodium for "${canonicalName}" (${itemNutrients.sodium}mg) was unrealistically high for a non-cured item. Reality check adjusted sodium from ${itemNutrients.sodium}mg to ${realisticSodium}mg.`);
-      itemNutrients.sodium = realisticSodium;
-    }
-
-    const proteinPer100g = (itemNutrients.protein / itemWeight) * 100;
-    const isProteinPowder = nameLower.includes('powder') || nameLower.includes('isolate') || nameLower.includes('whey');
-    if (!isProteinPowder && proteinPer100g > 45) {
-       const realisticProtein = 45 * (itemWeight / 100);
-       addDebugLog(`[Dietitian Reality Check] Protein for "${canonicalName}" (${itemNutrients.protein}g) exceeded 45g/100g ceiling. Capped to ${realisticProtein}g.`);
-       itemNutrients.protein = realisticProtein;
-    }
+    // DIETITIAN REALITY CHECK: Sodium & Macro Sanity Check (Consolidated)
+    applyNutrientRealityChecks(
+      canonicalName,
+      itemWeight,
+      itemNutrients,
+      addedNutrients.addedSodium,
+      addDebugLog
+    );
 
     // Zero-macro fallback for essential fields
     if (isNaN(itemNutrients.calories) || itemNutrients.calories < 0) itemNutrients.calories = 0;

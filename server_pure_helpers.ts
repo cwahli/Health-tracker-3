@@ -369,3 +369,73 @@ export function extractOFFNutrientsPer100g(product: any): Record<string, number>
 
   return profile;
 }
+
+export function checkIfItemIsAlreadyPrepared(
+  name: string,
+  keyword: string,
+  dbSource?: string,
+  baselineSodium?: number
+): boolean {
+  const nameLower = (name || "").toLowerCase();
+  const kwLower = (keyword || "").toLowerCase();
+  
+  // 1. Branded or Open Food Facts database sources are always prepared/packaged
+  if (dbSource === "off") return true;
+
+  // 2. High baseline sodium (> 150mg per 100g) indicates pre-seasoned / processed
+  if (baselineSodium !== undefined && baselineSodium > 150) return true;
+
+  // 3. Keywords in name or keyword that indicate prepared, seasoned, processed, or commercial status
+  const preparedKeywords = [
+    "fries", "french fry", "french fries", "wedge", "wedges", "chip", "chips", "nugget", "nuggets",
+    "patty", "patties", "burger", "burgers", "sauce", "sauces", "mayo", "mayonnaise", "dressing",
+    "processed", "seasoned", "canned", "fried", "cooked", "baked", "roasted", "grilled", "cured",
+    "bacon", "ham", "sausage", "sausages", "meatball", "meatballs", "toasted", "instant", "salted"
+  ];
+
+  if (preparedKeywords.some(kw => nameLower.includes(kw) || kwLower.includes(kw))) {
+    return true;
+  }
+
+  // 4. Known chains or brands
+  const brandKeywords = ["mcdonald", "kfc", "burger king", "subway", "starbucks", "pizza hut", "domino", "nestle", "unilever", "brand"];
+  if (brandKeywords.some(kw => nameLower.includes(kw) || kwLower.includes(kw))) {
+    return true;
+  }
+
+  return false;
+}
+
+export function applyNutrientRealityChecks(
+  itemName: string,
+  itemWeight: number,
+  itemNutrients: Record<string, number>,
+  addedSodium: number,
+  addDebugLog?: (msg: string) => void
+): void {
+  const nameLower = itemName.toLowerCase();
+  
+  // 1. Sodium Reality Check
+  const isCuredOrSalted = nameLower.includes('cured') || nameLower.includes('bacon') || nameLower.includes('ham') || 
+                          nameLower.includes('sausage') || nameLower.includes('soy sauce') || nameLower.includes('salted') || 
+                          nameLower.includes('anchovy') || nameLower.includes('pickle') || nameLower.includes('fish sauce');
+  const sodiumPer100g = (itemNutrients.sodium / itemWeight) * 100;
+  if (!isCuredOrSalted && sodiumPer100g > 500) {
+    const realisticSodium = Math.round((250 + (addedSodium / (itemWeight / 100) || 150)) * (itemWeight / 100));
+    if (addDebugLog) {
+      addDebugLog(`[Dietitian Reality Check] Sodium for "${itemName}" (${itemNutrients.sodium}mg) was unrealistically high for a non-cured item. Reality check adjusted sodium from ${itemNutrients.sodium}mg to ${realisticSodium}mg.`);
+    }
+    itemNutrients.sodium = realisticSodium;
+  }
+
+  // 2. Protein Reality Check
+  const proteinPer100g = (itemNutrients.protein / itemWeight) * 100;
+  const isProteinPowder = nameLower.includes('powder') || nameLower.includes('isolate') || nameLower.includes('whey');
+  if (!isProteinPowder && proteinPer100g > 45) {
+     const realisticProtein = 45 * (itemWeight / 100);
+     if (addDebugLog) {
+       addDebugLog(`[Dietitian Reality Check] Protein for "${itemName}" (${itemNutrients.protein}g) exceeded 45g/100g ceiling. Capped to ${realisticProtein}g.`);
+     }
+     itemNutrients.protein = realisticProtein;
+  }
+}
