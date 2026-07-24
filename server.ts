@@ -3695,20 +3695,16 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         let grandP = 0;
         let grandSatFat = 0;
         let grandNa = 0;
+        let grandFat = 0;
+        let grandCarbs = 0;
         let grandWeight = 0;
 
         parsedData.itemsBreakdown.forEach((it: any, idx: number) => {
-          const itemCal = safeNum(it.calories);
-          const itemP = safeNum(it.protein);
-          const itemSatFat = safeNum(it.saturatedFat);
-          const itemNa = safeNum(it.sodium);
+          const originalItemCal = safeNum(it.calories);
+          const originalItemP = safeNum(it.protein);
+          const originalItemSatFat = safeNum(it.saturatedFat);
+          const originalItemNa = safeNum(it.sodium);
           const itemWeightG = safeNum(it.weightGrams) || 100;
-
-          grandCal += itemCal;
-          grandP += itemP;
-          grandSatFat += itemSatFat;
-          grandNa += itemNa;
-          grandWeight += itemWeightG;
 
           const badge = it.dbSource === 'estimated_override' 
             ? ` ⚠️ [SANITY CHECK OVERRIDE: ${it.overrideReason || 'Adjusted Value'}]`
@@ -3854,18 +3850,106 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
 
           receiptTable += `| ${physicsEngineLabel} | ${fVal(cookingCal, '', true)} | ${fVal(0, 'g', true)} | ${fVal(cookingSatFat, 'g', true)} | ${fVal(cookingNa, 'mg', true)} |\n`;
 
+          // 1. Calculate base ingredient nutrients for summation
+          const base100Fat = safeNum(raw100.totalFat);
+          const base100Carbs = safeNum(raw100.carbohydrates);
+          const portionBaseFat = Math.round(base100Fat * baseFactor * 10) / 10;
+          const portionBaseCarbs = Math.round(base100Carbs * baseFactor * 10) / 10;
+
+          // Deterministic Component Row Summation
+          let sumCal = portionBaseCal;
+          let sumP = portionBaseP;
+          let sumFat = portionBaseFat;
+          let sumSatFat = portionBaseSatFat;
+          let sumNa = portionBaseNa;
+          let sumCarbs = portionBaseCarbs;
+
+          // Plus sauces:
+          if (it.saucesDetailList && Array.isArray(it.saucesDetailList) && it.saucesDetailList.length > 0) {
+            it.saucesDetailList.forEach((s: any) => {
+              const sCal = Math.round((s.calories || 0) * scaleRatio);
+              const sP = Math.round((s.protein || 0) * scaleRatio * 10) / 10;
+              const sF = Math.round((s.totalFat || 0) * scaleRatio * 10) / 10;
+              const sSatFat = Math.round((s.saturatedFat !== undefined ? s.saturatedFat : 0.3) * scaleRatio * 10) / 10;
+              const sNa = Math.round((s.sodium || 0) * scaleRatio);
+              const sCarbs = Math.round((s.carbohydrates || 0) * scaleRatio * 10) / 10;
+
+              sumCal += sCal;
+              sumP += sP;
+              sumFat += sF;
+              sumSatFat += sSatFat;
+              sumNa += sNa;
+              sumCarbs += sCarbs;
+            });
+          }
+
+          // Plus cooking method additions:
+          sumCal += cookingCal;
+          sumFat += cookingFat;
+          sumSatFat += cookingSatFat;
+          sumNa += cookingNa;
+
+          // Clean rounding for the floats
+          sumP = Math.round(sumP * 10) / 10;
+          sumFat = Math.round(sumFat * 10) / 10;
+          sumSatFat = Math.round(sumSatFat * 10) / 10;
+          sumCarbs = Math.round(sumCarbs * 10) / 10;
+
+          const itemCal = sumCal;
+          const itemP = sumP;
+          const itemFat = sumFat;
+          const itemSatFat = sumSatFat;
+          const itemNa = sumNa;
+          const itemCarbs = sumCarbs;
+
+          // Overwrite it properties to guarantee downstream consistency
+          it.calories = itemCal;
+          it.protein = itemP;
+          it.totalFat = itemFat;
+          it.saturatedFat = itemSatFat;
+          it.sodium = itemNa;
+          it.carbohydrates = itemCarbs;
+
+          // Assert and log loud console error if mismatch
+          const diffCal = Math.abs(originalItemCal - itemCal);
+          const diffP = Math.abs(originalItemP - itemP);
+          const diffSatFat = Math.abs(originalItemSatFat - itemSatFat);
+          const diffNa = Math.abs(originalItemNa - itemNa);
+
+          if (diffCal > 1.1 || diffP > 0.15 || diffSatFat > 0.15 || diffNa > 1.1) {
+            console.error(`[Math Integrity Failure] Item "${it.name}" has mismatched subtotal!\n` +
+                          `Sum of Component Rows: Cal=${itemCal}, P=${itemP}, SatFat=${itemSatFat}, Na=${itemNa}\n` +
+                          `Original Item Nutrients: Cal=${originalItemCal}, P=${originalItemP}, SatFat=${originalItemSatFat}, Na=${originalItemNa}`);
+          }
+
           // Row 5: Item Sub-Total
           receiptTable += `| **Item Sub-Total - ${itemWeightG}g** | **${fVal(itemCal)}** | **${fVal(itemP, 'g')}** | **${fVal(itemSatFat, 'g')}** | **${fVal(itemNa, 'mg')}** |\n`;
+
+          grandCal += itemCal;
+          grandP += itemP;
+          grandFat += itemFat;
+          grandSatFat += itemSatFat;
+          grandNa += itemNa;
+          grandCarbs += itemCarbs;
+          grandWeight += itemWeightG;
 
           // Stream incremental vertical table live to client during loading
           sendStreamEvent({ type: 'stream', stage: 'dietitian', thought: receiptTable });
         });
 
-        const finalCal = Math.round(safeNum(parsedData.nutrients.calories) || grandCal);
-        const finalP = Math.round(safeNum(parsedData.nutrients.protein) || grandP);
-        const finalFat = Math.round(safeNum(parsedData.nutrients.totalFat) || grandSatFat);
-        const finalSatFat = Math.round((safeNum(parsedData.nutrients.saturatedFat) || grandSatFat) * 10) / 10;
-        const finalNa = Math.round(safeNum(parsedData.nutrients.sodium) || grandNa);
+        // Set the final meal nutrients perfectly
+        parsedData.nutrients.calories = grandCal;
+        parsedData.nutrients.protein = grandP;
+        parsedData.nutrients.totalFat = grandFat;
+        parsedData.nutrients.saturatedFat = grandSatFat;
+        parsedData.nutrients.sodium = grandNa;
+        parsedData.nutrients.carbohydrates = grandCarbs;
+
+        const finalCal = grandCal;
+        const finalP = grandP;
+        const finalFat = grandFat;
+        const finalSatFat = grandSatFat;
+        const finalNa = grandNa;
 
         receiptTable += `| **🏆 GRAND MEAL TOTAL - ${grandWeight}g** | **${fVal(finalCal)}** | **${fVal(finalP, 'g')}** | **${fVal(finalSatFat, 'g')}** | **${fVal(finalNa, 'mg')}** |\n`;
 
@@ -3908,8 +3992,15 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           }
           
           if (Array.isArray(visList) && visList.length > 0) {
+            // Filter out sauces, dressings, glazes, condiments per Round 2 Addendum
+            const lexicons = ["sauce", "mayonnaise", "dressing", "glaze", "gravy", "ketchup", "mustard", "vinaigrette", "mayo"];
+            visList = visList.filter((vis: any) => {
+              const vLower = String(vis || "").toLowerCase();
+              return !lexicons.some(lex => vLower.includes(lex));
+            });
+
             // Filter out ingredients that are already in the name to prevent redundancy
-            const remainingVis = visList.filter((vis: string) => {
+            const remainingVis = visList.filter((vis: any) => {
               const vLower = String(vis).toLowerCase();
               if (nameLower.includes(vLower)) return false;
               // Handle common abbreviations/substrings

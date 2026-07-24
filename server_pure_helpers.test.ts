@@ -125,6 +125,27 @@ describe('server_pure_helpers', () => {
       expect(profile.iron).toBe(1.8);
     });
 
+    it('correctly extracts calories from raw corn structure containing both kJ and kcal, preferring kcal or converting properly', () => {
+      // Mock raw corn with kJ (358 kJ) and kcal (86 kcal)
+      const mockCornFood = {
+        foodNutrients: [
+          { nutrientId: 1062, nutrientName: "Energy", value: 358, unitName: "kJ" },
+          { nutrientId: 1008, nutrientName: "Energy", value: 86, unitName: "kcal" }
+        ]
+      };
+      const profile = extractUSDANutrientsPer100g(mockCornFood);
+      expect(profile.calories).toBe(86);
+
+      // And if only kJ is present (358 kJ)
+      const mockCornFoodKjOnly = {
+        foodNutrients: [
+          { nutrientId: 1062, nutrientName: "Energy", value: 358, unitName: "kJ" }
+        ]
+      };
+      const profileKjOnly = extractUSDANutrientsPer100g(mockCornFoodKjOnly);
+      expect(profileKjOnly.calories).toBe(86); // 358 / 4.184 = 85.56 => 86
+    });
+
     it('handles empty/missing nutrients gracefully', () => {
       const profile = extractUSDANutrientsPer100g({});
       expect(profile).toEqual({});

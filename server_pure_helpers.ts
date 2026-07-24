@@ -214,11 +214,42 @@ export function extractUSDANutrientsPer100g(food: any): Record<string, number> {
     }
   };
   
-  const energyNut = findNut(["energy", "calories"]);
-  if (energyNut) {
-    const val = getUSDANutrientValue(energyNut);
-    const unit = (energyNut.unitName || (energyNut.nutrient && energyNut.nutrient.unitName) || "").toLowerCase();
-    profile["calories"] = unit === "kj" ? Math.round(val / 4.184) : Math.round(val);
+  // Find energy/calories. We prefer Kilocalories (ID 1008) over Kilojoules (ID 1062).
+  let kcalNut = food.foodNutrients.find((n: any) => {
+    const id = Number(n.nutrientId || (n.nutrient && n.nutrient.id));
+    const num = String(n.nutrientNumber || "");
+    const name = (n.nutrientName || (n.nutrient && n.nutrient.name) || "").toLowerCase();
+    const unit = (n.unitName || (n.nutrient && n.nutrient.unitName) || "").toLowerCase();
+    return id === 1008 || num === "208" || name.includes("kcal") || name.includes("kilocalories") || (name === "energy" && unit === "kcal");
+  });
+
+  let kjNut = food.foodNutrients.find((n: any) => {
+    const id = Number(n.nutrientId || (n.nutrient && n.nutrient.id));
+    const num = String(n.nutrientNumber || "");
+    const name = (n.nutrientName || (n.nutrient && n.nutrient.name) || "").toLowerCase();
+    const unit = (n.unitName || (n.nutrient && n.nutrient.unitName) || "").toLowerCase();
+    return id === 1062 || num === "268" || name.includes("kj") || name.includes("kilojoules") || (name === "energy" && unit === "kj");
+  });
+
+  if (kcalNut) {
+    const val = getUSDANutrientValue(kcalNut);
+    profile["calories"] = Math.round(val);
+  } else if (kjNut) {
+    const val = getUSDANutrientValue(kjNut);
+    profile["calories"] = Math.round(val / 4.184);
+  } else {
+    // Fallback to standard name matching
+    const energyNut = findNut(["energy", "calories"]);
+    if (energyNut) {
+      const val = getUSDANutrientValue(energyNut);
+      const unit = (energyNut.unitName || (energyNut.nutrient && energyNut.nutrient.unitName) || "").toLowerCase();
+      const name = (energyNut.nutrientName || (energyNut.nutrient && energyNut.nutrient.name) || "").toLowerCase();
+      if (unit === "kj" || name.includes("kilojoules") || name.includes("kj")) {
+        profile["calories"] = Math.round(val / 4.184);
+      } else {
+        profile["calories"] = Math.round(val);
+      }
+    }
   }
   
   setVal("protein", ["protein"]);

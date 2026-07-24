@@ -141,4 +141,77 @@ describe("server_nutrient_aggregation", () => {
     expect(result.nutrients.totalFat).toBe(8);
     expect(result.nutrients.unsaturatedFat).toBe(0); // 8 - 6 - 2 = 0
   });
+
+  it("aggregates multi-component items deterministically by summing components", () => {
+    const rawItems = [
+      {
+        name: "Beef Steak with Black Pepper Sauce",
+        weightGrams: 220,
+        dbSource: "backend_calculated",
+        dbId: "MOCK_BEEF",
+        primaryBase100g: {
+          calories: 143,
+          protein: 21.1,
+          totalFat: 6,
+          saturatedFat: 2.4,
+          sodium: 45,
+          carbohydrates: 0
+        },
+        primaryBaseWeightG: 165,
+        saucesDetailList: [
+          {
+            name: "Black pepper sauce",
+            weightGrams: 55,
+            calories: 240,
+            protein: 0.6,
+            totalFat: 15,
+            saturatedFat: 2.0,
+            sodium: 378,
+            carbohydrates: 12
+          }
+        ],
+        cookingAdded: {
+          addedCalories: 79,
+          addedFat: 10,
+          addedSaturatedFat: 1.8,
+          addedSodium: 550
+        },
+        foodType: "beef"
+      }
+    ];
+
+    const result = aggregateItemsNutrients(rawItems, 220, new Map(), [], () => {});
+
+    // portionBase values for 165g of base (1.65 factor):
+    // portionBaseCal = Math.round(143 * 1.65) = 236
+    // portionBaseP = Math.round(21.1 * 1.65 * 10) / 10 = 34.8
+    // portionBaseFat = Math.round(6 * 1.65 * 10) / 10 = 9.9
+    // portionBaseSatFat = Math.round(2.4 * 1.65 * 10) / 10 = 4.0
+    // portionBaseNa = Math.round(45 * 1.65) = 74
+    // portionBaseCarbs = Math.round(0 * 1.65 * 10) / 10 = 0
+
+    // sauces values for 55g (scaleRatio is 1, so unchanged):
+    // sCal = 240, sP = 0.6, sFat = 15, sSatFat = 2.0, sNa = 378, sCarbs = 12
+
+    // cookingAdded values:
+    // cookingCal = 79, cookingFat = 10, cookingSatFat = 1.8, cookingNa = 550
+
+    // Sum of rows above:
+    // Calories: 236 + 240 + 79 = 555
+    // Protein: 34.8 + 0.6 = 35.4
+    // Fat: 9.9 + 15 + 10 = 34.9
+    // Saturated Fat: 4.0 + 2.0 + 1.8 = 7.8
+    // Sodium: 74 + 378 + 550 = 1002
+    // Carbohydrates: 0 + 12 = 12
+
+    expect(result.nutrients.calories).toBe(555);
+    expect(result.nutrients.protein).toBe(35.4);
+    expect(result.nutrients.totalFat).toBe(34.9);
+    expect(result.nutrients.saturatedFat).toBe(7.8);
+    expect(result.nutrients.sodium).toBe(1002);
+    expect(result.nutrients.carbohydrates).toBe(12);
+
+    expect(result.itemsBreakdown[0].calories).toBe(555);
+    expect(result.itemsBreakdown[0].protein).toBe(35.4);
+  });
 });

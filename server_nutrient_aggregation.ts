@@ -48,42 +48,157 @@ export function aggregateItemsNutrients(
       servingSizeGrams = 100;
     }
 
-    // STEP 1: Apply LLM core-11 estimate (present for label and estimated items)
-    if (labelData && servingSizeGrams > 0) {
-      const scaleFactor = itemWeight / servingSizeGrams;
-      for (const key of coreLabelKeys) {
-        if (labelData[key] !== undefined && labelData[key] !== null) {
-          itemNutrients[key] = parseFloat((Number(labelData[key]) * scaleFactor).toFixed(2));
+    if (item.primaryBase100g) {
+      // It's a multi-component item! Calculate base and sauces and cooking method additions deterministically
+      const raw100 = { ...item.primaryBase100g };
+      const itemWeightG = itemWeight;
+      
+      let baseW = item.primaryBaseWeightG || itemWeightG;
+      let sauceWSum = 0;
+      let scaleRatio = 1;
+      
+      if (item.saucesDetailList && item.saucesDetailList.length > 0) {
+        sauceWSum = item.saucesDetailList.reduce((acc: number, s: any) => acc + (s.weightGrams || 0), 0);
+      }
+      
+      if (item.primaryBaseWeightG) {
+         const originalWeight = item.primaryBaseWeightG + sauceWSum;
+         if (originalWeight > 0 && Math.abs(originalWeight - itemWeightG) > 2) {
+            scaleRatio = itemWeightG / originalWeight;
+            baseW = Math.round(item.primaryBaseWeightG * scaleRatio);
+         }
+      } else if (sauceWSum > 0) {
+         if (baseW === itemWeightG && sauceWSum < itemWeightG) {
+            baseW = Math.max(10, itemWeightG - sauceWSum);
+         }
+      }
+
+      const baseFactor = baseW / 100;
+
+      // 1. Calculate base ingredient nutrients
+      const portionBaseCal = Math.round((raw100.calories || 0) * baseFactor);
+      const portionBaseP = Math.round((raw100.protein || 0) * baseFactor * 10) / 10;
+      const portionBaseFat = Math.round((raw100.totalFat || 0) * baseFactor * 10) / 10;
+      const portionBaseSatFat = Math.round((raw100.saturatedFat || 0) * baseFactor * 10) / 10;
+      const portionBaseTransFat = Math.round((raw100.transFat || 0) * baseFactor * 10) / 10;
+      const portionBaseNa = Math.round((raw100.sodium || 0) * baseFactor);
+      const portionBaseCarbs = Math.round((raw100.carbohydrates || 0) * baseFactor * 10) / 10;
+
+      let sumCal = portionBaseCal;
+      let sumP = portionBaseP;
+      let sumFat = portionBaseFat;
+      let sumSatFat = portionBaseSatFat;
+      let sumTransFat = portionBaseTransFat;
+      let sumNa = portionBaseNa;
+      let sumCarbs = portionBaseCarbs;
+
+      // 2. Add sauces
+      if (item.saucesDetailList && Array.isArray(item.saucesDetailList) && item.saucesDetailList.length > 0) {
+        item.saucesDetailList.forEach((s: any) => {
+          const sCal = Math.round((s.calories || 0) * scaleRatio);
+          const sP = Math.round((s.protein || 0) * scaleRatio * 10) / 10;
+          const sF = Math.round((s.totalFat || 0) * scaleRatio * 10) / 10;
+          const sSatFat = Math.round((s.saturatedFat !== undefined ? s.saturatedFat : 0.3) * scaleRatio * 10) / 10;
+          const sTransFat = Math.round((s.transFat || 0) * scaleRatio * 10) / 10;
+          const sNa = Math.round((s.sodium || 0) * scaleRatio);
+          const sCarbs = Math.round((s.carbohydrates || 0) * scaleRatio * 10) / 10;
+
+          sumCal += sCal;
+          sumP += sP;
+          sumFat += sF;
+          sumSatFat += sSatFat;
+          sumTransFat += sTransFat;
+          sumNa += sNa;
+          sumCarbs += sCarbs;
+        });
+      }
+
+      // 3. Add cooking modifiers
+      let cookingCal = 0;
+      let cookingFat = 0;
+      let cookingSatFat = 0;
+      let cookingNa = 0;
+
+      if (item.cookingAdded) {
+        cookingCal = Math.round(item.cookingAdded.addedCalories || 0);
+        cookingFat = Math.round((item.cookingAdded.addedFat || 0) * 10) / 10;
+        cookingSatFat = Math.round((item.cookingAdded.addedSaturatedFat || 0) * 10) / 10;
+        cookingNa = Math.round(item.cookingAdded.addedSodium || 0);
+      } else {
+        let rawMethod = (item.cookingMethod && item.cookingMethod !== 'unknown') ? item.cookingMethod : null;
+        if (!rawMethod) {
+          const kwLower = (item.keyword || item.name || "").toLowerCase();
+          if (kwLower.includes('wedge') || kwLower.includes('fries') || kwLower.includes('chip') || kwLower.includes('nugget')) {
+            rawMethod = 'deep_fried';
+          } else if (kwLower.includes('vegetable') || kwLower.includes('veg') || kwLower.includes('corn') || kwLower.includes('pea') || kwLower.includes('carrot') || kwLower.includes('broccoli')) {
+            rawMethod = 'boiled';
+          } else {
+            rawMethod = 'pan_fried';
+          }
+        }
+        if (rawMethod !== 'raw' && rawMethod !== 'unknown') {
+          const kwLower = (item.keyword || item.name || "").toLowerCase();
+          const foodMatrix = (kwLower.includes('potato') || kwLower.includes('chip') || kwLower.includes('fry') || kwLower.includes('wedge')) ? 'CELLULAR_STARCH' : 'WHOLE_FOOD';
+          const calcAdded = calculateUniversalAddedNutrients(foodMatrix, rawMethod, itemWeightG, 0.5, 0.5, 'casual_restaurant');
+          cookingCal = Math.round(calcAdded.addedCalories);
+          cookingFat = Math.round(calcAdded.addedFat * 10) / 10;
+          cookingSatFat = Math.round(calcAdded.addedSaturatedFat * 10) / 10;
+          cookingNa = Math.round(calcAdded.addedSodium);
         }
       }
-      addDebugLog(`[Nutrient] "${canonicalName}" core-11 from LLM estimate (servingSizeGrams=${servingSizeGrams}).`);
-    } else if (dbSource === "estimated") {
-      addDebugLog(`[Nutrient Warning] "${canonicalName}" is 'estimated' but LLM did not provide labelNutrientsPerServing. Core-11 will be zero.`);
-      itemNutrients.isUnverified = true;
-    }
 
-    // STEP 2: If USDA/OFF match found, override core-11 with verified DB data (reinforcement)
-    if ((dbSource === "usda" || dbSource === "off" || dbSource === "backend_calculated") && dbId && !item.primaryBase100g) {
-      const hasInMap = dbMatchMap.has(dbId);
-      const match = !hasInMap ? databaseMatchesArray.find((m: any) => m.id === dbId) : null;
-      if (hasInMap) {
-        const baseNutrientsPer100g = dbMatchMap.get(dbId);
-        const factor = itemWeight / 100;
+      sumCal += cookingCal;
+      sumFat += cookingFat;
+      sumSatFat += cookingSatFat;
+      sumNa += cookingNa;
+
+      itemNutrients.calories = sumCal;
+      itemNutrients.protein = parseFloat(sumP.toFixed(2));
+      itemNutrients.totalFat = parseFloat(sumFat.toFixed(2));
+      itemNutrients.saturatedFat = parseFloat(sumSatFat.toFixed(2));
+      itemNutrients.transFat = parseFloat(sumTransFat.toFixed(2));
+      itemNutrients.sodium = sumNa;
+      itemNutrients.carbohydrates = parseFloat(sumCarbs.toFixed(2));
+
+      addDebugLog(`[Nutrient] "${canonicalName}" computed DETERMINISTICALLY by summing components: Cal=${sumCal}, Protein=${sumP}, Fat=${sumFat}, SatFat=${sumSatFat}, Sodium=${sumNa}`);
+    } else {
+      // STEP 1: Apply LLM core-11 estimate (present for label and estimated items)
+      if (labelData && servingSizeGrams > 0) {
+        const scaleFactor = itemWeight / servingSizeGrams;
         for (const key of coreLabelKeys) {
-          if (baseNutrientsPer100g[key] !== undefined) {
-            itemNutrients[key] = parseFloat((baseNutrientsPer100g[key] * factor).toFixed(2));
+          if (labelData[key] !== undefined && labelData[key] !== null) {
+            itemNutrients[key] = parseFloat((Number(labelData[key]) * scaleFactor).toFixed(2));
           }
         }
-        addDebugLog(`[Nutrient] "${canonicalName}" core-11 reinforced by USDA/OFF dbMatchMap.`);
-      } else if (match) {
-        const baseNutrientsPer100g = dbSource === "usda" ? extractUSDANutrientsPer100g(match) : extractOFFNutrientsPer100g(match);
-        const factor = itemWeight / 100;
-        for (const key of coreLabelKeys) {
-          if (baseNutrientsPer100g[key] !== undefined) {
-            itemNutrients[key] = parseFloat((baseNutrientsPer100g[key] * factor).toFixed(2));
+        addDebugLog(`[Nutrient] "${canonicalName}" core-11 from LLM estimate (servingSizeGrams=${servingSizeGrams}).`);
+      } else if (dbSource === "estimated") {
+        addDebugLog(`[Nutrient Warning] "${canonicalName}" is 'estimated' but LLM did not provide labelNutrientsPerServing. Core-11 will be zero.`);
+        itemNutrients.isUnverified = true;
+      }
+
+      // STEP 2: If USDA/OFF match found, override core-11 with verified DB data (reinforcement)
+      if ((dbSource === "usda" || dbSource === "off" || dbSource === "backend_calculated") && dbId) {
+        const hasInMap = dbMatchMap.has(dbId);
+        const match = !hasInMap ? databaseMatchesArray.find((m: any) => m.id === dbId) : null;
+        if (hasInMap) {
+          const baseNutrientsPer100g = dbMatchMap.get(dbId);
+          const factor = itemWeight / 100;
+          for (const key of coreLabelKeys) {
+            if (baseNutrientsPer100g[key] !== undefined) {
+              itemNutrients[key] = parseFloat((baseNutrientsPer100g[key] * factor).toFixed(2));
+            }
           }
+          addDebugLog(`[Nutrient] "${canonicalName}" core-11 reinforced by USDA/OFF dbMatchMap.`);
+        } else if (match) {
+          const baseNutrientsPer100g = dbSource === "usda" ? extractUSDANutrientsPer100g(match) : extractOFFNutrientsPer100g(match);
+          const factor = itemWeight / 100;
+          for (const key of coreLabelKeys) {
+            if (baseNutrientsPer100g[key] !== undefined) {
+              itemNutrients[key] = parseFloat((baseNutrientsPer100g[key] * factor).toFixed(2));
+            }
+          }
+          addDebugLog(`[Nutrient] "${canonicalName}" core-11 reinforced by USDA/OFF match object.`);
         }
-        addDebugLog(`[Nutrient] "${canonicalName}" core-11 reinforced by USDA/OFF match object.`);
       }
     }
 
@@ -97,7 +212,7 @@ export function aggregateItemsNutrients(
     
     const addedNutrients = calculateUniversalAddedNutrients(foodMatrix, cookingMethod, itemWeight, visualSheen, visualCoating, diningEnvironment);
 
-    if ((addedNutrients.addedFat > 0 || addedNutrients.addedSodium > 0) && dbSource !== 'estimated') {
+    if ((addedNutrients.addedFat > 0 || addedNutrients.addedSodium > 0) && dbSource !== 'estimated' && !item.primaryBase100g) {
       itemNutrients.totalFat = parseFloat((itemNutrients.totalFat + addedNutrients.addedFat).toFixed(2));
       itemNutrients.saturatedFat = parseFloat((itemNutrients.saturatedFat + addedNutrients.addedSaturatedFat).toFixed(2));
       itemNutrients.calories = parseFloat((itemNutrients.calories + addedNutrients.addedCalories).toFixed(1));
