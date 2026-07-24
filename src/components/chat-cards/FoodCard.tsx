@@ -1,7 +1,7 @@
 import { formatMessageContent } from '../../utils/formatUtils';
 import { NutritionLabelTable } from "./NutritionLabelTable";
 import { trackApiCall } from '../../utils/apiTracker';
-import * as React from 'react';
+import React, { useState } from 'react';
 import Markdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { AgentCardProps } from './types';
@@ -12,6 +12,40 @@ const safeTruncate = (str: any, maxLen: number = 100): string => {
   const s = String(str);
   if (s.length <= maxLen) return s;
   return s.substring(0, maxLen) + '...';
+};
+
+const InfoTooltipBadge: React.FC<{ title?: string }> = ({ title }) => {
+  const [isOpen, setIsOpen] = useState(false);
+
+  if (!title) return null;
+
+  return (
+    <span className="relative inline-block ml-1 align-middle group">
+      <button
+        type="button"
+        onClick={(e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+        className="inline-flex items-center justify-center w-3.5 h-3.5 text-[9px] font-bold text-indigo-600 dark:text-indigo-300 bg-indigo-100 dark:bg-indigo-900/80 hover:bg-indigo-200 dark:hover:bg-indigo-800 rounded-full cursor-pointer transition-all select-none border border-indigo-300/50 dark:border-indigo-700/50 focus:outline-none"
+        aria-label="Info explanation"
+      >
+        ℹ️
+      </button>
+      {isOpen && (
+        <span 
+          className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 w-64 p-2.5 bg-slate-900/95 dark:bg-slate-800/95 backdrop-blur text-white text-[11px] font-normal leading-relaxed rounded-lg shadow-xl border border-slate-700/60 z-50 pointer-events-none transition-all duration-150 block"
+          style={{ whiteSpace: 'normal', wordBreak: 'break-word' }}
+        >
+          {title}
+          <span className="absolute top-full left-1/2 -translate-x-1/2 -mt-1 border-4 border-transparent border-t-slate-900 dark:border-t-slate-800" />
+        </span>
+      )}
+    </span>
+  );
 };
 
 export const ScratchpadMarkdownViewer: React.FC<{ content: string; className?: string }> = ({ content, className = '' }) => {
@@ -59,7 +93,22 @@ export const ScratchpadMarkdownViewer: React.FC<{ content: string; className?: s
             <p className="my-1 font-sans text-[11px] leading-relaxed whitespace-pre-wrap">
               {children}
             </p>
-          )
+          ),
+          a: ({ href, title, children }) => {
+            if (href === '#info' || href?.startsWith('#')) {
+              return <InfoTooltipBadge title={title || (typeof children === 'string' ? children : '')} />;
+            }
+            return (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-indigo-600 dark:text-indigo-400 underline hover:text-indigo-800 dark:hover:text-indigo-200 transition-colors font-medium"
+              >
+                {children}
+              </a>
+            );
+          }
         }}
       >
         {cleanContent}
@@ -688,6 +737,13 @@ export const FoodCard: React.FC<AgentCardProps & {
     setInputText, fileInputRef
   } = props;
 
+  if (msg.isLive) {
+    return null;
+  }
+
+  const comparisonData = msg.data?.comparison || msg.data?.agentResult?.comparison || msg.agentResult?.comparison;
+  const mode = msg.data?.mode || msg.data?.agentResult?.mode || msg.agentResult?.mode;
+
   const [expandedTables, setExpandedTables] = React.useState<Record<string, boolean>>({});
   const [expandedScouts, setExpandedScouts] = React.useState<Record<string, boolean>>({});
   const [fullScreenImg, setFullScreenImg] = React.useState<{ src: string, boundingBox?: number[], foodName?: string, navItems?: { src: string, boundingBox?: number[], foodName?: string }[], navIndex?: number } | null>(null);
@@ -711,14 +767,6 @@ export const FoodCard: React.FC<AgentCardProps & {
     if (msg.data?.agentResult?.scoutData?.items && Array.isArray(msg.data.agentResult.scoutData.items)) items = msg.data.agentResult.scoutData.items;
     else if (msg.data?.scoutData?.items && Array.isArray(msg.data.scoutData.items)) items = msg.data.scoutData.items;
     else if (msg.data?.scoutItems && msg.data.scoutItems.length > 0) items = msg.data.scoutItems;
-    else {
-      for (let mIdx = (messages ? messages.length - 1 : -1); mIdx >= 0; mIdx--) {
-        if (messages[mIdx].data?.scoutItems && messages[mIdx].data.scoutItems.length > 0) {
-          items = messages[mIdx].data.scoutItems;
-          break;
-        }
-      }
-    }
     
     if (confirmedScoutIndices.size > 0) {
       return items.map((item: any, i: number) => {
@@ -735,7 +783,7 @@ export const FoodCard: React.FC<AgentCardProps & {
     }
     
     return items;
-  }, [msg.data, messages, confirmedScoutIndices]);
+  }, [msg.data, confirmedScoutIndices]);
 
   const displayedScoutItems = React.useMemo(() => {
     const itemsBreakdown = msg.data?.pendingFoodLog?.itemsBreakdown;
@@ -759,13 +807,18 @@ export const FoodCard: React.FC<AgentCardProps & {
       return {
         scoutIndex: matchingScout ? matchingScout.scoutIndex : i,
         keyword: item.canonicalDbName || item.name,
-        originalName: item.canonicalDbName || item.name,
+        originalName: matchingScout?.originalName || item.canonicalDbName || item.name,
         estimatedWeightGrams: item.weightGrams,
         boundingBox2D: matchingScout ? matchingScout.boundingBox2D : null,
         sourceImageIndex: matchingScout ? matchingScout.sourceImageIndex : null,
         itemConfidence: matchingScout ? matchingScout.itemConfidence : "High (>90%)",
         anomalyFlags: matchingScout ? matchingScout.anomalyFlags : [],
-        cookingMethod: item.cookingMethod || (matchingScout ? matchingScout.cookingMethod : null)
+        cookingMethod: item.cookingMethod || (matchingScout ? matchingScout.cookingMethod : null),
+        rawNutritionLabel: matchingScout?.rawNutritionLabel || item.rawNutritionLabel,
+        ingredientsList: matchingScout?.ingredientsList || item.ingredientsList,
+        visualIngredients: matchingScout?.visualIngredients || item.visualIngredients,
+        nutritionFacts: matchingScout?.nutritionFacts || item.nutritionFacts,
+        source: matchingScout?.source || item.source
       };
     });
   }, [activeScoutItems, msg.data?.pendingFoodLog?.itemsBreakdown]);
@@ -944,9 +997,9 @@ export const FoodCard: React.FC<AgentCardProps & {
   }, [profile?.topNutrientsToMonitor]);
 
   const displayGroups = React.useMemo(() => {
-    if (!msg.data?.agentResult?.comparison?.groups) return [];
+    if (!comparisonData?.groups) return [];
     
-    const rawGroups = [...msg.data.agentResult.comparison.groups];
+    const rawGroups = [...comparisonData.groups];
     
     // Sort logic helper
     const getSuitabilityScore = (suitability: string): number => {
@@ -1139,7 +1192,7 @@ export const FoodCard: React.FC<AgentCardProps & {
 
   return (
     <>
-      {msg.data?.agentResult && msg.data?.agentResult.mode === 'evaluation' && msg.data?.agentResult.comparison && (
+      {(mode === 'evaluation' && comparisonData && comparisonData.groups && comparisonData.groups.length > 0) && (
                     <div className="space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden bg-transparent">
                       {msg.data.correctionOf && (
                          <div className="flex justify-center pb-2">
@@ -1160,7 +1213,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                         <h4 className="font-bold text-theme-text text-sm break-words flex flex-wrap items-center gap-1.5 w-full">
                           <span className="shrink-0">t.comparisonLabel</span> <span className="text-indigo-600 dark:text-indigo-400 font-bold break-words">
                             {(() => {
-                              const val = msg.data?.agentResult?.comparison?.comparisonTitle || msg.data?.agentResult?.comparison?.keyNutrientConcern || 'Nutrients of Concern';
+                              const val = comparisonData?.comparisonTitle || comparisonData?.keyNutrientConcern || 'Nutrients of Concern';
                               return typeof val === 'string' ? val.replace(/^key\s*:\s*/i, '') : val;
                             })()}
                           </span>
@@ -1431,7 +1484,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                   }
                                     
                                   if (groupScoutItems.length > 0) {
-                                    return <NutritionLabelTable defaultOpen={false} activeScoutItems={groupScoutItems} onConfirmItem={(idx) => setConfirmedScoutIndices(prev => new Set(prev).add(idx))} />;
+                                    return <NutritionLabelTable defaultOpen={true} activeScoutItems={groupScoutItems} onConfirmItem={(idx) => setConfirmedScoutIndices(prev => new Set(prev).add(idx))} />;
                                   }
 
                                   // No real scout items for this group (e.g. a text-only comparison with no
@@ -2236,7 +2289,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                  </div>
                                </div>
                              )}
-                             <NutritionLabelTable defaultOpen={false} activeScoutItems={displayedScoutItems} onConfirmItem={(idx) => setConfirmedScoutIndices(prev => new Set(prev).add(idx))} />
+                             <NutritionLabelTable defaultOpen={true} activeScoutItems={displayedScoutItems} onConfirmItem={(idx) => setConfirmedScoutIndices(prev => new Set(prev).add(idx))} />
                           </div>
                         );
                       })()}
@@ -2268,6 +2321,11 @@ export const FoodCard: React.FC<AgentCardProps & {
                         {msg.data?.pendingFoodLog.risks && <p><strong className="text-theme-text">{t.risks}:</strong> {msg.data?.pendingFoodLog.risks}</p>}
                         <p><strong className="text-theme-text">{t.impact}:</strong> {msg.data?.pendingFoodLog.healthImpact}</p>
                       </div>
+                      {msg.data?.pendingFoodLog?.receiptTable && (
+                        <div className="mt-3 pt-3 border-t border-theme-border/50 overflow-hidden w-full max-w-full">
+                           <ScratchpadMarkdownViewer content={msg.data.pendingFoodLog.receiptTable} className="!bg-transparent !p-0 !border-0" />
+                        </div>
+                      )}
 
                       {/* Dynamic Top Nutrients badges driven by User Profile configuration */}
                       {(() => {
@@ -2345,7 +2403,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                 const foundK = Object.keys(nutrientsObj).find(k => k.toLowerCase().replace(/[^a-z0-9]/g, '') === lowerKey);
                                 if (foundK) valueInMeal = nutrientsObj[foundK];
                               }
-                              if (valueInMeal === undefined || valueInMeal === null) return null;
+                              if (valueInMeal === undefined || valueInMeal === null || valueInMeal === 0) return null;
 
                               const reportTarget = report?.dailyNutrientTargets?.[lookupKey] || report?.dailyNutrientTargets?.[key];
                               const fallbackVal = defaultTargets[lookupKey] || defaultTargets[key] || 15;
@@ -2579,6 +2637,58 @@ export const FoodCard: React.FC<AgentCardProps & {
                       )}
                     </div>
                   )}
+
+      {/* Standalone Response / Discussion / Clinical Advice Card when no Pending Food Log or Comparison exists */}
+      {(() => {
+        const hasPendingLog = !!msg.data?.pendingFoodLog;
+        const hasComparison = !!(mode === 'evaluation' && comparisonData && comparisonData.groups && comparisonData.groups.length > 0);
+        if (hasPendingLog || hasComparison) return null;
+
+        const rawText = msg.content || msg.data?.agentResult?.message || msg.data?.agentResult?.text || msg.data?.agentResult?.dietitianAnswer || msg.data?.agentResult?.scoutAnswer || (msg as any).text || (msg as any).message;
+        let formattedText = '';
+        if (rawText) {
+          formattedText = formatMessageContent(rawText, msg);
+          if (!formattedText && typeof rawText === 'string' && !rawText.trim().startsWith('{')) {
+            formattedText = rawText;
+          }
+        }
+
+        const fallbackText = formattedText || msg.data?.agentResult?.dietitianScratchpad || msg.data?.agentResult?.scoutScratchpad || '';
+
+        if (!fallbackText && activeScoutItems.length === 0) return null;
+
+        return (
+          <div className="bg-white dark:bg-slate-800 border border-theme-border rounded-2xl p-4 shadow-md space-y-3 animation-fade-in w-full max-w-full min-w-0 overflow-hidden font-sans text-left mt-3">
+            {/* Show Scout identified items if photos were uploaded */}
+            {activeScoutItems.length > 0 && (
+              <div className="mb-3 border-b border-theme-border/50 pb-3 font-sans">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[10.5px] font-bold text-indigo-500 dark:text-indigo-400">
+                    🔍 Meal composition ({activeScoutItems.length} items identified)
+                  </span>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                  {activeScoutItems.map((item: any, i: number) => (
+                    <div key={i} className="bg-slate-50 dark:bg-slate-900/50 p-2 rounded-xl border border-slate-100 dark:border-slate-800 text-xs font-medium text-slate-700 dark:text-slate-300 flex items-center justify-between min-w-0">
+                      <span className="truncate">{item.originalName || item.keyword}</span>
+                      {item.estimatedWeightGrams && (
+                        <span className="text-[10px] text-slate-400 font-mono ml-1 shrink-0">{item.estimatedWeightGrams}g</span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Dietitian Update / Response */}
+            {fallbackText && (
+              <div className="text-[12px] text-slate-800 dark:text-slate-100 font-sans leading-relaxed whitespace-pre-line break-words space-y-2">
+                {fallbackText}
+              </div>
+            )}
+          </div>
+        );
+      })()}
     </>
   );
 };

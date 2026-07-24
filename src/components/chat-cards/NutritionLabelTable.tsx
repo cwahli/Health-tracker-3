@@ -31,7 +31,7 @@ function normalizeNutritionKeys(obj: any) {
   return normalized;
 }
 
-export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOpen = false, language = "en" }: { activeScoutItems: any[], onConfirmItem?: (idx: any) => void, defaultOpen?: boolean, language?: string }) {
+export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOpen = true, language = "en" }: { activeScoutItems: any[], onConfirmItem?: (idx: any) => void, defaultOpen?: boolean, language?: string }) {
   const t = translations[language || "en"] || translations.en;
   let items = activeScoutItems;
   if (typeof items === 'string') {
@@ -80,7 +80,11 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
   const NON_NUTRIENT_LABEL_KEYS = new Set(['servingSize', 'weight', 'servingsPerContainer']);
 
   const hasLabels = processedItems.some((item: any) => {
-    if (!item || !item.rawNutritionLabel || typeof item.rawNutritionLabel !== 'object') {
+    if (!item) return false;
+    if (item.ingredientsList && typeof item.ingredientsList === 'string' && item.ingredientsList.trim().length > 0) {
+      return true;
+    }
+    if (!item.rawNutritionLabel || typeof item.rawNutritionLabel !== 'object') {
       return false;
     }
     const keys = Object.keys(item.rawNutritionLabel).filter(k => !NON_NUTRIENT_LABEL_KEYS.has(k));
@@ -121,7 +125,8 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
               : [];
             const hasRaw = meaningfulRawKeys.length > 0;
             const hasNut = item.nutritionFacts && Object.keys(item.nutritionFacts).length > 0;
-            if (!hasRaw) return null;
+            const hasIngredients = !!(item.ingredientsList && String(item.ingredientsList).trim());
+            if (!hasRaw && !hasIngredients) return null;
 
             const missingWeight = !item.estimatedWeightGrams || isNaN(Number(item.estimatedWeightGrams));
 
@@ -175,105 +180,107 @@ export function NutritionLabelTable({ activeScoutItems, onConfirmItem, defaultOp
                   )}
                 </div>
 
-                <div className="overflow-x-auto rounded-lg border border-theme-border/50">
-                  <table className="w-full text-left border-collapse">
-                    <thead>
-                      <tr className="bg-slate-100/50 dark:bg-slate-800/50">
-                        <th className="py-1.5 px-2 font-bold text-theme-text-secondary border-b border-theme-border/50">
-                          Nutrient
-                        </th>
-                        <th className="py-1.5 px-2 font-bold text-theme-text-secondary border-b border-theme-border/50">
-                          Original
-                        </th>
-                        <th className="py-1.5 px-2 font-bold text-theme-text-secondary border-b border-theme-border/50 whitespace-nowrap">
-                          Total
-                        </th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
-                      {allKeys.map((k) => {
-                        const originalVal = item.rawNutritionLabel?.[k] !== undefined 
-                          ? item.rawNutritionLabel?.[k] 
-                          : item.nutritionFacts?.[k];
+                {allKeys.length > 0 && (
+                  <div className="overflow-x-auto rounded-lg border border-theme-border/50">
+                    <table className="w-full text-left border-collapse">
+                      <thead>
+                        <tr className="bg-slate-100/50 dark:bg-slate-800/50">
+                          <th className="py-1.5 px-2 font-bold text-theme-text-secondary border-b border-theme-border/50">
+                            Nutrient
+                          </th>
+                          <th className="py-1.5 px-2 font-bold text-theme-text-secondary border-b border-theme-border/50">
+                            Original
+                          </th>
+                          <th className="py-1.5 px-2 font-bold text-theme-text-secondary border-b border-theme-border/50 whitespace-nowrap">
+                            Total
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 dark:divide-slate-800/50">
+                        {allKeys.map((k) => {
+                          const originalVal = item.rawNutritionLabel?.[k] !== undefined 
+                            ? item.rawNutritionLabel?.[k] 
+                            : item.nutritionFacts?.[k];
+                            
+                          let numVal = null;
+                          if (originalVal !== undefined && originalVal !== null) {
+                            const match = String(originalVal).match(/[\d.]+/);
+                            if (match) numVal = parseFloat(match[0]);
+                          }
                           
-                        let numVal = null;
-                        if (originalVal !== undefined && originalVal !== null) {
-                          const match = String(originalVal).match(/[\d.]+/);
-                          if (match) numVal = parseFloat(match[0]);
-                        }
-                        
-                        const isServingField = k.toLowerCase().includes('serving');
-                        
-                        let totalStr = '-';
-                        if (numVal !== null && !missingWeight) {
-                          let multiplier = 1;
-                          const wasFromRaw = item.rawNutritionLabel?.[k] !== undefined;
+                          const isServingField = k.toLowerCase().includes('serving');
                           
-                          if (wasFromRaw && item.rawNutritionLabel?.servingSize) {
-                             const ssMatch = String(item.rawNutritionLabel.servingSize).match(/[\d.]+/);
-                             if (ssMatch) {
-                               multiplier = item.estimatedWeightGrams / parseFloat(ssMatch[0]);
-                             } else {
+                          let totalStr = '-';
+                          if (numVal !== null && !missingWeight) {
+                            let multiplier = 1;
+                            const wasFromRaw = item.rawNutritionLabel?.[k] !== undefined;
+                            
+                            if (wasFromRaw && item.rawNutritionLabel?.servingSize) {
+                               const ssMatch = String(item.rawNutritionLabel.servingSize).match(/[\d.]+/);
+                               if (ssMatch) {
+                                 multiplier = item.estimatedWeightGrams / parseFloat(ssMatch[0]);
+                               } else {
+                                 multiplier = item.estimatedWeightGrams / 100;
+                               }
+                            } else {
                                multiplier = item.estimatedWeightGrams / 100;
-                             }
-                          } else {
-                             multiplier = item.estimatedWeightGrams / 100;
-                          }
-                          
-                          const total = (numVal * multiplier).toFixed(1).replace(/\.0$/, '');
-                          const nutDef = nutrientDefinitions.find((n: any) => n.key.toLowerCase() === k.toLowerCase());
-                          const defaultUnit = k.toLowerCase().includes('calories') ? 'kcal' : (isServingField ? '' : (nutDef ? nutDef.unit : 'g'));
-                          const unit = String(originalVal).replace(/[\d.\s]/g, '') || defaultUnit;
-                          if (isServingField) {
-                            totalStr = '-';
-                          } else {
-                            totalStr = `${total}${unit}`;
-                          }
-                        }
-
-                        let originalDisplay = '-';
-                        if (originalVal !== undefined && originalVal !== null) {
-                          const hasUnit = /[a-zA-Z%]/.test(String(originalVal));
-                          if (hasUnit && !isServingField) {
-                            originalDisplay = String(originalVal);
-                          } else {
+                            }
+                            
+                            const total = (numVal * multiplier).toFixed(1).replace(/\.0$/, '');
                             const nutDef = nutrientDefinitions.find((n: any) => n.key.toLowerCase() === k.toLowerCase());
                             const defaultUnit = k.toLowerCase().includes('calories') ? 'kcal' : (isServingField ? '' : (nutDef ? nutDef.unit : 'g'));
-                            originalDisplay = `${originalVal}${defaultUnit}`;
+                            const unit = String(originalVal).replace(/[\d.\s]/g, '') || defaultUnit;
+                            if (isServingField) {
+                              totalStr = '-';
+                            } else {
+                              totalStr = `${total}${unit}`;
+                            }
                           }
-                        }
 
-                        return (
-                          <tr key={k} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
-                            <td className="py-1.5 px-2 font-medium text-theme-neutral capitalize">
-                              {k.replace(/([A-Z])/g, ' $1').trim()}
-                            </td>
-                            <td className="py-1.5 px-2 text-theme-text-secondary relative group/tooltip">
-                              <div className="flex items-center gap-1">
-                                {originalDisplay}
-                                {k.toLowerCase().includes('calories') && item.autoCorrectedCalories && (
-                                  <div className="relative z-50">
-                                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500 cursor-help">
-                                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
-                                      <path d="M12 9v4"></path>
-                                      <path d="M12 17h.01"></path>
-                                    </svg>
-                                    <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none whitespace-normal min-w-[200px] w-max max-w-[250px] p-2 bg-slate-800 text-white text-[10px] rounded shadow-lg text-center">
-                                      {t.abnormalValueMsg.replace("{item.originalCalories}", item.originalCalories).replace("{originalDisplay}", originalDisplay)}
+                          let originalDisplay = '-';
+                          if (originalVal !== undefined && originalVal !== null) {
+                            const hasUnit = /[a-zA-Z%]/.test(String(originalVal));
+                            if (hasUnit && !isServingField) {
+                              originalDisplay = String(originalVal);
+                            } else {
+                              const nutDef = nutrientDefinitions.find((n: any) => n.key.toLowerCase() === k.toLowerCase());
+                              const defaultUnit = k.toLowerCase().includes('calories') ? 'kcal' : (isServingField ? '' : (nutDef ? nutDef.unit : 'g'));
+                              originalDisplay = `${originalVal}${defaultUnit}`;
+                            }
+                          }
+
+                          return (
+                            <tr key={k} className="hover:bg-slate-50 dark:hover:bg-slate-800/30">
+                              <td className="py-1.5 px-2 font-medium text-theme-neutral capitalize">
+                                {k.replace(/([A-Z])/g, ' $1').trim()}
+                              </td>
+                              <td className="py-1.5 px-2 text-theme-text-secondary relative group/tooltip">
+                                <div className="flex items-center gap-1">
+                                  {originalDisplay}
+                                  {k.toLowerCase().includes('calories') && item.autoCorrectedCalories && (
+                                    <div className="relative z-50">
+                                      <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-amber-500 cursor-help">
+                                        <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"></path>
+                                        <path d="M12 9v4"></path>
+                                        <path d="M12 17h.01"></path>
+                                      </svg>
+                                      <div className="absolute left-1/2 -translate-x-1/2 bottom-full mb-1 opacity-0 group-hover/tooltip:opacity-100 transition-opacity pointer-events-none whitespace-normal min-w-[200px] w-max max-w-[250px] p-2 bg-slate-800 text-white text-[10px] rounded shadow-lg text-center">
+                                        {t.abnormalValueMsg.replace("{item.originalCalories}", item.originalCalories).replace("{originalDisplay}", originalDisplay)}
+                                      </div>
                                     </div>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                            <td className="py-1.5 px-2 text-indigo-600 dark:text-indigo-400 font-bold">
-                              {totalStr}
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
-                </div>
+                                  )}
+                                </div>
+                              </td>
+                              <td className="py-1.5 px-2 text-indigo-600 dark:text-indigo-400 font-bold">
+                                {totalStr}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
 
                 {item.ingredientsList && (
                   <div className="mt-2.5 p-2 bg-slate-100/60 dark:bg-slate-800/40 rounded-lg text-[9.5px] leading-normal border border-slate-200/40 dark:border-slate-700/30 text-left">

@@ -201,5 +201,34 @@ describe("server_vision_scout", () => {
 
       expect(() => parseAndHealVisionScout(corruptedOutput, () => {})).toThrow("[Vision Scout Corrupted]");
     });
+
+    it("merges separate standalone label item into primary packaged food item and clears visualIngredients", () => {
+      const mockOutput = {
+        items: [
+          {
+            keyword: "traditional crackers",
+            originalName: "Kerupuk Crackers",
+            estimatedWeightGrams: 200,
+            sourceImageIndex: 0,
+            rawNutritionLabel: {}
+          },
+          {
+            keyword: "nutrition facts",
+            originalName: "Informasi Nilai Gizi",
+            estimatedWeightGrams: 100,
+            sourceImageIndex: 1,
+            rawNutritionLabel: { calories: 150, protein: "3g", totalFat: "6g", totalCarbohydrate: "21g" },
+            ingredientsList: "Tapioca starch, salt, palm oil"
+          }
+        ]
+      };
+
+      const result = parseAndHealVisionScout(mockOutput, () => {});
+      expect(result.items).toHaveLength(1);
+      expect(result.items[0].originalName).toBe("Kerupuk Crackers");
+      expect(result.items[0].rawNutritionLabel.calories).toBe(150);
+      expect(result.items[0].ingredientsList).toBe("Tapioca starch, salt, palm oil");
+      expect(result.items[0].visualIngredients).toEqual([]);
+    });
   });
 });

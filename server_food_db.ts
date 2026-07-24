@@ -68,18 +68,13 @@ export function calculateUniversalAddedNutrients(
   visualSheen: number = 0.5,
   visualCoating: number = 0.5,
   diningEnvironment: string = 'casual_restaurant',
-  isAlreadyPrepared: boolean = false
+  isAlreadyPrepared: boolean = false,
+  hasSauceOrDressing: boolean = false
 ) {
   if (isAlreadyPrepared) {
     // Prepared/packaged/seasoned products already have their fat and sodium fully accounted for in their database entries.
     // Cooking additions are bypassed to prevent double-counting.
     return { addedFat: 0, addedSaturatedFat: 0, addedCalories: 0, addedSodium: 0 };
-  }
-
-  let kInternal = 0.0;
-  if (foodMatrix === 'CELLULAR_STARCH') {
-    if (cookingMethod === 'deep_fried') kInternal = 0.10;
-    else if (cookingMethod === 'pan_fried') kInternal = 0.03;
   }
 
   const envMults: Record<string, { sodium: number; lipid: number }> = {
@@ -90,12 +85,34 @@ export function calculateUniversalAddedNutrients(
     unknown: { sodium: 1.00, lipid: 1.00 }
   };
   const env = envMults[diningEnvironment] || envMults.casual_restaurant;
-
   const surfaceAreaFactor = weightGrams / 100;
+
+  if (cookingMethod === 'boiled' || cookingMethod === 'steamed' || cookingMethod === 'raw' || cookingMethod === 'unknown') {
+    let addedSodium = 0;
+    if (cookingMethod === 'boiled' || cookingMethod === 'steamed') {
+      const baseNa = hasSauceOrDressing ? 15.0 : 30.0;
+      addedSodium = Math.round((surfaceAreaFactor * visualCoating * baseNa) * env.sodium);
+    }
+    return { addedFat: 0, addedSaturatedFat: 0, addedCalories: 0, addedSodium };
+  }
+
+  let kInternal = 0.0;
+  if (foodMatrix === 'CELLULAR_STARCH') {
+    if (cookingMethod === 'deep_fried') kInternal = 0.10;
+    else if (cookingMethod === 'pan_fried') kInternal = 0.03;
+  }
+
   const addedFat = (weightGrams * kInternal + surfaceAreaFactor * visualSheen * 8.0) * env.lipid;
   const addedSaturatedFat = addedFat * 0.20;
   const addedCalories = addedFat * 9.0;
-  const addedSodium = (surfaceAreaFactor * visualCoating * 500.0) * env.sodium;
+
+  // If the dish includes a sauce or dressing (e.g. black pepper sauce, mayonnaise, gravy),
+  // the sauce provides the bulk of the sodium. We still add a smaller base amount to account for baseline cooking salt.
+  let addedSodium = 0;
+  if (cookingMethod !== 'raw' && cookingMethod !== 'unknown') {
+    const baseNa = hasSauceOrDressing ? 40.0 : 120.0;
+    addedSodium = Math.round((surfaceAreaFactor * visualCoating * baseNa) * env.sodium);
+  }
 
   return { addedFat, addedSaturatedFat, addedCalories, addedSodium };
 }

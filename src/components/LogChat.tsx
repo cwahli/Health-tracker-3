@@ -2324,7 +2324,10 @@ ${logsText}`);
           hasImage: selectedImages.length > 0,
           scoutItems: resData.scoutItems || [],
           scoutContentType: resData.scoutContentType,
+          mode: resData.mode,
+          comparison: resData.comparison,
           agentResult: {
+            ...resData,
             scoutScratchpad: resData.scoutScratchpad || '',
             dietitianScratchpad: resData.dietitianScratchpad || ''
           }

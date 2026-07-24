@@ -141,7 +141,9 @@ export function aggregateItemsNutrients(
         if (rawMethod !== 'raw' && rawMethod !== 'unknown') {
           const kwLower = (item.keyword || item.name || "").toLowerCase();
           const foodMatrix = (kwLower.includes('potato') || kwLower.includes('chip') || kwLower.includes('fry') || kwLower.includes('wedge')) ? 'CELLULAR_STARCH' : 'WHOLE_FOOD';
-          const calcAdded = calculateUniversalAddedNutrients(foodMatrix, rawMethod, itemWeightG, 0.5, 0.5, 'casual_restaurant');
+          const hasSauces = (item.saucesDetailList && item.saucesDetailList.length > 0 && item.saucesDetailList.some((s: any) => (s.sodium || 0) > 0)) ||
+            Boolean((item.name || item.canonicalDbName || "").toLowerCase().match(/\b(sauce|mayo|mayonnaise|dressing|gravy|salsa)\b/));
+          const calcAdded = calculateUniversalAddedNutrients(foodMatrix, rawMethod, itemWeightG, 0.5, 0.5, 'casual_restaurant', false, hasSauces);
           cookingCal = Math.round(calcAdded.addedCalories);
           cookingFat = Math.round(calcAdded.addedFat * 10) / 10;
           cookingSatFat = Math.round(calcAdded.addedSaturatedFat * 10) / 10;
@@ -220,6 +222,8 @@ export function aggregateItemsNutrients(
       baselineSodium = item.labelNutrientsPerServing.sodium;
     }
     const isAlreadyPrepared = checkIfItemIsAlreadyPrepared(canonicalName, item.keyword || "", dbSource, baselineSodium);
+    const hasSauceOrDressing = (item.saucesDetailList && item.saucesDetailList.length > 0 && item.saucesDetailList.some((s: any) => (s.sodium || 0) > 0)) ||
+      Boolean((canonicalName || "").toLowerCase().match(/\b(sauce|mayo|mayonnaise|dressing|gravy|salsa)\b/));
 
     const addedNutrients = calculateUniversalAddedNutrients(
       foodMatrix, 
@@ -228,7 +232,8 @@ export function aggregateItemsNutrients(
       visualSheen, 
       visualCoating, 
       diningEnvironment,
-      isAlreadyPrepared
+      isAlreadyPrepared,
+      hasSauceOrDressing
     );
 
     if ((addedNutrients.addedFat > 0 || addedNutrients.addedSodium > 0) && dbSource !== 'estimated' && !item.primaryBase100g) {

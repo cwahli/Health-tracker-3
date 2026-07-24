@@ -110,11 +110,11 @@ describe("server_nutrient_aggregation", () => {
     const dbMatchMap = new Map([["FDC_123456", mockDbNutrients]]);
     const result = aggregateItemsNutrients(rawItems, 50, dbMatchMap, [], () => {});
 
-    // Overridden nutrients should scale to 50g (factor of 0.5) + universal adhesion applied (unknown cooking method = 2g added fat, 18 calories, 0.4 saturated fat for 50g)
-    expect(result.nutrients.calories).toBe(312); // (588 * 0.5) + 18
+    // Overridden nutrients should scale to 50g (factor of 0.5)
+    expect(result.nutrients.calories).toBe(294); // (588 * 0.5)
     expect(result.nutrients.protein).toBe(12.5); // 25 * 0.5
-    expect(result.nutrients.totalFat).toBe(27); // (50 * 0.5) + 2
-    expect(result.nutrients.saturatedFat).toBe(5.4); // (10 * 0.5) + 0.4
+    expect(result.nutrients.totalFat).toBe(25); // (50 * 0.5)
+    expect(result.nutrients.saturatedFat).toBe(5); // (10 * 0.5)
   });
 
   it("ensures physical fat consistency (totalFat must equal or exceed saturated + trans fat)", () => {

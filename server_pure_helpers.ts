@@ -411,14 +411,14 @@ export function checkIfItemIsAlreadyPrepared(
   // 1. Branded or Open Food Facts database sources are always prepared/packaged
   if (dbSource === "off") return true;
 
-  // 2. High baseline sodium (> 150mg per 100g) indicates pre-seasoned / processed
-  if (baselineSodium !== undefined && baselineSodium > 150) return true;
+  // 2. High baseline sodium (> 200mg per 100g) indicates pre-seasoned / processed base ingredient
+  if (baselineSodium !== undefined && baselineSodium > 200) return true;
 
-  // 3. Keywords in name or keyword that indicate prepared, seasoned, processed, or commercial status
+  // 3. Keywords in name or keyword that indicate prepared, seasoned, processed base product (sauces/mayo handled separately)
   const preparedKeywords = [
     "fries", "french fry", "french fries", "wedge", "wedges", "chip", "chips", "nugget", "nuggets",
-    "patty", "patties", "burger", "burgers", "sauce", "sauces", "mayo", "mayonnaise", "dressing",
-    "processed", "seasoned", "canned", "fried", "cooked", "baked", "roasted", "grilled", "cured",
+    "patty", "patties", "burger", "burgers",
+    "processed", "seasoned", "canned", "fried", "cured",
     "bacon", "ham", "sausage", "sausages", "meatball", "meatballs", "toasted", "instant", "salted"
   ];
 
@@ -468,3 +468,54 @@ export function applyNutrientRealityChecks(
      itemNutrients.protein = realisticProtein;
   }
 }
+
+export function synchronizeNarrativeText(
+  text: string,
+  grandCal: number,
+  grandP: number,
+  grandFat: number,
+  grandSatFat: number,
+  grandNa: number,
+  grandCarbs?: number
+): string {
+  if (!text || typeof text !== 'string') return text;
+
+  let updated = text;
+
+  const calVal = Math.round(grandCal);
+  const pVal = Math.round(grandP * 10) / 10;
+  const fatVal = Math.round(grandFat * 10) / 10;
+  const satFatVal = Math.round(grandSatFat * 10) / 10;
+  const naVal = Math.round(grandNa);
+  const naFormatted = naVal.toLocaleString('en-US');
+
+  // 1. Calories
+  updated = updated.replace(/(roughly\s+|approximately\s+|about\s+)?\b[\d,]+(\.\d+)?\s*(calories|kcal)\b/gi, (match, prefix) => {
+    return `${prefix || ''}${calVal} calories`;
+  });
+
+  // 2. Sodium
+  updated = updated.replace(/\b[\d,]+(\.\d+)?\s*mg\s*(of\s*)?sodium\b/gi, `${naFormatted}mg of sodium`);
+  updated = updated.replace(/sodium\s*\([^)]*[\d,]+(\.\d+)?\s*mg[^)]*\)/gi, `sodium (${naFormatted}mg)`);
+  updated = updated.replace(/sodium\s*:\s*[\d,]+(\.\d+)?\s*mg/gi, `sodium: ${naFormatted}mg`);
+
+  // 3. Saturated Fat
+  updated = updated.replace(/\b[\d,]+(\.\d+)?\s*g\s*(of\s*)?saturated\s*fat\b/gi, `${satFatVal}g of saturated fat`);
+  updated = updated.replace(/saturated\s*fat\s*\([^)]*[\d,]+(\.\d+)?\s*g[^)]*\)/gi, `saturated fat (${satFatVal}g)`);
+  updated = updated.replace(/saturated\s*fat\s*:\s*[\d,]+(\.\d+)?\s*g/gi, `saturated fat: ${satFatVal}g`);
+
+  // 4. Total Fat
+  updated = updated.replace(/\b[\d,]+(\.\d+)?\s*g\s*(of\s*)?total\s*fat\b/gi, `${fatVal}g of total fat`);
+
+  // 5. Protein
+  updated = updated.replace(/\b[\d,]+(\.\d+)?\s*g\s*(of\s*)?protein\b/gi, `${pVal}g of protein`);
+
+  // 6. Carbohydrates
+  if (grandCarbs !== undefined && grandCarbs > 0) {
+    const carbVal = Math.round(grandCarbs * 10) / 10;
+    updated = updated.replace(/\b[\d,]+(\.\d+)?\s*g\s*(of\s*)?(carbohydrates|carbs)\b/gi, `${carbVal}g of carbohydrates`);
+  }
+
+  return updated;
+}
+

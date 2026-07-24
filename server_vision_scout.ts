@@ -37,8 +37,22 @@ BRANCH A — INDIVIDUAL BREAKDOWN MODE (< 15 total items):
 - Extract EVERY single food item, dish, side, or package 1-by-1 as an individual JSON object in \`items\`.
 - Provide a tight, precise individual \`boundingBox2D\` [ymin, xmin, ymax, xmax] for EVERY item.
 - Provide detailed \`components\` array with volume percentages, \`visualSheen\` (0.0-1.0), \`visualCoating\` (0.0-1.0), and \`pieceCount\`.
-- MEAL vs. COMPARISON ROUTING: if the images show distinct packaged products or menu options of the same category meant to be compared (e.g., 4 different bread wrappers, or a menu of options), set "recommendedMode" to "evaluation". If the images show ingredients or dishes meant to be eaten together as one meal (e.g., fish + rice + a side, or several grocery items for a single meal), set "recommendedMode" to "new_log".
+- MEAL vs. COMPARISON ROUTING: if there are 2 or more distinct packaged products or menu options of the same category meant to be compared (e.g., 4 different bread wrappers, or a menu of options), set "recommendedMode" to "evaluation". If there is only 1 product/item or the images show ingredients or dishes meant to be eaten together as one meal (e.g., fish + rice + a side, or a single package/dish), set "recommendedMode" to "new_log".
 - COMPONENT DECOMPOSITION DIRECTIVE: For every identified item, decompose complex dishes or products into their core sub-components inside the 'components' array with corresponding estimated volume percentages (totaling 100%), AND list all distinct visual components in 'visualIngredients' (e.g., for 'mix vegetable with mayonnaise', components must contain 'sweet corn' (30%), 'carrots' (25%), 'green peas' (25%), 'mayonnaise' (20%), and visualIngredients must be ['sweet corn', 'carrots', 'green peas', 'mayonnaise']). If the food is simple and has no sub-components, add a single component matching the base food name with 100% volume.
+  * VISUAL vs. PRINTED INGREDIENTS RULE (STRICT):
+    - 'visualIngredients' is STRICTLY for ingredients that are physically visible as actual unboxed food in the photo (e.g., seeing corn kernels, peas, or meat pieces with eyes in a real food photo).
+    - Printed text on packaging or ingredient lists (Komposisi / Ingredients list) are TEXT, NOT visual ingredients. Put all printed text EXCLUSIVELY into 'ingredientsList'.
+    - For all packaged items, label photos, or text items, 'visualIngredients' MUST be an empty array ([]).
+    - Do NOT copy, translate, infer, or convert printed ingredient text into 'visualIngredients' entries.
+    - Do NOT extract separate food items out of words or ingredient names printed on a package label (e.g., do NOT create a second item 'vegetables' just because 'vegetable' is listed in the printed text on a kimchi package).
+- MULTI-IMAGE / FRONT-AND-BACK PACKAGING DIRECTIVE (CRITICAL):
+  When multiple images are provided showing different sides or views of the SAME packaged food item (e.g., Image 0 shows the front packaging/brand name, and Image 1 shows the back of the package with the Nutrition Information / Informasi Nilai Gizi panel or Ingredients / Komposisi list):
+  * You MUST scan ALL images together and merge their details into ONE single JSON object in the "items" array.
+  * Combine the food name and brand from the front image into "keyword" and "originalName".
+  * Transcribe the complete "rawNutritionLabel" and "ingredientsList" from the back image containing the nutrition and ingredient panels.
+  * Set "sourceImageIndex" to the image showing the primary product front (e.g., 0).
+  * DO NOT output two separate item objects (one with the name and another with the nutrition label). Combine them into a single comprehensive item object so that the item carries BOTH the food name AND the full nutrition/ingredient label.
+  * DO NOT skip reading the nutrition label or ingredient list on secondary images just because the item name was found on the first image.
 - ITEM-LEVEL COOKING METHOD ACCURACY DIRECTIVE: Identify the exact individual cooking method for EACH item separately (e.g. potato wedges are 'deep_fried' or 'roasted', mixed vegetables are 'boiled' or 'steamed', steak is 'pan_fried' or 'grilled'). NEVER copy a single top-level cooking method to all items on a plate if the items were prepared differently.
 - FIRST-PRINCIPLES RESTAURANT MEAL DECOMPOSITION DIRECTIVE: For restaurant or cooked meals (e.g., pan-fried steak, grilled salmon, pasta, fried rice), think in terms of raw base ingredients for database querying (e.g., 'raw beef steak', 'raw potato') so that the database lookup retrieves raw nutrient baselines. Identify the exact restaurant cooking method (e.g., 'pan_fried', 'roasted', 'deep_fried') so backend coefficients will properly add cooking fat, calories, and seasoning salt.
 
@@ -48,7 +62,18 @@ BRANCH B — COMPACT / SPREADSHEET MODE (>= 15 total items):
 - For physical grocery shelves (e.g. 40+ chips/drinks): slice the shelf into 3 to 6 distinct spatial row bounding boxes ("Top Row", "Middle Row"), listing all products in that row inside \`originalName\`.
 STEP 3 — CORE EXTRACTION & GROUPING LAWS (apply in both branches):
 - PRODUCT/PRICE LABELS (type a): Read the EXACT food name and weight. Convert kg to grams.
-- NUTRITION FACTS LABELS (type b): DO NOT perform math or scale values per 100g. Transcribe the EXACT total package weight, serving size weight, and nutrients per serving exactly as printed into the "rawNutritionLabel" object. Extract the full printed ingredients/Komposisi text into "ingredientsList". If an item has NO legible physical nutrition panel visible, leave "rawNutritionLabel" as {} and "ingredientsList" as null — do not estimate or hallucinate these values. The "nutritionFacts" field is reserved for downstream use and must always be left as {} by you; never populate it yourself.
+- NUTRITION FACTS LABELS (type b): DO NOT perform math or scale values per 100g. Transcribe the EXACT total package weight, serving size weight, and nutrients per serving exactly as printed into the "rawNutritionLabel" object. Extract the full printed ingredients/Komposisi text into "ingredientsList".
+  CRITICAL MANDATE FOR PACKAGING & NUTRITION LABELS: Whenever an image shows a package label, Nutrition Information / Nutrition Facts panel (Informasi Nilai Gizi), or Ingredients list (Komposisi), you MUST read and transcribe EVERY visible line into "rawNutritionLabel" and "ingredientsList".
+  Map local/multilingual terms to canonical keys:
+  - 'Takaran Saji' / 'Serving Size' -> "servingSize"
+  - 'Energi Total' / 'Total Calories' / 'Calories' -> "calories"
+  - 'Lemak Total' / 'Total Fat' -> "totalFat"
+  - 'Lemak Jenuh' / 'Saturated Fat' -> "saturatedFat"
+  - 'Protein' -> "protein"
+  - 'Karbohidrat Total' / 'Total Carbohydrate' -> "totalCarbohydrate"
+  - 'Gula' / 'Sugar' -> "sugar"
+  - 'Garam' / 'Natrium' / 'Sodium' -> "sodium"
+  DO NOT omit any visible nutrient row or ingredient sentence. If an item has NO legible physical nutrition panel visible, leave "rawNutritionLabel" as {} and "ingredientsList" as null — do not estimate or hallucinate these values. The "nutritionFacts" field is reserved for downstream use and must always be left as {} by you; never populate it yourself.
 - FOOD PHOTOS (type c): Identify items and estimate weight using visual references (plates, hands, packaging markers). CRITICAL: Scale weight estimates to the actual visual size (e.g., miniature street-food vs. large restaurant portions) rather than defaulting to textbook averages. If traditional components (like dipping sauces) are physically absent, state this explicitly in anomalyFlags (e.g., "sauce absent").
 - MENUS AND POSTERS (type e): covered by the density branches above.
 - CLASSIFICATION LAW: Base "contentType" on the primary visual layout of the image, NOT the extraction method used.
@@ -80,6 +105,7 @@ CRITICAL RULES:
 - SEMANTIC ALIGNMENT & KEYWORD ACCURACY:
   The English keyword you generate MUST biologically and semantically match the text you extracted in originalName and what is visually in the photo. Do not hallucinate categories or keys. If the originalName indicates a protein/meat (e.g., "Ikan" means fish), the keyword cannot be a vegetable. If unsure of a translation, default to a generic category (e.g., "fish", "meat").
   * Be extremely precise and cautious with local Southeast Asian translations. For example, "Takap putih" (or "Kakap putih") is Barramundi/Asian Seabass, which is a protein/fish. It is NOT mustard green or any other vegetable.
+  * SAUCES VS SPICES (CRITICAL): If you identify a sauce, glaze, or dressing (e.g., black pepper sauce, gravy, sweet and sour sauce), you MUST include the word "sauce" or "dressing" in the keyword and originalName. Never simplify a wet sauce to just the base dry spice (e.g., do NOT extract "black pepper sauce" as just "black pepper"). Sauces contain oils and sodium which are clinically vital.
   * In images with multiple raw ingredients or mixed items, examine the physical items in detail. If multiple fish species or parts of different fishes are cut and grouped together in the same bowl or plate (e.g., cut steaks of Pomfret/"Bawal laut" and Barramundi/"Takap putih" in one bowl), identify them as separate, distinct items in the JSON list with their respective bounding boxes.
 - CRITICAL LOCALIZATION DIRECTIVE:
   For EVERY item in \`items\`, you MUST compute and provide \`boundingBox2D\` as a 4-element array of normalized integers \`[ymin, xmin, ymax, xmax]\` on a scale of 0 to 1000 (e.g. \`[150, 200, 800, 750]\`) tightly surrounding the food item or package in the image. NEVER omit \`boundingBox2D\` or default to \`[0, 0, 1000, 1000]\` unless the item genuinely spans the entire frame.
@@ -117,12 +143,12 @@ JSON SCHEMA STRICT REQUIREMENT:
         }
       ],
       "originalName": "string",
-      "visualIngredients": ["string"],
+      "visualIngredients": ["string (ONLY for physically visible ingredients in food photos. MUST be [] empty for label/text items)"],
       "source": "label | visual",
       "boundingBox2D": [150, 200, 800, 750],
       "sourceImageIndex": 0,
       "ingredientsList": "string | null",
-      "rawNutritionLabel": "{ 'servingSize': string, 'calories': number, 'protein': string, 'totalFat': string, 'saturatedFat': string, 'totalCarbohydrate': string, 'sugar': string, 'sodium': string }",
+      "rawNutritionLabel": { "servingSize": "100g", "calories": "90 kcal", "protein": "2g", "totalFat": "0g", "saturatedFat": "0g", "totalCarbohydrate": "22g", "sugar": "17g", "sodium": "740mg" },
       "nutritionFacts": "{}",
       "anomalyFlags": ["string"],
       "itemConfidence": "High | Medium | Low",
@@ -213,14 +239,22 @@ export function checkScoutSanity(parsedScout: any, addDebugLog: (msg: string) =>
     // 1. Check lengths of string fields on the item itself
     for (const [key, value] of Object.entries(item)) {
       if (typeof value === "string") {
-        if (value.length > 150) {
+        const isLongTextField = key === 'ingredientsList' || 
+                                key === 'confidenceComment' || 
+                                key === 'scoutConfidenceComment' || 
+                                key === 'description' || 
+                                key === 'notes' ||
+                                key === 'reason' ||
+                                key === 'summary';
+        const maxLen = isLongTextField ? 3000 : 150;
+        if (value.length > maxLen) {
           return {
             valid: false,
-            reason: `Item field '${key}' length (${value.length}) exceeds 150 characters. Field value: "${value.substring(0, 100)}..."`
+            reason: `Item field '${key}' length (${value.length}) exceeds ${maxLen} characters. Field value: "${value.substring(0, 100)}..."`
           };
         }
         const valLower = value.toLowerCase();
-        if (jsonKeyHeuristics.some(h => valLower.includes(h + '"') || valLower.includes(h + ':'))) {
+        if (!isLongTextField && jsonKeyHeuristics.some(h => valLower.includes(h + '"') || valLower.includes(h + ':'))) {
           return {
             valid: false,
             reason: `Item field '${key}' contains raw JSON-like keys: "${value.substring(0, 100)}..."`
@@ -234,10 +268,10 @@ export function checkScoutSanity(parsedScout: any, addDebugLog: (msg: string) =>
       if (!Array.isArray(item.visualIngredients)) {
         return { valid: false, reason: `Item visualIngredients is not an array at index ${idx}` };
       }
-      if (item.visualIngredients.length > 10) {
+      if (item.visualIngredients.length > 20) {
         return {
           valid: false,
-          reason: `Item visualIngredients array has ${item.visualIngredients.length} entries (limit 10) at index ${idx}`
+          reason: `Item visualIngredients array has ${item.visualIngredients.length} entries (limit 20) at index ${idx}`
         };
       }
       for (let j = 0; j < item.visualIngredients.length; j++) {
@@ -245,14 +279,14 @@ export function checkScoutSanity(parsedScout: any, addDebugLog: (msg: string) =>
         if (typeof ing !== "string") {
           return { valid: false, reason: `visualIngredients entry at index ${j} of item ${idx} is not a string` };
         }
-        if (ing.length > 150) {
+        if (ing.length > 250) {
           return {
             valid: false,
-            reason: `visualIngredients entry at index ${j} of item ${idx} length (${ing.length}) exceeds 150 characters. Value: "${ing.substring(0, 100)}..."`
+            reason: `visualIngredients entry at index ${j} of item ${idx} length (${ing.length}) exceeds 250 characters. Value: "${ing.substring(0, 100)}..."`
           };
         }
         const ingLower = ing.toLowerCase();
-        if (jsonKeyHeuristics.some(h => ingLower.includes(h) || ingLower.includes('"') || ingLower.includes(':'))) {
+        if (jsonKeyHeuristics.some(h => ingLower.includes(h + '"') || ingLower.includes(h + ':'))) {
           return {
             valid: false,
             reason: `visualIngredients entry at index ${j} of item ${idx} looks like JSON: "${ing.substring(0, 100)}..."`
@@ -270,11 +304,14 @@ export function checkScoutSanity(parsedScout: any, addDebugLog: (msg: string) =>
         const comp = item.components[j];
         if (comp && typeof comp === "object") {
           for (const [ckey, cval] of Object.entries(comp)) {
-            if (typeof cval === "string" && cval.length > 150) {
-              return {
-                valid: false,
-                reason: `Component field '${ckey}' at index ${j} of item ${idx} length (${cval.length}) exceeds 150 characters`
-              };
+            if (typeof cval === "string") {
+              const compMaxLen = (ckey === 'ingredients' || ckey === 'description' || ckey === 'notes' || ckey === 'ingredientsList') ? 3000 : 250;
+              if (cval.length > compMaxLen) {
+                return {
+                  valid: false,
+                  reason: `Component field '${ckey}' at index ${j} of item ${idx} length (${cval.length}) exceeds ${compMaxLen} characters`
+                };
+              }
             }
           }
         }
@@ -343,6 +380,9 @@ export function parseAndHealVisionScout(
     const rawType = (parsedScout.contentType || "").toLowerCase();
     visionScoutContentType = (rawType === "text" || rawType === "menu_or_poster" || rawType === "visual_or_posted") ? rawType : "visual";
     scoutRecommendedMode = parsedScout.recommendedMode || null;
+    if (parsedScout.items && parsedScout.items.length <= 1 && scoutRecommendedMode === "evaluation") {
+      scoutRecommendedMode = "new_log";
+    }
 
     // Parse compactSpreadsheet if present
     if (Array.isArray(parsedScout.compactSpreadsheet) && parsedScout.compactSpreadsheet.length > 0) {
@@ -443,6 +483,23 @@ export function parseAndHealVisionScout(
         if (newItem.sourceImageIndex === undefined || newItem.sourceImageIndex === null) {
           newItem.sourceImageIndex = 0;
         }
+        const rawLabelHasRealDataCheck = newItem.rawNutritionLabel && typeof newItem.rawNutritionLabel === 'object'
+          ? Object.keys(newItem.rawNutritionLabel).some((k: string) => {
+              if (k === 'servingSize' || k === 'weight' || k === 'servingsPerContainer') return false;
+              const v = newItem.rawNutritionLabel[k];
+              return v !== undefined && v !== null && v !== '' && v !== '-' && v !== '--';
+            })
+          : false;
+        if (newItem.source === 'label' || (newItem.ingredientsList && String(newItem.ingredientsList).trim().length > 0) || rawLabelHasRealDataCheck) {
+          newItem.visualIngredients = [];
+        }
+        if (newItem.rawNutritionLabel && typeof newItem.rawNutritionLabel === 'object') {
+          for (const k of Object.keys(newItem.rawNutritionLabel)) {
+            if (typeof newItem.rawNutritionLabel[k] === 'string' && newItem.rawNutritionLabel[k].length > 100) {
+              newItem.rawNutritionLabel[k] = newItem.rawNutritionLabel[k].substring(0, 50).trim();
+            }
+          }
+        }
         const rawLabelHasRealData = newItem.rawNutritionLabel && typeof newItem.rawNutritionLabel === 'object'
           ? Object.keys(newItem.rawNutritionLabel).some((k: string) => {
               if (k === 'servingSize' || k === 'weight' || k === 'servingsPerContainer') return false;
@@ -451,11 +508,17 @@ export function parseAndHealVisionScout(
             })
           : false;
         if (newItem.rawNutritionLabel && typeof newItem.rawNutritionLabel === 'object' && rawLabelHasRealData) {
-          const getVal = (key: string) => {
+          const getVal = (key: string): number => {
             const val = newItem.rawNutritionLabel[key];
-            if (val === undefined || val === null) return 0;
+            if (val === undefined || val === null || val === '' || val === '-' || val === '--') return 0;
             const match = String(val).match(/[\d.]+/);
             return match ? parseFloat(match[0]) : 0;
+          };
+          const getRawVal = (key: string): number | null => {
+            const val = newItem.rawNutritionLabel[key];
+            if (val === undefined || val === null || val === '' || val === '-' || val === '--') return null;
+            const match = String(val).match(/[\d.]+/);
+            return match ? parseFloat(match[0]) : null;
           };
           
           const fat = getVal('totalFat') || getVal('fat') || 0;
@@ -477,7 +540,7 @@ export function parseAndHealVisionScout(
           let servingSizeGrams = 100; // default for per 100g
           if (newItem.rawNutritionLabel.servingSize) {
             const ssMatch = String(newItem.rawNutritionLabel.servingSize).match(/[\d.]+/);
-            if (ssMatch) servingSizeGrams = parseFloat(ssMatch[0]);
+            if (ssMatch) servingSizeGrams = parseFloat(ssMatch[0]) || 100;
           }
           const totalMacros = correctedFat + carbs + protein;
           if (totalMacros > servingSizeGrams + 2) {
@@ -488,7 +551,7 @@ export function parseAndHealVisionScout(
           // 3. The Algebraic Healer
           const safeMath = (value: number) => Math.max(0, Math.round(value * 10) / 10);
           const expectedCalories = (correctedFat * 9) + (carbs * 4) + (protein * 4);
-          const c = getVal('calories');
+          const rawC = getRawVal('calories') ?? getRawVal('energiTotal') ?? getRawVal('energy');
 
           const healAnomaly = (itm: any, macroName: string) => {
               if (itm.anomalyFlags && Array.isArray(itm.anomalyFlags)) {
@@ -499,22 +562,25 @@ export function parseAndHealVisionScout(
               }
           };
 
-          if (c === 0 || (expectedCalories > 0 && Math.abs(expectedCalories - c) / expectedCalories > 0.20)) {
-              newItem.originalCalories = c;
+          if (rawC !== null && expectedCalories > 0 && Math.abs(expectedCalories - rawC) / expectedCalories > 0.20) {
+              newItem.originalCalories = rawC;
               newItem.autoCorrectedCalories = true;
               newItem.rawNutritionLabel.calories = Math.round(expectedCalories);
               healAnomaly(newItem, "calories");
-          } else if (correctedFat === 0 && c > 0) {
-              newItem.rawNutritionLabel.totalFat = safeMath((c - (carbs * 4) - (protein * 4)) / 9);
+          } else if (rawC === null && expectedCalories > 0) {
+              newItem.rawNutritionLabel.calories = Math.round(expectedCalories);
+              healAnomaly(newItem, "calories");
+          } else if (correctedFat === 0 && rawC !== null && rawC > 0) {
+              newItem.rawNutritionLabel.totalFat = safeMath((rawC - (carbs * 4) - (protein * 4)) / 9);
               if (newItem.rawNutritionLabel.fat === 0) { newItem.rawNutritionLabel.fat = newItem.rawNutritionLabel.totalFat; }
               healAnomaly(newItem, "fat");
-          } else if (carbs === 0 && c > 0) {
-              newItem.rawNutritionLabel.totalCarbohydrate = safeMath((c - (correctedFat * 9) - (protein * 4)) / 4);
+          } else if (carbs === 0 && rawC !== null && rawC > 0) {
+              newItem.rawNutritionLabel.totalCarbohydrate = safeMath((rawC - (correctedFat * 9) - (protein * 4)) / 4);
               if (newItem.rawNutritionLabel.carbohydrates === 0) { newItem.rawNutritionLabel.carbohydrates = newItem.rawNutritionLabel.totalCarbohydrate; }
               healAnomaly(newItem, "carbohydrates");
               healAnomaly(newItem, "carbs");
-          } else if (protein === 0 && c > 0) {
-              newItem.rawNutritionLabel.protein = safeMath((c - (correctedFat * 9) - (carbs * 4)) / 4);
+          } else if (protein === 0 && rawC !== null && rawC > 0) {
+              newItem.rawNutritionLabel.protein = safeMath((rawC - (correctedFat * 9) - (carbs * 4)) / 4);
               healAnomaly(newItem, "protein");
           }
 
@@ -527,6 +593,32 @@ export function parseAndHealVisionScout(
         }
         return newItem;
       });
+
+      // Merge standalone label items (e.g., from back of package photo) into primary packaged product item
+      if (visionScoutItems.length > 1) {
+        const isLabelContainer = (item: any) => {
+          const orig = (item.originalName || item.keyword || "").toLowerCase();
+          const isLabelName = orig.includes("nutrition fact") || orig.includes("informasi nilai gizi") || orig.includes("komposisi") || orig.includes("nutrition label") || orig.includes("back of package");
+          const hasData = (item.rawNutritionLabel && Object.keys(item.rawNutritionLabel).length > 0) || (item.ingredientsList && String(item.ingredientsList).trim().length > 0);
+          return isLabelName || (hasData && (!item.keyword || item.keyword.toLowerCase().includes("label") || item.keyword.toLowerCase().includes("nutrition")));
+        };
+
+        const labelIdx = visionScoutItems.findIndex(isLabelContainer);
+        if (labelIdx !== -1) {
+          const labelItem = visionScoutItems[labelIdx];
+          const primaryItem = visionScoutItems.find((it, idx) => idx !== labelIdx && (!it.rawNutritionLabel || Object.keys(it.rawNutritionLabel).length === 0));
+          if (primaryItem) {
+            if (labelItem.rawNutritionLabel && Object.keys(labelItem.rawNutritionLabel).length > 0) {
+              primaryItem.rawNutritionLabel = labelItem.rawNutritionLabel;
+            }
+            if (labelItem.ingredientsList) {
+              primaryItem.ingredientsList = labelItem.ingredientsList;
+            }
+            primaryItem.visualIngredients = [];
+            visionScoutItems.splice(labelIdx, 1);
+          }
+        }
+      }
 
       for (const item of visionScoutItems) {
         if (item.keyword) {

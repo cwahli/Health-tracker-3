@@ -75,7 +75,7 @@ import YAML from "yaml";
 import { AsyncLocalStorage } from "async_hooks";
 import { biomarkerDefinitions, getBiomarkerStatus, getBiomarkerStatusLabel, getBiomarkerMetadata, getCustomBiomarkerDef } from "./src/utils/biomarkers";
 import { NUTRIENT_KEYS } from "./src/utils/nutrients";
-import { jsToYaml, extractBalancedJson, sanitizeMealWeight, findItemIndexInList, getUSDANutrientValue, extractUSDANutrientsPer100g, checkIfItemIsAlreadyPrepared, applyNutrientRealityChecks } from "./server_pure_helpers";
+import { jsToYaml, extractBalancedJson, sanitizeMealWeight, findItemIndexInList, getUSDANutrientValue, extractUSDANutrientsPer100g, checkIfItemIsAlreadyPrepared, applyNutrientRealityChecks, synchronizeNarrativeText } from "./server_pure_helpers";
 import { aggregateItemsNutrients } from "./server_nutrient_aggregation";
 import { 
   ScoutItemSchema, 
@@ -430,7 +430,7 @@ Local Language Priority: Treat the originalName provided by the visual scout as 
 
 Preserve Visual Scout Cooking Method & Ingredients:
 1. Cooking Method Alignment: You MUST maintain the exact item-level cookingMethod identified by the Visual Scout (e.g., deep_fried, pan_fried, stir_fried, roasted, boiled, steamed, grilled, baked, raw) for each item in itemsBreakdown. Do NOT override deep_fried or pan_fried to baked or raw unless the user explicitly requested a change in their message text.
-2. Visual Ingredients Alignment: You MUST carry over all visualIngredients detected by the Visual Scout (e.g., ['potato', 'cooking oil'] or ['corn', 'peas', 'carrots', 'mayonnaise']) into the item's visualIngredients array in itemsBreakdown.
+2. Visual Ingredients Alignment: You MUST carry over all visualIngredients detected by the Visual Scout into the item's visualIngredients array in itemsBreakdown. If visualIngredients is empty, leave it empty ([]). Do NOT copy printed text from 'ingredientsList' into 'visualIngredients' or 'composition'. For packaged or printed label products, 'visualIngredients' MUST be an empty array ([]) and 'composition' MUST contain ONLY the item name (e.g., 'HANA Mat Kimchi (Diced Radish Kimchi)').
 
 Protein Verification: If an originalName contains clear local language identifiers for proteins (e.g., "Ikan" = fish, "Ayam" = chicken, "Daging" = beef) but the upstream agent mistakenly passed an English keyword matching a vegetable, you MUST classify and log the item based on the local protein name.
 
@@ -446,11 +446,14 @@ Fungi Expansion: Do NOT estimate trace nutrients individually. Instead, output t
 
 Allowed Types: Use exactly one of the following category tags: 'red_meat', 'poultry', 'fish_lean', 'fish_fatty', 'leafy_veg', 'root_veg', 'fungi', 'legume', 'grain', 'fruit', 'dairy', 'mixed_meal' (for complex dishes), or 'ultra_processed' (for junk food, sweets, and deep-fried commercial items).
 
+=== SAUCES VS SPICES DIRECTIVE (CRITICAL) ===
+You must differentiate between dry spices (like 'black pepper') and liquid sauces (like 'black pepper sauce'). A sauce has calories, fats, and sodium. A dry spice does not. If a food item has a sauce, you MUST include the full sauce name (e.g. 'black pepper sauce', 'soy sauce') as an item component. Never simplify 'black pepper sauce' to just 'spices, pepper, black'.
+
 === MODE ROUTING DIRECTIVE (STRICTLY ENFORCED) ===
 Operate in one of five distinct modes based on current user intent:
 
 MODE A: NEW FOOD LOGGING 
-- Triggered by a completely new food item description or image of a meal they ate/want to eat. Ignore CURRENT_ACTIVE_MEAL_STATE.
+- Triggered by a single food item description, single product package, or image of a meal they ate/want to eat. Whenever there is only 1 product or item identified, you MUST use MODE A ("new_log"). Do NOT use Mode D for a single product. Ignore CURRENT_ACTIVE_MEAL_STATE.
 - Extract ingredients, estimate weights, and provide the foodData block. Set "mode": "new_log".
 - CRITICAL SCHEMA REQUIREMENT: You MUST output the foodData block and you MUST explicitly set "comparison": null. Do NOT generate comparison group structures or assign scout indices to a comparison engine for a single logged meal.
 - CRITICAL: If the user uploads a picture of a meal (e.g. a plate with steak, potatoes, veggies), you MUST treat it as a single meal entry and use MODE A (NEW FOOD LOGGING). Combine the components into the itemsBreakdown array. DO NOT use MODE D (EVALUATION/COMPARISON) to compare the items on the plate unless the user explicitly asks to compare them or choose the best option.
@@ -478,7 +481,7 @@ Triggered ONLY when the user asks to modify, add, correct, or change an item, we
 - Do NOT use Mode C if the user is discussing a food from a theoretical comparison that is not in the active meal state.
 
 MODE D: EVALUATION / COMPARISON
-Triggered ONLY when explicitly evaluating alternative foods (e.g. comparing snacks), OR whenever the VISUAL FOOD SCOUT Content Type is "menu_or_poster".
+Triggered ONLY when explicitly evaluating multiple alternative foods (e.g. comparing 2 or more snacks/options), OR whenever the VISUAL FOOD SCOUT Content Type is "menu_or_poster". NEVER use Mode D when there is only 1 product or item identified.
 
 - NUTRITIONAL DOMINANCE LAW (CRITICAL): You MUST group items strictly by their clinical nutritional value, primary base ingredient, or risk profile. You are strictly FORBIDDEN from creating groups named after physical layout locations like shelves, rows, or tables (e.g., Do NOT use 'Top Shelf Selections').
 
@@ -2120,7 +2123,10 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       const hasImage = imagePayloads && imagePayloads.length > 0;
       if (hasImage) {
         sendStreamEvent({ type: 'status', stage: 'scout', status: 'started', message: 'Reading your photos...' });
-        const scoutPromptText = message ? `Analyze this image and list the food items you see, taking into consideration the user's message: "${message}"` : "Analyze this image and list the food items you see.";
+        const imageCount = imagePayloads?.length || (imagePayload ? 1 : 0);
+        const scoutPromptText = message 
+          ? `Analyze the provided ${imageCount > 1 ? imageCount + ' images' : 'image'} and list the food items you see, taking into consideration the user's message: "${message}".${imageCount > 1 ? ' NOTE: If these images show different views/sides of the same package (e.g. front of package and back nutrition label), scan ALL images together to extract both the product name and the complete nutrition/ingredient label into a single merged item.' : ''}`
+          : `Analyze the provided ${imageCount > 1 ? imageCount + ' images' : 'image'} and list the food items you see.${imageCount > 1 ? ' NOTE: If these images show different views/sides of the same package (e.g. front of package and back nutrition label), scan ALL images together to extract both the product name and the complete nutrition/ingredient label into a single merged item.' : ''}`;
         sendLog('scout_instruction', 'scout', `Vision Scout Instruction dispatched (model: ${engine || "gemini-3.5-flash-lite"}). Prompt: "${scoutPromptText}"`);
         addDebugLog(`[Vision Scout] Running Stage 3 lightweight vision scout with retry protection...`);
         let scoutResult: any = null;
@@ -2233,6 +2239,9 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
           scoutCookingMethod = scoutResult.scoutCookingMethod;
           visionScoutContentType = scoutResult.visionScoutContentType;
           scoutRecommendedMode = scoutResult.scoutRecommendedMode;
+          if (visionScoutItems && visionScoutItems.length <= 1 && scoutRecommendedMode === "evaluation") {
+            scoutRecommendedMode = "new_log";
+          }
           queriesToSearch.push(...scoutResult.queriesToSearch);
           visionScoutRanAndReturnedItems = scoutResult.visionScoutRanAndReturnedItems;
 
@@ -2662,8 +2671,59 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
 
       const sauceKeywords = ['sauce', 'mayonnaise', 'mayo', 'dressing', 'gravy', 'dip', 'ketchup', 'mustard', 'butter', 'cheese', 'topping', 'syrup', 'spread', 'sambal', 'chili paste', 'cream', 'aioli', 'tartar', 'bbq', 'teriyaki', 'ranch'];
 
+      const rawLabelHasData = item.rawNutritionLabel && typeof item.rawNutritionLabel === 'object'
+        ? Object.keys(item.rawNutritionLabel).some((k: string) => {
+            if (k === 'servingSize' || k === 'weight' || k === 'servingsPerContainer') return false;
+            const v = item.rawNutritionLabel[k];
+            return v !== undefined && v !== null && v !== '' && v !== '-' && v !== '--';
+          })
+        : false;
+
       let hasComponents = false;
-      if (item.components && Array.isArray(item.components) && item.components.length > 0) {
+      if (rawLabelHasData) {
+        const getVal = (key: string): number => {
+          const val = item.rawNutritionLabel[key];
+          if (val === undefined || val === null) return 0;
+          const match = String(val).match(/[\d.]+/);
+          return match ? parseFloat(match[0]) : 0;
+        };
+
+        let ssGrams = 100;
+        if (item.rawNutritionLabel.servingSize) {
+          const ssMatch = String(item.rawNutritionLabel.servingSize).match(/[\d.]+/);
+          if (ssMatch) ssGrams = parseFloat(ssMatch[0]) || 100;
+        }
+
+        const factor100 = 100 / ssGrams;
+
+        primaryBase100g = {
+          servingSizeGrams: 100,
+          calories: Math.round(getVal('calories') * factor100),
+          protein: Math.round(getVal('protein') * factor100 * 10) / 10,
+          totalFat: Math.round((getVal('totalFat') || getVal('fat')) * factor100 * 10) / 10,
+          saturatedFat: Math.round(getVal('saturatedFat') * factor100 * 10) / 10,
+          transFat: Math.round(getVal('transFat') * factor100 * 10) / 10,
+          carbohydrates: Math.round((getVal('totalCarbohydrate') || getVal('carbohydrate') || getVal('carbohydrates')) * factor100 * 10) / 10,
+          addedSugar: Math.round((getVal('sugar') || getVal('addedSugar')) * factor100 * 10) / 10,
+          sodium: Math.round(getVal('sodium') * factor100),
+          potassium: Math.round(getVal('potassium') * factor100),
+          totalFibre: Math.round((getVal('totalFibre') || getVal('fiber') || getVal('serat')) * factor100 * 10) / 10,
+          solubleFibre: Math.round(getVal('solubleFibre') * factor100 * 10) / 10
+        };
+        primaryDbSource = "label";
+        primaryDbId = "printed_packaging_label";
+        primaryBaseMatchName = item.originalName || item.keyword;
+        primaryBaseWeightG = itemWeight;
+
+        dbMatchMap.set("printed_packaging_label", primaryBase100g);
+
+        const factor = itemWeight / 100;
+        coreKeys.forEach(key => {
+          if (primaryBase100g![key] !== undefined) {
+            aggregatedNutrients[key] = parseFloat((primaryBase100g![key] * factor).toFixed(2));
+          }
+        });
+      } else if (item.components && Array.isArray(item.components) && item.components.length > 0) {
         hasComponents = true;
         item.components.forEach((comp: any, cIdx: number) => {
           const compWeight = Math.round(itemWeight * ((comp.volumePercentage || 100) / 100));
@@ -2843,6 +2903,8 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
         }
       }
       const foodMatrix = (kwLower.includes('potato') || kwLower.includes('chip') || kwLower.includes('fry') || kwLower.includes('wedge')) ? 'CELLULAR_STARCH' : 'WHOLE_FOOD';
+      const hasSauceOrDressing = (saucesDetailList && saucesDetailList.length > 0 && saucesDetailList.some((s: any) => (s.sodium || 0) > 0)) ||
+        Boolean((item.originalName || item.keyword || "").toLowerCase().match(/\b(sauce|mayo|mayonnaise|dressing|gravy|salsa)\b/));
       const isAlreadyPrepared = checkIfItemIsAlreadyPrepared(
         item.originalName || item.keyword,
         item.keyword,
@@ -2856,8 +2918,10 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
         0.5, 
         0.5, 
         'casual_restaurant',
-        isAlreadyPrepared
+        isAlreadyPrepared,
+        hasSauceOrDressing
       );
+      item.cookingAdded = added;
       if (added.addedFat > 0 || added.addedSodium > 0) {
         aggregatedNutrients.totalFat = parseFloat((aggregatedNutrients.totalFat + added.addedFat).toFixed(2));
         aggregatedNutrients.saturatedFat = parseFloat((aggregatedNutrients.saturatedFat + added.addedSaturatedFat).toFixed(2));
@@ -2976,46 +3040,6 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
         addDebugLog(`[Client Context Error] Failed to process client foodLogs: ${err.message}`);
       }
     }
-
-    if (!pastMealsCtx && db && userId) {
-      try {
-        const collRef = db.collection("users").doc(userId).collection("consolidated_logs");
-        const snapshot = await collRef.get();
-        const pastMeals: any[] = [];
-        snapshot.forEach((doc: any) => {
-          const data = doc.data();
-          if (data && data.logs) {
-            Object.values(data.logs).forEach((logInfo: any) => {
-              if (logInfo.type === 'food' && logInfo.data) {
-                const food = logInfo.data;
-                pastMeals.push({
-                  name: food.name,
-                  date: food.date,
-                  calories: food.nutrients?.calories || food.calories || 0,
-                  protein: food.nutrients?.protein || food.protein || 0,
-                  saturatedFat: food.nutrients?.saturatedFat || food.saturatedFat || 0,
-                  sodium: food.nutrients?.sodium || food.sodium || 0,
-                  carbohydrates: food.nutrients?.carbohydrates || food.carbohydrates || 0,
-                  timestamp: food.updated_at || 0
-                });
-              }
-            });
-          }
-        });
-        if (pastMeals.length > 0) {
-          pastMeals.sort((a: any, b: any) => b.date.localeCompare(a.date) || b.timestamp - a.timestamp);
-          const recent = pastMeals.slice(0, 10);
-          pastMealsCtx = "PATIENT'S RECENT LOGGED MEALS HISTORY (from database):\n" +
-            recent.map((m, idx) => `- Meal ${idx + 1}: "${m.name}" on ${m.date} | Calories: ${m.calories}kcal, Protein: ${m.protein}g, Saturated Fat: ${m.saturatedFat}g, Sodium: ${m.sodium}mg, Carbs: ${m.carbohydrates}g`).join("\n") + "\n\n";
-          addDebugLog(`[Database Context] Successfully loaded ${pastMeals.length} past meal(s) from database, included recent ${recent.length} meals in prompt context.`);
-        } else {
-          addDebugLog(`[Database Context] No past meals found in consolidated_logs database for user ${userId}.`);
-        }
-      } catch (err: any) {
-        addDebugLog(`[Database Context Error] Failed to retrieve past meals: ${err.message}`);
-      }
-    }
-
     // 2. Prepend active state to Master System Instructions
     let effectiveActiveMeal = activeMeal;
     if (scoutRecommendedMode === "new_log") {
@@ -3464,6 +3488,10 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
     sendStreamEvent({ type: 'status', stage: 'dietitian', status: 'completed', message: 'Dietitian evaluation completed.' });
 
     let mode = rawParsed.mode || "new_log";
+    if (visionScoutItems && visionScoutItems.length <= 1 && mode === "evaluation") {
+      addDebugLog(`[Mode Override] Overriding mode from 'evaluation' to 'new_log' because only 1 item was identified.`);
+      mode = "new_log";
+    }
     const originalModeIsModify = (mode === "modify" || req.body.activeMeal !== undefined && (message.toLowerCase().includes("change") || message.toLowerCase().includes("modify") || message.toLowerCase().includes("update") || message.toLowerCase().includes("remove") || message.toLowerCase().includes("add") || message.toLowerCase().includes("correct")));
 
     const apiCalls = [
@@ -3710,14 +3738,16 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
             return itemLower === pOrigLower || itemLower === pKwLower || itemLower.includes(pKwLower) || pKwLower.includes(itemLower);
           }) || preCalculatedItems[idx];
 
-          if (preMatch && preMatch.bestMatchDbId) {
-            return {
-              ...item,
-              dbSource: preMatch.bestMatchDbSource || "estimated",
-              dbId: preMatch.bestMatchDbId
-            };
-          }
-          return item;
+          const rawItem = rawFoodData.itemsBreakdown?.[idx] || {};
+
+          return {
+            ...rawItem,
+            ...item,
+            visualIngredients: item.visualIngredients || rawItem.visualIngredients || preMatch?.visualIngredients || null,
+            components: item.components || rawItem.components || preMatch?.components || null,
+            dbSource: (preMatch && preMatch.bestMatchDbSource) || item.dbSource || "estimated",
+            dbId: (preMatch && preMatch.bestMatchDbId) || item.dbId || null
+          };
         });
 
         const safeNum = (val: any) => {
@@ -3736,9 +3766,16 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
         };
 
         // Construct 5-Column Clean First-Principles Ledger Table
-        let receiptTable = "### 🧾 FIRST-PRINCIPLES NUTRITIONAL RECEIPT LEDGER\n\n";
+        let receiptTable = "### 🧾 Nutrition calculation\n\n";
         receiptTable += "| Item / Ingredient | Kcal | Protein | Sat Fat | Sodium |\n";
         receiptTable += "|---|---|---|---|---|\n";
+
+        const formatDbLinks = (str: string): string => {
+          if (!str) return str;
+          let result = str.replace(/(?<!\[)\bUSDA\s*#(\d+)\b(?!\))/gi, '[USDA #$1](https://fdc.nal.usda.gov/food-details/$1/nutrients)');
+          result = result.replace(/(?<!\[)\bOFF\s*#(\d+)\b(?!\))/gi, '[OFF #$1](https://world.openfoodfacts.org/product/$1)');
+          return result;
+        };
 
         let grandCal = 0;
         let grandP = 0;
@@ -3832,7 +3869,16 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           const portionBaseNa = Math.round(base100Na * baseFactor);
 
           const dbNameStr = it.primaryBaseMatchName || (dbMatchObj && dbMatchObj.name ? dbMatchObj.name : '');
-          const dbRefTag = `${String(it.dbSource).toUpperCase()}${it.dbId ? ' #' + it.dbId : ''}${dbNameStr ? ' (' + dbNameStr + ')' : ''}`;
+          let dbRefTag = "";
+          const dbSourceUpper = String(it.dbSource || '').toUpperCase();
+          if (dbSourceUpper === 'USDA' && it.dbId) {
+            dbRefTag = `[USDA #${it.dbId}](https://fdc.nal.usda.gov/food-details/${it.dbId}/nutrients)${dbNameStr ? ' (' + dbNameStr + ')' : ''}`;
+          } else if (dbSourceUpper === 'OFF' && it.dbId) {
+            dbRefTag = `[OFF #${it.dbId}](https://world.openfoodfacts.org/product/${it.dbId})${dbNameStr ? ' (' + dbNameStr + ')' : ''}`;
+          } else {
+            dbRefTag = `${dbSourceUpper || 'ESTIMATED'}${it.dbId ? ' #' + it.dbId : ''}${dbNameStr ? ' (' + dbNameStr + ')' : ''}`;
+          }
+          dbRefTag = formatDbLinks(dbRefTag);
 
           // Row 2: Primary Base Ingredient
           receiptTable += `| ${dbRefTag} - ${baseW}g | ${fVal(portionBaseCal)} | ${fVal(portionBaseP, 'g')} | ${fVal(portionBaseSatFat, 'g')} | ${fVal(portionBaseNa, 'mg')} |\n`;
@@ -3845,7 +3891,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
               const sP = Math.round((s.protein || 0) * scaleRatio * 10) / 10;
               const sNa = Math.round((s.sodium || 0) * scaleRatio);
               const sSatFat = Math.round((s.saturatedFat !== undefined ? s.saturatedFat : 0.3) * scaleRatio * 10) / 10;
-              receiptTable += `| ${s.name} - ${sW}g | ${fVal(sCal)} | ${fVal(sP, 'g')} | ${fVal(sSatFat, 'g')} | ${fVal(sNa, 'mg')} |\n`;
+              receiptTable += `| ${formatDbLinks(s.name)} - ${sW}g | ${fVal(sCal)} | ${fVal(sP, 'g')} | ${fVal(sSatFat, 'g')} | ${fVal(sNa, 'mg')} |\n`;
             });
           }
 
@@ -3883,10 +3929,13 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
             base100Na
           );
 
-          if (cookingCal === 0 && cookingFat === 0 && cookingNa === 0 && rawMethod !== 'raw' && rawMethod !== 'unknown') {
+          const hasSauceOrDressingReceipt = (it.saucesDetailList && it.saucesDetailList.length > 0 && it.saucesDetailList.some((s: any) => (s.sodium || 0) > 0)) ||
+            Boolean((it.name || it.canonicalDbName || "").toLowerCase().match(/\b(sauce|mayo|mayonnaise|dressing|gravy|salsa)\b/));
+
+          if (!it.cookingAdded && rawMethod !== 'raw' && rawMethod !== 'unknown') {
             const kwLower = (it.keyword || it.name || "").toLowerCase();
             const foodMatrix = (kwLower.includes('potato') || kwLower.includes('chip') || kwLower.includes('fry') || kwLower.includes('wedge')) ? 'CELLULAR_STARCH' : 'WHOLE_FOOD';
-            const calcAdded = calculateUniversalAddedNutrients(foodMatrix, rawMethod, itemWeightG, 0.5, 0.5, 'casual_restaurant', isAlreadyPreparedReceipt);
+            const calcAdded = calculateUniversalAddedNutrients(foodMatrix, rawMethod, itemWeightG, 0.5, 0.5, 'casual_restaurant', isAlreadyPreparedReceipt, hasSauceOrDressingReceipt);
             cookingCal = Math.round(calcAdded.addedCalories);
             cookingFat = Math.round(calcAdded.addedFat * 10) / 10;
             cookingSatFat = Math.round(calcAdded.addedSaturatedFat * 10) / 10;
@@ -3913,10 +3962,35 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           }
 
           if (cookingCal === 0 && cookingFat === 0 && cookingSatFat === 0 && cookingNa === 0 && isAlreadyPreparedReceipt) {
-            physicsEngineLabel += " (already reflected in matched product/database value)";
+            physicsEngineLabel += " (already in matched product)";
           }
 
-          receiptTable += `| ${physicsEngineLabel} | ${fVal(cookingCal, '', true)} | ${fVal(0, 'g', true)} | ${fVal(cookingSatFat, 'g', true)} | ${fVal(cookingNa, 'mg', true)} |\n`;
+          let infoTooltip = "";
+          if (isAlreadyPreparedReceipt) {
+            infoTooltip = `The matched database item already accounts for preparation fat and seasoning salt, so zero additional values were added to prevent double counting.`;
+          } else if (hasSauceOrDressingReceipt && (cookingCal > 0 || cookingFat > 0)) {
+            infoTooltip = `Restaurant thermal prep adds cooking fat (+${cookingCal} kcal, +${cookingSatFat}g sat fat) for ${rawMethod.replace(/_/g, ' ')}. Additional surface seasoning salt is omitted because the sauce/dressing provides the primary sodium.`;
+          } else if (hasSauceOrDressingReceipt) {
+            infoTooltip = `Thermal prep uses heat with zero added fats. Additional surface seasoning salt is omitted because the sauce/dressing provides the primary sodium.`;
+          } else if (rawMethod === 'pan_fried') {
+            infoTooltip = `Restaurant pan-searing uses cooking fat/butter (+${cookingCal} kcal) and a surface salt pinch (+${cookingNa}mg sodium) to develop a savory crust on the ${itemWeightG}g portion.`;
+          } else if (rawMethod === 'deep_fried') {
+            infoTooltip = `Deep-frying causes oil absorption (~10% lipid retention, +${cookingCal} kcal) and post-fry salting (+${cookingNa}mg sodium) on the ${itemWeightG}g portion.`;
+          } else if (rawMethod === 'stir_fried') {
+            infoTooltip = `Stir-frying coats ingredients in cooking oil (+${cookingCal} kcal) and seasoning salt (+${cookingNa}mg sodium).`;
+          } else if (rawMethod === 'roasted') {
+            infoTooltip = `Oven roasting uses surface oil coating (+${cookingCal} kcal) and roasting salt (+${cookingNa}mg sodium) for browning.`;
+          } else if (rawMethod === 'baked') {
+            infoTooltip = `Baking includes surface oil/butter brushings (+${cookingCal} kcal) and salt seasoning (+${cookingNa}mg sodium).`;
+          } else if (rawMethod === 'boiled' || rawMethod === 'steamed') {
+            infoTooltip = `Boiling/steaming uses water heat with zero added fats, plus light blanching salt (+${cookingNa}mg sodium).`;
+          } else if (rawMethod === 'grilled') {
+            infoTooltip = `Char-grilling uses fat brushing for grate release (+${cookingCal} kcal) and dry-rub seasoning salt (+${cookingNa}mg sodium).`;
+          } else {
+            infoTooltip = `Restaurant thermal prep model for ${cookingMethodFormatted} adds cooking fats (+${cookingCal} kcal) and surface seasoning salt (+${cookingNa}mg sodium) for a ${itemWeightG}g portion.`;
+          }
+
+          receiptTable += `| ${physicsEngineLabel} [ℹ️](#info "${infoTooltip}") | ${fVal(cookingCal, '', true)} | ${fVal(0, 'g', true)} | ${fVal(cookingSatFat, 'g', true)} | ${fVal(cookingNa, 'mg', true)} |\n`;
 
           // 1. Calculate base ingredient nutrients for summation
           const base100Fat = safeNum(raw100.totalFat);
@@ -4001,7 +4075,18 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
             console.error(`[Math Integrity Failure] Item "${it.name}" has mismatched subtotal!\n` +
                           `Sum of Component Rows: Cal=${itemCal}, P=${itemP}, SatFat=${itemSatFat}, Na=${itemNa}\n` +
                           `Original Item Nutrients: Cal=${originalItemCal}, P=${originalItemP}, SatFat=${originalItemSatFat}, Na=${originalItemNa}`);
-            receiptTable += `| *Original (pre-ledger) value — corrected below* | ${fVal(originalItemCal)} | ${fVal(originalItemP, 'g')} | ${fVal(originalItemSatFat, 'g')} | ${fVal(originalItemNa, 'mg')} |\n`;
+            const reasonParts: string[] = [];
+            if (cookingCal > 0 || cookingFat > 0 || cookingNa > 0) {
+              reasonParts.push(`added ${rawMethod ? rawMethod.replace(/_/g, ' ') : 'cooking'} prep additions (+${cookingNa}mg sodium, +${cookingCal} kcal)`);
+            }
+            if (it.saucesDetailList && it.saucesDetailList.length > 0) {
+              reasonParts.push("decomposed sauce/dressing components");
+            }
+            if (reasonParts.length === 0) {
+              reasonParts.push("recalculated via first-principles database profile");
+            }
+            const explanation = reasonParts.join(" & ");
+            receiptTable += `| *Dietitian corrected — initial estimate lacked ${explanation}; updated to deterministic sub-total below* | ${fVal(originalItemCal)} | ${fVal(originalItemP, 'g')} | ${fVal(originalItemSatFat, 'g')} | ${fVal(originalItemNa, 'mg')} |\n`;
           }
 
           // Row 5: Item Sub-Total
@@ -4035,18 +4120,46 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
 
         receiptTable += `| **🏆 GRAND MEAL TOTAL - ${grandWeight}g** | **${fVal(finalCal)}** | **${fVal(finalP, 'g')}** | **${fVal(finalSatFat, 'g')}** | **${fVal(finalNa, 'mg')}** |\n`;
 
-        // Attach receiptTable directly to dietitianScratchpad and parsedData.thought
-        parsedData.thought = receiptTable + "\n\n" + (parsedData.thought || rawParsed.scratchpad || "");
-        rawParsed.scratchpad = receiptTable + "\n\n" + (rawParsed.scratchpad || "");
+        parsedData.receiptTable = receiptTable;
+        // Keep receiptTable separate from scratchpad so it renders full width in the UI
+        // We still stream it as 'thought' for live updates, but the final state will separate it.
 
-        // GUARANTEED ZERO-DISCREPANCY SYNCHRONIZATION:
-        if (rawParsed.message && parsedData.nutrients && parsedData.nutrients.calories > 0) {
-          rawParsed.message = rawParsed.message
-            .replace(/roughly \d+ calories/i, `roughly ${finalCal} calories`)
-            .replace(/\d+\.?\d* calories/i, `${finalCal} calories`)
-            .replace(/\d+\.?\d*g of protein/i, `${finalP}g of protein`)
-            .replace(/\d+\.?\d*g of total fat/i, `${finalFat}g of total fat`)
-            .replace(/\d+\.?\d*mg of sodium/i, `${finalNa}mg of sodium`);
+        // GUARANTEED ZERO-DISCREPANCY SYNCHRONIZATION ACROSS ALL NARRATIVE FIELDS:
+        if (parsedData.nutrients && parsedData.nutrients.calories > 0) {
+          if (rawParsed.message) {
+            rawParsed.message = synchronizeNarrativeText(rawParsed.message, grandCal, grandP, grandFat, grandSatFat, grandNa, grandCarbs);
+          }
+          parsedData.message = rawParsed.message;
+
+          if (rawParsed.foodData) {
+            if (rawParsed.foodData.benefits) {
+              rawParsed.foodData.benefits = synchronizeNarrativeText(rawParsed.foodData.benefits, grandCal, grandP, grandFat, grandSatFat, grandNa, grandCarbs);
+            }
+            if (rawParsed.foodData.risks) {
+              rawParsed.foodData.risks = synchronizeNarrativeText(rawParsed.foodData.risks, grandCal, grandP, grandFat, grandSatFat, grandNa, grandCarbs);
+            }
+            if (rawParsed.foodData.healthImpact) {
+              rawParsed.foodData.healthImpact = synchronizeNarrativeText(rawParsed.foodData.healthImpact, grandCal, grandP, grandFat, grandSatFat, grandNa, grandCarbs);
+            }
+            if (rawParsed.foodData.recommendation) {
+              rawParsed.foodData.recommendation = synchronizeNarrativeText(rawParsed.foodData.recommendation, grandCal, grandP, grandFat, grandSatFat, grandNa, grandCarbs);
+            }
+          }
+
+          if (parsedData) {
+            if (parsedData.benefits) {
+              parsedData.benefits = synchronizeNarrativeText(parsedData.benefits, grandCal, grandP, grandFat, grandSatFat, grandNa, grandCarbs);
+            }
+            if (parsedData.risks) {
+              parsedData.risks = synchronizeNarrativeText(parsedData.risks, grandCal, grandP, grandFat, grandSatFat, grandNa, grandCarbs);
+            }
+            if (parsedData.healthImpact) {
+              parsedData.healthImpact = synchronizeNarrativeText(parsedData.healthImpact, grandCal, grandP, grandFat, grandSatFat, grandNa, grandCarbs);
+            }
+            if (parsedData.recommendation) {
+              parsedData.recommendation = synchronizeNarrativeText(parsedData.recommendation, grandCal, grandP, grandFat, grandSatFat, grandNa, grandCarbs);
+            }
+          }
         }
       } else {
         addDebugLog(`[Nutrient Warning] LLM returned no itemsBreakdown for "${parsedData.name}". All nutrients will be zero. Check LLM prompt compliance.`);
@@ -4066,10 +4179,15 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       if (parsedData.itemsBreakdown && Array.isArray(parsedData.itemsBreakdown)) {
         parsedData.composition = parsedData.itemsBreakdown.map((it: any) => {
           let ingStr = "";
-          const nameLower = String(it.name || "").toLowerCase();
+          const nameLower = String(it.canonicalDbName || it.name || "").toLowerCase();
+          const isLabelItem = it.dbSource === 'label' || it.source === 'label' || it.dbId === 'printed_packaging_label';
           
-          let visList = it.visualIngredients || [];
-          if ((!Array.isArray(visList) || visList.length === 0) && it.components && Array.isArray(it.components)) {
+          if (isLabelItem) {
+            it.visualIngredients = [];
+          }
+
+          let visList = isLabelItem ? [] : (it.visualIngredients || []);
+          if (!isLabelItem && (!Array.isArray(visList) || visList.length === 0) && it.components && Array.isArray(it.components)) {
             visList = it.components.map((c: any) => typeof c === 'string' ? c : c.name || c.searchQuery || c.keyword).filter(Boolean);
           }
           
@@ -4098,7 +4216,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
             }
           }
           
-          return `${it.name}${ingStr}`;
+          return `${it.canonicalDbName || it.name}${ingStr}`;
         }).join(", ");
       }
 
