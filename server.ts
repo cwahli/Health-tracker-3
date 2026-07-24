@@ -3769,10 +3769,6 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           // Row 1: Main Item Header Row with total weight
           receiptTable += `| **${idx + 1}. ${it.name}**${badge} - ${itemWeightG}g${visualBreakdownStr} | - | - | - | - |\n`;
 
-          // Row 1b: Original value received into this ledger stage (pre-recalculation),
-          // shown for debugging so any discrepancy vs the deterministic recompute below is visible.
-          receiptTable += `| *Original (pre-ledger) value* | ${fVal(originalItemCal)} | ${fVal(originalItemP, 'g')} | ${fVal(originalItemSatFat, 'g')} | ${fVal(originalItemNa, 'mg')} |\n`;
-
           // Base Ingredient calculation
           let raw100 = { ...(it.primaryBase100g || it.labelNutrientsPerServing || {}) };
           const dbMatchObj = databaseMatchesArray ? databaseMatchesArray.find((m: any) => String(m.id) === String(it.dbId)) : null;
@@ -3872,15 +3868,19 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           let cookingSatFat = it.cookingAdded ? safeNum(it.cookingAdded.addedSaturatedFat) : 0;
           let cookingNa = it.cookingAdded ? safeNum(it.cookingAdded.addedSodium) : 0;
 
+          // Check the BASE INGREDIENT's own identity (not the full composite item name,
+          // which may contain a sauce/mayo sub-component name and falsely trigger this).
+          const baseIngredientNameForPrepCheck = dbNameStr || it.keyword || it.name;
+          const isAlreadyPreparedReceipt = checkIfItemIsAlreadyPrepared(
+            baseIngredientNameForPrepCheck,
+            it.keyword || it.name,
+            it.dbSource,
+            base100Na
+          );
+
           if (cookingCal === 0 && cookingFat === 0 && cookingNa === 0 && rawMethod !== 'raw' && rawMethod !== 'unknown') {
             const kwLower = (it.keyword || it.name || "").toLowerCase();
             const foodMatrix = (kwLower.includes('potato') || kwLower.includes('chip') || kwLower.includes('fry') || kwLower.includes('wedge')) ? 'CELLULAR_STARCH' : 'WHOLE_FOOD';
-            const isAlreadyPreparedReceipt = checkIfItemIsAlreadyPrepared(
-              it.originalName || it.keyword || it.name,
-              it.keyword || it.name,
-              it.dbSource,
-              base100Na
-            );
             const calcAdded = calculateUniversalAddedNutrients(foodMatrix, rawMethod, itemWeightG, 0.5, 0.5, 'casual_restaurant', isAlreadyPreparedReceipt);
             cookingCal = Math.round(calcAdded.addedCalories);
             cookingFat = Math.round(calcAdded.addedFat * 10) / 10;
@@ -3888,23 +3888,27 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
             cookingNa = Math.round(calcAdded.addedSodium);
           }
 
-          let physicsEngineLabel = "Thermodynamic Physics Engine";
+          let physicsEngineLabel = "No Preparation Change";
           if (rawMethod === 'pan_fried') {
-            physicsEngineLabel = "Thermodynamic Physics Engine (Pan-Seared Oil & Seasoning)";
+            physicsEngineLabel = "Pan-Seared Oil & Seasoning";
           } else if (rawMethod === 'deep_fried') {
-            physicsEngineLabel = "Thermodynamic Physics Engine (Deep-Fry 10% Lipid Retention)";
+            physicsEngineLabel = "Deep-Fry 10% Lipid Retention";
           } else if (rawMethod === 'stir_fried') {
-            physicsEngineLabel = "Thermodynamic Physics Engine (Stir-Fry Surface Lipid Retention)";
+            physicsEngineLabel = "Stir-Fry Surface Lipid Retention";
           } else if (rawMethod === 'roasted') {
-            physicsEngineLabel = "Thermodynamic Physics Engine (Oven Roast Heat & Seasoning)";
+            physicsEngineLabel = "Oven Roast Heat & Seasoning";
           } else if (rawMethod === 'baked') {
-            physicsEngineLabel = "Thermodynamic Physics Engine (Oven Bake & Seasoning)";
+            physicsEngineLabel = "Oven Bake & Seasoning";
           } else if (rawMethod === 'boiled' || rawMethod === 'steamed') {
-            physicsEngineLabel = "Thermodynamic Physics Engine (Boiled/Steamed - Zero Added Oil)";
+            physicsEngineLabel = "Boiled/Steamed - Zero Added Oil";
           } else if (rawMethod === 'grilled') {
-            physicsEngineLabel = "Thermodynamic Physics Engine (Char-Grill & Seasoning)";
+            physicsEngineLabel = "Char-Grill & Seasoning";
           } else {
-            physicsEngineLabel = `Thermodynamic Physics Engine (${cookingMethodFormatted})`;
+            physicsEngineLabel = cookingMethodFormatted;
+          }
+
+          if (cookingCal === 0 && cookingFat === 0 && cookingSatFat === 0 && cookingNa === 0 && isAlreadyPreparedReceipt) {
+            physicsEngineLabel += " (already reflected in matched product/database value)";
           }
 
           receiptTable += `| ${physicsEngineLabel} | ${fVal(cookingCal, '', true)} | ${fVal(0, 'g', true)} | ${fVal(cookingSatFat, 'g', true)} | ${fVal(cookingNa, 'mg', true)} |\n`;
@@ -3992,12 +3996,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
             console.error(`[Math Integrity Failure] Item "${it.name}" has mismatched subtotal!\n` +
                           `Sum of Component Rows: Cal=${itemCal}, P=${itemP}, SatFat=${itemSatFat}, Na=${itemNa}\n` +
                           `Original Item Nutrients: Cal=${originalItemCal}, P=${originalItemP}, SatFat=${originalItemSatFat}, Na=${originalItemNa}`);
-            const deltaParts: string[] = [];
-            if (diffCal > 1.1) deltaParts.push(`Cal Δ${itemCal - originalItemCal > 0 ? '+' : ''}${Math.round((itemCal - originalItemCal) * 10) / 10}`);
-            if (diffP > 0.15) deltaParts.push(`Protein Δ${itemP - originalItemP > 0 ? '+' : ''}${Math.round((itemP - originalItemP) * 10) / 10}g`);
-            if (diffSatFat > 0.15) deltaParts.push(`SatFat Δ${itemSatFat - originalItemSatFat > 0 ? '+' : ''}${Math.round((itemSatFat - originalItemSatFat) * 10) / 10}g`);
-            if (diffNa > 1.1) deltaParts.push(`Sodium Δ${itemNa - originalItemNa > 0 ? '+' : ''}${Math.round(itemNa - originalItemNa)}mg`);
-            receiptTable += `| ↳ *Recalculation note: differs from original pre-ledger value (${deltaParts.join(', ')})* | | | | |\n`;
+            receiptTable += `| *Original (pre-ledger) value — corrected below* | ${fVal(originalItemCal)} | ${fVal(originalItemP, 'g')} | ${fVal(originalItemSatFat, 'g')} | ${fVal(originalItemNa, 'mg')} |\n`;
           }
 
           // Row 5: Item Sub-Total
