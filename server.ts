@@ -411,7 +411,7 @@ ${targetLimits}
 TRANS FAT AVOIDANCE: Trans fat (partially hydrogenated oils) is universally harmful and must be avoided regardless of the patient's specific biomarkers. Always aggressively flag any food likely to contain trans fats in the "risks" field.
 
 === DATA EXTRACTION DEPTH RULES ===
-1. CORE NUTRIENTS: For EVERY new item, you MUST populate labelNutrientsPerServing with your best clinical estimate per 100g (set servingSizeGrams=100). When a physical label is visible, use the exact label values. When databaseMatches contains a relevant entry, use it to improve your estimate and set dbSource accordingly.
+1. CORE NUTRIENTS: For EVERY new item, you MUST populate labelNutrientsPerServing with your best clinical estimate per 100g (set servingSizeGrams=100). When a physical label is visible, use the exact label values. When databaseMatches contains a relevant entry, use it to improve your estimate and set dbSource accordingly. If a verified database match is missing a core nutrient (e.g., missing saturated fat in USDA), you MUST use your clinical knowledge to estimate and populate the missing value in labelNutrientsPerServing.
 === NUTRITIONAL BASELINE & CLINICAL SANITY CHECK DIRECTIVE ===
 The backend provides pre-calculated precise nutrient weights inside "=== BACKEND PRE-CALCULATED ITEM NUTRIENTS ===".
 1. DEFAULT BASELINE: Treat these pre-calculated numbers as your default baseline for your evaluation. Write your prose message, benefits, risks, and recommendations based directly on these numbers.
@@ -2420,7 +2420,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
         });
       }
       if (list.length > 0) {
-        databaseMatches = list.slice(0, 10).join("\n");
+        databaseMatches = list.slice(0, 50).join("\n");
       } else {
         databaseMatches = "No matches found in USDA or Open Food Facts databases for these queries.";
       }
@@ -3061,7 +3061,7 @@ ${databaseMatches}
                 required: ["canonicalDbName", "weightGrams", "dbSource", "dbId", "labelNutrientsPerServing", "foodType"]
               }
             },
-            composition: { type: Type.STRING },
+            composition: { type: Type.STRING, description: "Brief summary. If visual ingredients or components are present, list them in parentheses after the item name in the composition string (e.g., 'Mixed Vegetables (sweet corn, carrots, green peas)')" },
             weightGrams: { type: Type.INTEGER, description: "Portion weight in grams" },
             quantity: { type: Type.STRING },
             benefits: { type: Type.STRING },
