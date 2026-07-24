@@ -155,6 +155,35 @@ export function getUSDANutrientValue(n: any): number {
   return 0;
 }
 
+const SATFAT_RATIO_BY_TYPE: Record<string, number> = {
+  red_meat: 0.40,
+  poultry: 0.30,
+  dairy: 0.60,
+  fish_fatty: 0.25,
+  fish_lean: 0.20,
+  grain: 0.20,
+  legume: 0.15,
+  leafy_veg: 0.10,
+  root_veg: 0.10,
+  ultra_processed: 0.35,
+  other: 0.20
+};
+
+export function getSaturatedFatRatio(description: string): number {
+  const d = String(description || "").toLowerCase();
+  if (d.includes("steak") || d.includes("beef") || d.includes("lamb") || d.includes("pork") || d.includes("mutton") || d.includes("veal") || d.includes("daging")) return SATFAT_RATIO_BY_TYPE.red_meat;
+  if (d.includes("chicken") || d.includes("turkey") || d.includes("duck") || d.includes("poultry") || d.includes("ayam")) return SATFAT_RATIO_BY_TYPE.poultry;
+  if (d.includes("salmon") || d.includes("tuna") || d.includes("mackerel") || d.includes("sardine") || d.includes("herring") || d.includes("fatty fish")) return SATFAT_RATIO_BY_TYPE.fish_fatty;
+  if (d.includes("cod") || d.includes("halibut") || d.includes("snapper") || d.includes("bass") || d.includes("tilapia") || d.includes("fish") || d.includes("ikan")) return SATFAT_RATIO_BY_TYPE.fish_lean;
+  if (d.includes("milk") || d.includes("cheese") || d.includes("butter") || d.includes("yogurt") || d.includes("dairy")) return SATFAT_RATIO_BY_TYPE.dairy;
+  if (d.includes("rice") || d.includes("bread") || d.includes("oat") || d.includes("wheat") || d.includes("grain") || d.includes("corn") || d.includes("maize") || d.includes("pasta") || d.includes("noodle")) return SATFAT_RATIO_BY_TYPE.grain;
+  if (d.includes("bean") || d.includes("lentil") || d.includes("pea") || d.includes("chickpea") || d.includes("legume") || d.includes("tempeh") || d.includes("tofu")) return SATFAT_RATIO_BY_TYPE.legume;
+  if (d.includes("potato") || d.includes("carrot") || d.includes("onion") || d.includes("garlic") || d.includes("beet") || d.includes("radish") || d.includes("yam") || d.includes("tuber") || d.includes("root") || d.includes("kentang") || d.includes("wortel")) return SATFAT_RATIO_BY_TYPE.root_veg;
+  if (d.includes("spinach") || d.includes("kale") || d.includes("lettuce") || d.includes("cabbage") || d.includes("leaf") || d.includes("leaves") || d.includes("sayur") || d.includes("kangkung") || d.includes("pakchoy") || d.includes("mustard green") || d.includes("broccoli") || d.includes("cauliflower")) return SATFAT_RATIO_BY_TYPE.leafy_veg;
+  if (d.includes("donut") || d.includes("candy") || d.includes("chocolate") || d.includes("chip") || d.includes("french fry") || d.includes("french fries") || d.includes("processed") || d.includes("nugget")) return SATFAT_RATIO_BY_TYPE.ultra_processed;
+  return SATFAT_RATIO_BY_TYPE.other;
+}
+
 export function extractUSDANutrientsPer100g(food: any): Record<string, number> {
   const profile: Record<string, number> = {};
   if (!food || !food.foodNutrients) return profile;
@@ -196,6 +225,18 @@ export function extractUSDANutrientsPer100g(food: any): Record<string, number> {
   setVal("totalFat", ["total lipid", "fat"]);
   setVal("saturatedFat", ["saturated fat", "fatty acids, total saturated"]);
   setVal("transFat", ["trans fat", "fatty acids, total trans"]);
+
+  // Deterministic Saturated Fat Fallback (Bug 4)
+  if (profile["saturatedFat"] === undefined || profile["saturatedFat"] === null || isNaN(profile["saturatedFat"])) {
+    const totalFat = profile["totalFat"] || 0;
+    if (totalFat > 0) {
+      const desc = food.description || food.name || "";
+      const ratio = getSaturatedFatRatio(desc);
+      profile["saturatedFat"] = parseFloat((totalFat * ratio).toFixed(2));
+    } else {
+      profile["saturatedFat"] = 0;
+    }
+  }
   
   if (profile["totalFat"] !== undefined) {
      profile["unsaturatedFat"] = Math.max(0, profile["totalFat"] - (profile["saturatedFat"] || 0) - (profile["transFat"] || 0));
@@ -251,6 +292,18 @@ export function extractOFFNutrientsPer100g(product: any): Record<string, number>
   setNum("totalFat", "fat_100g");
   setNum("saturatedFat", "saturated-fat_100g");
   setNum("transFat", "trans-fat_100g");
+
+  // Deterministic Saturated Fat Fallback (Bug 4)
+  if (profile["saturatedFat"] === undefined || profile["saturatedFat"] === null || isNaN(profile["saturatedFat"])) {
+    const totalFat = profile["totalFat"] || 0;
+    if (totalFat > 0) {
+      const desc = product.product_name || "";
+      const ratio = getSaturatedFatRatio(desc);
+      profile["saturatedFat"] = parseFloat((totalFat * ratio).toFixed(2));
+    } else {
+      profile["saturatedFat"] = 0;
+    }
+  }
   
   if (profile["totalFat"] !== undefined) {
     profile["unsaturatedFat"] = Math.max(0, profile["totalFat"] - (profile["saturatedFat"] || 0) - (profile["transFat"] || 0));

@@ -2436,6 +2436,47 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
         carbohydrates: 0, addedSugar: 0, sodium: 0, potassium: 0, totalFibre: 0, solubleFibre: 0
       };
       
+      const getEstimatedFoodType = (name: string): string => {
+        const n = name.toLowerCase();
+        if (n.includes("steak") || n.includes("beef") || n.includes("lamb") || n.includes("pork") || n.includes("mutton") || n.includes("veal") || n.includes("daging")) return "red_meat";
+        if (n.includes("chicken") || n.includes("turkey") || n.includes("duck") || n.includes("poultry") || n.includes("ayam")) return "poultry";
+        if (n.includes("salmon") || n.includes("tuna") || n.includes("mackerel") || n.includes("sardine") || n.includes("herring") || n.includes("fatty fish")) return "fish_fatty";
+        if (n.includes("cod") || n.includes("halibut") || n.includes("snapper") || n.includes("bass") || n.includes("tilapia") || n.includes("fish") || n.includes("ikan")) return "fish_lean";
+        if (n.includes("milk") || n.includes("cheese") || n.includes("butter") || n.includes("yogurt") || n.includes("dairy")) return "dairy";
+        if (n.includes("rice") || n.includes("bread") || n.includes("oat") || n.includes("wheat") || n.includes("grain") || n.includes("corn") || n.includes("maize") || n.includes("pasta") || n.includes("noodle")) return "grain";
+        if (n.includes("bean") || n.includes("lentil") || n.includes("pea") || n.includes("chickpea") || n.includes("legume") || n.includes("tempeh") || n.includes("tofu")) return "legume";
+        if (n.includes("potato") || n.includes("carrot") || n.includes("onion") || n.includes("garlic") || n.includes("beet") || n.includes("radish") || n.includes("yam") || n.includes("tuber") || n.includes("root") || n.includes("kentang") || n.includes("wortel")) return "root_veg";
+        if (n.includes("spinach") || n.includes("kale") || n.includes("lettuce") || n.includes("cabbage") || n.includes("leaf") || n.includes("leaves") || n.includes("sayur") || n.includes("kangkung") || n.includes("pakchoy") || n.includes("mustard green") || n.includes("broccoli") || n.includes("cauliflower")) return "leafy_veg";
+        if (n.includes("donut") || n.includes("candy") || n.includes("chocolate") || n.includes("chip") || n.includes("french fry") || n.includes("french fries") || n.includes("processed") || n.includes("nugget")) return "ultra_processed";
+        return "other";
+      };
+
+      const getClinicalDefaultNutrients100g = (name: string): Record<string, number> => {
+        const n = name.toLowerCase();
+        if (n.includes("mayo") || n.includes("mayonnaise")) {
+          return { calories: 680, protein: 1, totalFat: 75, saturatedFat: 12, sodium: 600, carbohydrates: 1, transFat: 0, addedSugar: 0, potassium: 20, totalFibre: 0, solubleFibre: 0 };
+        }
+        if (n.includes("sauce") || n.includes("dressing")) {
+          return { calories: 150, protein: 1, totalFat: 10, saturatedFat: 1.5, sodium: 800, carbohydrates: 15, transFat: 0, addedSugar: 5, potassium: 50, totalFibre: 0, solubleFibre: 0 };
+        }
+        if (n.includes("beef") || n.includes("steak") || n.includes("meat")) {
+          return { calories: 250, protein: 26, totalFat: 15, saturatedFat: 6, sodium: 70, carbohydrates: 0, transFat: 0.1, addedSugar: 0, potassium: 350, totalFibre: 0, solubleFibre: 0 };
+        }
+        if (n.includes("chicken") || n.includes("poultry") || n.includes("ayam")) {
+          return { calories: 165, protein: 31, totalFat: 3.6, saturatedFat: 1, sodium: 70, carbohydrates: 0, transFat: 0, addedSugar: 0, potassium: 220, totalFibre: 0, solubleFibre: 0 };
+        }
+        if (n.includes("fish") || n.includes("ikan")) {
+          return { calories: 120, protein: 20, totalFat: 4, saturatedFat: 1, sodium: 80, carbohydrates: 0, transFat: 0, addedSugar: 0, potassium: 300, totalFibre: 0, solubleFibre: 0 };
+        }
+        if (n.includes("pea") || n.includes("bean") || n.includes("lentil") || n.includes("corn") || n.includes("carrot") || n.includes("vegetable") || n.includes("veg")) {
+          return { calories: 65, protein: 3, totalFat: 0.5, saturatedFat: 0.1, sodium: 30, carbohydrates: 12, transFat: 0, addedSugar: 0, potassium: 200, totalFibre: 2, solubleFibre: 0.5 };
+        }
+        if (n.includes("potato") || n.includes("wedge") || n.includes("yam")) {
+          return { calories: 90, protein: 2, totalFat: 0.1, saturatedFat: 0.02, sodium: 10, carbohydrates: 21, transFat: 0, addedSugar: 0, potassium: 400, totalFibre: 1.5, solubleFibre: 0.5 };
+        }
+        return { calories: 100, protein: 2, totalFat: 2, saturatedFat: 0.5, sodium: 100, carbohydrates: 15, transFat: 0, addedSugar: 1, potassium: 150, totalFibre: 1, solubleFibre: 0 };
+      };
+
       const findBestMatch = (keyword: string) => {
         if (!keyword) return undefined;
         const kw = keyword.toLowerCase().trim();
@@ -2460,6 +2501,16 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
 
         let bestMatch: any = undefined;
         let highestScore = -999999;
+
+        const isTokenMatch = (t1: string, t2: string) => {
+          if (t1 === t2) return true;
+          if (t1 + 's' === t2 || t2 + 's' === t1) return true;
+          if (t1 + 'es' === t2 || t2 + 'es' === t1) return true;
+          if (t1.endsWith('y') && t2.endsWith('ies') && t1.slice(0, -1) === t2.slice(0, -3)) return true;
+          if (t2.endsWith('y') && t1.endsWith('ies') && t2.slice(0, -1) === t1.slice(0, -3)) return true;
+          if (t1.length >= 5 && t2.length >= 5 && t1.slice(0, 5) === t2.slice(0, 5)) return true;
+          return false;
+        };
 
         databaseMatchesArray.forEach((m: any) => {
           const candidateName = m.name.toLowerCase().trim();
@@ -2496,7 +2547,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
           // 4. Token overlap scoring
           let overlapCount = 0;
           kwTokens.forEach(token => {
-            if (candidateTokens.includes(token)) {
+            if (candidateTokens.some(ct => isTokenMatch(ct, token))) {
               overlapCount++;
               // Specific core ingredients get extra points for matching
               const isCoreFood = ['fish', 'beef', 'chicken', 'pork', 'egg', 'meat', 'rice', 'potato', 'salmon', 'tuna', 'cod', 'halibut', 'shrimp', 'crab', 'prawn', 'lobster', 'tempeh', 'tofu'].includes(token);
@@ -2514,29 +2565,64 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
             score += overlapCount * 25;
           }
 
-          // 5. Raw vs Processed constraint
+          // 5. Category/FoodType matching
+          const qCat = getEstimatedFoodType(kw);
+          const cCat = getEstimatedFoodType(candidateName);
+          if (qCat !== 'other' && cCat !== 'other') {
+            if (qCat === cCat) {
+              score += 150;
+            } else {
+              score -= 300; // Mismatch penalty
+            }
+          }
+
+          // 6. Penalty for introducing unrelated qualifiers
+          const extraTokens = candidateTokens.filter(ct => !kwTokens.some(kt => isTokenMatch(ct, kt)));
+          extraTokens.forEach(et => {
+            const qualifiers = ['sweet', 'leaves', 'leaf', 'sauce', 'soup', 'canned', 'dried', 'powder', 'syrup', 'juice', 'extract', 'fried', 'cured', 'salted'];
+            if (qualifiers.includes(et)) {
+              score -= 250;
+            } else {
+              score -= 20;
+            }
+          });
+
+          // 7. Simplicity of name
+          score -= (candidateTokens.length - kwTokens.length) * 10;
+
+          // 8. Raw vs Processed constraint
           const candidateHasProcessedTerm = processedTerms.some(term => {
             const regex = new RegExp(`\\b${term}\\b`, 'i');
             return regex.test(candidateName);
           });
 
           if (candidateHasProcessedTerm && !queryHasProcessedTerm) {
-            // Heavy penalty for processed/cured/salted candidate when query doesn't ask for it
             score -= 500;
           }
 
-          // 6. If query asks for "raw" or "fresh", and candidate has "raw" or "fresh" or "unprepared", give a major bonus
+          // 9. If query asks for "raw" or "fresh", and candidate has "raw" or "fresh" or "unprepared", give a major bonus
           const queryHasRaw = kw.includes('raw') || kw.includes('fresh');
           const candidateHasRaw = candidateName.includes('raw') || candidateName.includes('fresh') || candidateName.includes('unprepared');
           if (queryHasRaw && candidateHasRaw) {
             score += 350;
           } else if (queryHasRaw && !candidateHasRaw) {
-            // Penalize if user explicitly asked for raw but candidate isn't
             score -= 150;
           }
 
+          // 10. Cooking Method context match
+          const itemCookingMethod = (item.cookingMethod && item.cookingMethod !== 'unknown') ? item.cookingMethod : scoutCookingMethod;
+          if (itemCookingMethod === 'deep_fried') {
+            if (candidateName.includes('fried') || candidateName.includes('wedge') || candidateName.includes('chip') || candidateName.includes('fry') || candidateName.includes('fries')) {
+              score += 80;
+            }
+          } else if (itemCookingMethod === 'boiled' || itemCookingMethod === 'steamed') {
+            if (candidateName.includes('boiled') || candidateName.includes('steamed') || candidateName.includes('unprepared') || candidateName.includes('raw')) {
+              score += 50;
+            }
+          }
+
           // Save the best match
-          if (score > highestScore && (score > 0 || overlapCount > 0 || candidateName.includes(kw) || kw.includes(candidateName))) {
+          if (score > highestScore && (score > -100 || overlapCount > 0 || candidateName.includes(kw) || kw.includes(candidateName))) {
             highestScore = score;
             bestMatch = m;
           }
@@ -2562,44 +2648,59 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
         item.components.forEach((comp: any, cIdx: number) => {
           const compWeight = Math.round(itemWeight * ((comp.volumePercentage || 100) / 100));
           const query = comp.searchQuery || comp.name || comp.keyword || "";
-          const qLower = query.toLowerCase();
-          const isSauce = sauceKeywords.some(sk => qLower.includes(sk));
-          const bestMatch = findBestMatch(query);
+          
+          let bestMatch = findBestMatch(query);
+          if (!bestMatch || !dbMatchMap.has(bestMatch.id)) {
+            const virtualId = `estimated_comp_${item.scoutIndex}_${cIdx}`;
+            const defaultNutrients = getClinicalDefaultNutrients100g(query);
+            dbMatchMap.set(virtualId, defaultNutrients);
+            bestMatch = {
+              id: virtualId,
+              source: "estimated",
+              name: `${query} (Estimated Component Baseline)`,
+              calories: String(defaultNutrients.calories),
+              protein: defaultNutrients.protein,
+              fat: defaultNutrients.totalFat,
+              saturatedFat: defaultNutrients.saturatedFat,
+              sodium: defaultNutrients.sodium
+            };
+            databaseMatchesArray.push(bestMatch);
+          }
 
-          if (bestMatch && dbMatchMap.has(bestMatch.id)) {
-            const baseNutrients = dbMatchMap.get(bestMatch.id);
-            if (!isSauce && (!primaryDbId || cIdx === 0)) {
-              primaryDbId = String(bestMatch.id);
-              primaryDbSource = bestMatch.source || "usda";
-              primaryBaseMatchName = bestMatch.name;
-              primaryBase100g = baseNutrients;
-              primaryBaseWeightG = compWeight;
-            }
-            const factor = compWeight / 100;
-            const cCal = parseFloat(((baseNutrients.calories || 0) * factor).toFixed(1));
-            const cP = parseFloat(((baseNutrients.protein || 0) * factor).toFixed(1));
-            const cF = parseFloat(((baseNutrients.totalFat || 0) * factor).toFixed(1));
-            const cSatFat = parseFloat(((baseNutrients.saturatedFat || 0) * factor).toFixed(1));
-            const cNa = parseFloat(((baseNutrients.sodium || 0) * factor).toFixed(1));
+          const baseNutrients = dbMatchMap.get(bestMatch.id);
+          if (cIdx === 0) {
+            primaryDbId = String(bestMatch.id);
+            primaryDbSource = bestMatch.source || "usda";
+            primaryBaseMatchName = bestMatch.name;
+            primaryBase100g = baseNutrients;
+            primaryBaseWeightG = compWeight;
+          }
+          
+          const factor = compWeight / 100;
+          const cCal = parseFloat(((baseNutrients.calories || 0) * factor).toFixed(1));
+          const cP = parseFloat(((baseNutrients.protein || 0) * factor).toFixed(1));
+          const cF = parseFloat(((baseNutrients.totalFat || 0) * factor).toFixed(1));
+          const cSatFat = parseFloat(((baseNutrients.saturatedFat || 0) * factor).toFixed(1));
+          const cNa = parseFloat(((baseNutrients.sodium || 0) * factor).toFixed(1));
 
-            if (isSauce) {
-              saucesDetailList.push({
-                name: query,
-                weightGrams: compWeight,
-                calories: cCal,
-                protein: cP,
-                totalFat: cF,
-                saturatedFat: cSatFat,
-                sodium: cNa
-              });
-            }
-
-            coreKeys.forEach(key => {
-              if (baseNutrients[key] !== undefined && baseNutrients[key] !== null) {
-                aggregatedNutrients[key] += parseFloat((baseNutrients[key] * factor).toFixed(2));
-              }
+          if (cIdx > 0) {
+            const compLabel = `${String(bestMatch.source || 'usda').toUpperCase()} #${bestMatch.id} (${bestMatch.name || query})`;
+            saucesDetailList.push({
+              name: compLabel,
+              weightGrams: compWeight,
+              calories: cCal,
+              protein: cP,
+              totalFat: cF,
+              saturatedFat: cSatFat,
+              sodium: cNa
             });
           }
+
+          coreKeys.forEach(key => {
+            if (baseNutrients[key] !== undefined && baseNutrients[key] !== null) {
+              aggregatedNutrients[key] += parseFloat((baseNutrients[key] * factor).toFixed(2));
+            }
+          });
         });
       } else {
         const bestMatch = findBestMatch(item.keyword);
@@ -3547,7 +3648,28 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           addDebugLog
         );
         parsedData.nutrients = nutrients;
-        parsedData.itemsBreakdown = itemsBreakdown;
+        
+        // Overwrite itemsBreakdown with guaranteed backend dbSource and dbId (Bug 3)
+        parsedData.itemsBreakdown = itemsBreakdown.map((item: any, idx: number) => {
+          const preMatch = preCalculatedItems.find((p: any) => {
+            if (item.scoutIndex !== undefined && item.scoutIndex !== null && p.scoutIndex !== undefined && p.scoutIndex !== null) {
+              return item.scoutIndex === p.scoutIndex;
+            }
+            const itemLower = (item.canonicalDbName || item.name || "").toLowerCase();
+            const pOrigLower = (p.originalName || "").toLowerCase();
+            const pKwLower = (p.keyword || "").toLowerCase();
+            return itemLower === pOrigLower || itemLower === pKwLower || itemLower.includes(pKwLower) || pKwLower.includes(itemLower);
+          }) || preCalculatedItems[idx];
+
+          if (preMatch && preMatch.bestMatchDbId) {
+            return {
+              ...item,
+              dbSource: preMatch.bestMatchDbSource || "usda",
+              dbId: preMatch.bestMatchDbId
+            };
+          }
+          return item;
+        });
 
         const safeNum = (val: any) => {
           const n = Number(val);
@@ -3603,23 +3725,32 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           receiptTable += `| **${idx + 1}. ${it.name}**${badge} - ${itemWeightG}g${visualBreakdownStr} | - | - | - | - |\n`;
 
           // Base Ingredient calculation
-          let raw100 = it.primaryBase100g || it.labelNutrientsPerServing || {};
+          let raw100 = { ...(it.primaryBase100g || it.labelNutrientsPerServing || {}) };
           const dbMatchObj = databaseMatchesArray ? databaseMatchesArray.find((m: any) => String(m.id) === String(it.dbId)) : null;
           
           if (it.dbId && dbMatchMap && dbMatchMap.has(String(it.dbId))) {
             const mapped = dbMatchMap.get(String(it.dbId));
             if (mapped) {
-               raw100 = mapped;
+               Object.keys(mapped).forEach(k => {
+                 if (mapped[k] !== undefined && mapped[k] !== null) {
+                   raw100[k] = mapped[k];
+                 }
+               });
             }
           } else if (dbMatchObj) {
             if (it.dbSource === 'usda' || it.dbSource === 'off') {
-              raw100 = {
-                calories: Number(dbMatchObj.calories) || 0,
-                protein: Number(dbMatchObj.protein) || 0,
-                totalFat: Number(dbMatchObj.fat) || 0,
-                saturatedFat: Number(dbMatchObj.saturatedFat) || 0,
-                sodium: Number(dbMatchObj.sodium) || 0
-              };
+               const mapObj = {
+                calories: Number(dbMatchObj.calories),
+                protein: Number(dbMatchObj.protein),
+                totalFat: Number(dbMatchObj.fat),
+                saturatedFat: Number(dbMatchObj.saturatedFat),
+                sodium: Number(dbMatchObj.sodium)
+               };
+               Object.keys(mapObj).forEach(k => {
+                 if (!isNaN(mapObj[k])) {
+                   raw100[k] = mapObj[k];
+                 }
+               });
             }
           }
 
@@ -3769,12 +3900,31 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
       if (parsedData.itemsBreakdown && Array.isArray(parsedData.itemsBreakdown)) {
         parsedData.composition = parsedData.itemsBreakdown.map((it: any) => {
           let ingStr = "";
-          if (it.visualIngredients && Array.isArray(it.visualIngredients) && it.visualIngredients.length > 0) {
-            ingStr = ` (${it.visualIngredients.join(", ")})`;
-          } else if (it.components && Array.isArray(it.components) && it.components.length > 0) {
-            const compNames = it.components.map((c: any) => c.searchQuery || c.name || c.keyword || c).filter(Boolean);
-            if (compNames.length > 0) ingStr = ` (${compNames.join(", ")})`;
+          const nameLower = String(it.name || "").toLowerCase();
+          
+          let visList = it.visualIngredients || [];
+          if ((!Array.isArray(visList) || visList.length === 0) && it.components && Array.isArray(it.components)) {
+            visList = it.components.map((c: any) => typeof c === 'string' ? c : c.name || c.searchQuery || c.keyword).filter(Boolean);
           }
+          
+          if (Array.isArray(visList) && visList.length > 0) {
+            // Filter out ingredients that are already in the name to prevent redundancy
+            const remainingVis = visList.filter((vis: string) => {
+              const vLower = String(vis).toLowerCase();
+              if (nameLower.includes(vLower)) return false;
+              // Handle common abbreviations/substrings
+              if (vLower === "mayo" && nameLower.includes("mayonnaise")) return false;
+              if (vLower === "mayonnaise" && nameLower.includes("mayo")) return false;
+              if (vLower === "potato" && nameLower.includes("potato wedges")) return false;
+              if (vLower === "beef" && nameLower.includes("beef steak")) return false;
+              return true;
+            });
+            
+            if (remainingVis.length > 0) {
+              ingStr = ` (${remainingVis.join(", ")})`;
+            }
+          }
+          
           return `${it.name}${ingStr}`;
         }).join(", ");
       }
