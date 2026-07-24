@@ -112,7 +112,7 @@ async function searchUSDA(query: string, maxResults: number = 5, dataTypes: stri
 async function searchOpenFoodFacts(query: string, maxResults: number = 5): Promise<any[]> {
   try {
     const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 5000);
+    const timeout = setTimeout(() => controller.abort(), 8000);
     const url = `https://world.openfoodfacts.net/cgi/search.pl?search_terms=${encodeURIComponent(query)}&page_size=${maxResults}&json=true`;
     
     const response = await fetch(url, {
@@ -126,8 +126,12 @@ async function searchOpenFoodFacts(query: string, maxResults: number = 5): Promi
     if (!response.ok) return [];
     const data = await response.json();
     return data.products || [];
-  } catch (error) {
-    console.error("[OpenFoodFacts API] Error:", error);
+  } catch (error: any) {
+    if (error?.name === 'AbortError') {
+      console.warn(`[OpenFoodFacts API] Request timed out (8000ms) and was aborted gracefully for query: "${query}"`);
+    } else {
+      console.error("[OpenFoodFacts API] Error:", error);
+    }
     return [];
   }
 }

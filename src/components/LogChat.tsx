@@ -832,7 +832,8 @@ ${logsText}`);
 
       const docRef = doc(db, 'users', userId, 'conversations', id);
       trackApiCall('firebase_write', `Firestore Write - Save Chat Session (${id}) [Type: ${type || 'medical'}${agentType ? `, Agent: ${agentType}` : ''}] (saves chat messages, title, and lastSentPayload dynamically in Real-Time as messages are sent)`);
-      await setDoc(docRef, sanitizeForFirestore({
+
+      const finalDocObject = {
         id,
         userId,
         type: type || 'medical',
@@ -844,7 +845,94 @@ ${logsText}`);
         updatedAt: new Date().toISOString(),
         messages: compressedMsgs,
         lastSentPayload: compressedPayload || null
-      }), { merge: true });
+      };
+
+      // Progressive client-side pruning to strictly enforce Firestore 1MB limit
+      let prunedObject = finalDocObject;
+      try {
+        let serialized = JSON.stringify(finalDocObject);
+        if (serialized.length >= 800000) {
+          console.log(`[Firestore Limit Guard] Conversation size is ${serialized.length} bytes, applying progressive pruning...`);
+          const copy = JSON.parse(serialized);
+          
+          if (copy.messages && Array.isArray(copy.messages)) {
+            // Step 1: Keep only the last 2 messages with image content, prune base64 from older ones
+            let imagesToKeep = 2;
+            let foundImagesCount = 0;
+            for (let i = copy.messages.length - 1; i >= 0; i--) {
+              const msg = copy.messages[i];
+              const hasImg = (msg.imageUrls && msg.imageUrls.length > 0) || msg.imageUrl;
+              if (hasImg) {
+                foundImagesCount++;
+                if (foundImagesCount > imagesToKeep) {
+                  if (msg.imageUrls) {
+                    msg.imageUrls = msg.imageUrls.map((url: string) => 
+                      url.startsWith('data:image/') ? 'data:image/jpeg;base64,... [Image pruned from history to conserve database space]' : url
+                    );
+                  }
+                  if (msg.imageUrl && msg.imageUrl.startsWith('data:image/')) {
+                    msg.imageUrl = 'data:image/jpeg;base64,... [Image pruned from history to conserve database space]';
+                  }
+                }
+              }
+            }
+          }
+
+          serialized = JSON.stringify(copy);
+          if (serialized.length >= 800000) {
+            // Step 2: Prune ALL base64 images from all messages in the history
+            if (copy.messages && Array.isArray(copy.messages)) {
+              for (const msg of copy.messages) {
+                if (msg.imageUrls) {
+                  msg.imageUrls = msg.imageUrls.map((url: string) => 
+                    url.startsWith('data:image/') ? 'data:image/jpeg;base64,... [Image pruned from history to conserve database space]' : url
+                  );
+                }
+                if (msg.imageUrl && msg.imageUrl.startsWith('data:image/')) {
+                  msg.imageUrl = 'data:image/jpeg;base64,... [Image pruned from history to conserve database space]';
+                }
+              }
+            }
+          }
+
+          serialized = JSON.stringify(copy);
+          if (serialized.length >= 800000 && copy.lastSentPayload) {
+            // Step 3: Recursively strip base64 image data from the lastSentPayload
+            const stripImagesFromPayload = (item: any): any => {
+              if (item === null || item === undefined) return item;
+              if (typeof item === 'string') {
+                if (item.startsWith('data:image/')) return 'data:image/jpeg;base64,... [Pruned]';
+                return item;
+              }
+              if (Array.isArray(item)) return item.map(stripImagesFromPayload);
+              if (typeof item === 'object') {
+                const res: any = {};
+                for (const [k, v] of Object.entries(item)) {
+                  res[k] = stripImagesFromPayload(v);
+                }
+                return res;
+              }
+              return item;
+            };
+            copy.lastSentPayload = stripImagesFromPayload(copy.lastSentPayload);
+          }
+
+          serialized = JSON.stringify(copy);
+          if (serialized.length >= 800000 && copy.messages && Array.isArray(copy.messages)) {
+            // Step 4: Truncate messages to the last 20 messages if still over size budget
+            while (copy.messages.length > 20 && JSON.stringify(copy).length > 800000) {
+              copy.messages.splice(1, 1); // Delete oldest non-welcome message
+            }
+          }
+          
+          prunedObject = copy;
+          console.log(`[Firestore Limit Guard] Progressive pruning complete. New size: ${JSON.stringify(prunedObject).length} bytes.`);
+        }
+      } catch (pruneErr) {
+        console.warn("[Firestore Limit Guard] Error during progressive pruning:", pruneErr);
+      }
+
+      await setDoc(docRef, sanitizeForFirestore(prunedObject), { merge: true });
     } catch (err) {
       console.error("Error saving conversation to Firestore:", err);
     }
