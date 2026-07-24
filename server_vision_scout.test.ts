@@ -166,5 +166,40 @@ describe("server_vision_scout", () => {
       expect(result.items[2].keyword).toBe("Tiny Treat");
       expect(result.items[2].estimatedWeightGrams).toBe(300);
     });
+
+    it("rejects corrupted/overlong strings and throws sanity check errors", () => {
+      const corruptedOutput = {
+        recommendedMode: "new_log",
+        contentType: "visual",
+        items: [
+          {
+            keyword: "A".repeat(160), // Exceeds 150 limit
+            originalName: "Overlong Name",
+            estimatedWeightGrams: 100,
+            boundingBox2D: [0, 0, 100, 100]
+          }
+        ]
+      };
+
+      expect(() => parseAndHealVisionScout(corruptedOutput, () => {})).toThrow("[Vision Scout Corrupted]");
+    });
+
+    it("rejects visualIngredients containing JSON heuristics", () => {
+      const corruptedOutput = {
+        recommendedMode: "new_log",
+        contentType: "visual",
+        items: [
+          {
+            keyword: "food",
+            originalName: "Food Item",
+            estimatedWeightGrams: 100,
+            boundingBox2D: [0, 0, 100, 100],
+            visualIngredients: ["ingredientsList", "components: ["] // contains key name heuristics
+          }
+        ]
+      };
+
+      expect(() => parseAndHealVisionScout(corruptedOutput, () => {})).toThrow("[Vision Scout Corrupted]");
+    });
   });
 });

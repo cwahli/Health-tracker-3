@@ -7,6 +7,13 @@ import remarkGfm from 'remark-gfm';
 import { AgentCardProps } from './types';
 import { Plus, Check, ChevronDown, ChevronUp, Sparkles, Search, X, Trash2, Eye, Camera } from 'lucide-react';
 
+const safeTruncate = (str: any, maxLen: number = 100): string => {
+  if (!str) return '';
+  const s = String(str);
+  if (s.length <= maxLen) return s;
+  return s.substring(0, maxLen) + '...';
+};
+
 export const ScratchpadMarkdownViewer: React.FC<{ content: string; className?: string }> = ({ content, className = '' }) => {
   if (!content) return null;
   const cleanContent = content.replace(/\\\|/g, '•');
@@ -2090,7 +2097,7 @@ export const FoodCard: React.FC<AgentCardProps & {
                                          {showTranslations.scout ? (item.keyword || item.originalName) : (item.originalName || item.keyword)}
                                          {((item.visualIngredients && item.visualIngredients.length > 0) || item.ingredientsList) && (
                                            <span className="font-normal text-indigo-600 dark:text-indigo-400 ml-1">
-                                             ({Array.isArray(item.visualIngredients) && item.visualIngredients.length > 0 ? item.visualIngredients.join(', ') : item.ingredientsList})
+                                             ({safeTruncate(Array.isArray(item.visualIngredients) && item.visualIngredients.length > 0 ? item.visualIngredients.join(', ') : item.ingredientsList, 100)})
                                            </span>
                                          )}
                                        </span>
@@ -2153,11 +2160,14 @@ export const FoodCard: React.FC<AgentCardProps & {
                                      </span>
                                      {((item.visualIngredients && item.visualIngredients.length > 0) || (item.components && item.components.length > 0) || item.ingredientsList) && (
                                        <span className="text-[9px] text-center font-medium leading-tight text-indigo-600 dark:text-indigo-400 break-words line-clamp-3 w-full font-sans bg-indigo-50/60 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded-md border border-indigo-200/50 dark:border-indigo-800/50">
-                                         {Array.isArray(item.visualIngredients) && item.visualIngredients.length > 0
-                                           ? item.visualIngredients.join(', ')
-                                           : Array.isArray(item.components) && item.components.length > 0
-                                             ? item.components.map((c: any) => typeof c === 'string' ? c : (c.searchQuery || c.name || c.keyword)).join(', ')
-                                             : item.ingredientsList}
+                                         {safeTruncate(
+                                           Array.isArray(item.visualIngredients) && item.visualIngredients.length > 0
+                                             ? item.visualIngredients.join(', ')
+                                             : Array.isArray(item.components) && item.components.length > 0
+                                               ? item.components.map((c: any) => typeof c === 'string' ? c : (c.searchQuery || c.name || c.keyword)).join(', ')
+                                               : item.ingredientsList,
+                                           100
+                                         )}
                                        </span>
                                      )}
                                      {item.cookingMethod && (

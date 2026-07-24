@@ -188,6 +188,103 @@ export interface VisionScoutResult {
   diningEnvironment: string;
 }
 
+export function checkScoutSanity(parsedScout: any, addDebugLog: (msg: string) => void): { valid: boolean; reason?: string } {
+  if (!parsedScout || typeof parsedScout !== "object") {
+    return { valid: false, reason: "Parsed scout output is null or not an object" };
+  }
+
+  const items = parsedScout.items;
+  if (!items || !Array.isArray(items)) {
+    return { valid: false, reason: "Parsed scout output lacks 'items' array" };
+  }
+
+  const jsonKeyHeuristics = [
+    "components", "searchquery", "cookingmethod", "itemconfidence", 
+    "estimatedweightgrams", "originalname", "boundingbox2d", "sourceimageindex",
+    "anomalyflags", "visualingredients", "ingredientslist", "rawnutritionlabel"
+  ];
+
+  for (let idx = 0; idx < items.length; idx++) {
+    const item = items[idx];
+    if (!item || typeof item !== "object") {
+      return { valid: false, reason: `Item at index ${idx} is not an object` };
+    }
+
+    // 1. Check lengths of string fields on the item itself
+    for (const [key, value] of Object.entries(item)) {
+      if (typeof value === "string") {
+        if (value.length > 150) {
+          return {
+            valid: false,
+            reason: `Item field '${key}' length (${value.length}) exceeds 150 characters. Field value: "${value.substring(0, 100)}..."`
+          };
+        }
+        const valLower = value.toLowerCase();
+        if (jsonKeyHeuristics.some(h => valLower.includes(h + '"') || valLower.includes(h + ':'))) {
+          return {
+            valid: false,
+            reason: `Item field '${key}' contains raw JSON-like keys: "${value.substring(0, 100)}..."`
+          };
+        }
+      }
+    }
+
+    // 2. Check visualIngredients
+    if (item.visualIngredients !== undefined && item.visualIngredients !== null) {
+      if (!Array.isArray(item.visualIngredients)) {
+        return { valid: false, reason: `Item visualIngredients is not an array at index ${idx}` };
+      }
+      if (item.visualIngredients.length > 10) {
+        return {
+          valid: false,
+          reason: `Item visualIngredients array has ${item.visualIngredients.length} entries (limit 10) at index ${idx}`
+        };
+      }
+      for (let j = 0; j < item.visualIngredients.length; j++) {
+        const ing = item.visualIngredients[j];
+        if (typeof ing !== "string") {
+          return { valid: false, reason: `visualIngredients entry at index ${j} of item ${idx} is not a string` };
+        }
+        if (ing.length > 150) {
+          return {
+            valid: false,
+            reason: `visualIngredients entry at index ${j} of item ${idx} length (${ing.length}) exceeds 150 characters. Value: "${ing.substring(0, 100)}..."`
+          };
+        }
+        const ingLower = ing.toLowerCase();
+        if (jsonKeyHeuristics.some(h => ingLower.includes(h) || ingLower.includes('"') || ingLower.includes(':'))) {
+          return {
+            valid: false,
+            reason: `visualIngredients entry at index ${j} of item ${idx} looks like JSON: "${ing.substring(0, 100)}..."`
+          };
+        }
+      }
+    }
+
+    // 3. Check components
+    if (item.components !== undefined && item.components !== null) {
+      if (!Array.isArray(item.components)) {
+        return { valid: false, reason: `Item components is not an array at index ${idx}` };
+      }
+      for (let j = 0; j < item.components.length; j++) {
+        const comp = item.components[j];
+        if (comp && typeof comp === "object") {
+          for (const [ckey, cval] of Object.entries(comp)) {
+            if (typeof cval === "string" && cval.length > 150) {
+              return {
+                valid: false,
+                reason: `Component field '${ckey}' at index ${j} of item ${idx} length (${cval.length}) exceeds 150 characters`
+              };
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return { valid: true };
+}
+
 export function parseAndHealVisionScout(
   scoutOutput: any,
   addDebugLog: (msg: string) => void
@@ -453,6 +550,14 @@ export function parseAndHealVisionScout(
         visionScoutRanAndReturnedItems = true;
       }
     }
+  }
+
+  // Perform structural sanity check on final items (Fix 2)
+  const sanity = checkScoutSanity({ items: visionScoutItems }, addDebugLog);
+  if (!sanity.valid) {
+    const warningMsg = `[Vision Scout Corrupted] Sanity check failed: ${sanity.reason}`;
+    addDebugLog(warningMsg);
+    throw new Error(warningMsg);
   }
 
   return {

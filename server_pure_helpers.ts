@@ -61,11 +61,40 @@ export function extractBalancedJson(text: string): string {
   let cleaned = text.replace(/```(?:json)?/gi, "").replace(/```/g, "").trim();
   const startIdx = cleaned.indexOf("{");
   if (startIdx !== -1) {
-    let depth = 0;
+    let braceDepth = 0;
+    let bracketDepth = 0;
+    let inString = false;
+    let escaped = false;
+
     for (let i = startIdx; i < cleaned.length; i++) {
-      if (cleaned[i] === "{") depth++;
-      else if (cleaned[i] === "}") depth--;
-      if (depth === 0) {
+      const char = cleaned[i];
+      if (inString) {
+        if (escaped) {
+          escaped = false;
+        } else if (char === "\\") {
+          escaped = true;
+        } else if (char === '"') {
+          inString = false;
+        }
+      } else {
+        if (char === '"') {
+          inString = true;
+        } else if (char === "{") {
+          braceDepth++;
+        } else if (char === "}") {
+          braceDepth--;
+        } else if (char === "[") {
+          bracketDepth++;
+        } else if (char === "]") {
+          bracketDepth--;
+        }
+      }
+
+      if (braceDepth < 0 || bracketDepth < 0) {
+        break;
+      }
+
+      if (braceDepth === 0 && bracketDepth === 0 && !inString) {
         return cleaned.substring(startIdx, i + 1);
       }
     }

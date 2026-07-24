@@ -2118,94 +2118,110 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
         sendStreamEvent({ type: 'status', stage: 'scout', status: 'started', message: 'Reading your photos...' });
         const scoutPromptText = message ? `Analyze this image and list the food items you see, taking into consideration the user's message: "${message}"` : "Analyze this image and list the food items you see.";
         sendLog('scout_instruction', 'scout', `Vision Scout Instruction dispatched (model: ${engine || "gemini-3.5-flash-lite"}). Prompt: "${scoutPromptText}"`);
-        addDebugLog(`[Vision Scout] Running Stage 3 lightweight vision scout...`);
-        let scoutOutput: any;
-        try {
-          scoutOutput = await callUnifiedLLM({
-            modelId: engine || "gemini-3.5-flash-lite",
-            systemInstruction: scoutSystemInstruction,
-            promptText: scoutPromptText,
-            imagePayloads,
-            responseMimeType: "application/json",
-            skipThinking: true,
-            responseSchema: {
-              type: Type.OBJECT,
-              properties: {
-                recommendedMode: { type: Type.STRING },
-                contentType: { type: Type.STRING },
-                cookingMethod: { type: Type.STRING },
-                scanCompleteness: { type: Type.STRING },
-                items: {
-                  type: Type.ARRAY,
+        addDebugLog(`[Vision Scout] Running Stage 3 lightweight vision scout with retry protection...`);
+        let scoutResult: any = null;
+        let scoutAttempts = 0;
+        const maxScoutAttempts = 2;
+        let lastScoutErr: any = null;
+
+        while (scoutAttempts < maxScoutAttempts) {
+          scoutAttempts++;
+          try {
+            if (scoutAttempts > 1) {
+              addDebugLog(`[Vision Scout] Retrying LLM call (Attempt ${scoutAttempts} of ${maxScoutAttempts})...`);
+            }
+            const scoutOutput = await callUnifiedLLM({
+              modelId: engine || "gemini-3.5-flash-lite",
+              systemInstruction: scoutSystemInstruction,
+              promptText: scoutPromptText,
+              imagePayloads,
+              responseMimeType: "application/json",
+              skipThinking: true,
+              responseSchema: {
+                type: Type.OBJECT,
+                properties: {
+                  recommendedMode: { type: Type.STRING },
+                  contentType: { type: Type.STRING },
+                  cookingMethod: { type: Type.STRING },
+                  scanCompleteness: { type: Type.STRING },
                   items: {
-                    type: Type.OBJECT,
-                    properties: {
-                      keyword: { type: Type.STRING, description: "Base food name in database-friendly English" },
-                      originalName: { type: Type.STRING, description: "Exact localized food name" },
-                      estimatedWeightGrams: { type: Type.NUMBER },
-                      sourceImageIndex: { type: Type.INTEGER, description: "0-based index of which image this item appears in" },
-                      boundingBox2D: {
-                        type: Type.ARRAY,
-                        items: { type: Type.INTEGER },
-                        description: "4-element bounding box array [ymin, xmin, ymax, xmax] scale 0-1000"
-                      },
-                      components: {
-                        type: Type.ARRAY,
-                        items: {
+                    type: Type.ARRAY,
+                    items: {
+                      type: Type.OBJECT,
+                      properties: {
+                        keyword: { type: Type.STRING, description: "Base food name in database-friendly English" },
+                        originalName: { type: Type.STRING, description: "Exact localized food name" },
+                        estimatedWeightGrams: { type: Type.NUMBER },
+                        sourceImageIndex: { type: Type.INTEGER, description: "0-based index of which image this item appears in" },
+                        boundingBox2D: {
+                          type: Type.ARRAY,
+                          items: { type: Type.INTEGER },
+                          description: "4-element bounding box array [ymin, xmin, ymax, xmax] scale 0-1000"
+                        },
+                        components: {
+                          type: Type.ARRAY,
+                          items: {
+                            type: Type.OBJECT,
+                            properties: {
+                              searchQuery: { type: Type.STRING },
+                              volumePercentage: { type: Type.NUMBER }
+                            },
+                            required: ["searchQuery", "volumePercentage"]
+                          }
+                        },
+                        source: { type: Type.STRING },
+                        cookingMethod: { type: Type.STRING },
+                        itemConfidence: { type: Type.STRING },
+                        anomalyFlags: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        visualIngredients: { type: Type.ARRAY, items: { type: Type.STRING } },
+                        ingredientsList: { type: Type.STRING, nullable: true },
+                        rawNutritionLabel: {
                           type: Type.OBJECT,
                           properties: {
-                            searchQuery: { type: Type.STRING },
-                            volumePercentage: { type: Type.NUMBER }
+                            servingSize: { type: Type.STRING, nullable: true },
+                            calories: { type: Type.NUMBER, nullable: true },
+                            protein: { type: Type.STRING, nullable: true },
+                            totalFat: { type: Type.STRING, nullable: true },
+                            saturatedFat: { type: Type.STRING, nullable: true },
+                            totalCarbohydrate: { type: Type.STRING, nullable: true },
+                            sugar: { type: Type.STRING, nullable: true },
+                            sodium: { type: Type.STRING, nullable: true }
                           },
-                          required: ["searchQuery", "volumePercentage"]
-                        }
-                      },
-                      source: { type: Type.STRING },
-                      cookingMethod: { type: Type.STRING },
-                      itemConfidence: { type: Type.STRING },
-                      anomalyFlags: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      visualIngredients: { type: Type.ARRAY, items: { type: Type.STRING } },
-                      ingredientsList: { type: Type.STRING, nullable: true },
-                      rawNutritionLabel: {
-                        type: Type.OBJECT,
-                        properties: {
-                          servingSize: { type: Type.STRING, nullable: true },
-                          calories: { type: Type.NUMBER, nullable: true },
-                          protein: { type: Type.STRING, nullable: true },
-                          totalFat: { type: Type.STRING, nullable: true },
-                          saturatedFat: { type: Type.STRING, nullable: true },
-                          totalCarbohydrate: { type: Type.STRING, nullable: true },
-                          sugar: { type: Type.STRING, nullable: true },
-                          sodium: { type: Type.STRING, nullable: true }
+                          nullable: true
                         },
-                        nullable: true
+                        nutritionFacts: { type: Type.OBJECT, nullable: true }
                       },
-                      nutritionFacts: { type: Type.OBJECT, nullable: true }
-                    },
-                    required: ["keyword", "originalName", "estimatedWeightGrams", "boundingBox2D", "sourceImageIndex"]
-                  }
+                      required: ["keyword", "originalName", "estimatedWeightGrams", "boundingBox2D", "sourceImageIndex"]
+                    }
+                  },
+                  queriesToSearch: { type: Type.ARRAY, items: { type: Type.STRING } }
                 },
-                queriesToSearch: { type: Type.ARRAY, items: { type: Type.STRING } }
+                required: ["recommendedMode", "contentType", "items"],
+                propertyOrdering: ["items", "recommendedMode", "contentType", "cookingMethod", "scanCompleteness", "queriesToSearch"]
               },
-              required: ["recommendedMode", "contentType", "items"],
-              propertyOrdering: ["items", "recommendedMode", "contentType", "cookingMethod", "scanCompleteness", "queriesToSearch"]
-            },
-            onStream: isStream ? (chunk: string, isThought?: boolean) => {
-              if (isThought) {
-                sendStreamEvent({ type: 'stream', stage: 'scout', thought: chunk });
-              } else {
-                sendStreamEvent({ type: 'stream', stage: 'scout', chunk });
-              }
-            } : undefined
-          });
-        } catch (scoutErr: any) {
-          addDebugLog(`[Vision Scout Failed] (${scoutErr.message}). Skipping fallback and throwing error to user...`);
-          throw new Error(`Vision Scout Failed: ${scoutErr.message}. Please try again or change the agent manually.`);
+              onStream: isStream ? (chunk: string, isThought?: boolean) => {
+                if (isThought) {
+                  sendStreamEvent({ type: 'stream', stage: 'scout', thought: chunk });
+                } else {
+                  sendStreamEvent({ type: 'stream', stage: 'scout', chunk });
+                }
+              } : undefined
+            });
+
+            scoutResult = parseAndHealVisionScout(scoutOutput, addDebugLog);
+            break; // Success! Break out of the loop
+          } catch (scoutErr: any) {
+            lastScoutErr = scoutErr;
+            addDebugLog(`[Vision Scout Attempt ${scoutAttempts} Failed] Error: ${scoutErr.message}`);
+          }
         }
 
-          const scoutResult = parseAndHealVisionScout(scoutOutput, addDebugLog);
-          
-          // Vision Scout scratchpad is removed per user request
+        if (!scoutResult) {
+          addDebugLog(`[Vision Scout Failed Permanently] Both attempts failed. Last error: ${lastScoutErr?.message}`);
+          throw new Error(`Vision Scout Failed: Couldn't reliably read this image, please try again or re-upload. (Details: ${lastScoutErr?.message})`);
+        }
+
+        // Vision Scout scratchpad is removed per user request
 
           visionScoutItems = scoutResult.items;
           scoutConfidenceRating = scoutResult.scoutConfidenceRating;
@@ -2634,7 +2650,7 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
       const coreKeys = ["calories", "protein", "totalFat", "saturatedFat", "transFat", "carbohydrates", "addedSugar", "sodium", "potassium", "totalFibre", "solubleFibre"];
 
       let primaryDbId: string | null = null;
-      let primaryDbSource: string = "usda";
+      let primaryDbSource: string = "estimated";
       let primaryBaseMatchName: string | null = null;
       let primaryBase100g: Record<string, number> | null = null;
       let primaryBaseWeightG: number = itemWeight;
@@ -2997,10 +3013,16 @@ app.post("/api/gemini/food-analyze", async (req, res) => {
     }
 
     // 2. Prepend active state to Master System Instructions
+    let effectiveActiveMeal = activeMeal;
+    if (scoutRecommendedMode === "new_log") {
+      addDebugLog(`[State Isolation] scoutRecommendedMode is 'new_log'. Isolating activeMeal context so Dietitian operates on clean state.`);
+      effectiveActiveMeal = null;
+    }
+
     const systemInstruction = buildFoodAnalyzeInstruction({
       biomarkersNeedingImprovement,
       remainingAllowance,
-      activeMeal: activeMeal,
+      activeMeal: effectiveActiveMeal,
       compareItemCount: visionScoutItems ? visionScoutItems.length : 0
     });
 
@@ -3655,7 +3677,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
                 primaryBaseWeightG: preMatch.primaryBaseWeightG || item.weightGrams,
                 saucesDetailList: preMatch.saucesDetailList || [],
                 cookingAdded: preMatch.cookingAdded || { addedCalories: 0, addedFat: 0, addedSaturatedFat: 0, addedSodium: 0 },
-                dbSource: preMatch.bestMatchDbSource || "usda",
+                dbSource: preMatch.bestMatchDbSource || "estimated",
                 dbId: preMatch.bestMatchDbId
               };
             }
@@ -3687,7 +3709,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           if (preMatch && preMatch.bestMatchDbId) {
             return {
               ...item,
-              dbSource: preMatch.bestMatchDbSource || "usda",
+              dbSource: preMatch.bestMatchDbSource || "estimated",
               dbId: preMatch.bestMatchDbId
             };
           }
