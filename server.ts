@@ -3769,6 +3769,10 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           // Row 1: Main Item Header Row with total weight
           receiptTable += `| **${idx + 1}. ${it.name}**${badge} - ${itemWeightG}g${visualBreakdownStr} | - | - | - | - |\n`;
 
+          // Row 1b: Original value received into this ledger stage (pre-recalculation),
+          // shown for debugging so any discrepancy vs the deterministic recompute below is visible.
+          receiptTable += `| *Original (pre-ledger) value* | ${fVal(originalItemCal)} | ${fVal(originalItemP, 'g')} | ${fVal(originalItemSatFat, 'g')} | ${fVal(originalItemNa, 'mg')} |\n`;
+
           // Base Ingredient calculation
           let raw100 = { ...(it.primaryBase100g || it.labelNutrientsPerServing || {}) };
           const dbMatchObj = databaseMatchesArray ? databaseMatchesArray.find((m: any) => String(m.id) === String(it.dbId)) : null;
@@ -3871,7 +3875,13 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           if (cookingCal === 0 && cookingFat === 0 && cookingNa === 0 && rawMethod !== 'raw' && rawMethod !== 'unknown') {
             const kwLower = (it.keyword || it.name || "").toLowerCase();
             const foodMatrix = (kwLower.includes('potato') || kwLower.includes('chip') || kwLower.includes('fry') || kwLower.includes('wedge')) ? 'CELLULAR_STARCH' : 'WHOLE_FOOD';
-            const calcAdded = calculateUniversalAddedNutrients(foodMatrix, rawMethod, itemWeightG, 0.5, 0.5, 'casual_restaurant');
+            const isAlreadyPreparedReceipt = checkIfItemIsAlreadyPrepared(
+              it.originalName || it.keyword || it.name,
+              it.keyword || it.name,
+              it.dbSource,
+              base100Na
+            );
+            const calcAdded = calculateUniversalAddedNutrients(foodMatrix, rawMethod, itemWeightG, 0.5, 0.5, 'casual_restaurant', isAlreadyPreparedReceipt);
             cookingCal = Math.round(calcAdded.addedCalories);
             cookingFat = Math.round(calcAdded.addedFat * 10) / 10;
             cookingSatFat = Math.round(calcAdded.addedSaturatedFat * 10) / 10;
@@ -3944,6 +3954,19 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           sumSatFat = Math.round(sumSatFat * 10) / 10;
           sumCarbs = Math.round(sumCarbs * 10) / 10;
 
+          // Apply the same reality check used in the pre-calculation pass so the
+          // ledger/saved totals never exceed physiologically realistic levels
+          const receiptRealityCheckNutrients: Record<string, number> = { calories: sumCal, protein: sumP, totalFat: sumFat, saturatedFat: sumSatFat, sodium: sumNa };
+          applyNutrientRealityChecks(
+            it.originalName || it.keyword || it.name,
+            itemWeightG,
+            receiptRealityCheckNutrients,
+            cookingNa,
+            addDebugLog
+          );
+          sumNa = receiptRealityCheckNutrients.sodium;
+          sumP = receiptRealityCheckNutrients.protein;
+
           const itemCal = sumCal;
           const itemP = sumP;
           const itemFat = sumFat;
@@ -3959,7 +3982,7 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
           it.sodium = itemNa;
           it.carbohydrates = itemCarbs;
 
-          // Assert and log loud console error if mismatch
+          // Assert and log loud console error if mismatch, and surface it visibly in the table
           const diffCal = Math.abs(originalItemCal - itemCal);
           const diffP = Math.abs(originalItemP - itemP);
           const diffSatFat = Math.abs(originalItemSatFat - itemSatFat);
@@ -3969,6 +3992,12 @@ If MODE D (evaluation/comparison) applies: reference every item ONLY by its Inde
             console.error(`[Math Integrity Failure] Item "${it.name}" has mismatched subtotal!\n` +
                           `Sum of Component Rows: Cal=${itemCal}, P=${itemP}, SatFat=${itemSatFat}, Na=${itemNa}\n` +
                           `Original Item Nutrients: Cal=${originalItemCal}, P=${originalItemP}, SatFat=${originalItemSatFat}, Na=${originalItemNa}`);
+            const deltaParts: string[] = [];
+            if (diffCal > 1.1) deltaParts.push(`Cal Δ${itemCal - originalItemCal > 0 ? '+' : ''}${Math.round((itemCal - originalItemCal) * 10) / 10}`);
+            if (diffP > 0.15) deltaParts.push(`Protein Δ${itemP - originalItemP > 0 ? '+' : ''}${Math.round((itemP - originalItemP) * 10) / 10}g`);
+            if (diffSatFat > 0.15) deltaParts.push(`SatFat Δ${itemSatFat - originalItemSatFat > 0 ? '+' : ''}${Math.round((itemSatFat - originalItemSatFat) * 10) / 10}g`);
+            if (diffNa > 1.1) deltaParts.push(`Sodium Δ${itemNa - originalItemNa > 0 ? '+' : ''}${Math.round(itemNa - originalItemNa)}mg`);
+            receiptTable += `| ↳ *Recalculation note: differs from original pre-ledger value (${deltaParts.join(', ')})* | | | | |\n`;
           }
 
           // Row 5: Item Sub-Total
